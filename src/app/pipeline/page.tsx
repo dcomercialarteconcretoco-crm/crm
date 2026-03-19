@@ -1,0 +1,1133 @@
+"use client";
+
+import React, { useState, useEffect, useRef } from 'react';
+import {
+    DndContext,
+    closestCorners,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+    DragStartEvent,
+    DragOverlay,
+    useDroppable,
+} from '@dnd-kit/core';
+import {
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+    useSortable,
+    arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
+    Plus,
+    User,
+    Mail,
+    Phone,
+    X,
+    Trash,
+    Edit3,
+    CheckCircle2,
+    AlertCircle,
+    Settings2,
+    Building2,
+    UserPlus,
+    Tag,
+    DollarSign,
+    Lock,
+    ShieldCheck,
+    MapPin,
+    Briefcase,
+    Upload
+} from 'lucide-react';
+import { clsx } from 'clsx';
+import { useApp, Task, Activity, Seller, Client } from '@/context/AppContext';
+import SearchableSelect from '@/components/SearchableSelect';
+
+// --- Components ---
+
+function SortableTask({ task, onClick }: { task: Task, onClick: (task: Task) => void }) {
+    const { sellers } = useApp();
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id: task.id });
+
+    const style = {
+        transform: CSS.Translate.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    const assignedSeller = sellers.find(s => s.name === task.assignedTo);
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            {...attributes}
+            {...listeners}
+            onClick={() => onClick(task)}
+            className="bg-[#141417] border border-white/5 p-4 rounded-2xl space-y-4 cursor-grab active:cursor-grabbing hover:border-primary/40 transition-all hover:bg-muted/50 group shadow-lg"
+        >
+            <div className="flex justify-between items-start">
+                <span className={clsx(
+                    "px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border",
+                    task.priority === 'High' ? "bg-rose-500/10 text-rose-500 border-rose-500/20" :
+                        task.priority === 'Medium' ? "bg-amber-500/10 text-amber-500 border-amber-500/20" :
+                            "bg-sky-500/10 text-sky-500 border-sky-500/20"
+                )}>
+                    {task.priority}
+                </span>
+                <div className="flex items-center gap-1">
+                    <div className={clsx(
+                        "w-2 h-2 rounded-full",
+                        task.aiScore > 80 ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" :
+                            task.aiScore > 50 ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" :
+                                "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]"
+                    )} />
+                    <span className="text-[10px] font-black opacity-40">{task.aiScore}</span>
+                </div>
+            </div>
+
+            <div className="space-y-1">
+                <h4 className="text-xs font-black text-white group-hover:text-primary transition-colors leading-tight">{task.title}</h4>
+                <div className="flex flex-col gap-0.5 opacity-60">
+                    <p className="text-[8px] text-white font-bold uppercase tracking-widest flex items-center gap-1.5">
+                        <User className="w-2.5 h-2.5" />
+                        {task.contactName}
+                    </p>
+                    <p className="text-[8px] text-white/40 font-bold uppercase tracking-widest flex items-center gap-1.5">
+                        <Building2 className="w-2.5 h-2.5" />
+                        {task.client}
+                    </p>
+                </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-between border-t border-white/5">
+                <span className="text-xs font-black text-white">{task.value}</span>
+                <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-black text-muted-foreground uppercase">{task.assignedTo?.split(' ')[0]}</span>
+                    <div className="w-7 h-7 rounded-full overflow-hidden border border-primary/20 bg-primary/10 flex items-center justify-center">
+                        {assignedSeller?.avatar ? (
+                            <img src={assignedSeller.avatar} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                            <User className="w-3.5 h-3.5 text-primary" />
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// --- Main Page ---
+
+interface Column {
+    id: string;
+    title: string;
+    tasks: Task[];
+}
+
+// --- Droppable Column ---
+function Droppable({ id, children }: { id: string, children: React.ReactNode }) {
+    const { setNodeRef } = useDroppable({ id });
+    return (
+        <div ref={setNodeRef} className="flex-1 bg-white/[0.02] rounded-[3rem] p-5 space-y-5 border border-white/5 min-h-[600px] shadow-2xl backdrop-blur-xl">
+            {children}
+        </div>
+    );
+}
+
+// Replaced by useApp() products
+
+export default function PipelinePage() {
+    const { tasks, clients, sellers, addTask, addQuote, addNotification, addAuditLog, updateTask, deleteTask, addClient, settings, products } = useApp();
+
+    const [columns, setColumns] = useState<Column[]>([
+        { id: 'lead', title: 'Nuevo Lead', tasks: [] },
+        { id: 'contacted', title: 'Contactado', tasks: [] },
+        { id: 'qualified', title: 'Calificado', tasks: [] },
+        { id: 'proposal', title: 'Propuesta Enviada', tasks: [] },
+        { id: 'won', title: '✅ Venta Cerrada', tasks: [] },
+    ]);
+
+    useEffect(() => {
+        setColumns([
+            { id: 'lead', title: 'Nuevo Lead', tasks: tasks.filter((t: any) => t.stageId === 'lead' || !t.stageId) },
+            { id: 'contacted', title: 'Contactado', tasks: tasks.filter((t: any) => t.stageId === 'contacted') },
+            { id: 'qualified', title: 'Calificado', tasks: tasks.filter((t: any) => t.stageId === 'qualified') },
+            { id: 'proposal', title: 'Propuesta Enviada', tasks: tasks.filter((t: any) => t.stageId === 'proposal') },
+            { id: 'won', title: '\u2705 Venta Cerrada', tasks: tasks.filter((t: any) => t.stageId === 'won') },
+        ]);
+    }, [tasks]);
+
+    const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+    const [activeTask, setActiveTask] = useState<Task | null>(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isNewModalOpen, setIsNewModalOpen] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [automationStep, setAutomationStep] = useState('');
+    const [showNewClientForm, setShowNewClientForm] = useState(false);
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Simulate current user (SuperAdmin)
+    const currentUser: Seller = sellers.find(s => s.role === 'SuperAdmin') || sellers[0];
+    const isSuperAdmin = currentUser?.role === 'SuperAdmin';
+
+    const [newDeal, setNewDeal] = useState({
+        title: '',
+        clientId: '',
+        priority: 'Medium' as 'High' | 'Medium' | 'Low',
+        stageId: 'lead',
+        assignedTo: '',
+        products: [] as { id: string, name: string, price: number, quantity: number }[]
+    });
+
+    const [inlineClient, setInlineClient] = useState<{
+        name: string,
+        company: string,
+        email: string,
+        city: string,
+        category: string
+    }>({
+        name: '',
+        company: '',
+        email: '',
+        city: settings.cities[0]?.name || 'Bogotá',
+        category: settings.sectors[0] || 'Infraestructura'
+    });
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    );
+
+    const handleTaskClick = (task: Task) => {
+        setSelectedTask(task);
+        setIsEditModalOpen(true);
+    };
+
+    const addProductToNewDeal = (productId: string) => {
+        const product = products.find(p => p.id === productId);
+        if (product) {
+            setNewDeal(prev => ({
+                ...prev,
+                products: [...prev.products, { id: product.id, name: product.name, price: product.price, quantity: 1 }]
+            }));
+        }
+    };
+
+    const calculateNewDealTotal = () => {
+        return newDeal.products.reduce((acc, p) => acc + (p.price * p.quantity), 0);
+    };
+
+    // ============================================================
+    // PRODUCTION ORDER: Send email when deal is WON
+    // ============================================================
+    const sendProductionOrder = async (task: Task, products: { name: string, price: number, quantity: number }[]) => {
+        const recipientEmails = (settings as any).productionEmails || [];
+        if (recipientEmails.length === 0) {
+            console.warn('No hay correos de producción configurados en Settings.');
+            addNotification({
+                title: 'Sin destinatarios',
+                description: 'Configura los correos de producción en Configuración > Integraciones.',
+                type: 'alert'
+            });
+            return;
+        }
+
+        const orderNumber = `OP-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000) + 1000}`;
+        const payload = {
+            orderNumber,
+            clientName: task.contactName || task.client,
+            clientCompany: task.client,
+            sellerName: task.assignedTo || 'Equipo Comercial',
+            products: products.length > 0 ? products : [{ name: task.title, price: task.numericValue, quantity: 1 }],
+            totalValue: task.numericValue,
+            dealTitle: task.title,
+            quoteId: task.quoteId || 'N/A',
+            date: new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+            recipientEmails,
+            notes: `Venta registrada por ${task.assignedTo || 'el equipo comercial'} via CRM Intelligence.`
+        };
+
+        try {
+            const res = await fetch('/api/production-order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...payload,
+                    api_key: settings.resendKey
+                })
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                addNotification({
+                    title: `\ud83d\udce7 Orden ${orderNumber} Enviada`,
+                    description: `Producción notificada a: ${recipientEmails.join(', ')}`,
+                    type: 'success'
+                });
+                addAuditLog({
+                    userId: currentUser.id,
+                    userName: currentUser.name,
+                    userRole: isSuperAdmin ? 'SuperAdmin' : 'Vendedor',
+                    action: 'SALE_REGISTERED',
+                    targetName: task.client,
+                    details: `Orden de Producción ${orderNumber} enviada automáticamente a producción. ($${task.numericValue.toLocaleString()})`,
+                    verified: true
+                });
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (error) {
+            console.error('Error enviando orden de producción:', error);
+            addNotification({
+                title: 'Error en Orden de Producción',
+                description: 'La venta se registró pero no se pudo enviar el correo. Revisa la configuración de Resend.',
+                type: 'alert'
+            });
+        }
+    };
+
+    const handleCreateDeal = async () => {
+        setIsProcessing(true);
+        let finalClientId = newDeal.clientId;
+
+        // 1. Create client inline if needed
+        if (showNewClientForm) {
+            setAutomationStep('Registrando Nuevo Socio Industrial...');
+            const newId = addClient({
+                name: inlineClient.name,
+                company: inlineClient.company,
+                email: inlineClient.email,
+                phone: '',
+                status: 'Lead',
+                value: '$0',
+                ltv: 0,
+                lastContact: 'Hace un momento',
+                city: inlineClient.city,
+                score: 80,
+                category: inlineClient.category,
+                registrationDate: new Date().toISOString().split('T')[0]
+            });
+            finalClientId = newId;
+
+            addAuditLog({
+                userId: currentUser.id,
+                userName: currentUser.name,
+                userRole: isSuperAdmin ? 'SuperAdmin' : 'Vendedor',
+                action: 'LEAD_CREATED',
+                targetId: newId,
+                targetName: inlineClient.company,
+                details: `Registro manual de nuevo lead: ${inlineClient.name} (${inlineClient.company})`,
+                verified: true
+            });
+
+            await new Promise(r => setTimeout(r, 800));
+        }
+
+        setAutomationStep('Generando Cotización PDF...');
+        await new Promise(r => setTimeout(r, 1200));
+        setAutomationStep('Configurando Tracking de Apertura...');
+        await new Promise(r => setTimeout(r, 1000));
+        setAutomationStep('Enviando Propuesta a Cliente...');
+        await new Promise(r => setTimeout(r, 1000));
+
+        // Reduce stock in WooCommerce for each product added to the deal
+        if (newDeal.products.length > 0) {
+            setAutomationStep('Descontando inventario en WooCommerce...');
+            try {
+                // To keep it simple in this batch, we make parallel calls for each product to our proxy API
+                await Promise.all(newDeal.products.map(async (p) => {
+                    // Note: Since INVENTORY_PREVIEW doesn't have wooId natively, 
+                    // this requires the actual inventory endpoint data. 
+                    // If you select from fetchProducts data (which has wooId), use it here.
+                    const pData = p as any;
+                    if (pData.wooId) {
+                        try {
+                            // Update the stock directly via our proxy
+                            const qty = parseInt(p.quantity as any) || 1;
+                            const updatePayload = {
+                                manage_stock: true, // Ensure stock tracking is enabled
+                                stock_quantity: (pData.stock || 0) - qty // Decrease by quantity sold
+                            };
+
+                            const res = await fetch(`/api/woocommerce?id=${pData.wooId}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(updatePayload)
+                            });
+
+                            if (!res.ok) console.warn(`No se pudo actualizar stock de ${p.name} en Woo`);
+                        } catch (e) {
+                            console.warn(`Falló sync de stock para ${p.name}`);
+                        }
+                    }
+                }));
+            } catch (error) {
+                console.error("WooCommerce Sync Error", error);
+            }
+        }
+
+        // Use standard clients list (which now includes the new one if added)
+        // Refresh local clients ref or just rely on state? Since we just added it, we need to wait for state if we access 'clients' directly. 
+        // But better to construct the data manually for this run.
+        const clientCompany = showNewClientForm ? inlineClient.company : clients.find(c => c.id === finalClientId)?.company || 'Cliente';
+        const clientName = showNewClientForm ? inlineClient.name : clients.find(c => c.id === finalClientId)?.name || 'Contacto';
+
+        const total = calculateNewDealTotal();
+        const quoteId = `QT-2026-${Math.floor(Math.random() * 900) + 100}`;
+        const actualSeller = isSuperAdmin
+            ? (sellers.find(s => s.id === newDeal.assignedTo) || currentUser)
+            : currentUser;
+
+        const newTask: Omit<Task, 'id'> = {
+            title: newDeal.title || 'Nuevo Negocio',
+            client: clientCompany,
+            clientId: finalClientId,
+            contactName: clientName,
+            value: `$${total.toLocaleString()}`,
+            numericValue: total,
+            priority: newDeal.priority,
+            tags: ['Nuevo', 'Cotizado'],
+            aiScore: Math.floor(Math.random() * 20) + 75,
+            source: 'Web',
+            assignedTo: actualSeller.name,
+            quoteId,
+            activities: [
+                { id: `sys-${Date.now()}`, type: 'system', content: `Negocio creado. Cotización ${quoteId} generada y enviada satisfactoriamente por ${actualSeller.name}.`, timestamp: new Date() }
+            ],
+            stageId: newDeal.stageId
+        };
+
+        const actualTaskId = addTask(newTask);
+
+        addQuote({
+            number: quoteId,
+            client: clientCompany,
+            clientId: finalClientId,
+            date: new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }),
+            total: `$${total.toLocaleString()}`,
+            numericTotal: total,
+            status: 'Sent',
+            taskId: actualTaskId
+        });
+
+        addNotification({
+            title: 'Negocio Operativo',
+            description: `Se ha vinculado a ${clientCompany} con el vendedor ${actualSeller.name}.`,
+            type: 'success'
+        });
+
+        // Audit the quote sending
+        addAuditLog({
+            userId: actualSeller.id,
+            userName: actualSeller.name,
+            userRole: sellers.find(s => s.id === actualSeller.id)?.role || 'Vendedor',
+            action: 'QUOTE_SENT',
+            targetId: actualTaskId,
+            targetName: clientCompany,
+            details: `Cotización ${quoteId} generada y enviada satisfactoriamente vía Motor IA`,
+            verified: true
+        });
+
+        setIsProcessing(false);
+        setIsNewModalOpen(false);
+        setShowNewClientForm(false);
+        setNewDeal({ title: '', clientId: '', priority: 'Medium', stageId: 'lead', assignedTo: '', products: [] });
+        setInlineClient({ name: '', company: '', email: '', city: settings.cities[0]?.name || 'Bogotá', category: settings.sectors[0] || 'Infraestructura' });
+    };
+
+    const handleDelete = () => {
+        if (selectedTask) {
+            deleteTask(selectedTask.id);
+
+            addAuditLog({
+                userId: currentUser.id,
+                userName: currentUser.name,
+                userRole: isSuperAdmin ? 'SuperAdmin' : 'Vendedor',
+                action: 'TASK_DELETED',
+                targetId: selectedTask.id,
+                targetName: selectedTask.client,
+                details: `Eliminación de negocio: "${selectedTask.title}" (${selectedTask.client})`,
+                verified: true
+            });
+
+            setIsEditModalOpen(false);
+            setSelectedTask(null);
+        }
+    };
+
+    const logAction = (type: Activity['type'], content: string) => {
+        if (!selectedTask) return;
+        const newActivity: Activity = {
+            id: Date.now().toString(),
+            type,
+            content,
+            timestamp: new Date()
+        };
+        updateTask(selectedTask.id, {
+            activities: [newActivity, ...selectedTask.activities]
+        });
+    };
+
+    const onDragStart = (event: DragStartEvent) => {
+        const { active } = event;
+        const task = tasks.find(t => t.id === active.id);
+        if (task) setActiveTask(task);
+    };
+
+    const onDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        setActiveTask(null);
+
+        if (!over) return;
+
+        const activeId = active.id as string;
+        const overId = over.id as string;
+
+        const movedTask = tasks.find(t => t.id === activeId);
+        if (!movedTask) return;
+
+        // Determine destination column
+        const column = columns.find(c => c.id === overId);
+        const otherTask = tasks.find(t => t.id === overId);
+        const destColId = column ? column.id : (otherTask ? (otherTask as any).stageId : null);
+
+        if (destColId && (movedTask as any).stageId !== destColId) {
+            updateTask(activeId, { stageId: destColId } as any);
+
+            addAuditLog({
+                userId: currentUser.id,
+                userName: currentUser.name,
+                userRole: isSuperAdmin ? 'SuperAdmin' : 'Vendedor',
+                action: 'LEAD_STATUS_CHANGE',
+                targetId: activeId,
+                targetName: movedTask.client,
+                details: `Cambio de etapa: ${(movedTask as any).stageId || 'lead'} → ${destColId}`,
+                verified: true
+            });
+
+            // PRODUCTION ORDER AUTO-TRIGGER: when deal reaches 'won' stage
+            if (destColId === 'won' || destColId === 'closed') {
+                addNotification({
+                    title: '🎉 ¡Venta Cerrada!',
+                    description: `${movedTask.client} — $${movedTask.numericValue.toLocaleString()} COP. Enviando Orden de Producción...`,
+                    type: 'success'
+                });
+                // Fire production email (non-blocking, no await to keep UI fast)
+                sendProductionOrder(movedTask, []);
+            }
+        }
+    };
+
+    const handleImportClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const text = e.target?.result as string;
+            if (!text) return;
+
+            const lines = text.split('\n');
+            let importedCount = 0;
+
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+
+                const values = [];
+                let inQuotes = false;
+                let currentValue = '';
+                for (let j = 0; j < line.length; j++) {
+                    const char = line[j];
+                    if (char === '"' && line[j + 1] === '"') {
+                        currentValue += '"'; j++;
+                    } else if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        values.push(currentValue); currentValue = '';
+                    } else {
+                        currentValue += char;
+                    }
+                }
+                values.push(currentValue);
+
+                if (values.length >= 10) {
+                    const contactName = values[1] || 'Desconocido';
+                    const email = values[2] || '';
+                    const phone = values[3] || '';
+                    const rawStage = values[4]?.toLowerCase() || '';
+                    const source = values[5] || 'CRM Antiguo';
+                    const numericValue = parseInt(values[6]?.replace(/[^0-9]/g, '')) || 0;
+                    const valueStr = numericValue > 0 ? `$${numericValue.toLocaleString()}` : '$0';
+                    const aiScore = parseInt(values[7]) || 75;
+                    const title = values[8] || 'Nuevo Negocio Importado';
+                    const assignedTo = values[9] || 'Sin Asignar';
+                    const rawNotes = values[10] || '';
+                    const creationDate = values[11] || new Date().toISOString().split('T')[0];
+
+                    let stageId = 'lead';
+                    if (rawStage.includes('contact') || rawStage.includes('llamada')) stageId = 'contacted';
+                    if (rawStage.includes('propos') || rawStage.includes('cotiza')) stageId = 'proposal';
+                    if (rawStage.includes('calif') || rawStage.includes('qualif')) stageId = 'qualified';
+
+                    const splitNotes = rawNotes.split('|').filter((n: string) => n.trim().length > 0);
+                    const activities: Activity[] = splitNotes.map((note: string, idx: number) => ({
+                        id: `act-${Date.now()}-${idx}`,
+                        type: 'note',
+                        content: note.trim(),
+                        timestamp: new Date()
+                    }));
+
+                    if (activities.length === 0) {
+                        activities.push({
+                            id: `act-${Date.now()}-init`,
+                            type: 'system',
+                            content: 'Lead importado desde sistema heredado.',
+                            timestamp: new Date(creationDate)
+                        });
+                    }
+
+                    const clientId = addClient({
+                        name: contactName,
+                        company: 'Empresa',
+                        email,
+                        phone,
+                        status: 'Lead',
+                        value: valueStr,
+                        ltv: 0,
+                        lastContact: new Date().toISOString(),
+                        city: 'Desconocida',
+                        score: aiScore,
+                        category: 'Importación',
+                        registrationDate: creationDate
+                    });
+
+                    addTask({
+                        title,
+                        client: 'Empresa',
+                        clientId,
+                        contactName,
+                        value: valueStr,
+                        numericValue,
+                        priority: numericValue > 10000000 ? 'High' : 'Medium',
+                        tags: ['Importado'],
+                        aiScore,
+                        source,
+                        assignedTo,
+                        activities,
+                        stageId
+                    });
+
+                    importedCount++;
+                }
+            }
+
+            addNotification({
+                title: 'Importación Exitosa',
+                description: `Se importaron ${importedCount} leads al Pipeline.`,
+                type: 'success'
+            });
+
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        };
+        reader.readAsText(file);
+    };
+
+    return (
+        <div className="h-full flex flex-col space-y-8 animate-in fade-in duration-700 pb-20">
+            {/* Header Section */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 px-2 lg:px-0">
+                <div>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-2xl lg:text-3xl font-black tracking-tighter text-white uppercase italic">Sales Pipeline</h1>
+                        <span className="text-[10px] bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20 font-black tracking-widest uppercase">Motor V3.2</span>
+                    </div>
+                    <p className="text-muted-foreground text-xs lg:text-sm font-medium mt-1">Gestión integral de leads y sincronización operativa en tiempo real.</p>
+                </div>
+                <div className="flex flex-col lg:flex-row items-center gap-3 w-full lg:w-auto">
+                    <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                    <button
+                        onClick={handleImportClick}
+                        className="flex-1 lg:flex-none border border-border/40 bg-card text-foreground font-black px-6 py-4 rounded-2xl flex items-center justify-center gap-2 hover:scale-[1.02] hover:bg-muted/30 active:scale-[0.98] transition-all text-[10px] uppercase tracking-[0.2em]"
+                    >
+                        <Upload className="w-5 h-5" />
+                        <span>Importar CSV</span>
+                    </button>
+                    <button
+                        onClick={() => setIsNewModalOpen(true)}
+                        className="flex-1 lg:flex-none bg-primary text-black font-black px-8 py-4 rounded-2xl flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-primary/20 text-[10px] uppercase tracking-[0.2em]"
+                    >
+                        <Plus className="w-5 h-5" />
+                        <span>Abrir Negocio</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* Pipeline View */}
+            <div className="flex-1 overflow-x-auto pb-8 custom-scrollbar scroll-smooth">
+                <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCorners}
+                    onDragStart={onDragStart}
+                    onDragEnd={onDragEnd}
+                >
+                    <div className="flex flex-nowrap gap-6 min-w-max px-2">
+                        {columns.map((column) => (
+                            <div key={column.id} className="w-[320px] lg:w-[380px] flex flex-col space-y-6 shrink-0">
+                                <div className="px-2 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-[10px] font-black uppercase tracking-[0.25em] text-white/90 truncate">{column.title}</h3>
+                                        <div className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[10px] font-black text-white/40">{column.tasks.length}</div>
+                                    </div>
+                                    <div className="flex items-center justify-between bg-white/[0.03] border border-white/5 px-5 py-3 rounded-2xl backdrop-blur-md">
+                                        <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">Pipeline Value</span>
+                                        <span className="text-xs font-black text-primary">
+                                            ${column.tasks.reduce((acc, t) => acc + t.numericValue, 0).toLocaleString()}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="flex-1">
+                                    <Droppable id={column.id}>
+                                        <SortableContext items={column.tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                                            <div className="flex flex-col gap-4 min-h-[500px]">
+                                                {column.tasks.map((task) => (
+                                                    <SortableTask key={task.id} task={task} onClick={handleTaskClick} />
+                                                ))}
+                                                {column.tasks.length === 0 && (
+                                                    <div className="h-60 border-2 border-dashed border-white/5 rounded-[2.5rem] flex flex-col items-center justify-center text-white/10 gap-3 opacity-30 mt-10">
+                                                        <AlertCircle className="w-6 h-6" />
+                                                        <span className="text-[10px] font-black uppercase tracking-widest">Sin Actividad</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </SortableContext>
+                                    </Droppable>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <DragOverlay>
+                        {activeTask ? (
+                            <div className="w-80 lg:w-[calc(100%-40px)] rotate-3 shadow-2xl opacity-90 cursor-grabbing pointer-events-none scale-105 z-[1000]">
+                                <SortableTask task={activeTask} onClick={() => { }} />
+                            </div>
+                        ) : null}
+                    </DragOverlay>
+                </DndContext>
+            </div>
+
+            {/* New Deal Modal */}
+            {isNewModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-3xl animate-in fade-in duration-500">
+                    <div className="bg-[#0a0a0b] border border-white/10 w-full max-w-5xl rounded-[3.5rem] overflow-hidden shadow-[0_0_100px_rgba(250,181,16,0.1)] flex flex-col h-[90vh] animate-in zoom-in-95 duration-500">
+                        <div className="p-10 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+                            <div>
+                                <h2 className="text-3xl font-black tracking-tighter text-white italic uppercase">Configuración de Oferta</h2>
+                                <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest mt-1">Sincronización operativa directa</p>
+                            </div>
+                            <X className="w-8 h-8 text-white/20 cursor-pointer hover:text-white transition-colors" onClick={() => setIsNewModalOpen(false)} />
+                        </div>
+
+                        <div className="p-10 overflow-y-auto flex-1 custom-scrollbar">
+                            <div className="grid grid-cols-2 gap-12">
+                                <div className="space-y-8">
+                                    {/* Deal Title */}
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-primary uppercase ml-2 tracking-widest">Identificador del Negocio</label>
+                                        <div className="relative">
+                                            <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                                            <input
+                                                type="text"
+                                                placeholder="Ej: Suministro Boscán - Fase 1"
+                                                value={newDeal.title}
+                                                onChange={(e) => setNewDeal({ ...newDeal, title: e.target.value })}
+                                                className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 outline-none focus:border-primary text-white font-bold transition-all"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Client Selection / Inline Creation */}
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between px-2">
+                                            <label className="text-[10px] font-black text-primary uppercase tracking-widest">Socio Industrial</label>
+                                            <button
+                                                onClick={() => setShowNewClientForm(!showNewClientForm)}
+                                                className="text-[9px] font-black text-sky-500 uppercase flex items-center gap-1.5 hover:text-sky-400 transition-colors"
+                                            >
+                                                {showNewClientForm ? (
+                                                    <><X className="w-3 h-3" /> Cancelar Nuevo</>
+                                                ) : (
+                                                    <><UserPlus className="w-3 h-3" /> Registrar Nuevo</>
+                                                )}
+                                            </button>
+                                        </div>
+
+                                        {!showNewClientForm ? (
+                                            <div className="relative">
+                                                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                                                <select
+                                                    value={newDeal.clientId}
+                                                    onChange={(e) => setNewDeal({ ...newDeal, clientId: e.target.value })}
+                                                    className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white font-bold outline-none focus:border-primary appearance-none"
+                                                >
+                                                    <option value="" className="bg-[#0a0a0b]">Vincular Cliente existente...</option>
+                                                    {clients.map(c => (
+                                                        <option key={c.id} value={c.id} className="bg-[#0a0a0b]">{c.company} • {c.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl animate-in slide-in-from-top-2 duration-300">
+                                                <div className="space-y-3">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Nombre de la Empresa"
+                                                        value={inlineClient.company}
+                                                        onChange={(e) => setInlineClient({ ...inlineClient, company: e.target.value })}
+                                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-bold outline-none"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Nombre del Contacto"
+                                                        value={inlineClient.name}
+                                                        onChange={(e) => setInlineClient({ ...inlineClient, name: e.target.value })}
+                                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-bold outline-none"
+                                                    />
+                                                    <input
+                                                        type="email"
+                                                        placeholder="Email Corporativo"
+                                                        value={inlineClient.email}
+                                                        onChange={(e) => setInlineClient({ ...inlineClient, email: e.target.value })}
+                                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-bold outline-none"
+                                                    />
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <SearchableSelect
+                                                            options={settings.cities}
+                                                            value={inlineClient.city}
+                                                            onChange={(val) => setInlineClient({ ...inlineClient, city: val })}
+                                                            placeholder="Ciudad"
+                                                        />
+                                                        <select
+                                                            value={inlineClient.category}
+                                                            onChange={(e) => setInlineClient({ ...inlineClient, category: e.target.value })}
+                                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-bold outline-none appearance-none"
+                                                        >
+                                                            {settings.sectors.map(sector => (
+                                                                <option key={sector} value={sector} className="bg-[#0a0a0b]">{sector}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Seller Assignment - SUPERADMIN EXCLUSIVE */}
+                                    <div className="space-y-3 p-6 bg-primary/[0.02] border border-primary/20 rounded-3xl relative overflow-hidden group">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div className="flex flex-col">
+                                                <label className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-2">
+                                                    Asignación de Equipo
+                                                    {isSuperAdmin ? <ShieldCheck className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5 text-white/20" />}
+                                                </label>
+                                                {!isSuperAdmin && <p className="text-[8px] font-bold text-white/40 uppercase mt-1">Solo SuperAdmin puede cambiar la asignación</p>}
+                                            </div>
+                                            {isSuperAdmin && <div className="text-[8px] font-black bg-primary text-black px-2 py-0.5 rounded-full uppercase tracking-tighter">Acceso Total</div>}
+                                        </div>
+
+                                        <div className="relative">
+                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full border border-primary/30 bg-primary/20 flex items-center justify-center overflow-hidden">
+                                                {isSuperAdmin ? (
+                                                    sellers.find(s => s.id === newDeal.assignedTo)?.avatar ? (
+                                                        <img src={sellers.find(s => s.id === newDeal.assignedTo)?.avatar} className="w-full h-full object-cover" />
+                                                    ) : <User className="w-4 h-4 text-primary" />
+                                                ) : <img src={currentUser.avatar} className="w-full h-full object-cover" />}
+                                            </div>
+                                            <select
+                                                value={isSuperAdmin ? newDeal.assignedTo : currentUser.id}
+                                                disabled={!isSuperAdmin}
+                                                onChange={(e) => setNewDeal({ ...newDeal, assignedTo: e.target.value })}
+                                                className={clsx(
+                                                    "w-full bg-white/5 border border-white/10 rounded-2xl pl-16 pr-4 py-5 text-sm font-black text-white outline-none transition-all appearance-none",
+                                                    isSuperAdmin ? "focus:border-primary cursor-pointer" : "opacity-60 cursor-not-allowed"
+                                                )}
+                                            >
+                                                <option value="" className="bg-[#0a0a0b]">Asignar responsable...</option>
+                                                {sellers.map(s => (
+                                                    <option key={s.id} value={s.id} className="bg-[#0a0a0b]">{s.name} ({s.role})</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-8">
+                                    {/* Product Selection */}
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black text-primary uppercase ml-2 tracking-widest">Configuración de Producto</label>
+                                        <select
+                                            onChange={(e) => { addProductToNewDeal(e.target.value); e.target.value = ''; }}
+                                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold outline-none focus:border-primary appearance-none"
+                                        >
+                                            <option value="" className="bg-[#0a0a0b]">Inyectar Ítems del Inventario...</option>
+                                            {products.map(p => (
+                                                <option key={p.id} value={p.id} className="bg-[#0a0a0b]">{p.name} • ${p.price.toLocaleString()}</option>
+                                            ))}
+                                        </select>
+
+                                        <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+                                            {newDeal.products.map((p, i) => (
+                                                <div key={i} className="flex items-center justify-between bg-white/[0.04] p-5 rounded-2xl border border-white/5 animate-in zoom-in-95">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-xs font-black text-white">{p.name}</span>
+                                                        <span className="text-[10px] font-bold text-white/30 tracking-tight mt-0.5">${p.price.toLocaleString()} / Und.</span>
+                                                    </div>
+                                                    <button onClick={() => setNewDeal({ ...newDeal, products: newDeal.products.filter((_, idx) => idx !== i) })} className="p-2 hover:bg-rose-500/20 hover:text-rose-500 rounded-lg text-white/20 transition-all">
+                                                        <X className="w-5 h-5" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            {newDeal.products.length === 0 && (
+                                                <div className="py-10 text-center border-2 border-dashed border-white/5 rounded-3xl opacity-20">
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em]">Ningún ítem cargado</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Totalizer */}
+                                    <div className="p-10 bg-white/[0.02] border border-white/5 rounded-[2.5rem] mt-auto relative overflow-hidden flex flex-col items-center justify-center text-center group">
+                                        <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        <p className="text-[10px] font-black uppercase text-primary mb-3 tracking-[0.3em]">VALOR TOTAL DE OFERTA</p>
+                                        <div className="flex items-baseline gap-2">
+                                            <span className="text-xl font-black text-primary/40">$</span>
+                                            <span className="text-5xl font-black text-white tracking-tighter leading-none">{calculateNewDealTotal().toLocaleString()}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-10 border-t border-white/5 flex items-center justify-between bg-white/[0.03]">
+                            <div className="flex items-center gap-4">
+                                {isProcessing && (
+                                    <div className="flex items-center gap-3 animate-pulse">
+                                        <div className="w-2 h-2 bg-primary rounded-full" />
+                                        <span className="text-[10px] font-black text-primary tracking-[0.1em] uppercase">{automationStep}</span>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="flex gap-4">
+                                <button
+                                    onClick={() => setIsNewModalOpen(false)}
+                                    className="px-10 py-5 rounded-2xl border border-white/10 text-white font-black uppercase text-[10px] tracking-widest hover:bg-white/5 transition-all"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleCreateDeal}
+                                    disabled={isProcessing || (!newDeal.clientId && !showNewClientForm) || !newDeal.title || newDeal.products.length === 0}
+                                    className="bg-primary text-black font-black px-12 py-5 rounded-2xl shadow-2xl shadow-primary/20 disabled:opacity-20 uppercase text-[10px] tracking-widest hover:scale-[1.05] active:scale-[0.95] transition-all flex items-center gap-3"
+                                >
+                                    {isProcessing ? (
+                                        <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                        <><ShieldCheck className="w-5 h-5" /> Confirmar Lanzamiento</>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Modal (Detalle del Negocio) */}
+            {isEditModalOpen && selectedTask && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/98 backdrop-blur-3xl animate-in fade-in duration-500">
+                    <div className="bg-[#0a0a0b] border border-white/10 w-full max-w-7xl rounded-[4rem] overflow-hidden flex h-[92vh] shadow-[0_0_150px_rgba(0,0,0,1)]">
+                        {/* Sidebar */}
+                        <div className="w-96 border-r border-white/5 p-12 flex flex-col space-y-10 bg-white/[0.01]">
+                            <div className="space-y-6">
+                                <div className="w-24 h-24 rounded-[2.5rem] bg-primary/10 border-2 border-primary/20 flex items-center justify-center shadow-2xl shadow-primary/10">
+                                    <Building2 className="w-10 h-10 text-primary" />
+                                </div>
+                                <div className="space-y-1">
+                                    <h2 className="text-2xl font-black text-white leading-none tracking-tighter uppercase italic">{selectedTask.client}</h2>
+                                    <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] opacity-80 mt-2">NEGOCIO: {selectedTask.id}</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-8 flex-1">
+                                <div className="space-y-4">
+                                    <p className="text-[9px] font-black text-white/20 uppercase tracking-[0.25em] ml-2">Asignación Operativa</p>
+                                    <div className={clsx(
+                                        "p-6 rounded-3xl border transition-all space-y-5",
+                                        isSuperAdmin ? "bg-primary/[0.03] border-primary/20" : "bg-white/5 border-white/5 opacity-80"
+                                    )}>
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-full border-2 border-primary/30 bg-primary/20 flex items-center justify-center overflow-hidden shadow-lg">
+                                                {sellers.find(s => s.name === selectedTask.assignedTo)?.avatar ? (
+                                                    <img src={sellers.find(s => s.name === selectedTask.assignedTo)?.avatar} className="w-full h-full object-cover" />
+                                                ) : <User className="w-5 h-5 text-primary" />}
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-[9px] font-black text-white/30 uppercase mb-1">Vendedor Cargo</p>
+                                                <select
+                                                    disabled={!isSuperAdmin}
+                                                    className={clsx(
+                                                        "bg-transparent text-xs font-black text-white outline-none w-full",
+                                                        !isSuperAdmin && "cursor-not-allowed"
+                                                    )}
+                                                    value={sellers.find(s => s.name === selectedTask.assignedTo)?.id || ''}
+                                                    onChange={(e) => {
+                                                        const s = sellers.find(sel => sel.id === e.target.value);
+                                                        if (s) updateTask(selectedTask.id, { assignedTo: s.name });
+                                                    }}
+                                                >
+                                                    {sellers.map(s => (
+                                                        <option key={s.id} value={s.id} className="bg-[#0a0a0b]">{s.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            {!isSuperAdmin && <Lock className="w-4 h-4 text-white/20" />}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button onClick={handleDelete} className="flex items-center gap-4 text-rose-500/40 hover:text-rose-500 transition-all group mt-auto p-4 rounded-2xl hover:bg-rose-500/5">
+                                <Trash className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em]">Cerrar/Eliminar Lead</span>
+                            </button>
+                        </div>
+
+                        {/* Main Content */}
+                        <div className="flex-1 p-16 flex flex-col bg-gradient-to-br from-transparent to-white/[0.01]">
+                            <div className="flex items-center justify-between mb-12">
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-4">
+                                        <h3 className="text-4xl font-black text-white tracking-tighter italic uppercase">{selectedTask.title}</h3>
+                                        <span className="px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-black text-white/40 uppercase tracking-widest">{selectedTask.aiScore} AI Score</span>
+                                    </div>
+                                    {selectedTask.quoteId && (
+                                        <p className="text-xs font-bold text-primary flex items-center gap-2">
+                                            <Tag className="w-3 h-3" />
+                                            COTIZACIÓN VINCULADA: {selectedTask.quoteId}
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-6">
+                                    <div className="px-8 py-4 bg-white/[0.03] border border-white/10 rounded-[2rem] flex items-center gap-4 group hover:border-primary/40 transition-all">
+                                        <DollarSign className="w-6 h-6 text-primary group-hover:scale-125 transition-transform" />
+                                        <span className="text-2xl font-black text-white tabular-nums tracking-tighter">{selectedTask.value}</span>
+                                    </div>
+                                    <button onClick={() => setIsEditModalOpen(false)} className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all">
+                                        <X className="w-6 h-6 text-white/20" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-16 flex-1 overflow-y-auto pr-8 custom-scrollbar">
+                                <div className="space-y-10">
+                                    <div className="p-10 bg-white/[0.03] rounded-[3rem] border border-white/5 relative overflow-hidden shadow-inner uppercase tracking-wide">
+                                        <div className="absolute top-0 right-0 p-8 opacity-5">
+                                            <UserPlus className="w-16 h-16 text-primary" />
+                                        </div>
+                                        <p className="text-[10px] font-black text-primary uppercase tracking-[0.25em] mb-10">Ficha Industrial del Cliente</p>
+                                        <div className="space-y-8">
+                                            <div className="flex items-center gap-6 group">
+                                                <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:border-primary/20 transition-all">
+                                                    <User className="w-6 h-6 text-white/20 group-hover:text-primary transition-colors" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] font-black text-white/20 uppercase tracking-widest mb-1">Interpuesto por / Contacto</p>
+                                                    <span className="text-lg font-bold text-white group-hover:text-primary transition-colors">{selectedTask.contactName}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-6 group">
+                                                <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:border-primary/20 transition-all">
+                                                    <Mail className="w-6 h-6 text-white/20 group-hover:text-primary transition-colors" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] font-black text-white/20 uppercase tracking-widest mb-1">Canal de Notificación</p>
+                                                    <span className="text-lg font-bold text-white group-hover:text-primary transition-colors">{selectedTask.email || 'c.mendoza@cbolivar.com'}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-6 group">
+                                                <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:border-primary/20 transition-all">
+                                                    <MapPin className="w-6 h-6 text-white/20 group-hover:text-primary transition-colors" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] font-black text-white/20 uppercase tracking-widest mb-1">Localización Operativa</p>
+                                                    <span className="text-lg font-bold text-white group-hover:text-primary transition-colors">{selectedTask.city || 'Bogotá, Colombia'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-6">
+                                        <button onClick={() => logAction('call', 'Intercambio comercial telefónico')} className="flex-1 bg-primary text-black p-8 rounded-[2.5rem] flex flex-col items-center gap-3 hover:scale-[1.05] shadow-[0_0_40px_rgba(250,181,16,0.2)] transition-all group">
+                                            <Phone className="w-8 h-8 group-hover:rotate-12 transition-transform" />
+                                            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Registrar Llamada</span>
+                                        </button>
+                                        <button onClick={() => logAction('email', 'Seguimiento especializado vía Email')} className="flex-1 bg-white/5 border border-white/10 text-white p-8 rounded-[2.5rem] flex flex-col items-center gap-3 hover:bg-white/10 transition-all group">
+                                            <Mail className="w-8 h-8 group-hover:-translate-y-1 transition-transform" />
+                                            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Enlace de Seguimiento</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-8">
+                                    <div className="flex items-center justify-between px-4">
+                                        <h3 className="text-xs font-black uppercase text-white/40 tracking-[0.3em]">Muro de Inteligencia</h3>
+                                        <span className="text-[9px] font-black uppercase text-emerald-500 flex items-center gap-2 px-3 py-1 bg-emerald-500/5 rounded-full border border-emerald-500/20">
+                                            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                                            Synced
+                                        </span>
+                                    </div>
+                                    <div className="space-y-5 max-h-[550px] overflow-y-auto pr-4 custom-scrollbar">
+                                        {selectedTask.activities.map(a => (
+                                            <div key={a.id} className="bg-white/[0.02] p-6 rounded-[2rem] border-l-2 border-primary/40 relative group hover:bg-white/[0.04] transition-all">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <div className={clsx(
+                                                        "w-1.5 h-1.5 rounded-full",
+                                                        a.type === 'system' ? "bg-primary" : a.type === 'call' ? "bg-sky-500" : "bg-emerald-500"
+                                                    )} />
+                                                    <p className="text-[10px] font-black text-white/20 uppercase tracking-widest">{a.type}</p>
+                                                </div>
+                                                <p className="text-sm font-bold text-white/80 leading-relaxed mb-4">{a.content}</p>
+                                                <div className="flex items-center justify-between border-t border-white/5 pt-4">
+                                                    <p className="text-[9px] text-white/10 font-bold uppercase tracking-widest">{new Date(a.timestamp).toLocaleDateString()} • {new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                                    <Tag className="w-3.5 h-3.5 text-white/10" />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}

@@ -1,0 +1,153 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-lg: 1.5rem;
+  --radius-md: 1rem;
+  --radius-sm: 0.5rem;
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #020617;
+  --card: #f8fafc;
+  --card-foreground: #020617;
+  --primary: #fab510;
+  --primary-foreground: #000000;
+  --border: #e2e8f0;
+  --input: #f1f5f9;
+  --ring: #fab510;
+}
+
+.dark {
+  --background: #0a0a0b;
+  --foreground: #f8fafc;
+  --card: #141417;
+  --card-foreground: #f8fafc;
+  --border: #27272a;
+  --input: #27272a;
+  --ring: #fab510;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-feature-settings: "rlig" 1, "calt" 1;
+  transition: background-color 0.5s ease, color 0.5s ease;
+}
+
+/* Custom Gradients for Premium Look */
+.bg-premium-gradient {
+  background: radial-gradient(circle at top left, rgba(250, 181, 16, 0.05) 0%, transparent 35%);
+}
+
+.text-gold {
+  color: var(--color-primary);
+}
+
+.bg-gold {
+  background-color: var(--color-primary);
+}
+
+.border-gold {
+  border-color: var(--color-primary);
+}
+
+/* Custom Scrollbar for Premium Feel */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+}
+
+/* Utility to hide scrollbars while keeping functionality */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+@keyframes bell-ring {
+  0%, 100% { transform: rotate(0); }
+  10%, 30%, 50%, 70%, 90% { transform: rotate(-10deg); }
+  20%, 40%, 60%, 80% { transform: rotate(10deg); }
+}
+
+.animate-bell-ring {
+  animation: bell-ring 2s ease-in-out infinite;
+  transform-origin: top center;
+}
+
+/* ==================================================
+   SECURITY: Anti-Screenshot Mode
+   Activated by adding class 'no-screenshot' to <body>
+   Controlled from Settings > Seguridad > SuperAdmin
+   ================================================== */
+
+/* Prevent text selection system-wide */
+body.no-screenshot * {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+}
+
+/* Block print & PDF export of sensitive content */
+@media print {
+  body.no-screenshot {
+    display: none !important;
+    visibility: hidden !important;
+  }
+  body.no-screenshot::after {
+    content: '⛔ Documento Confidencial. Impresión bloqueada por el administrador.' !important;
+    display: block !important;
+    font-size: 2rem;
+    padding: 4rem;
+    color: red;
+  }
+}
+
+/* Disable right-click context menu hint via pointer event blur on data cards */
+body.no-screenshot .data-card {
+  pointer-events: none;
+}
+
+/* Override for interactive controls only */
+body.no-screenshot button,
+body.no-screenshot a,
+body.no-screenshot input,
+body.no-screenshot select,
+body.no-screenshot textarea {
+  pointer-events: auto !important;
+}
