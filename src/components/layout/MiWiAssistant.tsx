@@ -7,17 +7,12 @@ import {
     Send,
     Bot,
     User,
-    MessageSquare,
     Sparkles,
     RefreshCcw,
-    ChevronLeft,
-    ChevronRight,
-    Search,
     BrainCircuit,
     Zap
 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { useApp } from '@/context/AppContext';
 
 interface Message {
@@ -45,11 +40,6 @@ export function MiWiAssistant({ isOpen, onClose }: MiWiAssistantProps) {
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
-    // Configuración de Gemini (Dinámica desde Settings)
-    const getGenAI = () => {
-        const key = settings.geminiKey || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-        return new GoogleGenerativeAI(key);
-    };
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
@@ -75,47 +65,38 @@ export function MiWiAssistant({ isOpen, onClose }: MiWiAssistantProps) {
         setIsLoading(true);
 
         try {
-            const currentGenAI = getGenAI();
-            const configKey = settings.geminiKey || process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
+            const response = await fetch('/api/assistant', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    input,
+                    messages: messages.map(msg => ({
+                        role: msg.role,
+                        content: msg.content
+                    })),
+                    apiKey: settings.geminiKey || ''
+                })
+            });
 
-            // Si no hay API key, simular respuesta por ahora para que no falle el UI
-            if (!configKey) {
-                setTimeout(() => {
-                    const assistantMessage: Message = {
-                        id: (Date.now() + 1).toString(),
-                        role: 'assistant',
-                        content: 'Lo siento, la API Key de Gemini no está configurada aún. Por favor, regístrala en Configuración > Integraciones API para activar mi inteligencia completa.',
-                        timestamp: new Date()
-                    };
-                    setMessages(prev => [...prev, assistantMessage]);
-                    setIsLoading(false);
-                }, 1000);
+            const data = await response.json();
+
+            if (!response.ok) {
+                const assistantMessage: Message = {
+                    id: (Date.now() + 1).toString(),
+                    role: 'assistant',
+                    content: data.error || 'Lo siento, MiWi no está configurado todavía.',
+                    timestamp: new Date()
+                };
+                setMessages(prev => [...prev, assistantMessage]);
                 return;
             }
-
-            const model = currentGenAI.getGenerativeModel({
-                model: "gemini-1.5-flash",
-                systemInstruction: "Eres MiWi, un asistente de inteligencia artificial experto en ventas y gestión de Clientes para 'Arte Concreto', una empresa líder en mobiliario de concreto, cubiertas de cocina de lujo y soluciones para espacios públicos. Tu objetivo es ayudar a Juan Sierra (SuperAdmin) y su equipo a vender más y gestionar mejor sus leads. Eres audaz, profesional, premium y enfocado en resultados. Analizas pipelines, sugieres cierres de ventas, redactas correos persuasivos y das consejos sobre proyectos de concreto (mármol, terrazo, microcemento). Si te preguntan por recomendaciones, básate en la eficiencia y el valor del lead."
-            });
-            const chat = model.startChat({
-                history: messages.map(msg => ({
-                    role: msg.role === 'user' ? 'user' : 'model',
-                    parts: [{ text: msg.content }],
-                })),
-                generationConfig: {
-                    maxOutputTokens: 1000,
-                    temperature: 0.7,
-                },
-            });
-
-            const result = await chat.sendMessage(input);
-            const response = await result.response;
-            const text = response.text();
 
             const assistantMessage: Message = {
                 id: Date.now().toString(),
                 role: 'assistant',
-                content: text,
+                content: data.text,
                 timestamp: new Date()
             };
             setMessages(prev => [...prev, assistantMessage]);
