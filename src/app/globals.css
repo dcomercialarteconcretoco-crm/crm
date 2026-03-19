@@ -13,6 +13,10 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
 
   --radius-lg: 1.5rem;
   --radius-md: 1rem;
@@ -20,15 +24,21 @@
 }
 
 :root {
-  --background: #ffffff;
-  --foreground: #020617;
-  --card: #f8fafc;
-  --card-foreground: #020617;
+  --background: #f6f2e9;
+  --foreground: #171717;
+  --card: #fffdf8;
+  --card-foreground: #171717;
   --primary: #fab510;
   --primary-foreground: #000000;
-  --border: #e2e8f0;
-  --input: #f1f5f9;
+  --border: rgba(23, 23, 23, 0.08);
+  --input: rgba(255, 255, 255, 0.8);
   --ring: #fab510;
+  --muted: #efe7d9;
+  --muted-foreground: #746b5c;
+  --accent: #fff3c6;
+  --accent-foreground: #3a2d00;
+  --panel-shadow: 0 24px 60px rgba(44, 33, 8, 0.08);
+  --panel-shadow-soft: 0 12px 30px rgba(44, 33, 8, 0.06);
 }
 
 .dark {
@@ -46,15 +56,22 @@
 }
 
 body {
+  background:
+    radial-gradient(circle at top left, rgba(250, 181, 16, 0.16) 0%, transparent 28%),
+    radial-gradient(circle at top right, rgba(23, 23, 23, 0.05) 0%, transparent 24%),
+    linear-gradient(180deg, #fbf8f1 0%, #f2ecdf 100%);
   background-color: var(--color-background);
   color: var(--color-foreground);
   font-feature-settings: "rlig" 1, "calt" 1;
   transition: background-color 0.5s ease, color 0.5s ease;
+  min-height: 100vh;
 }
 
-/* Custom Gradients for Premium Look */
 .bg-premium-gradient {
-  background: radial-gradient(circle at top left, rgba(250, 181, 16, 0.05) 0%, transparent 35%);
+  background:
+    radial-gradient(circle at top left, rgba(250, 181, 16, 0.12) 0%, transparent 28%),
+    radial-gradient(circle at bottom right, rgba(23, 23, 23, 0.05) 0%, transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.66) 0%, rgba(250, 246, 237, 0.9) 100%);
 }
 
 .text-gold {
@@ -67,6 +84,42 @@ body {
 
 .border-gold {
   border-color: var(--color-primary);
+}
+
+.surface-panel {
+  background: rgba(255, 253, 248, 0.84);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(23, 23, 23, 0.07);
+  box-shadow: var(--panel-shadow);
+}
+
+.surface-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(250, 246, 238, 0.92) 100%);
+  border: 1px solid rgba(23, 23, 23, 0.08);
+  box-shadow: var(--panel-shadow-soft);
+}
+
+.ambient-grid {
+  position: relative;
+}
+
+.ambient-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(23, 23, 23, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(23, 23, 23, 0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.2), transparent 88%);
+  pointer-events: none;
+  opacity: 0.45;
+}
+
+.pill-nav {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(23, 23, 23, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 /* Custom Scrollbar for Premium Feel */

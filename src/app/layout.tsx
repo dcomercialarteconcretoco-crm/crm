@@ -25,17 +25,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="dark">
+    <html lang="es">
       <head>
         <script dangerouslySetInnerHTML={{
           __html: `
             (function() {
               try {
-                const theme = localStorage.getItem('crm-theme');
+                const theme = localStorage.getItem('crm-theme') || 'light';
                 const color = localStorage.getItem('crm-primary-color');
                 const layout = localStorage.getItem('crm-layout');
-                if (theme === 'light') {
-                  document.documentElement.classList.remove('dark');
+                document.documentElement.classList.remove('dark');
+                if (theme === 'dark') {
+                  document.documentElement.classList.add('dark');
                 }
                 if (color) {
                   document.documentElement.style.setProperty('--color-primary', color);
@@ -61,4 +62,3 @@ export default function RootLayout({
     </html>
   );
 }
-

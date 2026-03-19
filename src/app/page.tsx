@@ -1,306 +1,388 @@
 "use client";
 
-import React, { useMemo } from 'react';
-import Link from 'next/link';
+import React, { useMemo } from "react";
+import Link from "next/link";
 import {
+  ArrowRight,
+  Eye,
+  FileText,
+  Plus,
+  Sparkles,
+  Target,
   TrendingUp,
   Users,
-  Briefcase,
-  Clock,
-  ArrowUpRight,
-  ArrowDownRight,
-  Plus,
-  X,
-  Eye,
-  ArrowRight,
-  Download,
-  FileText
-} from 'lucide-react';
-import { clsx } from 'clsx';
-import { useApp } from '@/context/AppContext';
-import { generatePDFReport } from '@/lib/pdf-generator';
+} from "lucide-react";
+import { clsx } from "clsx";
+import { useApp } from "@/context/AppContext";
+import { generatePDFReport } from "@/lib/pdf-generator";
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
 
 export default function Home() {
-  const { clients, tasks, quotes, auditLogs, settings, currentUser } = useApp();
+  const { clients, tasks, quotes, settings, currentUser } = useApp();
 
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      maximumFractionDigits: 0
-    }).format(val);
-  };
-
-  const userIsSuperAdmin = currentUser?.role === 'SuperAdmin';
+  const userIsSuperAdmin = currentUser?.role === "SuperAdmin";
   const canExport = userIsSuperAdmin && settings.allowExports;
 
-  const totalForecast = useMemo(() => tasks.reduce((sum, task) => sum + task.numericValue, 0), [tasks]);
-  const formattedForecast = new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    maximumFractionDigits: 0
-  }).format(totalForecast);
+  const totalForecast = useMemo(
+    () => tasks.reduce((sum, task) => sum + task.numericValue, 0),
+    [tasks]
+  );
 
-  const approvedQuotes = quotes.filter(q => q.status === 'Approved').length;
-  const conversionRate = quotes.length > 0 ? ((approvedQuotes / quotes.length) * 100).toFixed(1) + '%' : '0%';
-  const activeLeads = clients.length;
+  const approvedQuotes = quotes.filter((quote) => quote.status === "Approved").length;
+  const conversionRate =
+    quotes.length > 0 ? ((approvedQuotes / quotes.length) * 100).toFixed(1) : "0.0";
+
+  const topClients = [...clients].sort((a, b) => b.ltv - a.ltv).slice(0, 4);
+  const recentQuotes = quotes.slice(0, 5);
+  const liveTasks = tasks.slice(0, 4);
 
   const handleExport = () => {
     generatePDFReport({
-      title: 'Informe de Inteligencia Operacional',
+      title: "Informe de Inteligencia Operacional",
       stats: [
-        { label: 'Propuestas Activas', value: tasks.length.toString(), change: '+12%' },
-        { label: 'Ingresos Proyectados', value: formattedForecast, change: '+5%' },
-        { label: 'Tasa Conversión', value: conversionRate, change: 'Estable' },
-        { label: 'Leads Activos', value: activeLeads.toString(), change: 'Nuevo' }
+        { label: "Propuestas Activas", value: tasks.length.toString(), change: "+12%" },
+        { label: "Ingresos Proyectados", value: formatCurrency(totalForecast), change: "+5%" },
+        { label: "Tasa Conversión", value: `${conversionRate}%`, change: "Estable" },
+        { label: "Leads Activos", value: clients.length.toString(), change: "Nuevo" },
       ],
-      topLeads: [...clients].sort((a, b) => b.score - a.score).slice(0, 3).map(c => ({
-        name: c.name,
-        company: c.company,
-        score: c.score
-      }))
+      topLeads: topClients.map((client) => ({
+        name: client.name,
+        company: client.company,
+        score: client.score,
+      })),
     });
   };
 
+  const stats = [
+    {
+      label: "Proyección Comercial",
+      value: formatCurrency(totalForecast),
+      note: `${tasks.length} propuestas activas`,
+      icon: TrendingUp,
+      tone: "bg-primary/14 text-primary border-primary/20",
+    },
+    {
+      label: "Conversión",
+      value: `${conversionRate}%`,
+      note: `${approvedQuotes} cierres aprobados`,
+      icon: Target,
+      tone: "bg-[#171717] text-primary border-[#171717]",
+    },
+    {
+      label: "Base de Clientes",
+      value: clients.length.toString(),
+      note: "seguimiento en vivo",
+      icon: Users,
+      tone: "bg-white text-foreground border-border/70",
+    },
+    {
+      label: "Cotizaciones",
+      value: quotes.length.toString(),
+      note: "pipeline activo",
+      icon: FileText,
+      tone: "bg-accent/45 text-foreground border-primary/15",
+    },
+  ];
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-700">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-white italic uppercase tracking-tighter">Panel Principal</h1>
-          <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mt-1">
-            Bienvenido de nuevo, <span className="text-white">{currentUser?.name}</span>. Aquí está el resumen de hoy.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link href="/clients" className="bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-primary transition-all flex items-center gap-2">
-            <Users className="w-3.5 h-3.5" />
-            Clientes
-          </Link>
-          <Link href="/quotes/new" className="bg-primary text-black px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2 shadow-lg shadow-primary/20">
-            <Plus className="w-3.5 h-3.5" />
-            Nueva Cotización
-          </Link>
-        </div>
-      </div>
-
-      {/* Top Banner: Propuestas Abiertas */}
-      <div className="bg-primary/5 border border-primary/20 rounded-[2rem] p-6 relative overflow-hidden">
-        <div className="absolute top-4 right-4 text-white/10 cursor-pointer hover:text-white/30 transition-colors">
-          <X className="w-4 h-4" />
-        </div>
-        <div className="flex items-center gap-3 mb-6">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_10px_rgba(250,181,16,0.6)]"></div>
-            <Eye className="w-4 h-4 text-primary" />
+    <div className="space-y-8 animate-in fade-in duration-700">
+      <section className="surface-panel rounded-[2.5rem] p-6 lg:p-8 overflow-hidden relative">
+        <div className="absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_top_right,rgba(250,181,16,0.22),transparent_48%)] pointer-events-none" />
+        <div className="relative flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl space-y-4">
+            <div className="inline-flex items-center gap-2 rounded-full bg-[#171717] px-4 py-2 text-[10px] font-black uppercase tracking-[0.28em] text-[#fff1bf] shadow-[0_16px_40px_rgba(23,23,23,0.18)]">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              Arte Concreto Intelligence
+            </div>
+            <div className="space-y-3">
+              <h1 className="text-4xl lg:text-6xl font-black tracking-[-0.06em] text-foreground leading-none">
+                Un CRM más limpio,
+                <span className="block text-primary italic">más premium y más legible.</span>
+              </h1>
+              <p className="max-w-2xl text-sm lg:text-base text-muted-foreground font-medium leading-7">
+                Bienvenido, {currentUser?.name}. Reorganizé el panel principal con una
+                dirección visual clara: fondo suave, tarjetas amplias y jerarquía marcada
+                en negro y amarillo.
+              </p>
+            </div>
           </div>
-          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Propuestas abiertas por el cliente</h3>
-        </div>
-        <div className="flex flex-wrap gap-4">
-          {tasks.slice(0, 3).map((task) => (
-            <Link key={task.id} href={`/leads/${task.clientId}`} className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 flex items-center gap-4 min-w-[300px] group hover:border-primary/50 transition-all cursor-pointer">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-black transition-all">
-                <Eye className="w-5 h-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-black text-white uppercase group-hover:text-primary transition-colors truncate">{task.contactName || task.client} — {task.id}</p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[11px] font-black text-primary italic tracking-tighter">{task.value}</span>
-                  <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest">• Abrió la propuesta</span>
-                </div>
-              </div>
+
+          <div className="flex flex-wrap gap-3 lg:justify-end">
+            <Link
+              href="/quotes/new"
+              className="inline-flex items-center gap-2 rounded-[1.25rem] bg-[#171717] px-5 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#fff4cc] shadow-[0_22px_45px_rgba(23,23,23,0.18)] transition hover:-translate-y-0.5"
+            >
+              <Plus className="h-4 w-4 text-primary" />
+              Nueva Cotización
             </Link>
-          ))}
-          {tasks.length === 0 && (
-            <div className="py-2 px-1 text-[10px] font-bold text-white/20 italic uppercase tracking-widest">No hay actividad reciente detectada</div>
-          )}
+            <Link
+              href="/clients"
+              className="inline-flex items-center gap-2 rounded-[1.25rem] border border-border/70 bg-white/80 px-5 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-foreground transition hover:bg-white"
+            >
+              <Users className="h-4 w-4 text-primary" />
+              Clientes
+            </Link>
+            {canExport && (
+              <button
+                onClick={handleExport}
+                className="inline-flex items-center gap-2 rounded-[1.25rem] border border-primary/20 bg-primary/10 px-5 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-foreground transition hover:bg-primary/18"
+              >
+                <FileText className="h-4 w-4 text-primary" />
+                Exportar PDF
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* Stats Grid - 3 Column Layout */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-10">
-        <div className="bg-[#0a0a0b] border border-white/10 rounded-[2.5rem] p-10 relative overflow-hidden group hover:border-primary/20 transition-all shadow-2xl">
-          <div className="flex items-center justify-between mb-8">
-            <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em]">Total Cotizado</p>
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
-              <TrendingUp className="w-5 h-5" />
-            </div>
-          </div>
-          <h2 className="text-5xl font-black text-white italic tracking-tighter uppercase mb-2 group-hover:scale-105 transition-transform origin-left">
-            $0
-          </h2>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black text-emerald-500 uppercase">Proporción Anual</span>
-            <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">• 0 Cotizaciones Activas</span>
-          </div>
-        </div>
-
-        <div className="bg-[#0a0a0b] border border-white/10 rounded-[2.5rem] p-10 relative overflow-hidden group hover:border-sky-500/20 transition-all shadow-2xl">
-          <div className="flex items-center justify-between mb-8">
-            <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em]">Ticket Promedio</p>
-            <div className="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center text-sky-500 border border-sky-500/20">
-              <FileText className="w-5 h-5" />
-            </div>
-          </div>
-          <h2 className="text-5xl font-black text-white italic tracking-tighter uppercase mb-2 group-hover:scale-105 transition-transform origin-left">
-            $0
-          </h2>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black text-sky-500 uppercase">Meta Regional</span>
-            <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">• Basado en Ofertas</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Historial de Cotizaciones - Multi-status Bar */}
-      <div className="bg-[#0a0a0b] border border-white/10 rounded-[2.5rem] p-10 shadow-2xl space-y-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-white italic">Historial de Cotizaciones</h3>
-            <p className="text-[9px] font-bold text-white/20 uppercase tracking-[0.1em] mt-1">Estado actual del flujo comercial</p>
-          </div>
-          <Link href="/pipeline" className="group text-[9px] font-black text-primary uppercase tracking-[0.2em] flex items-center gap-3 bg-white/5 hover:bg-white/10 px-6 py-3 rounded-2xl transition-all border border-white/5">
-            Ver Pipeline Completo <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-          </Link>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
-          {[
-            { label: 'Nuevo', count: 0, color: 'text-white/40', bg: 'bg-white/5', border: 'border-white/10' },
-            { label: 'Enviado', count: 0, color: 'text-sky-400', bg: 'bg-sky-400/5', border: 'border-sky-400/20' },
-            { label: 'Visto', count: tasks.length, color: 'text-primary', bg: 'bg-primary/5', border: 'border-primary/20' },
-            { label: 'Negociando', count: 0, color: 'text-amber-500', bg: 'bg-amber-500/5', border: 'border-amber-500/20' },
-            { label: 'Ganado', count: approvedQuotes, color: 'text-emerald-500', bg: 'bg-emerald-500/5', border: 'border-emerald-500/20' },
-            { label: 'Perdido', count: 0, color: 'text-rose-500', bg: 'bg-rose-500/5', border: 'border-rose-500/20' },
-          ].map((status) => (
-            <div key={status.label} className={clsx("flex flex-col items-center justify-center p-8 rounded-[1.5rem] border transition-all hover:scale-[1.05] group cursor-default shadow-lg", status.bg, status.border)}>
-              <span className={clsx("text-4xl font-black italic tracking-tighter mb-2 transition-all group-hover:scale-110", status.color)}>{status.count}</span>
-              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/20 group-hover:text-white/40">{status.label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Bottom Grid: Buyers and Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <div className="lg:col-span-4 bg-[#0a0a0b] border border-white/10 rounded-[2.5rem] p-10 flex flex-col shadow-2xl">
-          <div className="flex items-center justify-between mb-10">
-            <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-white italic">Top Compradores</h3>
-            <TrendingUp className="w-5 h-5 text-primary opacity-50" />
-          </div>
-          <div className="space-y-8 flex-1">
-            {[...clients].sort((a, b) => b.ltv - a.ltv).slice(0, 5).map((client, i) => (
-              <div key={client.id} className="flex items-center justify-between group cursor-pointer">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-xs font-black text-white/40 group-hover:border-primary group-hover:text-primary transition-all">
-                    {i + 1}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-black text-white uppercase group-hover:text-primary transition-colors truncate">{client.name}</p>
-                    <p className="text-[8px] font-bold text-white/20 uppercase tracking-widest mt-0.5">{client.company || 'Personal'}</p>
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-[13px] font-black text-white italic tracking-tighter">{formatCurrency(client.ltv)}</p>
-                  <p className="text-[8px] font-black text-primary uppercase tracking-tighter">{client.ltv > 5000000 ? 'VIP Target' : 'Lead Activo'}</p>
-                </div>
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {stats.map((stat) => (
+          <div key={stat.label} className="surface-card rounded-[2rem] p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground">
+                  {stat.label}
+                </p>
+                <p className="mt-4 text-3xl lg:text-4xl font-black tracking-[-0.06em] text-foreground">
+                  {stat.value}
+                </p>
+                <p className="mt-2 text-xs font-semibold text-muted-foreground">{stat.note}</p>
               </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="lg:col-span-8 bg-[#0a0a0b] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl">
-          <div className="p-10 border-b border-white/5 flex items-center justify-between bg-white/[0.01]">
-            <div>
-              <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-white italic">Cotizaciones Recientes</h3>
-              <p className="text-[9px] font-bold text-white/20 uppercase tracking-[0.1em] mt-1">Monitor en vivo de actividad comercial</p>
-            </div>
-            <Link href="/quotes" className="text-[9px] font-black text-primary uppercase tracking-[0.2em] hover:text-white transition-colors">Ver historial completo</Link>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-separate border-spacing-0">
-              <thead>
-                <tr className="bg-white/[0.02]">
-                  <th className="px-10 py-6 text-[9px] font-black text-white/20 uppercase tracking-[0.3em] border-b border-white/5">Cotización</th>
-                  <th className="px-10 py-6 text-[9px] font-black text-white/20 uppercase tracking-[0.3em] border-b border-white/5">Cliente</th>
-                  <th className="px-10 py-6 text-[9px] font-black text-white/20 uppercase tracking-[0.3em] border-b border-white/5 text-right">Monto</th>
-                  <th className="px-10 py-6 text-[9px] font-black text-white/20 uppercase tracking-[0.3em] border-b border-white/5 text-center">Estado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {quotes.slice(0, 6).map((quote) => (
-                  <tr key={quote.id} className="hover:bg-white/[0.02] transition-all group cursor-pointer" onClick={() => window.location.href = `/quotes/${quote.id}`}>
-                    <td className="px-10 py-6">
-                      <p className="text-[11px] font-black text-white group-hover:text-primary transition-colors hover:translate-x-1 decoration-dashed">{quote.number}</p>
-                      <p className="text-[8px] font-bold text-white/20 mt-1 uppercase tracking-tighter">REF: {quote.id}</p>
-                    </td>
-                    <td className="px-10 py-6">
-                      <p className="text-[10px] font-black text-white uppercase truncate max-w-[200px]">{quote.client}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/40"></div>
-                        <p className="text-[8px] font-bold text-white/20 lowercase tracking-tight">contacto@cliente.co</p>
-                      </div>
-                    </td>
-                    <td className="px-10 py-6 text-right">
-                      <p className="text-[14px] font-black text-white italic tracking-tighter">{quote.total}</p>
-                    </td>
-                    <td className="px-10 py-6 text-center">
-                      <span className={clsx(
-                        "text-[9px] font-black px-4 py-1.5 rounded-xl uppercase tracking-widest border transition-all",
-                        quote.status === 'Approved' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20 group-hover:bg-emerald-500 group-hover:text-black" :
-                          quote.status === 'Sent' ? "bg-primary/10 text-primary border-primary/20 group-hover:bg-primary group-hover:text-black" :
-                            "bg-white/5 text-white/40 border-white/10 group-hover:bg-white/10"
-                      )}>
-                        {quote.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                {quotes.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-10 py-20 text-center">
-                      <p className="text-[10px] font-black text-white/10 uppercase tracking-[0.5em] italic">No hay registros para mostrar</p>
-                    </td>
-                  </tr>
+              <div
+                className={clsx(
+                  "flex h-12 w-12 items-center justify-center rounded-[1.25rem] border shadow-[0_10px_24px_rgba(23,23,23,0.06)]",
+                  stat.tone
                 )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {/* Activity Monitor - As Footer Section */}
-      <div className="bg-[#0a0a0b] border border-white/10 rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[100px]"></div>
-        <div className="flex items-center justify-between mb-10 relative z-10">
-          <div className="flex items-center gap-4">
-            <div className="w-2 h-2 rounded-full bg-primary animate-ping"></div>
-            <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-white italic">Monitor de Operaciones MiWi</h3>
-          </div>
-          <button
-            onClick={handleExport}
-            className="bg-white/5 hover:bg-white/10 border border-white/10 px-6 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest text-white/60 hover:text-white transition-all flex items-center gap-3"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Exportar Auditoría
-          </button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 relative z-10">
-          {auditLogs.slice(0, 3).map((log) => (
-            <div key={log.id} className="p-6 rounded-[1.5rem] bg-white/[0.02] border border-white/5 hover:border-primary/20 transition-all group">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-black transition-colors">
-                  <Clock className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-[9px] font-black text-white/30 uppercase tracking-widest">{new Date(log.timestamp).toLocaleTimeString()}</p>
-                  <p className="text-[10px] font-black text-white uppercase">{log.userName}</p>
-                </div>
+              >
+                <stat.icon className="h-5 w-5" />
               </div>
-              <p className="text-[11px] font-bold text-white/60 leading-relaxed italic truncate">"{log.details}"</p>
             </div>
-          ))}
+          </div>
+        ))}
+      </section>
+
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <div className="xl:col-span-8 space-y-6">
+          <div className="surface-panel rounded-[2.5rem] p-6 lg:p-8">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.26em] text-muted-foreground">
+                  Radar de Actividad
+                </p>
+                <h2 className="mt-2 text-2xl lg:text-3xl font-black tracking-[-0.05em] text-foreground">
+                  Propuestas abiertas por cliente
+                </h2>
+              </div>
+              <Link
+                href="/pipeline"
+                className="inline-flex items-center gap-2 rounded-full bg-accent/55 px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-foreground"
+              >
+                Ver Pipeline
+                <ArrowRight className="h-3.5 w-3.5 text-primary" />
+              </Link>
+            </div>
+
+            <div className="mt-6 grid gap-4 lg:grid-cols-2">
+              {liveTasks.length > 0 ? (
+                liveTasks.map((task, index) => (
+                  <Link
+                    key={task.id}
+                    href={`/leads/${task.clientId}`}
+                    className="surface-card rounded-[2rem] p-5 transition hover:-translate-y-1"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-[1.2rem] bg-[#171717] text-primary shadow-[0_16px_32px_rgba(23,23,23,0.16)]">
+                          <Eye className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+                            Lead {String(index + 1).padStart(2, "0")}
+                          </p>
+                          <p className="mt-1 truncate text-sm font-black uppercase text-foreground">
+                            {task.contactName || task.client}
+                          </p>
+                          <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">
+                            {task.title || task.client}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="rounded-full bg-primary/12 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-primary">
+                        Activo
+                      </div>
+                    </div>
+                    <div className="mt-5 flex items-center justify-between border-t border-border/70 pt-4">
+                      <span className="text-xl font-black tracking-[-0.05em] text-foreground">
+                        {task.value}
+                      </span>
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+                        seguimiento vivo
+                      </span>
+                    </div>
+                  </Link>
+                ))
+              ) : (
+                <div className="surface-card rounded-[2rem] p-8 text-sm font-semibold text-muted-foreground">
+                  No hay actividad reciente detectada todavía.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="surface-panel rounded-[2.5rem] overflow-hidden">
+            <div className="flex items-center justify-between border-b border-border/70 px-6 py-5 lg:px-8">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground">
+                  Historial Reciente
+                </p>
+                <h3 className="mt-2 text-2xl font-black tracking-[-0.04em] text-foreground">
+                  Cotizaciones recientes
+                </h3>
+              </div>
+              <Link
+                href="/quotes"
+                className="rounded-full bg-[#171717] px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-[#fff4cc]"
+              >
+                Abrir módulo
+              </Link>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left">
+                <thead>
+                  <tr className="border-b border-border/70 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                    <th className="px-6 py-4 lg:px-8">Código</th>
+                    <th className="px-6 py-4 lg:px-8">Cliente</th>
+                    <th className="px-6 py-4 lg:px-8">Total</th>
+                    <th className="px-6 py-4 lg:px-8">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentQuotes.length > 0 ? (
+                    recentQuotes.map((quote) => (
+                      <tr
+                        key={quote.id}
+                        className="border-b border-border/50 transition hover:bg-white/40"
+                      >
+                        <td className="px-6 py-4 lg:px-8 text-sm font-black text-foreground">
+                          {quote.number}
+                        </td>
+                        <td className="px-6 py-4 lg:px-8 text-sm font-semibold text-muted-foreground">
+                          {quote.client}
+                        </td>
+                        <td className="px-6 py-4 lg:px-8 text-sm font-black text-foreground">
+                          {quote.total}
+                        </td>
+                        <td className="px-6 py-4 lg:px-8">
+                          <span
+                            className={clsx(
+                              "inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em]",
+                              quote.status === "Approved"
+                                ? "bg-emerald-500/12 text-emerald-600"
+                                : quote.status === "Sent"
+                                  ? "bg-primary/14 text-primary"
+                                  : "bg-[#171717] text-[#fff4cc]"
+                            )}
+                          >
+                            {quote.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="px-6 py-10 lg:px-8 text-sm font-semibold text-muted-foreground"
+                      >
+                        Aún no hay cotizaciones registradas.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-      </div>
+
+        <div className="xl:col-span-4 space-y-6">
+          <div className="surface-panel rounded-[2.5rem] p-6 lg:p-8">
+            <p className="text-[10px] font-black uppercase tracking-[0.26em] text-muted-foreground">
+              Clientes Premium
+            </p>
+            <h3 className="mt-2 text-2xl font-black tracking-[-0.05em] text-foreground">
+              Top compradores
+            </h3>
+            <div className="mt-6 space-y-4">
+              {topClients.length > 0 ? (
+                topClients.map((client, index) => (
+                  <div
+                    key={client.id}
+                    className="surface-card rounded-[1.8rem] p-4 flex items-center justify-between gap-4"
+                  >
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-[1rem] bg-[#171717] text-primary text-xs font-black shadow-[0_14px_30px_rgba(23,23,23,0.16)]">
+                        {index + 1}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black uppercase text-foreground">
+                          {client.name}
+                        </p>
+                        <p className="truncate text-xs font-semibold text-muted-foreground">
+                          {client.company || "Cliente directo"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-black text-foreground">{formatCurrency(client.ltv)}</p>
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">
+                        alta prioridad
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="surface-card rounded-[1.8rem] p-5 text-sm font-semibold text-muted-foreground">
+                  No hay clientes destacados todavía.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="surface-panel rounded-[2.5rem] p-6 lg:p-8">
+            <p className="text-[10px] font-black uppercase tracking-[0.26em] text-muted-foreground">
+              Estado del Funnel
+            </p>
+            <h3 className="mt-2 text-2xl font-black tracking-[-0.05em] text-foreground">
+              Distribución comercial
+            </h3>
+            <div className="mt-6 space-y-4">
+              {[
+                { label: "Nuevo", value: 0, width: "w-[18%]" },
+                { label: "Visto", value: tasks.length, width: "w-[72%]" },
+                { label: "Ganado", value: approvedQuotes, width: "w-[38%]" },
+              ].map((item) => (
+                <div key={item.label} className="space-y-2">
+                  <div className="flex items-center justify-between text-sm font-bold">
+                    <span className="text-foreground">{item.label}</span>
+                    <span className="text-muted-foreground">{item.value}</span>
+                  </div>
+                  <div className="h-3 rounded-full bg-white/70 border border-border/60 overflow-hidden">
+                    <div className={clsx("h-full rounded-full bg-[#171717]", item.width)} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

@@ -133,10 +133,10 @@ export function MiWiAssistant({ isOpen, onClose }: MiWiAssistantProps) {
                         animate={{ x: 0 }}
                         exit={{ x: "100%" }}
                         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                        className="fixed right-0 top-0 h-full w-full max-w-[450px] bg-[#0a0a0b] border-l border-white/10 z-[101] shadow-[-20px_0_50px_rgba(0,0,0,0.5)] flex flex-col"
+                        className="fixed right-0 top-0 h-full w-full max-w-[450px] bg-[linear-gradient(180deg,rgba(255,253,248,0.98),rgba(244,237,225,0.96))] border-l border-border/70 z-[101] shadow-[-20px_0_50px_rgba(23,23,23,0.16)] flex flex-col"
                     >
                         {/* Header */}
-                        <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+                        <div className="p-6 border-b border-border/60 flex items-center justify-between bg-white/40">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center shadow-[0_0_20px_rgba(250,181,16,0.3)]">
                                     <BrainCircuit className="w-6 h-6 text-black" />
@@ -153,23 +153,23 @@ export function MiWiAssistant({ isOpen, onClose }: MiWiAssistantProps) {
                             </div>
                             <button
                                 onClick={onClose}
-                                className="p-2 hover:bg-white/5 rounded-full border border-white/10 transition-all"
+                                className="p-2 hover:bg-accent/60 rounded-full border border-border/70 transition-all"
                             >
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
 
                         {/* Quick Insights / Suggestions */}
-                        <div className="p-4 border-b border-white/5 bg-white/[0.01] flex gap-2 overflow-x-auto scrollbar-hide">
-                            <button className="flex-shrink-0 flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all">
+                        <div className="p-4 border-b border-border/60 bg-white/20 flex gap-2 overflow-x-auto scrollbar-hide">
+                            <button className="flex-shrink-0 flex items-center gap-2 bg-white/80 hover:bg-white border border-border/60 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all">
                                 <Sparkles className="w-3 h-3 text-primary" />
                                 Analizar Pipeline
                             </button>
-                            <button className="flex-shrink-0 flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all">
+                            <button className="flex-shrink-0 flex items-center gap-2 bg-white/80 hover:bg-white border border-border/60 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all">
                                 <Zap className="w-3 h-3 text-primary" />
                                 Recomendación Lead
                             </button>
-                            <button className="flex-shrink-0 flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all">
+                            <button className="flex-shrink-0 flex items-center gap-2 bg-white/80 hover:bg-white border border-border/60 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all">
                                 <RefreshCcw className="w-3 h-3 text-primary" />
                                 Resumen del Día
                             </button>
@@ -187,14 +187,14 @@ export function MiWiAssistant({ isOpen, onClose }: MiWiAssistantProps) {
                                 >
                                     <div className={clsx(
                                         "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                                        msg.role === 'assistant' ? "bg-primary/20 text-primary border border-primary/20" : "bg-white/10 text-white"
+                                        msg.role === 'assistant' ? "bg-primary/20 text-primary border border-primary/20" : "bg-[#171717] text-[#fff4cc]"
                                     )}>
                                         {msg.role === 'assistant' ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
                                     </div>
                                     <div className={clsx(
                                         "p-4 rounded-2xl text-sm leading-relaxed",
                                         msg.role === 'assistant'
-                                            ? "bg-white/[0.03] border border-white/5 text-white/90"
+                                            ? "bg-white/70 border border-border/70 text-foreground"
                                             : "bg-primary text-black font-medium shadow-lg shadow-primary/10"
                                     )}>
                                         {msg.content}
@@ -206,7 +206,7 @@ export function MiWiAssistant({ isOpen, onClose }: MiWiAssistantProps) {
                                     <div className="w-8 h-8 rounded-lg bg-primary/20 text-primary border border-primary/20 flex items-center justify-center animate-pulse">
                                         <Bot className="w-4 h-4" />
                                     </div>
-                                    <div className="bg-white/[0.03] border border-white/5 p-4 rounded-2xl flex gap-1">
+                                    <div className="bg-white/70 border border-border/70 p-4 rounded-2xl flex gap-1">
                                         <span className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce"></span>
                                         <span className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce [animation-delay:0.2s]"></span>
                                         <span className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce [animation-delay:0.4s]"></span>
@@ -217,7 +217,7 @@ export function MiWiAssistant({ isOpen, onClose }: MiWiAssistantProps) {
                         </div>
 
                         {/* Footer / Input Area */}
-                        <div className="p-6 border-t border-white/5 bg-white/[0.02]">
+                        <div className="p-6 border-t border-border/60 bg-white/30">
                             <div className="relative">
                                 <textarea
                                     value={input}
@@ -229,12 +229,12 @@ export function MiWiAssistant({ isOpen, onClose }: MiWiAssistantProps) {
                                         }
                                     }}
                                     placeholder="Pregúntame algo sobre tus ventas..."
-                                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 pr-14 outline-none focus:border-primary/50 transition-all font-medium text-sm resize-none min-h-[60px] max-h-[150px]"
+                                    className="w-full bg-white/80 border border-border/70 rounded-2xl px-5 py-4 pr-14 outline-none focus:border-primary/50 transition-all font-medium text-sm resize-none min-h-[60px] max-h-[150px]"
                                 />
                                 <button
                                     onClick={handleSendMessage}
                                     disabled={!input.trim() || isLoading}
-                                    className="absolute right-3 bottom-3 p-2.5 bg-primary text-black rounded-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 disabled:bg-white/10 disabled:text-white/40"
+                                    className="absolute right-3 bottom-3 p-2.5 bg-primary text-black rounded-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 disabled:bg-white/50 disabled:text-muted-foreground"
                                 >
                                     <Send className="w-5 h-5" />
                                 </button>

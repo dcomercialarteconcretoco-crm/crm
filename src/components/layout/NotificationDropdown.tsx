@@ -74,22 +74,22 @@ export function NotificationDropdown({ isOpen, onClose, notifications, setNotifi
             {/* Backdrop for closing */}
             <div className="fixed inset-0 z-40" onClick={onClose} />
 
-            <div className="absolute top-full right-0 mt-4 w-[450px] bg-card border border-white/10 rounded-[2.5rem] shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="absolute top-full right-0 mt-4 w-[450px] bg-[linear-gradient(180deg,rgba(255,253,248,0.98),rgba(244,237,225,0.96))] border border-border/70 rounded-[2.5rem] shadow-[0_24px_60px_rgba(23,23,23,0.14)] z-50 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
                 {/* Header */}
-                <div className="p-8 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+                <div className="p-8 border-b border-border/60 flex items-center justify-between bg-white/35">
                     <div className="flex items-center gap-3">
                         <div className="p-3 bg-primary/10 rounded-2xl">
                             <Bell className="w-5 h-5 text-primary" />
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
-                                <h3 className="text-lg font-black tracking-tight text-white leading-none">Notificaciones</h3>
+                                <h3 className="text-lg font-black tracking-tight text-foreground leading-none">Notificaciones</h3>
                                 <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
                                     <div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse"></div>
                                     <span className="text-[8px] font-black uppercase tracking-widest text-emerald-500">Live</span>
                                 </div>
                             </div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mt-1.5 flex items-center gap-2">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mt-1.5 flex items-center gap-2">
                                 <CheckCircle2 className="w-3 h-3 text-primary" />
                                 MiWi Intelligence Cloud Sync
                             </p>
@@ -112,29 +112,29 @@ export function NotificationDropdown({ isOpen, onClose, notifications, setNotifi
                 </div>
 
                 {/* Filters/Search */}
-                <div className="px-8 py-4 bg-white/[0.01] border-b border-white/5 flex items-center gap-4">
+                <div className="px-8 py-4 bg-white/25 border-b border-border/60 flex items-center gap-4">
                     <div className="relative flex-1">
-                        <Bot className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-white/20" />
+                        <Bot className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
                         <input
                             type="text"
                             placeholder="Buscar en el historial..."
-                            className="w-full bg-white/5 border border-white/5 rounded-xl py-2 pl-9 pr-4 text-[10px] font-bold outline-none focus:border-primary/30 transition-all text-white"
+                            className="w-full bg-white/75 border border-border/60 rounded-xl py-2 pl-9 pr-4 text-[10px] font-bold outline-none focus:border-primary/30 transition-all text-foreground"
                         />
                     </div>
-                    <button className="p-2 bg-white/5 rounded-xl border border-white/5 text-white/40">
+                    <button className="p-2 bg-white/75 rounded-xl border border-border/60 text-muted-foreground">
                         <Filter className="w-3.5 h-3.5" />
                     </button>
                 </div>
 
                 {/* Notifications List */}
-                <div className="max-h-[500px] overflow-y-auto custom-scrollbar divide-y divide-white/[0.03]">
+                <div className="max-h-[500px] overflow-y-auto custom-scrollbar divide-y divide-border/50">
                     {notifications.length > 0 ? (
                         notifications.map((n) => (
                             <div
                                 key={n.id}
                                 onClick={() => handleNotificationClick(n)}
                                 className={clsx(
-                                    "p-8 flex gap-5 hover:bg-white/[0.03] transition-all cursor-pointer relative group animate-in slide-in-from-right-4 duration-300",
+                                    "p-8 flex gap-5 hover:bg-white/40 transition-all cursor-pointer relative group animate-in slide-in-from-right-4 duration-300",
                                     !n.read && "bg-primary/[0.02]"
                                 )}
                             >
@@ -146,17 +146,17 @@ export function NotificationDropdown({ isOpen, onClose, notifications, setNotifi
                                         n.type === 'alert' ? "bg-rose-500/5 border-rose-500/20" :
                                             n.type === 'success' ? "bg-emerald-500/5 border-emerald-500/20" :
                                                 n.type === 'task' ? "bg-amber-500/5 border-amber-500/20" :
-                                                    "bg-white/5 border-white/10"
+                                                    "bg-white/75 border-border/60"
                                 )}>
                                     {getIcon(n.type)}
                                 </div>
 
                                 <div className="flex-1 space-y-1">
                                     <div className="flex items-center justify-between">
-                                        <h4 className="text-sm font-black text-white">{n.title}</h4>
-                                        <span className="text-[9px] font-black uppercase text-white/20">{n.time}</span>
+                                        <h4 className="text-sm font-black text-foreground">{n.title}</h4>
+                                        <span className="text-[9px] font-black uppercase text-muted-foreground">{n.time}</span>
                                     </div>
-                                    <p className="text-xs text-white/50 font-medium leading-relaxed">{n.description}</p>
+                                    <p className="text-xs text-muted-foreground font-medium leading-relaxed">{n.description}</p>
 
                                     <div className="pt-3 flex items-center gap-4">
                                         <button className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-1.5 group/btn">
@@ -165,7 +165,7 @@ export function NotificationDropdown({ isOpen, onClose, notifications, setNotifi
                                         </button>
                                         <button
                                             onClick={(e) => removeNotification(n.id, e)}
-                                            className="text-[9px] font-black uppercase tracking-widest text-white/20 hover:text-rose-500 transition-colors"
+                                            className="text-[9px] font-black uppercase tracking-widest text-muted-foreground hover:text-rose-500 transition-colors"
                                         >
                                             Descartar
                                         </button>
@@ -175,17 +175,17 @@ export function NotificationDropdown({ isOpen, onClose, notifications, setNotifi
                         ))
                     ) : (
                         <div className="p-20 text-center space-y-4">
-                            <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto">
-                                <Bell className="w-8 h-8 text-white/10" />
+                            <div className="w-16 h-16 bg-white/75 rounded-full flex items-center justify-center mx-auto border border-border/60">
+                                <Bell className="w-8 h-8 text-muted-foreground/40" />
                             </div>
-                            <p className="text-sm font-bold text-white/20 uppercase tracking-widest">No hay notificaciones</p>
+                            <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">No hay notificaciones</p>
                         </div>
                     )}
                 </div>
 
                 {/* Footer */}
-                <div className="p-6 bg-white/[0.02] border-t border-white/5">
-                    <button className="w-full py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-[10px] font-black uppercase tracking-widest text-white transition-all border border-white/10">
+                <div className="p-6 bg-white/25 border-t border-border/60">
+                    <button className="w-full py-4 rounded-2xl bg-white/75 hover:bg-white text-[10px] font-black uppercase tracking-widest text-foreground transition-all border border-border/60">
                         Ver todo el historial
                     </button>
                 </div>

@@ -10,11 +10,8 @@ import {
   BarChart3,
   Archive,
   Calendar,
-  MessageSquare,
   FileText,
   Workflow,
-  Plus,
-  Zap,
   Bot,
   Shield,
   FilePlus2
@@ -54,7 +51,7 @@ export function Sidebar({ isCompact }: SidebarProps) {
 
   return (
     <div className={cn(
-      "hidden lg:flex flex-col h-screen bg-card border-r border-border/40 text-foreground overflow-hidden transition-all duration-500",
+      "hidden lg:flex flex-col h-screen bg-[linear-gradient(180deg,rgba(255,253,248,0.96),rgba(244,237,225,0.9))] border-r border-border/40 text-foreground overflow-hidden transition-all duration-500 backdrop-blur-xl",
       isCompact ? "w-20" : "w-64"
     )}>
       <div className={cn("flex flex-col items-center shrink-0", isCompact ? "p-4" : "p-6 gap-4")}>
@@ -66,8 +63,8 @@ export function Sidebar({ isCompact }: SidebarProps) {
           />
         </div>
         {!isCompact && (
-          <div className="px-3 py-1 bg-primary/10 border border-primary/20 rounded-full">
-            <p className="text-[9px] text-primary font-black tracking-[0.3em] uppercase">Power CRM</p>
+          <div className="px-4 py-1.5 bg-[linear-gradient(135deg,rgba(250,181,16,0.18),rgba(255,255,255,0.85))] border border-primary/20 rounded-full shadow-[0_10px_20px_rgba(250,181,16,0.12)]">
+            <p className="text-[9px] text-foreground font-black tracking-[0.3em] uppercase">Power CRM</p>
           </div>
         )}
       </div>
@@ -89,13 +86,13 @@ export function Sidebar({ isCompact }: SidebarProps) {
                 "flex items-center rounded-xl text-sm font-bold transition-all duration-300 group relative truncate",
                 isCompact ? "justify-center p-3" : "gap-3 px-4 py-3",
                 isActive
-                  ? "bg-primary text-black shadow-lg shadow-primary/20"
-                  : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+                  ? "bg-[#171717] text-[#fff7dd] shadow-[0_18px_40px_rgba(23,23,23,0.18)]"
+                  : "text-muted-foreground hover:bg-white/60 hover:text-foreground"
               )}
             >
               <item.icon className={cn(
                 "w-4 h-4 transition-transform group-hover:scale-110 shrink-0",
-                isActive ? "text-black" : "text-primary/70 group-hover:text-primary"
+                isActive ? "text-primary" : "text-primary/70 group-hover:text-primary"
               )} />
               {!isCompact && <span className="tracking-tight truncate">{item.name}</span>}
 
@@ -105,7 +102,7 @@ export function Sidebar({ isCompact }: SidebarProps) {
               )}
 
               {isActive && !isCompact && (
-                <div className="absolute right-2 w-1.5 h-1.5 bg-black rounded-full" />
+                <div className="absolute right-2 w-1.5 h-1.5 bg-primary rounded-full" />
               )}
             </Link>
           );
@@ -121,13 +118,13 @@ export function Sidebar({ isCompact }: SidebarProps) {
               className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all duration-300 group truncate",
                 isActive
-                  ? "bg-primary text-black shadow-lg shadow-primary/20"
-                  : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+                  ? "bg-[#171717] text-[#fff7dd] shadow-[0_18px_40px_rgba(23,23,23,0.18)]"
+                  : "text-muted-foreground hover:bg-white/60 hover:text-foreground"
               )}
             >
               <item.icon className={cn(
                 "w-4 h-4 shrink-0",
-                isActive ? "text-black" : "text-primary/70 group-hover:text-primary"
+                isActive ? "text-primary" : "text-primary/70 group-hover:text-primary"
               )} />
               <span className="truncate">{item.name}</span>
             </Link>
@@ -135,8 +132,8 @@ export function Sidebar({ isCompact }: SidebarProps) {
         })}
       </nav>
 
-      <div className={cn("p-4 shrink-0 space-y-4", isCompact ? "items-center" : "bg-muted/5 border-t border-border/20")}>
-        <div className={cn("bg-muted/20 border border-border/40 rounded-2xl flex items-center gap-3", isCompact ? "p-2 justify-center" : "p-4")}>
+      <div className={cn("p-4 shrink-0 space-y-4", isCompact ? "items-center" : "bg-white/30 border-t border-border/20")}>
+        <div className={cn("bg-white/65 border border-border/40 rounded-2xl flex items-center gap-3 shadow-[0_10px_30px_rgba(23,23,23,0.06)]", isCompact ? "p-2 justify-center" : "p-4")}>
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-black font-black text-xs shrink-0 shadow-lg shadow-primary/20">JS</div>
           {!isCompact && (
             <div className="flex-1 min-w-0">
@@ -146,19 +143,19 @@ export function Sidebar({ isCompact }: SidebarProps) {
           )}
         </div>
         {/* Sidebar Footer with Credits */}
-        <div className="p-6 mt-auto border-t border-border/40 bg-muted/5">
+        <div className="p-6 mt-auto border-t border-border/40 bg-white/25">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <span className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground italic">Developed by</span>
               <img
                 src="https://cuantium.com/wp-content/uploads/2025/12/wibicrmblanco@4x.png"
                 alt="Cuantium AI"
-                className="h-3.5 object-contain opacity-50 hover:opacity-100 transition-opacity duration-300"
+                className="h-3.5 object-contain opacity-60 hover:opacity-100 transition-opacity duration-300 mix-blend-multiply"
               />
             </div>
-            <div className="p-3 rounded-xl bg-primary/5 border border-primary/10">
-              <p className="text-[8px] font-bold text-white/40 leading-tight uppercase tracking-tighter">
-                Tecnología <span className="text-primary italic">Cuantium AI - URB</span>. Diseñado exclusivamente para <span className="text-white">arteconcreto.co</span>.
+            <div className="p-3 rounded-xl bg-accent/35 border border-primary/10">
+              <p className="text-[8px] font-bold text-muted-foreground leading-tight uppercase tracking-tighter">
+                Tecnología <span className="text-primary italic">Cuantium AI - URB</span>. Diseñado exclusivamente para <span className="text-foreground">arteconcreto.co</span>.
                 Protegido por derechos de propiedad intelectual.
               </p>
             </div>

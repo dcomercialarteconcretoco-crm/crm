@@ -24,7 +24,7 @@ export function MobileNav() {
     const pathname = usePathname();
 
     return (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 h-20 bg-card/80 backdrop-blur-xl border-t border-border/40 px-6 flex items-center justify-between z-50 rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 h-20 bg-[rgba(255,253,248,0.88)] backdrop-blur-xl border-t border-border/40 px-6 flex items-center justify-between z-50 rounded-t-[2.5rem] shadow-[0_-14px_40px_rgba(23,23,23,0.10)]">
             {mobileItems.map((item) => {
                 const isActive = pathname === item.href;
 
@@ -33,7 +33,7 @@ export function MobileNav() {
                         <Link
                             key={item.name}
                             href={item.href}
-                            className="bg-primary text-black w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 -mt-10 transform active:scale-90 transition-all border-4 border-background"
+                            className="bg-[#171717] text-primary w-14 h-14 rounded-2xl flex items-center justify-center shadow-[0_18px_40px_rgba(23,23,23,0.18)] -mt-10 transform active:scale-90 transition-all border-4 border-background"
                         >
                             <Plus className="w-8 h-8" />
                         </Link>
