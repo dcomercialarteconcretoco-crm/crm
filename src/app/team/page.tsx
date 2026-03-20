@@ -101,7 +101,7 @@ export default function TeamPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-3">
+                    <h1 className="page-hero-title text-2xl font-black tracking-tight flex items-center gap-3">
                         Equipo de Trabajo
                         <span className="text-[10px] font-black uppercase text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20">Sync Global</span>
                     </h1>
@@ -118,12 +118,12 @@ export default function TeamPage() {
 
             {/* View Switcher */}
             <div className="flex items-center justify-center">
-                <div className="bg-white/5 border border-white/10 p-1 rounded-2xl flex items-center gap-1">
+                <div className="bg-white/28 border border-white/70 p-1 rounded-2xl flex items-center gap-1 backdrop-blur-xl">
                     <button
                         onClick={() => setView('team')}
                         className={clsx(
                             "px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
-                            view === 'team' ? "bg-primary text-black shadow-lg shadow-primary/20" : "text-white/40 hover:text-white"
+                            view === 'team' ? "bg-primary text-black" : "text-muted-foreground hover:text-foreground"
                         )}
                     >
                         <Users className="w-3.5 h-3.5" />
@@ -133,7 +133,7 @@ export default function TeamPage() {
                         onClick={() => setView('stats')}
                         className={clsx(
                             "px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
-                            view === 'stats' ? "bg-primary text-black shadow-lg shadow-primary/20" : "text-white/40 hover:text-white"
+                            view === 'stats' ? "bg-primary text-black" : "text-muted-foreground hover:text-foreground"
                         )}
                     >
                         <TrendingUp className="w-3.5 h-3.5" />
@@ -143,18 +143,18 @@ export default function TeamPage() {
             </div>
 
             {/* Filter Bar */}
-            <div className="p-2 border-b border-white/5 bg-white/[0.01] flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="p-2 border-b border-white/50 bg-white/12 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <input
                         type="text"
                         placeholder="Buscar por nombre, cargo o email..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-sm focus:border-primary/50 outline-none transition-all font-bold text-white placeholder:text-white/10"
+                        className="w-full bg-white/36 border border-white/75 rounded-2xl pl-12 pr-4 py-4 text-sm focus:border-primary/50 outline-none transition-all font-bold text-foreground placeholder:text-muted-foreground backdrop-blur-xl"
                     />
                 </div>
-                <div className="text-[10px] font-black text-white/20 uppercase tracking-widest pr-4">
+                <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pr-4">
                     {filteredSellers.length} miembros en el equipo
                 </div>
             </div>
@@ -163,9 +163,9 @@ export default function TeamPage() {
                 /* Team Card Grid */
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {filteredSellers.map((seller) => (
-                        <div key={seller.id} className="bg-[#0a0a0b] border border-white/10 rounded-[2.5rem] p-8 relative overflow-hidden group hover:border-primary/20 transition-all shadow-2xl flex flex-col">
+                        <div key={seller.id} className="surface-card rounded-[2.5rem] p-8 relative overflow-hidden group hover:border-primary/20 transition-all flex flex-col">
                             <div className="flex flex-col items-center">
-                                <div className="w-24 h-24 rounded-[2.5rem] bg-primary border border-primary/20 flex items-center justify-center text-3xl font-black text-black shadow-xl mb-6 transform group-hover:scale-110 group-hover:-rotate-3 transition-all duration-500 overflow-hidden">
+                                <div className="w-24 h-24 rounded-[2.5rem] bg-primary border border-primary/20 flex items-center justify-center text-3xl font-black text-black mb-6 transform group-hover:scale-110 group-hover:-rotate-3 transition-all duration-500 overflow-hidden">
                                     {seller.avatar ? (
                                         <img src={seller.avatar} alt={seller.name} className="w-full h-full object-cover" />
                                     ) : (
@@ -173,21 +173,21 @@ export default function TeamPage() {
                                     )}
                                 </div>
                                 <div className="text-center">
-                                    <h3 className="text-lg font-black text-white uppercase group-hover:text-primary transition-colors italic tracking-tighter">{seller.name}</h3>
+                                    <h3 className="text-lg font-black text-foreground uppercase group-hover:text-primary transition-colors italic tracking-tighter">{seller.name}</h3>
                                     <p className="text-[10px] font-black text-primary uppercase tracking-widest mt-1 opacity-60 italic">{seller.role}</p>
                                 </div>
                             </div>
 
-                            <div className="mt-8 pt-8 border-t border-white/5 space-y-4">
-                                <div className="flex items-center gap-4 text-white/40 group/item hover:text-white transition-colors">
-                                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
-                                        <Mail className="w-4.5 h-4.5 text-white/10" />
+                            <div className="mt-8 pt-8 border-t border-white/55 space-y-4">
+                                <div className="flex items-center gap-4 text-muted-foreground group/item hover:text-foreground transition-colors">
+                                    <div className="w-10 h-10 rounded-xl bg-white/42 border border-white/70 flex items-center justify-center">
+                                        <Mail className="w-4.5 h-4.5 text-muted-foreground" />
                                     </div>
                                     <span className="text-[11px] font-bold tracking-tight lowercase truncate">{seller.email}</span>
                                 </div>
-                                <div className="flex items-center gap-4 text-white/40 group/item hover:text-white transition-colors">
-                                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
-                                        <Phone className="w-4.5 h-4.5 text-white/10" />
+                                <div className="flex items-center gap-4 text-muted-foreground group/item hover:text-foreground transition-colors">
+                                    <div className="w-10 h-10 rounded-xl bg-white/42 border border-white/70 flex items-center justify-center">
+                                        <Phone className="w-4.5 h-4.5 text-muted-foreground" />
                                     </div>
                                     <span className="text-[11px] font-bold tracking-tight">{seller.phone}</span>
                                 </div>

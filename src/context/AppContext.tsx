@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 
 // --- Interfaces ---
 
@@ -150,10 +150,16 @@ export interface CalendarEvent {
     date: string;
     type: 'visit' | 'delivery' | 'call' | 'meeting';
     client: string;
+    ownerUserId?: string;
+    ownerName?: string;
     location?: string;
     meetingLink?: string;
     invitees: Invitee[];
     description?: string;
+    googleEventId?: string;
+    googleCalendarId?: string;
+    syncedAt?: string;
+    source?: 'local' | 'google' | 'local+google';
 }
 
 export interface AppSettings {
@@ -165,6 +171,58 @@ export interface AppSettings {
     fromEmail: string;
     geminiKey?: string;
     resendKey?: string;
+    whatsapp: WhatsAppConfig;
+    botSettings?: BotSettings;
+}
+
+export interface BotSettings {
+    deliveryTimes: string;
+    shippingCost: string;
+    coverageArea: string;
+    faqs: string[];
+    systemPrompt: string;
+    escalationRules: {
+        largeSale: boolean;
+        anger: boolean;
+        unknownAnswer: boolean;
+        catalogOnly: boolean;
+    };
+    captureFields: {
+        name: boolean;
+        email: boolean;
+        phone: boolean;
+        city: boolean;
+        company: boolean;
+    };
+    widget: {
+        apiKey: string;
+        primaryColor: string;
+        botName: string;
+        position: 'right-bottom' | 'left-bottom';
+        authorizedDomain: string;
+        whatsappSync: boolean;
+    };
+}
+
+export interface WhatsAppConfig {
+    accessToken: string;
+    phoneNumberId: string;
+    businessAccountId: string;
+    verifyToken: string;
+    appId?: string;
+    displayPhoneNumber?: string;
+    webhookUrl?: string;
+    status: 'disconnected' | 'configured' | 'connected' | 'error';
+    lastVerifiedAt?: string;
+    lastError?: string;
+}
+
+export interface ProductSyncStatus {
+    lastAttemptAt?: string;
+    lastSuccessAt?: string;
+    lastResult: 'idle' | 'success' | 'error';
+    syncedCount: number;
+    message?: string;
 }
 
 // --- Context Definition ---
@@ -174,6 +232,13 @@ export interface FormDefinition {
     title: string;
     description: string;
     fields: string[];
+    customFields?: Array<{
+        id: string;
+        label: string;
+        type: 'text' | 'email' | 'phone' | 'textarea' | 'number';
+        required: boolean;
+        placeholder?: string;
+    }>;
     primaryColor: string;
     theme: string;
     buttonText: string;
@@ -194,6 +259,7 @@ interface AppContextType {
     products: Product[];
     forms: FormDefinition[];
     currentUser: Seller | null;
+    productSyncStatus: ProductSyncStatus;
     refreshProducts: () => Promise<void>;
     login: (username: string, password: string) => boolean;
     logout: () => void;
@@ -253,6 +319,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const [products, setProducts] = useState<Product[]>(() => loadData('crm_inventory_products', []));
     const [forms, setForms] = useState<FormDefinition[]>(() => loadData('crm_forms', []));
     const [currentUser, setCurrentUser] = useState<Seller | null>(() => loadData('crm_current_user', null));
+    const [productSyncStatus, setProductSyncStatus] = useState<ProductSyncStatus>(() => loadData('crm_product_sync_status', {
+        lastResult: 'idle',
+        syncedCount: 0,
+    }));
     const [isInitialLoad, setIsInitialLoad] = useState(true);
 
     const [settings, setSettings] = useState<AppSettings>(() => loadData('crm_settings', {
@@ -298,7 +368,57 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         productionEmails: [],
         fromEmail: 'ordenes@arteconcreto.co',
         geminiKey: '',
-        resendKey: ''
+        resendKey: '',
+        whatsapp: {
+            accessToken: '',
+            phoneNumberId: '',
+            businessAccountId: '',
+            verifyToken: '',
+            appId: '',
+            displayPhoneNumber: '',
+            webhookUrl: '',
+            status: 'disconnected',
+            lastVerifiedAt: '',
+            lastError: '',
+        },
+        botSettings: {
+            deliveryTimes: '10 a 15 días hábiles',
+            shippingCost: 'Gratis en Medellín y Bogotá. Resto del país: Cotización personalizada.',
+            coverageArea: 'Despachamos a nivel nacional. Instalación en sitio disponible según volumen de compra.',
+            faqs: [
+                '¿Fabrican diseños a medida?',
+                '¿Tienen descuentos por volumen?',
+            ],
+            systemPrompt: `Eres el Bot oficial de Arte Concreto.
+Tu misión es recibir al cliente, capturar sus datos y cotizar mobiliario urbano.
+
+REGLAS DE ORO:
+1. Siempre captura Nombre, Empresa y Ciudad.
+2. Si el cliente pide productos personalizados, solicita ayuda humana.
+3. El tiempo de despacho de concreto es de 10-15 días.
+4. No hables de precios de obra civil, solo suministros de productos.`,
+            escalationRules: {
+                largeSale: true,
+                anger: true,
+                unknownAnswer: true,
+                catalogOnly: false,
+            },
+            captureFields: {
+                name: true,
+                email: true,
+                phone: true,
+                city: true,
+                company: true,
+            },
+            widget: {
+                apiKey: 'AC-5882-XT90',
+                primaryColor: '#FAB510',
+                botName: 'MiWi AI',
+                position: 'right-bottom',
+                authorizedDomain: 'arteconcreto.co',
+                whatsappSync: true,
+            },
+        },
     }));
 
     // Seed default admin if no sellers exist
@@ -328,9 +448,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
     }, [sellers.length]);
 
-    // Save to localStorage when state changes
+    // Persist state with a small delay so UI interactions are not blocked by repeated JSON serialization.
     useEffect(() => {
-        if (!isInitialLoad) {
+        if (isInitialLoad) return;
+
+        const persist = () => {
             localStorage.setItem('crm_clients', JSON.stringify(clients));
             localStorage.setItem('crm_tasks', JSON.stringify(tasks));
             localStorage.setItem('crm_quotes', JSON.stringify(quotes));
@@ -342,15 +464,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem('crm_events', JSON.stringify(events));
             localStorage.setItem('crm_inventory_products', JSON.stringify(products));
             localStorage.setItem('crm_forms', JSON.stringify(forms));
+            localStorage.setItem('crm_product_sync_status', JSON.stringify(productSyncStatus));
             if (currentUser) {
                 localStorage.setItem('crm_current_user', JSON.stringify(currentUser));
             } else {
                 localStorage.removeItem('crm_current_user');
             }
-        }
-    }, [clients, tasks, quotes, sellers, notifications, auditLogs, anomalies, settings, events, products, forms, currentUser, isInitialLoad]);
+        };
+
+        const timeoutId = window.setTimeout(persist, 120);
+        return () => window.clearTimeout(timeoutId);
+    }, [clients, tasks, quotes, sellers, notifications, auditLogs, anomalies, settings, events, products, forms, currentUser, productSyncStatus, isInitialLoad]);
 
     const refreshProducts = async () => {
+        const attemptAt = new Date().toISOString();
+        setProductSyncStatus(prev => ({
+            ...prev,
+            lastAttemptAt: attemptAt,
+            message: 'Sincronizando catalogo desde WooCommerce...',
+        }));
+
         try {
             const res = await fetch('/api/woocommerce');
             if (!res.ok) throw new Error('Error fetching WooCommerce products');
@@ -381,14 +514,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             if (mapped.length > 0) {
                 setProducts(mapped);
             }
+
+            setProductSyncStatus({
+                lastAttemptAt: attemptAt,
+                lastSuccessAt: new Date().toISOString(),
+                lastResult: 'success',
+                syncedCount: mapped.length,
+                message: `Catalogo sincronizado correctamente. ${mapped.length} productos recibidos.`,
+            });
         } catch (error) {
             console.warn("WooCommerce sync failed:", error);
+            setProductSyncStatus(prev => ({
+                ...prev,
+                lastAttemptAt: attemptAt,
+                lastResult: 'error',
+                message: error instanceof Error ? error.message : 'No se pudo sincronizar el catalogo.',
+            }));
         }
     };
 
     useEffect(() => {
         if (isInitialLoad) {
-            refreshProducts();
             setIsInitialLoad(false);
         }
     }, [isInitialLoad]);
@@ -605,8 +751,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setNotifications(prev => prev.filter(n => n.id !== id));
     };
 
-    return (
-        <AppContext.Provider value={{
+    const contextValue = useMemo(() => ({
             clients, tasks, quotes, sellers, notifications, settings, events, forms,
             addClient, addTask, addQuote, addSeller, addNotification, addEvent, addForm,
             updateClient, deleteClient,
@@ -617,9 +762,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             updateForm, deleteForm,
             markNotificationAsRead, clearNotifications, removeNotification, setNotifications,
             auditLogs, addAuditLog, anomalies, addAnomaly,
-            products, refreshProducts, updateProduct, deleteProduct,
+            products, productSyncStatus, refreshProducts, updateProduct, deleteProduct,
             currentUser, login, logout
-        }}>
+        }), [
+            clients, tasks, quotes, sellers, notifications, settings, events, forms,
+            auditLogs, anomalies, products, productSyncStatus, currentUser
+        ]);
+
+    return (
+        <AppContext.Provider value={contextValue}>
             {children}
         </AppContext.Provider>
     );

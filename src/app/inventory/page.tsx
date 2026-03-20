@@ -24,7 +24,7 @@ import { useApp, Product } from '@/context/AppContext';
 const INITIAL_PRODUCTS: Product[] = [];
 
 export default function InventoryPage() {
-    const { settings, sellers, products, refreshProducts, updateProduct, deleteProduct, currentUser } = useApp();
+    const { settings, sellers, products, productSyncStatus, refreshProducts, updateProduct, deleteProduct, currentUser } = useApp();
     const userIsSuperAdmin = currentUser?.role === 'SuperAdmin';
     const canExport = userIsSuperAdmin && settings.allowExports;
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -118,6 +118,14 @@ export default function InventoryPage() {
         setIsSyncing(true);
         await refreshProducts();
         setIsSyncing(false);
+    };
+
+    const formatSyncTime = (value?: string) => {
+        if (!value) return 'Nunca';
+        return new Intl.DateTimeFormat('es-CO', {
+            dateStyle: 'short',
+            timeStyle: 'short'
+        }).format(new Date(value));
     };
 
     useEffect(() => {
@@ -395,6 +403,31 @@ export default function InventoryPage() {
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">Inventario de Productos</h1>
                     <p className="text-sm text-muted-foreground">Catálogo de mobiliario de concreto y piezas arquitectónicas.</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] font-black uppercase tracking-[0.18em]">
+                        <span className={clsx(
+                            "rounded-full px-3 py-1 border",
+                            productSyncStatus.lastResult === 'success'
+                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                : productSyncStatus.lastResult === 'error'
+                                    ? "bg-rose-500/10 text-rose-600 border-rose-500/20"
+                                    : "bg-white/40 text-muted-foreground border-border/60"
+                        )}>
+                            {productSyncStatus.lastResult === 'success'
+                                ? 'Sync OK'
+                                : productSyncStatus.lastResult === 'error'
+                                    ? 'Sync Error'
+                                    : 'Sync pendiente'}
+                        </span>
+                        <span className="text-muted-foreground">
+                            Ultima sync: {formatSyncTime(productSyncStatus.lastSuccessAt || productSyncStatus.lastAttemptAt)}
+                        </span>
+                        <span className="text-muted-foreground">
+                            Items: {productSyncStatus.syncedCount}
+                        </span>
+                    </div>
+                    {productSyncStatus.message && (
+                        <p className="mt-2 text-xs text-muted-foreground">{productSyncStatus.message}</p>
+                    )}
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="flex gap-2">
@@ -675,7 +708,7 @@ export default function InventoryPage() {
                                     </td>
                                     <td className="px-6 py-5">
                                         <span className={clsx(
-                                            "text-[9px] font-black px-3 py-1.5 rounded-xl uppercase tracking-widest border shadow-sm",
+                                            "inline-flex min-w-[108px] items-center justify-center whitespace-nowrap text-center text-[9px] font-black px-3 py-1.5 rounded-xl uppercase tracking-widest border",
                                             product.status === 'In Stock' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" :
                                                 product.status === 'Production' ? "bg-primary/10 text-primary border-primary/20" :
                                                     "bg-rose-500/10 text-rose-500 border-rose-500/20"
@@ -742,8 +775,8 @@ export default function InventoryPage() {
 
             {/* Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="bg-card border border-border/40 w-full max-w-2xl rounded-[2.5rem] p-8 lg:p-10 shadow-3xl relative animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto scrollbar-hide">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(245,248,252,0.58)] backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="surface-panel w-full max-w-2xl rounded-[2.5rem] p-8 lg:p-10 relative animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto scrollbar-hide">
                         <button
                             onClick={() => setIsModalOpen(false)}
                             className="absolute top-6 right-6 p-2 hover:bg-muted rounded-full transition-colors"
@@ -763,7 +796,7 @@ export default function InventoryPage() {
                                         {form.image ? (
                                             <>
                                                 <img src={form.image} alt="preview" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://cuantium.com/wp-content/uploads/2026/02/logo.png'; }} />
-                                                <button onClick={() => setForm(f => ({ ...f, image: '' }))} className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-rose-500 text-white rounded-full transition-colors">
+                                                <button onClick={() => setForm(f => ({ ...f, image: '' }))} className="absolute top-2 right-2 p-1.5 bg-white/80 hover:bg-rose-500 text-muted-foreground hover:text-white rounded-full transition-colors border border-white/70">
                                                     <X className="w-3 h-3" />
                                                 </button>
                                             </>

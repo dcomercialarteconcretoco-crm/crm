@@ -69,21 +69,61 @@ interface Message {
 }
 
 const chats: Message[] = [];
+const DEFAULT_BOT_SETTINGS = {
+    deliveryTimes: '10 a 15 días hábiles',
+    shippingCost: 'Gratis en Medellín y Bogotá. Resto del país: Cotización personalizada.',
+    coverageArea: 'Despachamos a nivel nacional. Instalación en sitio disponible según volumen de compra.',
+    faqs: [
+        '¿Fabrican diseños a medida?',
+        '¿Tienen descuentos por volumen?',
+    ],
+    systemPrompt: `Eres el Bot oficial de Arte Concreto.
+Tu misión es recibir al cliente, capturar sus datos y cotizar mobiliario urbano.
 
-export default function MiWiBotPage() {
-    const { products } = useApp();
-    const [activeTab, setActiveTab] = useState<'monitor' | 'programming' | 'capture' | 'widget'>('monitor');
-    const [selectedChat, setSelectedChat] = useState<Message | null>(null);
-    const [isHumanInControl, setIsHumanInControl] = useState(false);
-    const [activeAlert, setActiveAlert] = useState<{ type: 'help' | 'sale'; visible: boolean }>({ type: 'help', visible: false });
-
-    const [captureFields, setCaptureFields] = useState({
+REGLAS DE ORO:
+1. Siempre captura Nombre, Empresa y Ciudad.
+2. Si el cliente pide productos personalizados, solicita ayuda humana.
+3. El tiempo de despacho de concreto es de 10-15 días.
+4. No hables de precios de obra civil, solo suministros de productos.`,
+    escalationRules: {
+        largeSale: true,
+        anger: true,
+        unknownAnswer: true,
+        catalogOnly: false,
+    },
+    captureFields: {
         name: true,
         email: true,
         phone: true,
         city: true,
-        company: true
-    });
+        company: true,
+    },
+    widget: {
+        apiKey: 'AC-5882-XT90',
+        primaryColor: '#FAB510',
+        botName: 'MiWi AI',
+        position: 'right-bottom' as const,
+        authorizedDomain: 'arteconcreto.co',
+        whatsappSync: true,
+    },
+};
+
+export default function MiWiBotPage() {
+    const { products, settings, updateSettings, addNotification } = useApp();
+    const [activeTab, setActiveTab] = useState<'monitor' | 'programming' | 'capture' | 'widget'>('monitor');
+    const [selectedChat, setSelectedChat] = useState<Message | null>(null);
+    const [isHumanInControl, setIsHumanInControl] = useState(false);
+    const [activeAlert, setActiveAlert] = useState<{ type: 'help' | 'sale'; visible: boolean }>({ type: 'help', visible: false });
+    const botSettings = settings.botSettings || DEFAULT_BOT_SETTINGS;
+    const [captureFields, setCaptureFields] = useState(botSettings.captureFields);
+    const [deliveryTimes, setDeliveryTimes] = useState(botSettings.deliveryTimes);
+    const [shippingCost, setShippingCost] = useState(botSettings.shippingCost);
+    const [coverageArea, setCoverageArea] = useState(botSettings.coverageArea);
+    const [faqs, setFaqs] = useState(botSettings.faqs);
+    const [systemPrompt, setSystemPrompt] = useState(botSettings.systemPrompt);
+    const [escalationRules, setEscalationRules] = useState(botSettings.escalationRules);
+    const [widgetConfig, setWidgetConfig] = useState(botSettings.widget);
+    const [isSavingConfig, setIsSavingConfig] = useState(false);
 
     // Attachment & Product States
     const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false);
@@ -136,6 +176,18 @@ export default function MiWiBotPage() {
     const [modalTab, setModalTab] = useState<'products' | 'combos' | 'quotes'>('products');
 
     useEffect(() => {
+        const merged = settings.botSettings || DEFAULT_BOT_SETTINGS;
+        setCaptureFields(merged.captureFields);
+        setDeliveryTimes(merged.deliveryTimes);
+        setShippingCost(merged.shippingCost);
+        setCoverageArea(merged.coverageArea);
+        setFaqs(merged.faqs);
+        setSystemPrompt(merged.systemPrompt);
+        setEscalationRules(merged.escalationRules);
+        setWidgetConfig(merged.widget);
+    }, [settings.botSettings]);
+
+    useEffect(() => {
         // Simulate a "Needs Help" alert
         const helpTimer = setTimeout(() => setActiveAlert({ type: 'help', visible: true }), 5000);
         // Simulate a "Big Sale" alert
@@ -166,6 +218,97 @@ export default function MiWiBotPage() {
         setCaptureFields(prev => ({ ...prev, [field]: !prev[field] }));
     };
 
+    const toggleEscalationRule = (rule: keyof typeof escalationRules) => {
+        setEscalationRules(prev => ({ ...prev, [rule]: !prev[rule] }));
+    };
+
+    const updateFaq = (index: number, value: string) => {
+        setFaqs(prev => prev.map((faq, faqIndex) => faqIndex === index ? value : faq));
+    };
+
+    const addFaq = () => {
+        setFaqs(prev => [...prev, '']);
+    };
+
+    const removeFaq = (index: number) => {
+        setFaqs(prev => prev.filter((_, faqIndex) => faqIndex !== index));
+    };
+
+    const handleSaveBotConfig = () => {
+        setIsSavingConfig(true);
+
+        updateSettings({
+            botSettings: {
+            deliveryTimes: deliveryTimes.trim(),
+            shippingCost: shippingCost.trim(),
+            coverageArea: coverageArea.trim(),
+            faqs: faqs.map((faq) => faq.trim()).filter(Boolean),
+            systemPrompt: systemPrompt.trim(),
+            escalationRules,
+            captureFields,
+                widget: widgetConfig,
+            },
+        });
+
+        window.setTimeout(() => {
+            setIsSavingConfig(false);
+            addNotification({
+                title: 'MiWi actualizado',
+                description: 'La configuración del bot quedó guardada y persistida en el CRM.',
+                type: 'success',
+            });
+        }, 250);
+    };
+
+    const widgetSnippet = `<script>
+  window.miwiSettings = {
+    apiKey: "${widgetConfig.apiKey}",
+    primaryColor: "${widgetConfig.primaryColor}",
+    botName: "${widgetConfig.botName}",
+    position: "${widgetConfig.position}",
+    authorizedDomain: "${widgetConfig.authorizedDomain}",
+    whatsappSync: ${widgetConfig.whatsappSync}
+  };
+</script>
+<script src="https://cdn.miwibi.com/widget.js" async></script>`;
+
+    const copyWidgetSnippet = async () => {
+        await navigator.clipboard.writeText(widgetSnippet);
+        addNotification({
+            title: 'Código copiado',
+            description: 'El snippet del widget quedó en el portapapeles.',
+            type: 'success',
+        });
+    };
+
+    const shareWidgetSnippet = async () => {
+        if (navigator.share) {
+            await navigator.share({
+                title: 'Widget MiWi',
+                text: widgetSnippet,
+            });
+            return;
+        }
+
+        await copyWidgetSnippet();
+    };
+
+    const trainingChecks = [
+        deliveryTimes.trim().length > 0,
+        shippingCost.trim().length > 0,
+        coverageArea.trim().length > 0,
+        faqs.map((faq) => faq.trim()).filter(Boolean).length >= 2,
+        systemPrompt.trim().length > 40,
+        Object.values(escalationRules).some(Boolean),
+        Object.values(captureFields).filter(Boolean).length >= 3,
+        widgetConfig.apiKey.trim().length > 0,
+        widgetConfig.authorizedDomain.trim().length > 0,
+        widgetConfig.botName.trim().length > 0,
+    ];
+    const trainingScore = Math.round((trainingChecks.filter(Boolean).length / trainingChecks.length) * 100);
+    const trainingLevel = trainingScore >= 85 ? 'Avanzado' : trainingScore >= 65 ? 'Intermedio' : 'Base';
+    const scoreStroke = 100 - trainingScore;
+
     return (
         <div className="space-y-8 animate-in fade-in duration-700">
             {/* Header / Tabs */}
@@ -180,9 +323,28 @@ export default function MiWiBotPage() {
                             Control omnicanal con IA híbrida.
                         </p>
                         <div className="hidden lg:block h-4 w-px bg-border mx-2" />
-                        <div className="flex items-center gap-2 opacity-60">
-                            <span className="text-[8px] font-black uppercase tracking-widest">Powered by</span>
-                            <img src="https://cuantium.com/wp-content/uploads/2025/12/wibicrmblanco@4x.png" alt="MiWibi" className="h-2.5 object-contain opacity-80" />
+                        <div className="flex items-center gap-2 opacity-80">
+                            <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">Powered by</span>
+                            <img
+                                src="https://cuantium.com/wp-content/uploads/2025/12/wibicrmblanco@4x.png"
+                                alt="MiWibi"
+                                className="h-3.5 object-contain brightness-0 opacity-75"
+                            />
+                        </div>
+                        <div className={clsx(
+                            "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[8px] font-black uppercase tracking-widest w-fit",
+                            settings.whatsapp.status === 'connected'
+                                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-500"
+                                : settings.whatsapp.status === 'error'
+                                    ? "border-rose-500/20 bg-rose-500/10 text-rose-500"
+                                    : "border-amber-500/20 bg-amber-500/10 text-amber-500"
+                        )}>
+                            <MessageCircle className="w-3 h-3" />
+                            {settings.whatsapp.status === 'connected'
+                                ? `WhatsApp listo${settings.whatsapp.displayPhoneNumber ? ` · ${settings.whatsapp.displayPhoneNumber}` : ''}`
+                                : settings.whatsapp.status === 'error'
+                                    ? 'WhatsApp con error'
+                                    : 'WhatsApp pendiente'}
                         </div>
                     </div>
                 </div>
@@ -557,18 +719,22 @@ export default function MiWiBotPage() {
                                             className="w-12 h-12 text-primary absolute top-0 left-0 -rotate-90"
                                             strokeWidth={4}
                                             strokeDasharray="100"
-                                            strokeDashoffset="15"
+                                            strokeDashoffset={scoreStroke}
                                         />
-                                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black">85%</span>
+                                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black">{trainingScore}%</span>
                                     </div>
                                     <div>
                                         <p className="text-[9px] font-black uppercase tracking-widest text-primary">Score de Entrenamiento</p>
-                                        <p className="text-xs font-black text-foreground">Nivel: Avanzado</p>
+                                        <p className="text-xs font-black text-foreground">Nivel: {trainingLevel}</p>
                                     </div>
                                 </div>
-                                <button className="bg-primary text-black font-black px-8 py-4 rounded-2xl flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_10px_20px_rgba(250,181,16,0.2)]">
+                                <button
+                                    onClick={handleSaveBotConfig}
+                                    className="bg-primary text-black font-black px-8 py-4 rounded-2xl flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_10px_20px_rgba(250,181,16,0.2)] disabled:opacity-60 disabled:hover:scale-100"
+                                    disabled={isSavingConfig}
+                                >
                                     <Save className="w-4 h-4" />
-                                    <span className="text-[10px] uppercase tracking-widest">Guardar Todo</span>
+                                    <span className="text-[10px] uppercase tracking-widest">{isSavingConfig ? 'Guardando...' : 'Guardar Todo'}</span>
                                 </button>
                             </div>
                         </div>
@@ -597,7 +763,8 @@ export default function MiWiBotPage() {
                                                 type="text"
                                                 placeholder="Ej: 10 a 15 días hábiles"
                                                 className="w-full bg-muted/10 border border-border/40 rounded-2xl p-5 text-sm font-bold text-foreground outline-none focus:border-primary/50 transition-all"
-                                                defaultValue="10 a 15 días hábiles"
+                                                value={deliveryTimes}
+                                                onChange={(e) => setDeliveryTimes(e.target.value)}
                                             />
                                             <p className="text-[9px] text-muted-foreground/50 font-medium italic">MiWi mencionará este dato al preguntar sobre disponibilidad.</p>
                                         </div>
@@ -611,7 +778,8 @@ export default function MiWiBotPage() {
                                                 type="text"
                                                 placeholder="Ej: Gratis en Bogotá, resto del país contraentrega"
                                                 className="w-full bg-muted/10 border border-border/40 rounded-2xl p-5 text-sm font-bold text-foreground outline-none focus:border-primary/50 transition-all"
-                                                defaultValue="Gratis en Medellín y Bogotá. Resto del país: Cotización personalizada."
+                                                value={shippingCost}
+                                                onChange={(e) => setShippingCost(e.target.value)}
                                             />
                                         </div>
 
@@ -623,7 +791,8 @@ export default function MiWiBotPage() {
                                             <textarea
                                                 placeholder="Ej: Toda Colombia, especializado en zonas urbanas."
                                                 className="w-full bg-muted/10 border border-border/40 rounded-2xl p-5 text-sm font-bold text-foreground outline-none focus:border-primary/50 transition-all h-32"
-                                                defaultValue="Despachamos a nivel nacional. Instalación en sitio disponible según volumen de compra."
+                                                value={coverageArea}
+                                                onChange={(e) => setCoverageArea(e.target.value)}
                                             />
                                         </div>
 
@@ -633,13 +802,27 @@ export default function MiWiBotPage() {
                                                 <label className="text-[10px] font-black uppercase tracking-widest">Preguntas Frecuentes (FAQ)</label>
                                             </div>
                                             <div className="space-y-3">
-                                                <button className="w-full p-4 bg-muted/10 border border-border/40 rounded-xl text-left hover:bg-muted/20 transition-colors">
-                                                    <span className="text-[11px] font-bold text-muted-foreground/60">¿Fabrican diseños a medida?</span>
-                                                </button>
-                                                <button className="w-full p-4 bg-muted/10 border border-border/40 rounded-xl text-left hover:bg-muted/20 transition-colors">
-                                                    <span className="text-[11px] font-bold text-muted-foreground/60">¿Tienen descuentos por volumen?</span>
-                                                </button>
-                                                <button className="w-full p-4 text-primary text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-primary/10 rounded-xl hover:bg-primary/5 transition-all">
+                                                {faqs.map((faq, index) => (
+                                                    <div key={`faq-${index}`} className="flex items-center gap-3">
+                                                        <input
+                                                            type="text"
+                                                            value={faq}
+                                                            onChange={(e) => updateFaq(index, e.target.value)}
+                                                            placeholder={`FAQ ${index + 1}`}
+                                                            className="w-full p-4 bg-muted/10 border border-border/40 rounded-xl text-[11px] font-bold text-foreground outline-none focus:border-primary/50 transition-colors"
+                                                        />
+                                                        <button
+                                                            onClick={() => removeFaq(index)}
+                                                            className="p-3 rounded-xl border border-border/40 text-muted-foreground hover:text-rose-500 hover:border-rose-500/30 transition-all"
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                <button
+                                                    onClick={addFaq}
+                                                    className="w-full p-4 text-primary text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-primary/10 rounded-xl hover:bg-primary/5 transition-all"
+                                                >
                                                     <Zap className="w-3 h-3" /> Añadir Nueva FAQ
                                                 </button>
                                             </div>
@@ -652,14 +835,8 @@ export default function MiWiBotPage() {
                                     <div className="relative group">
                                         <textarea
                                             className="w-full h-80 bg-muted/10 border border-border rounded-[2.5rem] p-10 text-sm focus:border-primary/50 outline-none transition-all font-bold text-foreground leading-relaxed custom-scrollbar"
-                                            defaultValue={`Eres el Bot oficial de Arte Concreto. 
-Tu misión es recibir al cliente, capturar sus datos y cotizar mobiliario urbano.
-
-REGLAS DE ORO:
-1. Siempre captura Nombre, Empresa y Ciudad.
-2. Si el cliente pide productos personalizados, solicita ayuda humana.
-3. El tiempo de despacho de concreto es de 10-15 días.
-4. No hables de precios de obra civil, solo suministros de productos.`}
+                                            value={systemPrompt}
+                                            onChange={(e) => setSystemPrompt(e.target.value)}
                                         />
                                         <div className="absolute bottom-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button className="p-3 bg-primary text-black rounded-xl shadow-lg hover:scale-110 transition-all">
@@ -679,17 +856,20 @@ REGLAS DE ORO:
                                     </div>
                                     <div className="space-y-6">
                                         {[
-                                            { id: '1', label: 'Alertar por "Venta Grande"', active: true },
-                                            { id: '2', label: 'Pasar a Humano por Enojo', active: true },
-                                            { id: '3', label: 'Pedir ayuda si no sé la respuesta', active: true },
-                                            { id: '4', label: 'Modo Solo Catalogo (No IA)', active: false },
+                                            { id: 'largeSale', label: 'Alertar por "Venta Grande"', active: escalationRules.largeSale },
+                                            { id: 'anger', label: 'Pasar a Humano por Enojo', active: escalationRules.anger },
+                                            { id: 'unknownAnswer', label: 'Pedir ayuda si no sé la respuesta', active: escalationRules.unknownAnswer },
+                                            { id: 'catalogOnly', label: 'Modo Solo Catalogo (No IA)', active: escalationRules.catalogOnly },
                                         ].map((cap) => (
                                             <div key={cap.id} className="flex items-center justify-between">
                                                 <span className="text-[11px] font-bold text-muted-foreground">{cap.label}</span>
-                                                <button className={clsx(
+                                                <button
+                                                    onClick={() => toggleEscalationRule(cap.id as keyof typeof escalationRules)}
+                                                    className={clsx(
                                                     "w-10 h-5 rounded-full relative transition-all",
                                                     cap.active ? "bg-primary" : "bg-muted-foreground/10"
-                                                )}>
+                                                )}
+                                                >
                                                     <div className={clsx(
                                                         "absolute top-1 w-3 h-3 rounded-full bg-white transition-all",
                                                         cap.active ? "left-6" : "left-1"
@@ -720,11 +900,11 @@ REGLAS DE ORO:
                                     </div>
                                     <div className="space-y-2">
                                         <div className="h-1.5 w-full bg-muted/10 rounded-full overflow-hidden">
-                                            <div className="h-full bg-emerald-500 w-[92%]" />
+                                            <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${trainingScore}%` }} />
                                         </div>
                                         <div className="flex justify-between items-center text-[9px] font-black uppercase text-muted-foreground/40">
                                             <span>Modelo Entrenado</span>
-                                            <span>92% Precisión</span>
+                                            <span>{trainingScore}% completitud</span>
                                         </div>
                                     </div>
                                 </div>
@@ -734,17 +914,17 @@ REGLAS DE ORO:
                 )}
 
                 {activeTab === 'capture' && (
-                    <div className="flex-1 p-10 lg:p-20 space-y-12 lg:space-y-16 flex flex-col items-center overflow-y-auto custom-scrollbar">
-                        <div className="text-center space-y-4 max-w-2xl">
-                            <Shield className="w-12 h-12 lg:w-16 lg:h-16 text-primary mx-auto mb-6" />
-                            <h2 className="text-2xl lg:text-4xl font-black text-foreground tracking-tighter uppercase italic">Formulario de Pre-Chat</h2>
-                            <p className="text-xs lg:text-base text-muted-foreground font-bold leading-relaxed">
+                    <div className="flex-1 p-6 lg:p-8 space-y-6 lg:space-y-8 flex flex-col items-center overflow-y-auto custom-scrollbar">
+                        <div className="text-center space-y-2 max-w-2xl">
+                            <Shield className="w-9 h-9 lg:w-11 lg:h-11 text-primary mx-auto mb-2" />
+                            <h2 className="text-xl lg:text-3xl font-black text-foreground tracking-tighter uppercase italic">Formulario de Pre-Chat</h2>
+                            <p className="text-[11px] lg:text-sm text-muted-foreground font-bold leading-relaxed">
                                 Captura los datos del cliente automáticamente antes de iniciar la conversación con MiWi. Esto garantiza que todos los contactos se registren como Leads.
                             </p>
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 w-full max-w-5xl">
-                            <div className="space-y-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 w-full max-w-5xl items-start">
+                            <div className="space-y-4">
                                 <h3 className="text-[10px] lg:text-xs font-black uppercase text-primary tracking-[0.3em] pl-4 border-l-4 border-primary">Campos del Chatbot</h3>
                                 <div className="space-y-2">
                                     {Object.entries(captureFields).map(([key, val]) => (
@@ -752,41 +932,48 @@ REGLAS DE ORO:
                                             key={key}
                                             onClick={() => toggleField(key as any)}
                                             className={clsx(
-                                                "flex items-center justify-between p-5 lg:p-6 rounded-2xl lg:rounded-3xl border cursor-pointer transition-all",
+                                                "flex items-center justify-between p-4 lg:p-4.5 rounded-2xl border cursor-pointer transition-all",
                                                 val ? "bg-primary/10 border-primary/40 text-foreground" : "bg-muted/10 border-border/40 text-muted-foreground opacity-20"
                                             )}
                                         >
                                             <div className="flex items-center gap-4">
-                                                {val ? <CheckCircle2 className="w-5 h-5 lg:w-6 lg:h-6 text-primary" /> : <Circle className="w-5 h-5 lg:w-6 lg:h-6" />}
-                                                <span className="text-[11px] lg:text-sm font-black uppercase tracking-widest">{key === 'name' ? 'Nombre Completo' : key === 'email' ? 'Correo Electrónico' : key === 'phone' ? 'WhatsApp' : key === 'city' ? 'Ciudad' : 'Empresa'}</span>
+                                                {val ? <CheckCircle2 className="w-5 h-5 text-primary" /> : <Circle className="w-5 h-5" />}
+                                                <span className="text-[11px] lg:text-[13px] font-black uppercase tracking-[0.14em]">{key === 'name' ? 'Nombre Completo' : key === 'email' ? 'Correo Electrónico' : key === 'phone' ? 'WhatsApp' : key === 'city' ? 'Ciudad' : 'Empresa'}</span>
                                             </div>
-                                            <span className="text-[8px] lg:text-[10px] font-black opacity-40 uppercase">{val ? 'Requerido' : 'Off'}</span>
+                                            <span className="text-[8px] lg:text-[9px] font-black opacity-40 uppercase">{val ? 'Requerido' : 'Off'}</span>
                                         </div>
                                     ))}
                                 </div>
                             </div>
 
-                            <div className="space-y-6">
+                            <div className="space-y-4">
                                 <h3 className="text-[10px] lg:text-xs font-black uppercase text-muted-foreground/30 tracking-[0.3em] pl-4 border-l-4 border-border">Preview del Saludo</h3>
-                                <div className="bg-card border border-border/60 rounded-[3rem] p-8 lg:p-10 shadow-2xl space-y-8 relative overflow-hidden">
-                                    <div className="space-y-4">
-                                        <div className="w-12 h-12 lg:w-14 lg:h-14 bg-primary rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20">
-                                            <Bot className="w-7 h-7 lg:w-8 lg:h-8 text-black animate-pulse" />
+                                <div className="bg-card border border-border/60 rounded-[2.2rem] p-5 lg:p-6 shadow-xl space-y-5 relative overflow-hidden">
+                                    <div className="space-y-3">
+                                        <div className="w-11 h-11 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
+                                            <Bot className="w-6 h-6 text-black animate-pulse" />
                                         </div>
                                         <div>
-                                            <h4 className="text-base lg:text-lg font-black text-foreground tracking-tighter uppercase italic">MiWi AI Bot</h4>
-                                            <p className="text-[10px] lg:text-xs text-muted-foreground font-bold leading-relaxed mt-1">¡Hola! Para brindarte una mejor atención, por favor déjanos tus datos básicos antes de empezar.</p>
+                                            <h4 className="text-sm lg:text-base font-black text-foreground tracking-tighter uppercase italic">MiWi AI Bot</h4>
+                                            <p className="text-[10px] lg:text-[11px] text-muted-foreground font-bold leading-relaxed mt-1">¡Hola! Para brindarte una mejor atención, por favor déjanos tus datos básicos antes de empezar.</p>
                                         </div>
                                     </div>
-                                    <div className="space-y-4">
+                                    <div className="space-y-3">
                                         {Object.entries(captureFields).filter(([_, v]) => v).map(([k]) => (
-                                            <div key={k} className="h-12 bg-muted/20 border border-border/40 rounded-xl px-5 flex items-center border-dashed">
-                                                <span className="text-[9px] lg:text-[10px] font-black text-muted-foreground/30 uppercase tracking-widest">{k === 'name' ? 'Escribe tu nombre' : k === 'email' ? 'Tu correo electrónico' : 'Completar campo'}</span>
+                                            <div key={k} className="h-11 bg-muted/20 border border-border/40 rounded-xl px-4 flex items-center border-dashed">
+                                                <span className="text-[9px] lg:text-[10px] font-black text-muted-foreground/30 uppercase tracking-[0.12em]">{k === 'name' ? 'Escribe tu nombre' : k === 'email' ? 'Tu correo electrónico' : k === 'phone' ? 'Tu WhatsApp' : k === 'city' ? 'Tu ciudad' : 'Completar campo'}</span>
                                             </div>
                                         ))}
                                     </div>
-                                    <button className="w-full bg-primary text-black font-black py-4 lg:py-5 rounded-2xl text-[10px] lg:text-xs uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all">
+                                    <button className="w-full bg-primary text-black font-black py-3.5 rounded-2xl text-[10px] uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all">
                                         Iniciar Conversación
+                                    </button>
+                                    <button
+                                        onClick={handleSaveBotConfig}
+                                        className="w-full bg-card border border-border/40 text-foreground font-black py-3.5 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-muted/20 transition-all disabled:opacity-60"
+                                        disabled={isSavingConfig}
+                                    >
+                                        {isSavingConfig ? 'Guardando...' : 'Guardar Pre-captura'}
                                     </button>
                                 </div>
                             </div>
@@ -813,39 +1000,89 @@ REGLAS DE ORO:
                             <div className="flex-1 w-full space-y-6">
                                 <div className="bg-card border border-border rounded-[2.5rem] p-10 relative group">
                                     <div className="absolute top-6 right-6 flex gap-2">
-                                        <button className="p-3 bg-muted/10 rounded-xl border border-border transition-all text-muted-foreground/40 hover:text-foreground">
+                                        <button
+                                            onClick={copyWidgetSnippet}
+                                            className="p-3 bg-muted/10 rounded-xl border border-border transition-all text-muted-foreground/40 hover:text-foreground"
+                                        >
                                             <Copy className="w-4 h-4" />
                                         </button>
-                                        <button className="p-3 bg-muted/10 rounded-xl border border-border transition-all text-muted-foreground/40 hover:text-foreground">
+                                        <button
+                                            onClick={shareWidgetSnippet}
+                                            className="p-3 bg-muted/10 rounded-xl border border-border transition-all text-muted-foreground/40 hover:text-foreground"
+                                        >
                                             <Share2 className="w-4 h-4" />
                                         </button>
                                     </div>
                                     <pre className="text-xs font-mono text-primary/80 leading-relaxed overflow-x-auto pt-10">
-                                        {`<script>
-  window.miwiSettings = {
-    apiKey: "AC-5882-XT90",
-    primaryColor: "#FAB510",
-    botName: "MiWi AI",
-    position: "right-bottom"
-  };
-</script>
-<script src="https://cdn.miwibi.com/widget.js" async></script>`}
+                                        {widgetSnippet}
                                     </pre>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="p-6 bg-muted/10 border border-border/50 rounded-3xl flex flex-col gap-3">
+                                        <Code className="text-primary w-8 h-8" />
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-foreground">Bot Name</p>
+                                        <input
+                                            type="text"
+                                            value={widgetConfig.botName}
+                                            onChange={(e) => setWidgetConfig(prev => ({ ...prev, botName: e.target.value }))}
+                                            className="bg-transparent border border-border/40 rounded-xl px-4 py-3 text-xs font-bold text-foreground outline-none focus:border-primary/50"
+                                        />
+                                    </div>
+                                    <div className="p-6 bg-muted/10 border border-border/50 rounded-3xl flex flex-col gap-3">
+                                        <Key className="text-primary w-8 h-8" />
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-foreground">API Key</p>
+                                        <input
+                                            type="text"
+                                            value={widgetConfig.apiKey}
+                                            onChange={(e) => setWidgetConfig(prev => ({ ...prev, apiKey: e.target.value }))}
+                                            className="bg-transparent border border-border/40 rounded-xl px-4 py-3 text-xs font-bold text-foreground outline-none focus:border-primary/50"
+                                        />
+                                    </div>
                                     <div className="p-6 bg-muted/10 border border-border/50 rounded-3xl flex flex-col gap-3">
                                         <Globe className="text-sky-500 w-8 h-8" />
                                         <p className="text-[10px] font-black uppercase tracking-widest text-foreground">Dominio Autorizado</p>
-                                        <p className="text-xs font-bold text-muted-foreground">arteconcreto.co</p>
+                                        <input
+                                            type="text"
+                                            value={widgetConfig.authorizedDomain}
+                                            onChange={(e) => setWidgetConfig(prev => ({ ...prev, authorizedDomain: e.target.value }))}
+                                            className="bg-transparent border border-border/40 rounded-xl px-4 py-3 text-xs font-bold text-foreground outline-none focus:border-primary/50"
+                                        />
                                     </div>
                                     <div className="p-6 bg-muted/10 border border-border/50 rounded-3xl flex flex-col gap-3">
                                         <MessageCircle className="text-emerald-500 w-8 h-8" />
                                         <p className="text-[10px] font-black uppercase tracking-widest text-foreground">WhatsApp Sync</p>
-                                        <p className="text-xs font-bold text-muted-foreground">API Conectada</p>
+                                        <button
+                                            onClick={() => setWidgetConfig(prev => ({ ...prev, whatsappSync: !prev.whatsappSync }))}
+                                            className={clsx(
+                                                "w-fit px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                                                widgetConfig.whatsappSync ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" : "bg-muted/20 text-muted-foreground border border-border/40"
+                                            )}
+                                        >
+                                            {widgetConfig.whatsappSync ? 'Activo' : 'Inactivo'}
+                                        </button>
+                                        <p className="text-xs font-bold text-muted-foreground">
+                                            {settings.whatsapp.status === 'connected'
+                                                ? settings.whatsapp.displayPhoneNumber || 'API Conectada'
+                                                : settings.whatsapp.status === 'configured'
+                                                    ? 'Configurada, falta validar'
+                                                    : settings.whatsapp.status === 'error'
+                                                        ? 'Con error de conexión'
+                                                        : 'Sin configurar'}
+                                        </p>
                                     </div>
+                                    <div className="md:col-span-2 flex justify-end">
+                                    <button
+                                        onClick={handleSaveBotConfig}
+                                        className="bg-primary text-black font-black px-8 py-4 rounded-2xl flex items-center gap-2 hover:scale-[1.02] transition-all disabled:opacity-60 disabled:hover:scale-100"
+                                        disabled={isSavingConfig}
+                                    >
+                                        <Save className="w-4 h-4" />
+                                        <span className="text-[10px] uppercase tracking-widest">{isSavingConfig ? 'Guardando...' : 'Guardar Widget'}</span>
+                                    </button>
                                 </div>
                             </div>
+                        </div>
                         </div>
                     </div>
                 )}

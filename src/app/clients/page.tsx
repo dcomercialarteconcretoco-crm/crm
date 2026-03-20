@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
     Search,
     Plus,
@@ -211,37 +211,41 @@ export default function ClientsPage() {
         reader.readAsText(file);
     };
 
-    const sortedAndFilteredClients = [...clients]
-        .filter(client => {
-            const matchesSearch = client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                client.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                client.email.toLowerCase().includes(searchTerm.toLowerCase());
-            if (!matchesSearch) return false;
-            if (filters.minLtv && client.ltv < parseInt(filters.minLtv)) return false;
-            if (filters.maxLtv && client.ltv > parseInt(filters.maxLtv)) return false;
-            if (filters.city && client.city !== filters.city) return false;
-            if (filters.category && client.category !== filters.category) return false;
-            if (filters.minScore > 0 && client.score < filters.minScore) return false;
-            if (filters.status.length > 0 && !filters.status.includes(client.status)) return false;
+    const sortedAndFilteredClients = useMemo(() => {
+        const normalizedSearch = searchTerm.trim().toLowerCase();
 
-            if (filters.startDate && new Date(client.registrationDate) < new Date(filters.startDate)) return false;
-            if (filters.endDate && new Date(client.registrationDate) > new Date(filters.endDate)) return false;
+        return [...clients]
+            .filter(client => {
+                const matchesSearch = normalizedSearch.length === 0 ||
+                    client.name.toLowerCase().includes(normalizedSearch) ||
+                    client.company.toLowerCase().includes(normalizedSearch) ||
+                    client.email.toLowerCase().includes(normalizedSearch);
+                if (!matchesSearch) return false;
+                if (filters.minLtv && client.ltv < parseInt(filters.minLtv)) return false;
+                if (filters.maxLtv && client.ltv > parseInt(filters.maxLtv)) return false;
+                if (filters.city && client.city !== filters.city) return false;
+                if (filters.category && client.category !== filters.category) return false;
+                if (filters.minScore > 0 && client.score < filters.minScore) return false;
+                if (filters.status.length > 0 && !filters.status.includes(client.status)) return false;
+                if (filters.startDate && new Date(client.registrationDate) < new Date(filters.startDate)) return false;
+                if (filters.endDate && new Date(client.registrationDate) > new Date(filters.endDate)) return false;
 
-            return true;
-        })
-        .sort((a, b) => {
-            if (!sortConfig.key) return 0;
-            const aValue = a[sortConfig.key];
-            const bValue = b[sortConfig.key];
+                return true;
+            })
+            .sort((a, b) => {
+                if (!sortConfig.key) return 0;
+                const aValue = a[sortConfig.key];
+                const bValue = b[sortConfig.key];
 
-            if (aValue < bValue) {
-                return sortConfig.direction === 'asc' ? -1 : 1;
-            }
-            if (aValue > bValue) {
-                return sortConfig.direction === 'asc' ? 1 : -1;
-            }
-            return 0;
-        });
+                if (aValue < bValue) {
+                    return sortConfig.direction === 'asc' ? -1 : 1;
+                }
+                if (aValue > bValue) {
+                    return sortConfig.direction === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
+    }, [clients, filters, searchTerm, sortConfig]);
 
     const SortIndicator = ({ column }: { column: keyof Client }) => {
         if (sortConfig.key !== column) return <div className="w-3 h-3 opacity-10 group-hover:opacity-30 ml-auto transition-opacity"><MoreVertical className="w-full h-full" /></div>;

@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -14,10 +14,12 @@ import {
   Workflow,
   Bot,
   Shield,
-  FilePlus2
+  FilePlus2,
+  Loader2
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useApp } from '@/context/AppContext';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -48,14 +50,31 @@ interface SidebarProps {
 
 export function Sidebar({ isCompact }: SidebarProps) {
   const pathname = usePathname();
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const { currentUser } = useApp();
+  const displayName =
+    currentUser?.name === 'Administrador Principal' || currentUser?.name === 'Acceso Alternativo'
+      ? 'Juan Sierra'
+      : currentUser?.name || 'Usuario';
+  const displayRole =
+    currentUser?.role === 'SuperAdmin' ? 'Admin Core' : currentUser?.role || 'Usuario';
+  const initials = displayName
+    .split(' ')
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('');
+
+  useEffect(() => {
+    setPendingHref(null);
+  }, [pathname]);
 
   return (
     <div className={cn(
-      "hidden lg:flex flex-col h-screen bg-[linear-gradient(180deg,rgba(255,253,248,0.96),rgba(244,237,225,0.9))] border-r border-border/40 text-foreground overflow-hidden transition-all duration-500 backdrop-blur-xl",
+      "hidden lg:flex flex-col h-full bg-[linear-gradient(180deg,rgba(255,255,255,0.44),rgba(243,247,253,0.34))] border border-white/70 text-foreground overflow-hidden transition-all duration-500 backdrop-blur-[28px] rounded-[2.25rem]",
       isCompact ? "w-20" : "w-64"
     )}>
-      <div className={cn("flex flex-col items-center shrink-0", isCompact ? "p-4" : "p-6 gap-4")}>
-        <div className={cn("flex items-center justify-center transition-all", isCompact ? "w-8 h-8" : "w-full h-32")}>
+      <div className={cn("flex flex-col items-center shrink-0", isCompact ? "p-3" : "px-5 pt-2 pb-1 gap-1")}>
+        <div className={cn("flex items-center justify-center transition-all", isCompact ? "w-8 h-8" : "w-full h-16")}>
           <img
             src="https://cuantium.com/wp-content/uploads/2026/02/logo.png"
             alt="Arte Concreto"
@@ -63,37 +82,48 @@ export function Sidebar({ isCompact }: SidebarProps) {
           />
         </div>
         {!isCompact && (
-          <div className="px-4 py-1.5 bg-[linear-gradient(135deg,rgba(250,181,16,0.18),rgba(255,255,255,0.85))] border border-primary/20 rounded-full shadow-[0_10px_20px_rgba(250,181,16,0.12)]">
+          <div className="px-4 py-1 bg-white/42 border border-white/75 rounded-full backdrop-blur-xl -mt-1">
             <p className="text-[9px] text-foreground font-black tracking-[0.3em] uppercase">Power CRM</p>
           </div>
         )}
       </div>
 
 
-      <div className="px-6 mb-6">
+      <div className="px-5 mb-2">
         <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
       </div>
 
-      <nav className="flex-1 px-4 space-y-1.5 overflow-y-auto custom-scrollbar">
-        {!isCompact && <div className="mb-4 px-4 text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] opacity-50">Menú Principal</div>}
+      <nav className="flex-1 px-3 space-y-1 overflow-y-auto custom-scrollbar">
+        {!isCompact && <div className="mb-2 px-4 text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] opacity-50">Menú Principal</div>}
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => {
+                if (pathname !== item.href) {
+                  setPendingHref(item.href);
+                }
+              }}
               className={cn(
                 "flex items-center rounded-xl text-sm font-bold transition-all duration-300 group relative truncate",
-                isCompact ? "justify-center p-3" : "gap-3 px-4 py-3",
+                isCompact ? "justify-center p-2.5" : "gap-3 px-4 py-2.5",
                 isActive
-                  ? "bg-[#171717] text-[#fff7dd] shadow-[0_18px_40px_rgba(23,23,23,0.18)]"
-                  : "text-muted-foreground hover:bg-white/60 hover:text-foreground"
+                  ? "bg-white/58 text-foreground border border-white/85 backdrop-blur-xl"
+                  : pendingHref === item.href
+                    ? "bg-white/52 text-foreground border border-white/75"
+                    : "text-muted-foreground hover:bg-white/42 hover:text-foreground"
               )}
             >
-              <item.icon className={cn(
-                "w-4 h-4 transition-transform group-hover:scale-110 shrink-0",
-                isActive ? "text-primary" : "text-primary/70 group-hover:text-primary"
-              )} />
+              {pendingHref === item.href ? (
+                <Loader2 className="w-4 h-4 shrink-0 text-primary animate-spin" />
+              ) : (
+                <item.icon className={cn(
+                  "w-4 h-4 transition-transform group-hover:scale-110 shrink-0",
+                  isActive ? "text-primary" : "text-primary/70 group-hover:text-primary"
+                )} />
+              )}
               {!isCompact && <span className="tracking-tight truncate">{item.name}</span>}
 
               {/* Notification Badge for Bot */}
@@ -102,66 +132,46 @@ export function Sidebar({ isCompact }: SidebarProps) {
               )}
 
               {isActive && !isCompact && (
-                <div className="absolute right-2 w-1.5 h-1.5 bg-primary rounded-full" />
+                <div className="absolute right-3 w-1.5 h-1.5 bg-primary rounded-full" />
               )}
             </Link>
           );
         })}
 
-        {!isCompact && <div className="mt-8 mb-4 px-4 text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] opacity-50">Sistema</div>}
+        {!isCompact && <div className="mt-4 mb-2 px-4 text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] opacity-50">Sistema</div>}
         {systemItems.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => {
+                if (pathname !== item.href) {
+                  setPendingHref(item.href);
+                }
+              }}
               className={cn(
-                "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all duration-300 group truncate",
+                "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 group truncate",
                 isActive
-                  ? "bg-[#171717] text-[#fff7dd] shadow-[0_18px_40px_rgba(23,23,23,0.18)]"
-                  : "text-muted-foreground hover:bg-white/60 hover:text-foreground"
+                  ? "bg-white/58 text-foreground border border-white/85 backdrop-blur-xl"
+                  : pendingHref === item.href
+                    ? "bg-white/52 text-foreground border border-white/75"
+                    : "text-muted-foreground hover:bg-white/42 hover:text-foreground"
               )}
             >
-              <item.icon className={cn(
-                "w-4 h-4 shrink-0",
-                isActive ? "text-primary" : "text-primary/70 group-hover:text-primary"
-              )} />
+              {pendingHref === item.href ? (
+                <Loader2 className="w-4 h-4 shrink-0 text-primary animate-spin" />
+              ) : (
+                <item.icon className={cn(
+                  "w-4 h-4 shrink-0",
+                  isActive ? "text-primary" : "text-primary/70 group-hover:text-primary"
+                )} />
+              )}
               <span className="truncate">{item.name}</span>
             </Link>
           );
         })}
       </nav>
-
-      <div className={cn("p-4 shrink-0 space-y-4", isCompact ? "items-center" : "bg-white/30 border-t border-border/20")}>
-        <div className={cn("bg-white/65 border border-border/40 rounded-2xl flex items-center gap-3 shadow-[0_10px_30px_rgba(23,23,23,0.06)]", isCompact ? "p-2 justify-center" : "p-4")}>
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-black font-black text-xs shrink-0 shadow-lg shadow-primary/20">JS</div>
-          {!isCompact && (
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold truncate">Juancho Sierra</p>
-              <p className="text-[10px] text-muted-foreground truncate uppercase font-bold tracking-tighter">Admin Core</p>
-            </div>
-          )}
-        </div>
-        {/* Sidebar Footer with Credits */}
-        <div className="p-6 mt-auto border-t border-border/40 bg-white/25">
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground italic">Developed by</span>
-              <img
-                src="https://cuantium.com/wp-content/uploads/2025/12/wibicrmblanco@4x.png"
-                alt="Cuantium AI"
-                className="h-3.5 object-contain opacity-60 hover:opacity-100 transition-opacity duration-300 mix-blend-multiply"
-              />
-            </div>
-            <div className="p-3 rounded-xl bg-accent/35 border border-primary/10">
-              <p className="text-[8px] font-bold text-muted-foreground leading-tight uppercase tracking-tighter">
-                Tecnología <span className="text-primary italic">Cuantium AI - URB</span>. Diseñado exclusivamente para <span className="text-foreground">arteconcreto.co</span>.
-                Protegido por derechos de propiedad intelectual.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
 
     </div>
   );

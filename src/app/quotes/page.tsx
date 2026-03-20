@@ -292,7 +292,7 @@ export default function QuotesPage() {
         <div className="space-y-6 animate-in fade-in duration-500 pb-20">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-3 italic uppercase">
+                    <h1 className="page-hero-title page-hero-title--accent text-2xl font-black tracking-tight flex items-center gap-3 italic uppercase">
                         Gestión de Cotizaciones
                         <span className="text-[10px] font-black uppercase text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 animate-pulse">Sync Live</span>
                     </h1>
@@ -315,52 +315,52 @@ export default function QuotesPage() {
                         <div className={`p-2 rounded-lg w-fit mb-4 ${stat.bg} ${stat.color} group-hover:scale-110 transition-transform`}>
                             <stat.icon className="w-5 h-5" />
                         </div>
-                        <p className="text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-1">{stat.label}</p>
+                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">{stat.label}</p>
                         <p className="text-2xl font-black">{stat.value}</p>
                     </div>
                 ))}
             </div>
 
-            <div className="bg-card border border-border/40 rounded-[2.5rem] overflow-hidden shadow-2xl backdrop-blur-md bg-white/[0.02]">
-                <div className="p-8 border-b border-border/40 bg-white/[0.02] flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="bg-card/85 border border-white/70 rounded-[2.5rem] overflow-hidden shadow-[0_24px_55px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+                <div className="p-8 border-b border-white/55 bg-white/18 flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div className="relative flex-1 max-w-md">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <input
                             type="text"
                             placeholder="Localizar oferta por número o cliente..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-sm focus:border-primary outline-none transition-all text-white font-bold"
+                            className="w-full bg-white/45 border border-white/75 rounded-2xl pl-12 pr-4 py-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:bg-white/70 outline-none transition-all font-bold backdrop-blur-xl"
                         />
                     </div>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead>
-                            <tr className="border-b border-white/5 bg-white/[0.02]">
-                                <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Referencia / Fecha</th>
-                                <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Socio Industrial</th>
-                                <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Inversión</th>
-                                <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Estado</th>
-                                <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Aperturas</th>
-                                <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-white/20 text-right">Herramientas</th>
+                            <tr className="border-b border-white/55 bg-white/14">
+                                <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Referencia / Fecha</th>
+                                <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Socio Industrial</th>
+                                <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Inversión</th>
+                                <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Estado</th>
+                                <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Aperturas</th>
+                                <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground text-right">Herramientas</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/5">
+                        <tbody className="divide-y divide-white/45">
                             {filteredQuotes.map((quote) => (
-                                <tr key={quote.id} className="hover:bg-white/[0.02] transition-colors group">
+                                <tr key={quote.id} className="hover:bg-white/20 transition-colors group">
                                     <td className="px-10 py-8">
-                                        <p className="text-sm font-black text-white group-hover:text-primary transition-colors">{quote.number}</p>
-                                        <p className="text-[10px] font-bold text-white/20 uppercase mt-1 tracking-widest">{quote.date}</p>
+                                        <p className="text-sm font-black text-foreground group-hover:text-primary transition-colors">{quote.number}</p>
+                                        <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1 tracking-widest">{quote.date}</p>
                                     </td>
-                                    <td className="px-10 py-8 font-black text-white/80 italic">{quote.client}</td>
-                                    <td className="px-10 py-8 text-sm font-black text-white tracking-tighter">{quote.total}</td>
+                                    <td className="px-10 py-8 font-black text-foreground italic">{quote.client}</td>
+                                    <td className="px-10 py-8 text-sm font-black text-foreground tracking-tighter">{quote.total}</td>
                                     <td className="px-10 py-8">
                                         <span className={clsx(
                                             "text-[9px] font-black px-3 py-1 rounded-lg uppercase tracking-widest border",
                                             quote.status === 'Approved' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" :
                                                 quote.status === 'Sent' ? "bg-sky-500/10 text-sky-500 border-sky-500/20" :
-                                                    quote.status === 'Draft' ? "bg-white/5 text-white/40 border-white/10" :
+                                                    quote.status === 'Draft' ? "bg-white/50 text-muted-foreground border-white/80" :
                                                         "bg-rose-500/10 text-rose-500 border-rose-500/20"
                                         )}>
                                             {quote.status}
@@ -370,7 +370,7 @@ export default function QuotesPage() {
                                         <div className="flex items-center gap-2">
                                             <span className={clsx(
                                                 "text-xs font-black",
-                                                (quote.opens || 0) > 4 ? "text-rose-500" : "text-white/20"
+                                                (quote.opens || 0) > 4 ? "text-rose-500" : "text-muted-foreground"
                                             )}>
                                                 {quote.opens || 0}
                                             </span>
@@ -380,11 +380,11 @@ export default function QuotesPage() {
                                         </div>
                                     </td>
                                     <td className="px-10 py-8 text-right">
-                                        <div className="flex items-center justify-end gap-3 opacity-20 group-hover:opacity-100 transition-all">
+                                        <div className="flex items-center justify-end gap-3 opacity-40 group-hover:opacity-100 transition-all">
                                             <button
                                                 onClick={() => handleDownloadPDF(quote)}
                                                 disabled={isGenerating === quote.id}
-                                                className="p-3 bg-white/5 hover:bg-primary hover:text-black rounded-xl transition-all border border-white/10 text-white disabled:opacity-50"
+                                                className="p-3 bg-white/45 hover:bg-primary hover:text-black rounded-xl transition-all border border-white/75 text-foreground disabled:opacity-50"
                                                 title="Descargar PDF Oficial"
                                             >
                                                 {isGenerating === quote.id ? (
@@ -393,12 +393,12 @@ export default function QuotesPage() {
                                             </button>
                                             <button
                                                 onClick={() => handleSendEmail(quote)}
-                                                className="p-3 bg-white/5 hover:bg-sky-500 hover:text-white rounded-xl transition-all border border-white/10 text-white"
+                                                className="p-3 bg-white/45 hover:bg-sky-500 hover:text-white rounded-xl transition-all border border-white/75 text-foreground"
                                                 title="Reenviar por Email Tracking"
                                             >
                                                 <Mail className="w-4.5 h-4.5" />
                                             </button>
-                                            <button className="p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-all border border-white/10 text-white/40 hover:text-white">
+                                            <button className="p-3 bg-white/45 hover:bg-white/80 rounded-xl transition-all border border-white/75 text-muted-foreground hover:text-foreground">
                                                 <MoreVertical className="w-4.5 h-4.5" />
                                             </button>
                                         </div>

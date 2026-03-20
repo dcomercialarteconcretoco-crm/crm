@@ -109,6 +109,42 @@ export default function FormsPage() {
   });
 </script>`;
 
+    const previewThemeClasses = useMemo(() => {
+        if (styleConfig.theme === 'bold') {
+            return {
+                shell: 'bg-[#1b1710] border-[#3a3120] shadow-[0_24px_60px_rgba(0,0,0,0.16)]',
+                title: 'text-[#fff7e1]',
+                description: 'text-[#f3e5bf]',
+                label: 'text-[#f3dfaa]',
+                input: 'bg-[#241f17] border-[#433722] text-[#fff7e1]',
+                placeholder: 'text-[#cdbf97]',
+                footer: 'text-[#d8cba4]',
+            };
+        }
+
+        if (styleConfig.theme === 'native') {
+            return {
+                shell: 'bg-[#fff9ed] border-[#eadfbd] shadow-[0_20px_50px_rgba(23,23,23,0.06)]',
+                title: 'text-[#171717]',
+                description: 'text-[#62594b]',
+                label: 'text-[#4d473c]',
+                input: 'bg-white border-[#e5dcc6] text-[#171717]',
+                placeholder: 'text-[#8a816f]',
+                footer: 'text-[#746b58]',
+            };
+        }
+
+        return {
+            shell: 'bg-white/78 border-white/90 shadow-[0_24px_60px_rgba(23,23,23,0.08)]',
+            title: 'text-[#171717]',
+            description: 'text-[#62594b]',
+            label: 'text-[#4d473c]',
+            input: 'bg-white/92 border-[#ece3cf] text-[#171717]',
+            placeholder: 'text-[#8a816f]',
+            footer: 'text-[#746b58]',
+        };
+    }, [styleConfig.theme]);
+
     if (view === 'list') {
         return (
             <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in duration-700">
@@ -128,7 +164,7 @@ export default function FormsPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {forms.map(f => (
-                        <div key={f.id} className="bg-[#0a0a0b] border border-white/10 rounded-[2.5rem] p-8 space-y-6 group hover:border-primary/40 transition-all">
+                        <div key={f.id} className="surface-panel rounded-[2.5rem] p-8 space-y-6 group hover:border-primary/40 transition-all">
                             <div className="flex justify-between items-start">
                                 <div className="p-3 bg-primary/10 rounded-2xl text-primary">
                                     <FilePlus2 className="w-6 h-6" />
@@ -153,25 +189,25 @@ export default function FormsPage() {
                                     </button>
                                     <button
                                         onClick={() => deleteForm(f.id)}
-                                        className="p-3 bg-white/5 rounded-xl hover:bg-rose-500 hover:text-white transition-all text-white/20"
+                                        className="p-3 bg-white/60 border border-white/80 rounded-xl hover:bg-rose-500 hover:text-white transition-all text-muted-foreground"
                                     >
                                         <Trash2 className="w-4 h-4" />
                                     </button>
                                 </div>
                             </div>
                             <div>
-                                <h3 className="text-xl font-black text-white uppercase italic tracking-tighter">{f.title}</h3>
+                                <h3 className="text-xl font-black text-foreground uppercase italic tracking-tighter">{f.title}</h3>
                                 <div className="flex items-center gap-3 mt-2">
                                     <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{f.submissions} Leads</span>
                                     <div className="w-1 h-1 bg-white/20 rounded-full" />
-                                    <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">Creado: {new Date(f.createdAt).toLocaleDateString()}</span>
+                                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Creado: {new Date(f.createdAt).toLocaleDateString()}</span>
                                 </div>
                             </div>
                         </div>
                     ))}
                     {forms.length === 0 && (
-                        <div className="col-span-full py-32 text-center bg-white/[0.02] border border-dashed border-white/10 rounded-[3rem]">
-                            <p className="text-sm font-black text-white/20 uppercase tracking-[0.2em] italic">No hay formularios creados aún</p>
+                        <div className="col-span-full py-32 text-center bg-white/50 border border-dashed border-border/40 rounded-[3rem]">
+                            <p className="text-sm font-black text-muted-foreground uppercase tracking-[0.2em] italic">No hay formularios creados aún</p>
                         </div>
                     )}
                 </div>
@@ -221,14 +257,14 @@ export default function FormsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16">
                 {/* Editor Sidebar */}
                 <div className="lg:col-span-4 space-y-8">
-                    <div className="bg-[#0a0a0b] border border-white/10 rounded-[2.5rem] p-8 space-y-8 shadow-2xl relative overflow-hidden group">
+                    <div className="surface-panel rounded-[2.5rem] p-8 space-y-8 shadow-xl relative overflow-hidden group">
                         {/* Tab Switcher for Editor */}
-                        <div className="flex gap-2 p-1 bg-white/5 border border-white/10 rounded-xl">
+                        <div className="flex gap-2 p-1 bg-white/60 border border-white/80 rounded-xl">
                             <button
                                 onClick={() => setActiveEditorTab('config')}
                                 className={clsx(
                                     "flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all",
-                                    activeEditorTab === 'config' ? "bg-primary text-black shadow-sm" : "text-white/20 hover:text-white"
+                                    activeEditorTab === 'config' ? "bg-primary text-black shadow-sm" : "text-muted-foreground hover:text-foreground"
                                 )}
                             >
                                 Configuración
@@ -237,7 +273,7 @@ export default function FormsPage() {
                                 onClick={() => setActiveEditorTab('style')}
                                 className={clsx(
                                     "flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all",
-                                    activeEditorTab === 'style' ? "bg-primary text-black shadow-sm" : "text-white/20 hover:text-white"
+                                    activeEditorTab === 'style' ? "bg-primary text-black shadow-sm" : "text-muted-foreground hover:text-foreground"
                                 )}
                             >
                                 Estilo
@@ -256,19 +292,19 @@ export default function FormsPage() {
                                         value={formConfig.title}
                                         onChange={(e) => setFormConfig({ ...formConfig, title: e.target.value })}
                                         placeholder="Nombre del Formulario"
-                                        className="w-full bg-white/[0.03] border border-white/10 rounded-2xl p-4 text-sm font-bold text-white outline-none focus:border-primary/50 transition-all italic"
+                                        className="w-full bg-white/70 border border-white/80 rounded-2xl p-4 text-sm font-bold text-foreground outline-none focus:border-primary/50 transition-all italic"
                                     />
                                     <textarea
                                         value={formConfig.description}
                                         onChange={(e) => setFormConfig({ ...formConfig, description: e.target.value })}
                                         placeholder="Descripción breve..."
-                                        className="w-full bg-white/[0.03] border border-white/10 rounded-2xl p-4 text-xs font-medium text-white/40 outline-none focus:border-primary/50 transition-all h-24 resize-none italic"
+                                        className="w-full bg-white/70 border border-white/80 rounded-2xl p-4 text-xs font-medium text-muted-foreground outline-none focus:border-primary/50 transition-all h-24 resize-none italic"
                                     />
                                 </div>
 
                                 <div className="space-y-6">
                                     <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                                        <h3 className="text-xs font-black uppercase text-white tracking-widest flex items-center gap-2 italic">
+                                        <h3 className="text-xs font-black uppercase text-foreground tracking-widest flex items-center gap-2 italic">
                                             <Layout className="w-4 h-4 text-primary" />
                                             Campos a Capturar
                                         </h3>
@@ -282,7 +318,7 @@ export default function FormsPage() {
                                                 onClick={() => toggleField(key as any)}
                                                 className={clsx(
                                                     "flex items-center justify-between p-4 rounded-2xl border cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99]",
-                                                    val.active ? "bg-primary/5 border-primary/40 text-primary" : "bg-white/[0.02] border-white/5 text-white/20 opacity-40 hover:opacity-100"
+                                                    val.active ? "bg-primary/8 border-primary/35 text-primary" : "bg-white/50 border-white/70 text-muted-foreground opacity-70 hover:opacity-100"
                                                 )}
                                             >
                                                 <div className="flex items-center gap-3">
@@ -371,7 +407,7 @@ export default function FormsPage() {
                                 <Globe2 className="w-5 h-5" />
                                 <h4 className="text-[10px] font-black uppercase tracking-widest leading-none">Smart Adaptation</h4>
                             </div>
-                            <p className="text-[9px] text-white/40 font-bold leading-relaxed italic">
+                            <p className="text-[9px] text-muted-foreground font-bold leading-relaxed italic">
                                 "{styleConfig.theme === 'native'
                                     ? 'En modo Nativo, el formulario absorberá automáticamente las fuentes y estilos de tu página web.'
                                     : 'En modo Personalizado, el formulario mantendrá su diseño premium sobre cualquier sitio.'}"
@@ -390,12 +426,12 @@ export default function FormsPage() {
 
                 {/* Preview Area */}
                 <div className="lg:col-span-8 flex flex-col gap-8 px-4 lg:px-0">
-                    <div className="flex bg-[#0a0a0b] p-1.5 rounded-2xl border border-white/10 w-fit shadow-lg">
+                    <div className="flex bg-white/70 p-1.5 rounded-2xl border border-white/80 w-fit shadow-lg">
                         <button
                             onClick={() => setPreviewTab('preview')}
                             className={clsx(
                                 "flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-                                previewTab === 'preview' ? "bg-primary text-black shadow-lg" : "text-white/20 hover:text-white"
+                                previewTab === 'preview' ? "bg-primary text-black shadow-lg" : "text-muted-foreground hover:text-foreground"
                             )}
                         >
                             <Eye className="w-3.5 h-3.5" />
@@ -405,7 +441,7 @@ export default function FormsPage() {
                             onClick={() => setPreviewTab('qr')}
                             className={clsx(
                                 "flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-                                previewTab === 'qr' ? "bg-primary text-black shadow-lg" : "text-white/20 hover:text-white"
+                                previewTab === 'qr' ? "bg-primary text-black shadow-lg" : "text-muted-foreground hover:text-foreground"
                             )}
                         >
                             <QrCode className="w-3.5 h-3.5" />
@@ -415,7 +451,7 @@ export default function FormsPage() {
                             onClick={() => setPreviewTab('code')}
                             className={clsx(
                                 "flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-                                previewTab === 'code' ? "bg-primary text-black shadow-lg" : "text-white/20 hover:text-white"
+                                previewTab === 'code' ? "bg-primary text-black shadow-lg" : "text-muted-foreground hover:text-foreground"
                             )}
                         >
                             <Code className="w-3.5 h-3.5" />
@@ -424,8 +460,8 @@ export default function FormsPage() {
                     </div>
 
                     <div className={clsx(
-                        "flex-1 border border-white/10 rounded-[3.5rem] p-8 lg:p-12 flex items-center justify-center relative overflow-hidden group shadow-2xl min-h-[700px] transition-all duration-1000",
-                        styleConfig.theme === 'bold' ? "bg-white" : "bg-[#050505]"
+                        "flex-1 border border-white/50 rounded-[3rem] p-6 lg:p-8 flex items-center justify-center relative overflow-hidden group shadow-xl min-h-[560px] transition-all duration-1000",
+                        "surface-panel"
                     )}>
                         {/* Background Decoration */}
                         <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
@@ -440,11 +476,8 @@ export default function FormsPage() {
                                     borderColor: styleConfig.theme === 'native' ? '#00000020' : undefined
                                 }}
                                 className={clsx(
-                                    "w-full max-w-xl p-8 lg:p-14 transition-all duration-700 relative z-10 backdrop-blur-sm border animate-in zoom-in-95 duration-500",
-                                    styleConfig.theme === 'glass' ? "bg-white/[0.02] border-white/10 shadow-[0_50px_100px_rgba(0,0,0,0.4)]" :
-                                        styleConfig.theme === 'native' ? "bg-transparent border-dashed border-2 text-foreground font-serif" :
-                                            styleConfig.theme === 'bold' ? "bg-black border-none shadow-2xl" :
-                                                "bg-[#0a0a0b] border-white/5 shadow-xl"
+                                    "w-full max-w-[42rem] p-6 lg:p-10 transition-all duration-700 relative z-10 backdrop-blur-sm border animate-in zoom-in-95 duration-500",
+                                    previewThemeClasses.shell
                                 )}
                             >
                                 <div className="space-y-4">
@@ -455,65 +488,65 @@ export default function FormsPage() {
                                         />
                                         <div>
                                             <h2 className={clsx(
-                                                "text-3xl lg:text-4xl font-black tracking-tighter uppercase italic",
-                                                styleConfig.theme === 'bold' ? "text-white" : "text-white"
+                                                "text-2xl lg:text-3xl font-black tracking-tighter uppercase italic",
+                                                previewThemeClasses.title
                                             )}>
                                                 {formConfig.title}
                                             </h2>
-                                            <p className="text-xs lg:text-sm text-white/40 font-medium mt-1 uppercase tracking-wider">{formConfig.description}</p>
+                                            <p className={clsx("mt-2 text-sm font-medium tracking-wide", previewThemeClasses.description)}>{formConfig.description}</p>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="space-y-6 mt-10">
+                                <div className="space-y-5 mt-8">
                                     {Object.entries(captureFields).filter(([_, v]) => v.active).map(([k, v]) => (
                                         <div key={k} className="space-y-2">
                                             <div className="flex justify-between items-center px-1">
                                                 <label className={clsx(
-                                                    "text-[10px] font-black uppercase tracking-[0.2em]",
-                                                    styleConfig.theme === 'bold' ? "text-white/40" : "text-white/30"
+                                                    "text-[10px] font-black uppercase tracking-[0.16em]",
+                                                    previewThemeClasses.label
                                                 )}>
                                                     {v.label}
                                                 </label>
-                                                <span className="text-[8px] font-black text-primary/40 uppercase">Dato Requerido</span>
+                                                <span className="text-[8px] font-black text-primary/70 uppercase">Dato requerido</span>
                                             </div>
                                             <div className={clsx(
-                                                "h-14 border rounded-2xl px-6 flex items-center transition-all",
-                                                styleConfig.theme === 'bold' ? "bg-white/5 border-white/10" : "bg-white/[0.03] border-white/10 border-dashed"
+                                                "h-12 border rounded-[1.1rem] px-5 flex items-center transition-all",
+                                                previewThemeClasses.input
                                             )}>
-                                                <span className="text-xs font-medium text-white/10 italic">Información del prospecto...</span>
+                                                <span className={clsx("text-sm font-medium italic", previewThemeClasses.placeholder)}>Información del prospecto...</span>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
 
-                                <div className="pt-8">
+                                <div className="pt-7">
                                     <button
                                         style={{
                                             backgroundColor: formConfig.primaryColor,
                                             borderRadius: `calc(${styleConfig.corners} / 2)`
                                         }}
-                                        className="w-full h-18 text-black font-black text-sm lg:text-base uppercase tracking-[0.2em] flex items-center justify-center gap-4 hover:shadow-[0_20px_40px_rgba(0,0,0,0.2)] transition-all overflow-hidden relative group/btn shadow-xl active:scale-95"
+                                        className="w-full h-14 text-black font-black text-sm uppercase tracking-[0.18em] flex items-center justify-center gap-3 hover:shadow-[0_20px_40px_rgba(0,0,0,0.16)] transition-all overflow-hidden relative group/btn shadow-xl active:scale-95"
                                     >
                                         <span className="relative z-10 italic">{formConfig.buttonText}</span>
-                                        <ArrowRight className="w-6 h-6 group-hover/btn:translate-x-2 transition-transform relative z-10" />
+                                        <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-2 transition-transform relative z-10" />
                                         <div className="absolute inset-0 bg-white opacity-0 group-hover/btn:opacity-20 transition-opacity" />
                                     </button>
-                                    <p className="text-[8px] text-center text-white/20 mt-6 font-black uppercase tracking-[0.3em] flex items-center justify-center gap-2 italic">
+                                    <p className={clsx("mt-5 text-[9px] text-center font-black uppercase tracking-[0.22em] flex items-center justify-center gap-2 italic", previewThemeClasses.footer)}>
                                         <Shield className="w-3 h-3 text-primary/40" />
                                         Tus datos están protegidos por MiWibi Intelligence
                                     </p>
                                 </div>
                             </div>
                         ) : previewTab === 'qr' ? (
-                            <div className="w-full max-w-lg bg-[#0a0a0b] border border-white/10 rounded-[3rem] p-12 lg:p-16 shadow-2xl relative z-10 animate-in zoom-in-95 duration-500 text-center">
+                            <div className="w-full max-w-lg surface-panel rounded-[3rem] p-12 lg:p-16 shadow-xl relative z-10 animate-in zoom-in-95 duration-500 text-center">
                                 {!savedFormId ? (
                                     <div className="space-y-6">
                                         <div className="p-6 bg-primary/5 rounded-full w-24 h-24 flex items-center justify-center mx-auto text-primary animate-pulse border border-primary/20">
                                             <QrCode className="w-10 h-10" />
                                         </div>
-                                        <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">Generador de Código QR</h3>
-                                        <p className="text-xs text-white/30 font-bold uppercase tracking-widest leading-relaxed">
+                                        <h3 className="text-2xl font-black text-foreground italic uppercase tracking-tighter">Generador de Código QR</h3>
+                                        <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest leading-relaxed">
                                             Guarda tu formulario primero para generar un código QR único que los clientes puedan escanear para agregarse al CRM.
                                         </p>
                                     </div>
@@ -521,10 +554,10 @@ export default function FormsPage() {
                                     <div className="space-y-10">
                                         <div className="space-y-2">
                                             <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">Acceso Instantáneo</h3>
-                                            <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest italic">Vinculado a: {formConfig.title}</p>
+                                            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest italic">Vinculado a: {formConfig.title}</p>
                                         </div>
 
-                                        <div className="p-8 bg-white rounded-[2.5rem] shadow-2xl inline-block group relative">
+                                        <div className="p-8 bg-white rounded-[2.5rem] shadow-xl inline-block group relative">
                                             <img
                                                 src={qrUrl}
                                                 alt="QR Code"
@@ -541,8 +574,8 @@ export default function FormsPage() {
                                         </div>
 
                                         <div className="space-y-4">
-                                            <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between gap-4 group/url">
-                                                <code className="text-[10px] text-white/40 truncate flex-1 block text-left">{publicUrl}</code>
+                                            <div className="p-4 bg-white/60 border border-white/80 rounded-2xl flex items-center justify-between gap-4 group/url">
+                                                <code className="text-[10px] text-muted-foreground truncate flex-1 block text-left">{publicUrl}</code>
                                                 <button
                                                     onClick={() => {
                                                         navigator.clipboard.writeText(publicUrl);
@@ -553,7 +586,7 @@ export default function FormsPage() {
                                                     <Copy className="w-4 h-4" />
                                                 </button>
                                             </div>
-                                            <p className="text-[9px] text-white/20 font-bold uppercase tracking-[0.2em] leading-relaxed italic">
+                                            <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-[0.2em] leading-relaxed italic">
                                                 Descarga o imprime este QR. Cualquier persona que lo escanee verá tu formulario y sus datos caerán directamente en tu **Pipeline**.
                                             </p>
                                         </div>
@@ -561,20 +594,20 @@ export default function FormsPage() {
                                 )}
                             </div>
                         ) : (
-                            <div className="w-full max-w-2xl bg-black border border-white/10 rounded-[2.5rem] p-10 lg:p-14 shadow-2xl relative z-10 animate-in slide-in-from-right-4 duration-500">
+                            <div className="w-full max-w-2xl surface-panel rounded-[2.5rem] p-10 lg:p-14 shadow-xl relative z-10 animate-in slide-in-from-right-4 duration-500">
                                 <div className="flex items-center justify-between mb-8">
                                     <div className="space-y-1">
-                                        <h3 className="text-xl font-black text-white tracking-tighter uppercase italic">Integración Rápida</h3>
-                                        <p className="text-xs text-white/40 font-bold uppercase tracking-widest italic">Copia y pega este código en tu sitio web</p>
+                                        <h3 className="text-xl font-black text-foreground tracking-tighter uppercase italic">Integración Rápida</h3>
+                                        <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest italic">Copia y pega este código en tu sitio web</p>
                                     </div>
-                                    <div className="flex items-center gap-2 p-1.5 bg-white/5 rounded-xl border border-white/10">
-                                        <button className="px-4 py-2 text-[8px] font-black uppercase text-white bg-white/10 rounded-lg">SDK (JS)</button>
-                                        <button className="px-4 py-2 text-[8px] font-black uppercase text-white/40 hover:text-white">HTML / IFRAME</button>
+                                    <div className="flex items-center gap-2 p-1.5 bg-white/60 rounded-xl border border-white/80">
+                                        <button className="px-4 py-2 text-[8px] font-black uppercase text-foreground bg-white rounded-lg">SDK (JS)</button>
+                                        <button className="px-4 py-2 text-[8px] font-black uppercase text-muted-foreground hover:text-foreground">HTML / IFRAME</button>
                                     </div>
                                 </div>
 
                                 <div className="relative group/code">
-                                    <pre className="bg-[#050505] border border-white/10 rounded-2xl p-8 text-[11px] font-mono leading-relaxed overflow-x-auto custom-scrollbar text-emerald-400">
+                                    <pre className="bg-[#fff9ef] border border-[#eadfbd] rounded-2xl p-8 text-[11px] font-mono leading-relaxed overflow-x-auto custom-scrollbar text-[#4c463b]">
                                         <code>{embeddedCode}</code>
                                     </pre>
                                     <button
@@ -588,13 +621,13 @@ export default function FormsPage() {
                                     </button>
                                 </div>
 
-                                <div className="mt-8 p-6 bg-white/5 border border-white/10 rounded-2xl flex items-start gap-4">
+                                <div className="mt-8 p-6 bg-white/60 border border-white/80 rounded-2xl flex items-start gap-4">
                                     <div className="p-3 bg-sky-500/10 rounded-xl">
                                         <Globe2 className="w-5 h-5 text-sky-500" />
                                     </div>
                                     <div className="space-y-1">
-                                        <p className="text-[10px] font-black text-white uppercase tracking-widest leading-none italic">Despliegue Instantáneo</p>
-                                        <p className="text-[9px] text-white/40 font-bold leading-relaxed italic">
+                                        <p className="text-[10px] font-black text-foreground uppercase tracking-widest leading-none italic">Despliegue Instantáneo</p>
+                                        <p className="text-[9px] text-muted-foreground font-bold leading-relaxed italic">
                                             Una vez pegues el código, cualquier cambio que hagas en este panel se reflejará **automáticamente** en tu web sin necesidad de volver a pegar nada.
                                         </p>
                                     </div>

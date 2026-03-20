@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Plus,
     ChevronLeft,
@@ -20,7 +20,9 @@ import {
     Send,
     CheckCircle2,
     Search,
-    Upload
+    Upload,
+    Cloud,
+    RefreshCw
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -28,12 +30,56 @@ const days = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
 
 import { useApp, CalendarEvent, Invitee } from '@/context/AppContext';
 
+type GoogleTokenClient = {
+    requestAccessToken: (options?: { prompt?: string }) => void;
+};
+
+type StoredGoogleAuth = {
+    accessToken: string;
+    email?: string;
+    expiresAt?: string;
+    updatedAt: string;
+};
+
+declare global {
+    interface Window {
+        google?: {
+            accounts?: {
+                oauth2?: {
+                    initTokenClient: (config: {
+                        client_id: string;
+                        scope: string;
+                        callback: (response: { access_token?: string; error?: string }) => void;
+                    }) => GoogleTokenClient;
+                };
+            };
+        };
+    }
+}
+
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+const GOOGLE_SCOPE = [
+    'https://www.googleapis.com/auth/calendar',
+    'https://www.googleapis.com/auth/userinfo.email',
+].join(' ');
+
+function getGoogleAuthStorageKey(userId?: string) {
+    return userId ? `crm_google_calendar_auth_${userId}` : 'crm_google_calendar_auth';
+}
+
 export default function SchedulerPage() {
-    const { clients, sellers, events, addEvent, addNotification } = useApp();
+    const { clients, sellers, events, addEvent, addNotification, currentUser, updateEvent } = useApp();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const googleTokenClientRef = useRef<GoogleTokenClient | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isGeneratingLink, setIsGeneratingLink] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [isGoogleReady, setIsGoogleReady] = useState(false);
+    const [isGoogleConnecting, setIsGoogleConnecting] = useState(false);
+    const [isGoogleSyncing, setIsGoogleSyncing] = useState(false);
+    const [googleAccessToken, setGoogleAccessToken] = useState('');
+    const [googleAccountEmail, setGoogleAccountEmail] = useState('');
+    const [googleTokenExpiresAt, setGoogleTokenExpiresAt] = useState('');
 
     // Form State
     const [form, setForm] = useState({
@@ -47,6 +93,302 @@ export default function SchedulerPage() {
     });
 
     const [externalEmail, setExternalEmail] = useState('');
+    const currentUserEvents = useMemo(
+        () => events.filter((event) => event.ownerUserId === currentUser?.id),
+        [events, currentUser?.id]
+    );
+
+    useEffect(() => {
+        if (!currentUser) return;
+
+        const legacyEvents = events.filter((event) => !event.ownerUserId);
+        legacyEvents.forEach((event) => {
+            updateEvent(event.id, {
+                ownerUserId: currentUser.id,
+                ownerName: currentUser.name,
+            });
+        });
+    }, [currentUser, events, updateEvent]);
+
+    useEffect(() => {
+        if (!currentUser) return;
+
+        const raw = localStorage.getItem(getGoogleAuthStorageKey(currentUser.id));
+        if (!raw) return;
+
+        try {
+            const saved: StoredGoogleAuth = JSON.parse(raw);
+            const isExpired = saved?.expiresAt ? new Date(saved.expiresAt).getTime() <= Date.now() : false;
+            if (saved?.accessToken && !isExpired) {
+                setGoogleAccessToken(saved.accessToken);
+                setGoogleAccountEmail(saved.email || '');
+                setGoogleTokenExpiresAt(saved.expiresAt || '');
+            } else {
+                localStorage.removeItem(getGoogleAuthStorageKey(currentUser.id));
+            }
+        } catch {
+            localStorage.removeItem(getGoogleAuthStorageKey(currentUser.id));
+        }
+    }, [currentUser]);
+
+    useEffect(() => {
+        if (!GOOGLE_CLIENT_ID) return;
+
+        const existingScript = document.querySelector('script[data-google-gis="true"]');
+        if (existingScript) {
+            setIsGoogleReady(Boolean(window.google?.accounts?.oauth2));
+            return;
+        }
+
+        const script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.defer = true;
+        script.dataset.googleGis = 'true';
+        script.onload = () => setIsGoogleReady(true);
+        document.head.appendChild(script);
+    }, []);
+
+    const persistGoogleAuth = (accessToken: string, email: string, expiresAt?: string) => {
+        if (!currentUser) return;
+        localStorage.setItem(getGoogleAuthStorageKey(currentUser.id), JSON.stringify({
+            accessToken,
+            email,
+            expiresAt,
+            updatedAt: new Date().toISOString(),
+        }));
+    };
+
+    const clearGoogleAuth = () => {
+        if (!currentUser) return;
+        localStorage.removeItem(getGoogleAuthStorageKey(currentUser.id));
+        setGoogleAccessToken('');
+        setGoogleAccountEmail('');
+        setGoogleTokenExpiresAt('');
+    };
+
+    const fetchGoogleAccountEmail = async (accessToken: string) => {
+        const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+            },
+        });
+
+        if (!response.ok) return '';
+        const data = await response.json();
+        return data.email || '';
+    };
+
+    const requestGoogleAccessToken = (prompt: '' | 'consent' = '') =>
+        new Promise<string>((resolve, reject) => {
+            if (!window.google?.accounts?.oauth2 || !GOOGLE_CLIENT_ID) {
+                reject(new Error('Google Calendar no está configurado. Falta NEXT_PUBLIC_GOOGLE_CLIENT_ID.'));
+                return;
+            }
+
+            googleTokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
+                client_id: GOOGLE_CLIENT_ID,
+                scope: GOOGLE_SCOPE,
+                callback: (response) => {
+                    if (response.error || !response.access_token) {
+                        reject(new Error(response.error || 'No se pudo obtener acceso a Google Calendar.'));
+                        return;
+                    }
+                    const expiresIn = (response as { expires_in?: number }).expires_in ?? 3600;
+                    const expiresAt = new Date(Date.now() + (expiresIn * 1000) - 60_000).toISOString();
+                    setGoogleTokenExpiresAt(expiresAt);
+                    resolve(response.access_token);
+                },
+            });
+
+            googleTokenClientRef.current.requestAccessToken({ prompt });
+        });
+
+    const ensureGoogleAccessToken = async () => {
+        const tokenStillValid = googleAccessToken && (!googleTokenExpiresAt || new Date(googleTokenExpiresAt).getTime() > Date.now());
+        if (tokenStillValid) return googleAccessToken;
+
+        const token = await requestGoogleAccessToken(googleAccessToken ? '' : 'consent');
+        const email = await fetchGoogleAccountEmail(token);
+        setGoogleAccessToken(token);
+        setGoogleAccountEmail(email);
+        const expiresAt = new Date(Date.now() + 59 * 60 * 1000).toISOString();
+        setGoogleTokenExpiresAt(expiresAt);
+        persistGoogleAuth(token, email, expiresAt);
+        return token;
+    };
+
+    const createGoogleCalendarEvent = async (token: string, event: CalendarEvent) => {
+        const startDateTime = new Date(`${event.date}T${event.time}:00`);
+        const endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000);
+
+        const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                summary: event.title,
+                description: event.description || '',
+                location: event.location || '',
+                start: {
+                    dateTime: startDateTime.toISOString(),
+                },
+                end: {
+                    dateTime: endDateTime.toISOString(),
+                },
+                attendees: event.invitees
+                    .filter((invitee) => invitee.email)
+                    .map((invitee) => ({ email: invitee.email, displayName: invitee.name })),
+            }),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Google Calendar rechazó el evento: ${errorText}`);
+        }
+
+        return response.json();
+    };
+
+    const syncGoogleEvents = async () => {
+        const token = await ensureGoogleAccessToken();
+        const now = new Date();
+        const timeMin = new Date(now.getFullYear(), now.getMonth() - 3, 1).toISOString();
+        const timeMax = new Date(now.getFullYear(), now.getMonth() + 9, 0, 23, 59, 59).toISOString();
+
+        const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}&singleEvents=true&orderBy=startTime`, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            if (response.status === 401) {
+                clearGoogleAuth();
+            }
+            throw new Error(`No se pudo leer Google Calendar: ${errorText}`);
+        }
+
+        const payload = await response.json();
+        const items = Array.isArray(payload.items) ? payload.items : [];
+
+        let importedCount = 0;
+        items.forEach((item: any) => {
+            const startDateTime = item.start?.dateTime || item.start?.date;
+            if (!startDateTime || !currentUser) return;
+
+            const start = new Date(startDateTime);
+            const existing = events.find((event) => event.googleEventId === item.id && event.ownerUserId === currentUser.id);
+
+            const mappedEvent: Partial<CalendarEvent> = {
+                title: item.summary || 'Evento de Google Calendar',
+                date: start.toISOString().slice(0, 10),
+                time: start.toTimeString().slice(0, 5),
+                type: 'meeting',
+                client: item.attendees?.[0]?.displayName || item.organizer?.email || 'Google Calendar',
+                description: item.description || '',
+                meetingLink: item.hangoutLink || item.location || '',
+                invitees: Array.isArray(item.attendees)
+                    ? item.attendees.map((attendee: any, index: number) => ({
+                        id: attendee.email || `google-${item.id}-${index}`,
+                        name: attendee.displayName || attendee.email || 'Invitado',
+                        email: attendee.email || '',
+                        type: 'externo' as Invitee['type'],
+                    }))
+                    : [],
+                ownerUserId: currentUser.id,
+                ownerName: currentUser.name,
+                googleEventId: item.id,
+                googleCalendarId: 'primary',
+                syncedAt: new Date().toISOString(),
+                source: 'google',
+            };
+
+            if (existing) {
+                updateEvent(existing.id, mappedEvent);
+            } else {
+                addEvent(mappedEvent as Omit<CalendarEvent, 'id'>);
+                importedCount += 1;
+            }
+        });
+
+        addNotification({
+            title: 'Google Calendar sincronizado',
+            description: importedCount > 0
+                ? `Se importaron ${importedCount} eventos nuevos desde Google Calendar.`
+                : 'No había eventos nuevos por importar.',
+            type: 'success',
+        });
+    };
+
+    useEffect(() => {
+        if (!googleAccessToken || !currentUser) return;
+
+        let cancelled = false;
+
+        const runInitialSync = async () => {
+            try {
+                setIsGoogleSyncing(true);
+                await syncGoogleEvents();
+            } catch (error) {
+                if (!cancelled) {
+                    addNotification({
+                        title: 'Error sincronizando Google Calendar',
+                        description: error instanceof Error ? error.message : 'No se pudieron importar eventos.',
+                        type: 'alert',
+                    });
+                }
+            } finally {
+                if (!cancelled) {
+                    setIsGoogleSyncing(false);
+                }
+            }
+        };
+
+        runInitialSync();
+
+        const intervalId = window.setInterval(async () => {
+            try {
+                await syncGoogleEvents();
+            } catch (error) {
+                console.warn('Google Calendar auto-sync failed:', error);
+            }
+        }, 5 * 60 * 1000);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(intervalId);
+        };
+    }, [googleAccessToken, googleTokenExpiresAt, currentUser]);
+
+    const handleGoogleConnect = async () => {
+        try {
+            setIsGoogleConnecting(true);
+            const token = await requestGoogleAccessToken('consent');
+            const email = await fetchGoogleAccountEmail(token);
+            setGoogleAccessToken(token);
+            setGoogleAccountEmail(email);
+            const expiresAt = new Date(Date.now() + 59 * 60 * 1000).toISOString();
+            setGoogleTokenExpiresAt(expiresAt);
+            persistGoogleAuth(token, email, expiresAt);
+            addNotification({
+                title: 'Google Calendar conectado',
+                description: email || 'La cuenta quedó lista para sincronizar eventos.',
+                type: 'success',
+            });
+        } catch (error) {
+            addNotification({
+                title: 'Error conectando Google Calendar',
+                description: error instanceof Error ? error.message : 'No se pudo autorizar la cuenta de Google.',
+                type: 'alert',
+            });
+        } finally {
+            setIsGoogleConnecting(false);
+        }
+    };
 
     const toggleInvitee = (person: any, type: Invitee['type']) => {
         const inviteeId = person.id;
@@ -83,24 +425,60 @@ export default function SchedulerPage() {
         }, 1500);
     };
 
-    const handleSave = () => {
-        const newEvent: CalendarEvent = {
+    const handleSave = async () => {
+        if (!currentUser) return;
+
+        const localEvent: CalendarEvent = {
             ...form,
             id: Date.now().toString(),
             client: form.invitees[0]?.name || 'Interno',
+            ownerUserId: currentUser.id,
+            ownerName: currentUser.name,
+            source: googleAccessToken ? 'local+google' : 'local',
         };
-        addEvent(newEvent);
-        setIsModalOpen(false);
-        // Reset form
-        setForm({
-            title: '',
-            date: '2026-02-25',
-            time: '10:00',
-            type: 'meeting',
-            invitees: [],
-            meetingLink: '',
-            description: ''
-        });
+
+        try {
+            let eventToPersist = localEvent;
+
+            if (googleAccessToken) {
+                const googleEvent = await createGoogleCalendarEvent(googleAccessToken, localEvent);
+                eventToPersist = {
+                    ...localEvent,
+                    googleEventId: googleEvent.id,
+                    googleCalendarId: 'primary',
+                    syncedAt: new Date().toISOString(),
+                    meetingLink: googleEvent.hangoutLink || localEvent.meetingLink,
+                };
+            }
+
+            const { id: _localOnlyId, ...eventPayload } = eventToPersist;
+            addEvent(eventPayload);
+
+            setIsModalOpen(false);
+            setForm({
+                title: '',
+                date: '2026-02-25',
+                time: '10:00',
+                type: 'meeting',
+                invitees: [],
+                meetingLink: '',
+                description: ''
+            });
+
+            addNotification({
+                title: googleAccessToken ? 'Evento sincronizado con Google' : 'Evento agendado',
+                description: googleAccessToken
+                    ? 'La cita quedó guardada en el CRM y en tu Google Calendar.'
+                    : 'La cita quedó guardada en tu agenda local.',
+                type: 'success',
+            });
+        } catch (error) {
+            addNotification({
+                title: 'No se pudo guardar el evento',
+                description: error instanceof Error ? error.message : 'Falló la sincronización del evento.',
+                type: 'alert',
+            });
+        }
     };
 
     const handleImportClick = () => {
@@ -195,21 +573,66 @@ export default function SchedulerPage() {
             {/* Header */}
             < div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4" >
                 <div>
-                    <h1 className="text-4xl font-black tracking-tighter text-white">Agenda Operativa</h1>
-                    <p className="text-sm text-muted-foreground font-medium">Gestiona visitas, entregas y reuniones con links de Meet automáticos.</p>
+                    <h1 className="page-hero-title page-hero-title--accent text-4xl font-black tracking-tighter">Agenda Operativa</h1>
+                    <p className="text-sm text-muted-foreground font-medium">
+                        Gestiona visitas, entregas y reuniones. La agenda ahora puede sincronizarse con Google Calendar por usuario.
+                    </p>
+                    <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                        {!GOOGLE_CLIENT_ID
+                            ? 'Google no configurado: falta NEXT_PUBLIC_GOOGLE_CLIENT_ID en .env.local'
+                            : googleAccessToken
+                                ? `Auto-sync activo mientras la app este abierta${googleAccountEmail ? ` · ${googleAccountEmail}` : ''}`
+                                : 'Conecta Google para activar sync automatico cada 5 minutos'}
+                    </p>
                 </div>
                 <div className="flex flex-col sm:flex-row items-center gap-3">
                     <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
                     <button
+                        onClick={handleGoogleConnect}
+                        disabled={isGoogleConnecting || !isGoogleReady || !GOOGLE_CLIENT_ID}
+                        className="bg-white/36 border border-white/75 text-foreground font-black px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-white/52 active:scale-[0.98] transition-all backdrop-blur-xl disabled:opacity-50 disabled:hover:bg-white/36"
+                        title={!GOOGLE_CLIENT_ID ? 'Falta NEXT_PUBLIC_GOOGLE_CLIENT_ID' : undefined}
+                    >
+                        <Cloud className="w-5 h-5 font-black" />
+                        <span>
+                            {isGoogleConnecting
+                                ? 'Conectando Google...'
+                                : googleAccessToken
+                                    ? `Google: ${googleAccountEmail || 'Conectado'}`
+                                    : 'Conectar Google'}
+                        </span>
+                    </button>
+                    <button
+                        onClick={async () => {
+                            try {
+                                setIsGoogleSyncing(true);
+                                await syncGoogleEvents();
+                            } catch (error) {
+                                addNotification({
+                                    title: 'Error sincronizando Google Calendar',
+                                    description: error instanceof Error ? error.message : 'No se pudieron importar eventos.',
+                                    type: 'alert',
+                                });
+                            } finally {
+                                setIsGoogleSyncing(false);
+                            }
+                        }}
+                        disabled={!googleAccessToken || isGoogleSyncing}
+                        className="bg-white/36 border border-white/75 text-foreground font-black px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-white/52 active:scale-[0.98] transition-all backdrop-blur-xl disabled:opacity-50"
+                    >
+                        <RefreshCw className={clsx("w-5 h-5 font-black", isGoogleSyncing && "animate-spin")} />
+                        <span>{isGoogleSyncing ? 'Sincronizando...' : 'Sync Google'}</span>
+                    </button>
+                    <button
                         onClick={handleImportClick}
-                        className="bg-transparent border border-white/10 text-white font-black px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-white/5 active:scale-[0.98] transition-all"
+                        className="bg-white/36 border border-white/75 text-foreground font-black px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-white/52 active:scale-[0.98] transition-all backdrop-blur-xl"
                     >
                         <Upload className="w-5 h-5 font-black" />
                         <span>Importar Citas</span>
                     </button>
                     <button
                         onClick={() => setIsModalOpen(true)}
-                        className="bg-primary text-black font-black px-8 py-3 rounded-2xl flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_10px_20px_rgba(250,181,16,0.2)]"
+                        className="bg-primary text-black font-black px-8 py-3 rounded-2xl flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all"
                     >
                         <Plus className="w-5 h-5 font-black" />
                         <span>Agendar Evento</span>
@@ -220,27 +643,27 @@ export default function SchedulerPage() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
                 {/* Calendar View */}
                 <div className="lg:col-span-8">
-                    <div className="bg-[#0a0a0b] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl backdrop-blur-sm">
-                        <div className="p-8 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
-                            <h2 className="text-xl font-black tracking-tight text-white flex items-center gap-3">
+                    <div className="surface-panel rounded-[2.5rem] overflow-hidden">
+                        <div className="p-8 border-b border-white/60 flex items-center justify-between bg-white/18">
+                            <h2 className="text-xl font-black tracking-tight text-foreground flex items-center gap-3">
                                 <CalendarIcon className="text-primary" />
                                 Febrero 2026
                             </h2>
                             <div className="flex items-center gap-3">
-                                <button className="p-3 hover:bg-white/5 rounded-xl border border-white/10 transition-all text-white/40 hover:text-white">
+                                <button className="p-3 hover:bg-white/42 rounded-xl border border-white/70 transition-all text-muted-foreground hover:text-foreground">
                                     <ChevronLeft className="w-5 h-5" />
                                 </button>
-                                <button className="p-3 bg-white/5 text-white/40 border border-white/10 rounded-xl font-black text-[10px] uppercase tracking-widest px-6">Hoy</button>
-                                <button className="p-3 hover:bg-white/5 rounded-xl border border-white/10 transition-all text-white/40 hover:text-white">
+                                <button className="p-3 bg-white/42 text-muted-foreground border border-white/75 rounded-xl font-black text-[10px] uppercase tracking-widest px-6">Hoy</button>
+                                <button className="p-3 hover:bg-white/42 rounded-xl border border-white/70 transition-all text-muted-foreground hover:text-foreground">
                                     <ChevronRight className="w-5 h-5" />
                                 </button>
                             </div>
                         </div>
 
                         <div className="p-0">
-                            <div className="grid grid-cols-7 border-b border-white/5 text-white">
+                            <div className="grid grid-cols-7 border-b border-white/60 text-foreground">
                                 {days.map(day => (
-                                    <div key={day} className="py-6 text-center text-[11px] font-black uppercase text-white/20 tracking-[0.2em]">
+                                    <div key={day} className="py-6 text-center text-[11px] font-black uppercase text-muted-foreground tracking-[0.2em]">
                                         {day}
                                     </div>
                                 ))}
@@ -248,12 +671,12 @@ export default function SchedulerPage() {
                             <div className="grid grid-cols-7 grid-rows-5 h-[700px]">
                                 {Array.from({ length: 35 }).map((_, i) => (
                                     <div key={i} className={clsx(
-                                        "p-4 border-r border-b border-white/5 last:border-r-0 relative group transition-all hover:bg-white/[0.02] cursor-pointer",
-                                        i === 24 ? "bg-primary/[0.03]" : ""
+                                        "p-4 border-r border-b border-white/55 last:border-r-0 relative group transition-all hover:bg-white/24 cursor-pointer",
+                                        i === 24 ? "bg-primary/[0.08]" : "bg-white/[0.10]"
                                     )}>
                                         <span className={clsx(
                                             "text-xs font-black w-7 h-7 flex items-center justify-center rounded-xl mb-3 transition-all",
-                                            i === 24 ? "bg-primary text-black shadow-lg shadow-primary/20" : "text-white/10 group-hover:text-white/40"
+                                            i === 24 ? "bg-primary text-black" : "text-muted-foreground group-hover:text-foreground"
                                         )}>
                                             {i - 4 < 1 || i - 4 > 28 ? "" : i - 4}
                                         </span>
@@ -267,32 +690,32 @@ export default function SchedulerPage() {
 
                 {/* Agenda Sidebar */}
                 <div className="lg:col-span-4 space-y-8">
-                    <div className="bg-[#0a0a0b] border border-white/10 rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden group">
+                    <div className="surface-panel rounded-[2.5rem] p-10 relative overflow-hidden group">
                         <div className="absolute top-0 right-0 p-8 opacity-10">
                             <Video className="w-24 h-24 text-primary" />
                         </div>
                         <h3 className="text-sm font-black uppercase tracking-[0.3em] text-primary mb-8 border-l-4 border-primary pl-4">Próximas Sesiones</h3>
                         <div className="space-y-6">
-                            {events.map((event) => (
-                                <div key={event.id} className="p-6 bg-white/[0.03] border border-white/5 rounded-3xl space-y-4 relative group hover:border-white/20 transition-all">
+                            {currentUserEvents.map((event) => (
+                                <div key={event.id} className="p-6 bg-white/30 border border-white/75 rounded-3xl space-y-4 relative group hover:bg-white/42 transition-all backdrop-blur-xl">
                                     <div className="flex justify-between items-start">
                                         <div className="flex items-center gap-3">
                                             <div className={clsx(
-                                                "p-2 rounded-xl",
+                                                "p-2 rounded-xl border",
                                                 event.type === 'visit' ? "bg-primary/10 text-primary" :
-                                                    event.type === 'meeting' ? "bg-emerald-500/10 text-emerald-500" : "bg-sky-500/10 text-sky-500"
+                                                    event.type === 'meeting' ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-sky-500/10 text-sky-600 border-sky-500/20"
                                             )}>
                                                 {event.type === 'visit' ? <Truck className="w-4 h-4" /> :
                                                     event.type === 'meeting' ? <Video className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
                                             </div>
                                             <div className="flex flex-col">
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-white/40">{event.time}</span>
-                                                <h4 className="text-sm font-black text-white group-hover:text-primary transition-colors">{event.title}</h4>
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{event.time}</span>
+                                                <h4 className="text-sm font-black text-foreground group-hover:text-primary transition-colors">{event.title}</h4>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center gap-3 text-xs text-white/40 font-bold">
+                                    <div className="flex items-center gap-3 text-xs text-muted-foreground font-bold">
                                         <User className="w-3 h-3" />
                                         {event.client}
                                     </div>
@@ -301,7 +724,7 @@ export default function SchedulerPage() {
                                         <a
                                             href={event.meetingLink}
                                             target="_blank"
-                                            className="flex items-center justify-center gap-2 w-full py-3 bg-emerald-500 text-black rounded-2xl font-black text-[10px] uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-emerald-500/20"
+                                            className="flex items-center justify-center gap-2 w-full py-3 bg-emerald-500 text-black rounded-2xl font-black text-[10px] uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all"
                                         >
                                             <Video className="w-4 h-4" />
                                             Entrar a Meet
@@ -311,19 +734,30 @@ export default function SchedulerPage() {
                                     {event.invitees.length > 0 && (
                                         <div className="pt-2 flex -space-x-2">
                                             {event.invitees.slice(0, 3).map((inv, idx) => (
-                                                <div key={idx} className="w-7 h-7 rounded-full bg-white/10 border-2 border-[#0a0a0b] flex items-center justify-center text-[9px] font-black text-white uppercase" title={inv.name}>
+                                                <div key={idx} className="w-7 h-7 rounded-full bg-white/70 border-2 border-white flex items-center justify-center text-[9px] font-black text-foreground uppercase" title={inv.name}>
                                                     {inv.name.charAt(0)}
                                                 </div>
                                             ))}
                                             {event.invitees.length > 3 && (
-                                                <div className="w-7 h-7 rounded-full bg-white/5 border-2 border-[#0a0a0b] flex items-center justify-center text-[9px] font-black text-white/40">
+                                                <div className="w-7 h-7 rounded-full bg-white/50 border-2 border-white flex items-center justify-center text-[9px] font-black text-muted-foreground">
                                                     +{event.invitees.length - 3}
                                                 </div>
                                             )}
                                         </div>
                                     )}
+
+                                    {event.googleEventId && (
+                                        <div className="text-[9px] font-black uppercase tracking-[0.18em] text-primary">
+                                            Sincronizado con Google Calendar
+                                        </div>
+                                    )}
                                 </div>
                             ))}
+                            {currentUserEvents.length === 0 && (
+                                <div className="p-6 bg-white/20 border border-white/70 rounded-3xl text-sm font-semibold text-muted-foreground">
+                                    No tienes eventos propios todavía. Conecta Google o agenda tu primera sesión.
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

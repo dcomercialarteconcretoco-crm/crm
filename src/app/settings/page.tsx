@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     User,
     Bell,
@@ -59,6 +59,116 @@ export default function SettingsPage() {
     const [newCity, setNewCity] = useState('');
     const [newCityDept, setNewCityDept] = useState('');
     const [newSector, setNewSector] = useState('');
+    const [isTestingWhatsApp, setIsTestingWhatsApp] = useState(false);
+    const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+    const [whatsAppTestTo, setWhatsAppTestTo] = useState('');
+
+    const whatsappStatusMeta = useMemo(() => {
+        const status = settings.whatsapp?.status || 'disconnected';
+        if (status === 'connected') {
+            return {
+                label: 'Conectado',
+                classes: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20',
+            };
+        }
+        if (status === 'configured') {
+            return {
+                label: 'Configurado',
+                classes: 'text-amber-500 bg-amber-500/10 border-amber-500/20',
+            };
+        }
+        if (status === 'error') {
+            return {
+                label: 'Error',
+                classes: 'text-rose-500 bg-rose-500/10 border-rose-500/20',
+            };
+        }
+        return {
+            label: 'Desconectado',
+            classes: 'text-muted-foreground bg-muted/30 border-border',
+        };
+    }, [settings.whatsapp?.status]);
+
+    const updateWhatsApp = (updates: Partial<typeof settings.whatsapp>) => {
+        updateSettings({
+            whatsapp: {
+                ...settings.whatsapp,
+                ...updates,
+            },
+        });
+    };
+
+    const handleWhatsAppHealthCheck = async () => {
+        try {
+            setIsTestingWhatsApp(true);
+            const response = await fetch('/api/whatsapp/health', {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json',
+                },
+                body: JSON.stringify({
+                    accessToken: settings.whatsapp.accessToken,
+                    phoneNumberId: settings.whatsapp.phoneNumberId,
+                    businessAccountId: settings.whatsapp.businessAccountId,
+                }),
+            });
+
+            const payload = await response.json();
+
+            if (!response.ok || !payload.ok) {
+                throw new Error(payload.error || 'No se pudo validar el canal de WhatsApp.');
+            }
+
+            updateWhatsApp({
+                status: 'connected',
+                displayPhoneNumber: payload.displayPhoneNumber || settings.whatsapp.displayPhoneNumber,
+                lastVerifiedAt: new Date().toISOString(),
+                lastError: '',
+            });
+        } catch (error) {
+            updateWhatsApp({
+                status: 'error',
+                lastError: error instanceof Error ? error.message : 'No se pudo validar el canal.',
+            });
+        } finally {
+            setIsTestingWhatsApp(false);
+        }
+    };
+
+    const handleWhatsAppTestMessage = async () => {
+        try {
+            setIsSendingWhatsApp(true);
+            const response = await fetch('/api/whatsapp/send', {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json',
+                },
+                body: JSON.stringify({
+                    to: whatsAppTestTo,
+                    text: 'Mensaje de prueba desde MiWibi CRM. Si recibiste esto, el canal de WhatsApp Business quedo listo.',
+                    config: settings.whatsapp,
+                }),
+            });
+
+            const payload = await response.json();
+            if (!response.ok || !payload.ok) {
+                throw new Error(payload.error || 'No se pudo enviar el mensaje de prueba.');
+            }
+
+            updateWhatsApp({
+                status: 'connected',
+                lastVerifiedAt: new Date().toISOString(),
+                lastError: '',
+            });
+        } catch (error) {
+            updateWhatsApp({
+                status: 'error',
+                lastError: error instanceof Error ? error.message : 'No se pudo enviar el mensaje.',
+            });
+        } finally {
+            setIsSendingWhatsApp(false);
+        }
+    };
 
     const updatePrimaryColor = (color: string) => {
         setPrimaryColor(color);
@@ -302,7 +412,7 @@ export default function SettingsPage() {
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {[
-                                            { name: 'WhatsApp Business', status: 'Conectado', icon: MessageCircle, color: 'text-emerald-500' },
+                                            { name: 'WhatsApp Business', status: whatsappStatusMeta.label, icon: MessageCircle, color: settings.whatsapp.status === 'connected' ? 'text-emerald-500' : settings.whatsapp.status === 'error' ? 'text-rose-500' : 'text-amber-500' },
                                             { name: 'WooCommerce', status: 'Conectado', icon: Cloud, color: 'text-sky-500' },
                                             { name: 'Google Calendar', status: 'Conectado', icon: Calendar, color: 'text-emerald-500' },
                                         ].map((int) => (
@@ -315,7 +425,7 @@ export default function SettingsPage() {
                                                         <span className="text-sm font-black block text-foreground">{int.name}</span>
                                                         <span className={clsx(
                                                             "text-[9px] font-black uppercase tracking-widest",
-                                                            int.status === 'Conectado' ? "text-emerald-500" : "opacity-20"
+                                                            int.status === 'Conectado' ? "text-emerald-500" : int.status === 'Error' ? 'text-rose-500' : 'text-amber-500'
                                                         )}>{int.status}</span>
                                                     </div>
                                                 </div>
@@ -614,12 +724,131 @@ export default function SettingsPage() {
                                         </div>
                                     </div>
 
+                                    <div className="p-8 bg-muted/5 border border-border rounded-[2.5rem] space-y-8">
+                                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                            <div className="flex items-center gap-4">
+                                                <div className="p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
+                                                    <MessageCircle className="w-6 h-6 text-emerald-500" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-black tracking-tight text-lg text-foreground">WhatsApp Business Cloud API</h4>
+                                                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em]">Canal oficial de Meta</p>
+                                                </div>
+                                            </div>
+                                            <div className={clsx("px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-[0.2em]", whatsappStatusMeta.classes)}>
+                                                {whatsappStatusMeta.label}
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="space-y-3">
+                                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Access Token</label>
+                                                <input
+                                                    type={showPassword ? "text" : "password"}
+                                                    value={settings.whatsapp.accessToken || ''}
+                                                    onChange={(e) => updateWhatsApp({ accessToken: e.target.value, status: e.target.value ? 'configured' : 'disconnected' })}
+                                                    placeholder="EAA..."
+                                                    className="w-full bg-muted/20 border border-border rounded-2xl px-6 py-4 text-sm focus:border-primary/50 outline-none transition-all font-bold text-foreground"
+                                                />
+                                            </div>
+                                            <div className="space-y-3">
+                                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Phone Number ID</label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.whatsapp.phoneNumberId || ''}
+                                                    onChange={(e) => updateWhatsApp({ phoneNumberId: e.target.value, status: e.target.value ? 'configured' : 'disconnected' })}
+                                                    placeholder="123456789012345"
+                                                    className="w-full bg-muted/20 border border-border rounded-2xl px-6 py-4 text-sm focus:border-primary/50 outline-none transition-all font-bold text-foreground"
+                                                />
+                                            </div>
+                                            <div className="space-y-3">
+                                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Business Account ID</label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.whatsapp.businessAccountId || ''}
+                                                    onChange={(e) => updateWhatsApp({ businessAccountId: e.target.value })}
+                                                    placeholder="1029384756"
+                                                    className="w-full bg-muted/20 border border-border rounded-2xl px-6 py-4 text-sm focus:border-primary/50 outline-none transition-all font-bold text-foreground"
+                                                />
+                                            </div>
+                                            <div className="space-y-3">
+                                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Verify Token</label>
+                                                <input
+                                                    type={showPassword ? "text" : "password"}
+                                                    value={settings.whatsapp.verifyToken || ''}
+                                                    onChange={(e) => updateWhatsApp({ verifyToken: e.target.value })}
+                                                    placeholder="miwibi_verify_token"
+                                                    className="w-full bg-muted/20 border border-border rounded-2xl px-6 py-4 text-sm focus:border-primary/50 outline-none transition-all font-bold text-foreground"
+                                                />
+                                            </div>
+                                            <div className="space-y-3">
+                                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Display Number</label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.whatsapp.displayPhoneNumber || ''}
+                                                    onChange={(e) => updateWhatsApp({ displayPhoneNumber: e.target.value })}
+                                                    placeholder="+57 300 123 4567"
+                                                    className="w-full bg-muted/20 border border-border rounded-2xl px-6 py-4 text-sm focus:border-primary/50 outline-none transition-all font-bold text-foreground"
+                                                />
+                                            </div>
+                                            <div className="space-y-3">
+                                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Webhook URL</label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.whatsapp.webhookUrl || ''}
+                                                    onChange={(e) => updateWhatsApp({ webhookUrl: e.target.value })}
+                                                    placeholder="https://tu-dominio.com/api/whatsapp/webhook"
+                                                    className="w-full bg-muted/20 border border-border rounded-2xl px-6 py-4 text-sm focus:border-primary/50 outline-none transition-all font-bold text-foreground"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto_auto] gap-4">
+                                            <input
+                                                type="text"
+                                                value={whatsAppTestTo}
+                                                onChange={(e) => setWhatsAppTestTo(e.target.value)}
+                                                placeholder="Numero de prueba en formato internacional. Ej: 573001234567"
+                                                className="w-full bg-muted/20 border border-border rounded-2xl px-6 py-4 text-sm focus:border-primary/50 outline-none transition-all font-bold text-foreground"
+                                            />
+                                            <button
+                                                onClick={handleWhatsAppHealthCheck}
+                                                disabled={isTestingWhatsApp || !settings.whatsapp.accessToken || !settings.whatsapp.phoneNumberId}
+                                                className="bg-card border border-border/60 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-muted/40 transition-all disabled:opacity-50"
+                                            >
+                                                {isTestingWhatsApp ? 'Validando...' : 'Validar Canal'}
+                                            </button>
+                                            <button
+                                                onClick={handleWhatsAppTestMessage}
+                                                disabled={isSendingWhatsApp || !whatsAppTestTo || !settings.whatsapp.accessToken || !settings.whatsapp.phoneNumberId}
+                                                className="bg-primary text-black px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] transition-all disabled:opacity-50"
+                                            >
+                                                {isSendingWhatsApp ? 'Enviando...' : 'Enviar Prueba'}
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="p-5 bg-white/50 border border-border rounded-2xl">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Webhook Meta</p>
+                                                <p className="mt-2 text-xs font-bold text-foreground break-all">/api/whatsapp/webhook</p>
+                                            </div>
+                                            <div className="p-5 bg-white/50 border border-border rounded-2xl">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Ultima validación</p>
+                                                <p className="mt-2 text-xs font-bold text-foreground">{settings.whatsapp.lastVerifiedAt ? new Date(settings.whatsapp.lastVerifiedAt).toLocaleString('es-CO') : 'Sin validar'}</p>
+                                            </div>
+                                            <div className="p-5 bg-white/50 border border-border rounded-2xl">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Último error</p>
+                                                <p className="mt-2 text-xs font-bold text-foreground">{settings.whatsapp.lastError || 'Ninguno'}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     {/* Connection Status Helper */}
                                     <div className="flex items-center gap-4 p-6 bg-primary/10 border border-primary/20 rounded-3xl">
                                         <Activity className="w-5 h-5 text-primary animate-pulse" />
                                         <p className="text-[11px] font-bold text-foreground leading-snug">
                                             <span className="text-primary uppercase block mb-0.5 tracking-widest">Información de Sincronización</span>
-                                            Al guardar estos cambios, las variables se actualizarán en el motor del CRM. Si los campos están vacíos, se usarán los valores por defecto del archivo de configuración del servidor.
+                                            Para WhatsApp Business ya quedaron listos el webhook, la validación del canal y el endpoint de envío. En producción, el token debe migrarse a variables de entorno del servidor.
                                         </p>
                                     </div>
                                 </div>

@@ -3,11 +3,12 @@
 import React, { useMemo } from "react";
 import Link from "next/link";
 import {
+  AlertTriangle,
   ArrowRight,
   Eye,
   FileText,
+  PlusCircle,
   Plus,
-  Sparkles,
   Target,
   TrendingUp,
   Users,
@@ -42,6 +43,106 @@ export default function Home() {
   const topClients = [...clients].sort((a, b) => b.ltv - a.ltv).slice(0, 4);
   const recentQuotes = quotes.slice(0, 5);
   const liveTasks = tasks.slice(0, 4);
+  const insightCards = useMemo(() => {
+    if (clients.length === 0) {
+      return {
+        primary: {
+          label: "Alerta Prioritaria",
+          title: "Aún no tienes clientes cargados.",
+          body: "Sin clientes no hay seguimiento ni alertas comerciales. Registra el primero para activar el CRM.",
+          href: "/clients",
+          cta: "Crear cliente",
+        },
+        secondary: [
+          {
+            label: "Siguiente paso",
+            body: "Después del primer cliente, crea una cotización para que el sistema empiece a medir intención y avance comercial.",
+            href: "/quotes/new",
+          },
+        ],
+      };
+    }
+
+    if (quotes.length === 0) {
+      return {
+        primary: {
+          label: "Oportunidad Detectada",
+          title: "Ya hay clientes, pero no hay cotizaciones activas.",
+          body: "Sin propuestas no hay señales de interés. Lanza la primera para empezar a leer intención comercial.",
+          href: "/quotes/new",
+          cta: "Crear cotización",
+        },
+        secondary: [
+          {
+            label: "Cobertura",
+            body: `${clients.length} clientes ya están listos para entrar a pipeline.`,
+            href: "/clients",
+          },
+        ],
+      };
+    }
+
+    if (tasks.length === 0) {
+      const hottestQuote = recentQuotes[0];
+      return {
+        primary: {
+          label: "Alerta Comercial",
+          title: hottestQuote
+            ? `La cotización ${hottestQuote.number} necesita seguimiento.`
+            : "Tus cotizaciones no están llegando a seguimiento.",
+          body: "No hay propuestas vivas en pipeline. Abre seguimiento para no perder trazabilidad del cierre.",
+          href: "/pipeline",
+          cta: "Abrir pipeline",
+        },
+        secondary: hottestQuote
+          ? [
+              {
+                label: "Cotización reciente",
+                body: `${hottestQuote.client} ya tiene una propuesta emitida. Conviene activar llamada o tarea de seguimiento.`,
+                href: "/quotes",
+              },
+            ]
+          : [],
+      };
+    }
+
+    if (approvedQuotes === 0) {
+      const liveLead = liveTasks[0];
+      return {
+        primary: {
+          label: "Seguimiento Vivo",
+          title: liveLead
+            ? `${liveLead.contactName || liveLead.client} sigue activo sin cierre.`
+            : "Hay actividad, pero falta cerrar negocio.",
+          body: "Prioriza las cotizaciones abiertas con mayor valor y define una siguiente acción esta semana.",
+          href: liveLead ? `/leads/${liveLead.clientId}` : "/pipeline",
+          cta: liveLead ? "Ver lead" : "Revisar pipeline",
+        },
+        secondary: [
+          {
+            label: "Conversión",
+            body: `Tienes ${quotes.length} cotizaciones emitidas y 0 aprobadas. La prioridad es convertir interés en cierre.`,
+            href: "/quotes",
+          },
+        ],
+      };
+    }
+
+    return {
+      primary: {
+        label: "Lectura AI del día",
+        title: "Tu embudo ya tiene señal suficiente para optimizar.",
+        body: `Llevas ${approvedQuotes} cierres aprobados sobre ${quotes.length} cotizaciones. Repite el patrón de los clientes que sí avanzaron.`,
+        href: "/analytics",
+        cta: "Ver analíticas",
+      },
+      secondary: topClients.slice(0, 2).map((client) => ({
+        label: "Cliente caliente",
+        body: `${client.name} aparece entre los clientes de mayor valor. Conviene revisar su relación comercial y próximas acciones.`,
+        href: "/clients",
+      })),
+    };
+  }, [approvedQuotes, clients.length, liveTasks, quotes.length, recentQuotes, tasks.length, topClients]);
 
   const handleExport = () => {
     generatePDFReport({
@@ -73,7 +174,7 @@ export default function Home() {
       value: `${conversionRate}%`,
       note: `${approvedQuotes} cierres aprobados`,
       icon: Target,
-      tone: "bg-[#171717] text-primary border-[#171717]",
+      tone: "bg-accent/42 text-primary border-primary/15",
     },
     {
       label: "Base de Clientes",
@@ -92,97 +193,187 @@ export default function Home() {
   ];
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
-      <section className="surface-panel rounded-[2.5rem] p-6 lg:p-8 overflow-hidden relative">
-        <div className="absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_top_right,rgba(250,181,16,0.22),transparent_48%)] pointer-events-none" />
-        <div className="relative flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full bg-[#171717] px-4 py-2 text-[10px] font-black uppercase tracking-[0.28em] text-[#fff1bf] shadow-[0_16px_40px_rgba(23,23,23,0.18)]">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-              Arte Concreto Intelligence
-            </div>
-            <div className="space-y-3">
-              <h1 className="text-4xl lg:text-6xl font-black tracking-[-0.06em] text-foreground leading-none">
-                Un CRM más limpio,
-                <span className="block text-primary italic">más premium y más legible.</span>
-              </h1>
-              <p className="max-w-2xl text-sm lg:text-base text-muted-foreground font-medium leading-7">
-                Bienvenido, {currentUser?.name}. Reorganizé el panel principal con una
-                dirección visual clara: fondo suave, tarjetas amplias y jerarquía marcada
-                en negro y amarillo.
-              </p>
+    <div className="space-y-4 lg:space-y-6 animate-in fade-in duration-700">
+      <section className="grid grid-cols-1 items-start gap-4 lg:gap-6 xl:grid-cols-12">
+        <div className="xl:col-span-9 space-y-5">
+          <div className="surface-panel rounded-[2rem] lg:rounded-[2.5rem] p-4 sm:p-5 lg:p-7 overflow-hidden relative">
+            <div className="absolute inset-y-0 right-0 w-1/3 bg-[radial-gradient(circle_at_top_right,rgba(250,181,16,0.14),transparent_58%)] pointer-events-none" />
+            <div className="relative grid gap-4 lg:gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+              <div className="rounded-[1.6rem] lg:rounded-[2rem] border border-white/80 bg-white/38 p-4 sm:p-5 lg:p-6">
+                <Link
+                  href={insightCards.primary.href}
+                  className="group block rounded-[1.4rem] lg:rounded-[1.6rem] border border-primary/15 bg-[linear-gradient(135deg,rgba(250,181,16,0.08),rgba(255,255,255,0.52))] p-4 sm:p-5 transition hover:-translate-y-0.5"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-muted-foreground">
+                        {insightCards.primary.label}
+                      </p>
+                      <h1 className="mt-3 max-w-2xl text-[1.8rem] leading-[1.06] font-black tracking-[-0.06em] text-foreground sm:text-2xl lg:text-[2.15rem] lg:leading-[1.04]">
+                        {insightCards.primary.title}
+                      </h1>
+                      <p className="mt-3 max-w-2xl text-[15px] font-semibold leading-7 text-muted-foreground">
+                        {insightCards.primary.body}
+                      </p>
+                    </div>
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] border border-primary/20 bg-primary/10 text-primary">
+                      <AlertTriangle className="h-4.5 w-4.5" />
+                    </div>
+                  </div>
+                  <div className="mt-4 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-primary">
+                    {insightCards.primary.cta}
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                  </div>
+                </Link>
+
+                {insightCards.secondary.length > 0 && (
+                  <div className="mt-4 grid gap-3">
+                    {insightCards.secondary.map((item, index) => (
+                      <Link
+                        key={`${item.label}-${index}`}
+                        href={item.href}
+                        className="rounded-[1.2rem] border border-white/80 bg-white/56 px-4 py-4 transition hover:-translate-y-0.5"
+                      >
+                        <p className="text-[9px] font-black uppercase tracking-[0.22em] text-muted-foreground">
+                          {item.label}
+                        </p>
+                        <p className="mt-2 text-sm font-semibold leading-6 text-foreground/80">
+                          {item.body}
+                        </p>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid w-full gap-3 sm:grid-cols-2">
+                <Link
+                  href="/quotes/new"
+                  className="sm:col-span-2 inline-flex min-h-[76px] sm:min-h-[88px] items-center justify-between rounded-[1.35rem] sm:rounded-[1.6rem] border border-primary/25 bg-[linear-gradient(135deg,rgba(250,181,16,0.24),rgba(255,255,255,0.54))] px-4 sm:px-5 py-4 sm:py-5 text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.22em] text-foreground backdrop-blur-xl transition hover:-translate-y-0.5"
+                >
+                  <span className="inline-flex items-center gap-3">
+                    <Plus className="h-4 w-4 text-primary" />
+                    Nueva cotización
+                  </span>
+                  <ArrowRight className="h-4 w-4 text-primary" />
+                </Link>
+                <Link
+                  href="/clients"
+                  className="inline-flex min-h-[72px] sm:min-h-[88px] items-center justify-between rounded-[1.35rem] sm:rounded-[1.6rem] border border-white/85 bg-white/48 px-4 sm:px-5 py-4 sm:py-5 text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.22em] text-foreground backdrop-blur-xl transition hover:-translate-y-0.5"
+                >
+                  <span className="inline-flex items-center gap-3">
+                    <Users className="h-4 w-4 text-primary" />
+                    Clientes
+                  </span>
+                  <ArrowRight className="h-4 w-4 text-primary" />
+                </Link>
+                {canExport && (
+                  <button
+                    onClick={handleExport}
+                    className="inline-flex min-h-[72px] sm:min-h-[88px] items-center justify-between rounded-[1.35rem] sm:rounded-[1.6rem] border border-white/85 bg-white/42 px-4 sm:px-5 py-4 sm:py-5 text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.22em] text-foreground backdrop-blur-xl transition hover:-translate-y-0.5"
+                  >
+                    <span className="inline-flex items-center gap-3">
+                      <FileText className="h-4 w-4 text-primary" />
+                      <span className="hidden sm:inline">Exportar PDF ejecutivo</span>
+                      <span className="sm:hidden">Exportar PDF</span>
+                    </span>
+                    <ArrowRight className="h-4 w-4 text-primary" />
+                  </button>
+                )}
+                {!canExport && (
+                  <Link
+                    href="/clients"
+                    className="inline-flex min-h-[72px] sm:min-h-[88px] items-center justify-between rounded-[1.35rem] sm:rounded-[1.6rem] border border-white/85 bg-white/42 px-4 sm:px-5 py-4 sm:py-5 text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.22em] text-foreground backdrop-blur-xl transition hover:-translate-y-0.5"
+                  >
+                    <span className="inline-flex items-center gap-3">
+                      <PlusCircle className="h-4 w-4 text-primary" />
+                      <span className="hidden sm:inline">Crear cliente y alimentar pipeline</span>
+                      <span className="sm:hidden">Activar pipeline</span>
+                    </span>
+                    <ArrowRight className="h-4 w-4 text-primary" />
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3 lg:justify-end">
-            <Link
-              href="/quotes/new"
-              className="inline-flex items-center gap-2 rounded-[1.25rem] bg-[#171717] px-5 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#fff4cc] shadow-[0_22px_45px_rgba(23,23,23,0.18)] transition hover:-translate-y-0.5"
-            >
-              <Plus className="h-4 w-4 text-primary" />
-              Nueva Cotización
-            </Link>
-            <Link
-              href="/clients"
-              className="inline-flex items-center gap-2 rounded-[1.25rem] border border-border/70 bg-white/80 px-5 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-foreground transition hover:bg-white"
-            >
-              <Users className="h-4 w-4 text-primary" />
-              Clientes
-            </Link>
-            {canExport && (
-              <button
-                onClick={handleExport}
-                className="inline-flex items-center gap-2 rounded-[1.25rem] border border-primary/20 bg-primary/10 px-5 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-foreground transition hover:bg-primary/18"
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 2xl:grid-cols-4">
+            {stats.map((stat) => (
+              <div
+                key={stat.label}
+                className="surface-panel rounded-[1.5rem] lg:rounded-[2rem] p-4 sm:p-5"
               >
-                <FileText className="h-4 w-4 text-primary" />
-                Exportar PDF
-              </button>
-            )}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+                      {stat.label}
+                    </p>
+                    <p className="mt-3 text-[1.7rem] sm:text-[2.2rem] leading-none font-black tracking-[-0.08em] text-foreground">
+                      {stat.value}
+                    </p>
+                    <p className="mt-2 sm:mt-3 text-xs sm:text-sm font-semibold leading-5 sm:leading-6 text-muted-foreground">
+                      {stat.note}
+                    </p>
+                  </div>
+                  <div
+                    className={clsx(
+                      "flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-[1rem] border",
+                      stat.tone
+                    )}
+                  >
+                    <stat.icon className="h-4.5 w-4.5" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="xl:col-span-3 self-start surface-panel rounded-[2rem] lg:rounded-[2.5rem] p-5 lg:p-7">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground">
+              Sales Funnel
+            </p>
+            <h2 className="mt-3 text-[1.7rem] lg:text-2xl font-black tracking-[-0.05em] text-foreground">
+              Conversión por etapa
+            </h2>
+          </div>
+          <div className="mt-6 space-y-5">
+            {[
+              { label: "Leads totales", value: clients.length || 0, width: "w-[90%]" },
+              { label: "Cotizaciones", value: quotes.length || 0, width: "w-[62%]" },
+              { label: "Propuestas activas", value: tasks.length || 0, width: "w-[48%]" },
+              { label: "Cierres", value: approvedQuotes || 0, width: "w-[24%]" },
+            ].map((item) => (
+              <div key={item.label} className="space-y-2">
+                <div className="flex items-center justify-between text-sm font-semibold">
+                  <span className="text-foreground">{item.label}</span>
+                  <span className="text-muted-foreground">{item.value}</span>
+                </div>
+                <div className="h-3 rounded-full bg-white/44 border border-white/70 overflow-hidden">
+                  <div className={clsx("h-full rounded-full bg-[linear-gradient(90deg,rgba(250,181,16,0.95),rgba(250,181,16,0.35))]", item.width)} />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {stats.map((stat) => (
-          <div key={stat.label} className="surface-card rounded-[2rem] p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground">
-                  {stat.label}
-                </p>
-                <p className="mt-4 text-3xl lg:text-4xl font-black tracking-[-0.06em] text-foreground">
-                  {stat.value}
-                </p>
-                <p className="mt-2 text-xs font-semibold text-muted-foreground">{stat.note}</p>
-              </div>
-              <div
-                className={clsx(
-                  "flex h-12 w-12 items-center justify-center rounded-[1.25rem] border shadow-[0_10px_24px_rgba(23,23,23,0.06)]",
-                  stat.tone
-                )}
-              >
-                <stat.icon className="h-5 w-5" />
-              </div>
-            </div>
-          </div>
-        ))}
-      </section>
-
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+      <section className="grid grid-cols-1 gap-4 lg:gap-6 xl:grid-cols-12">
         <div className="xl:col-span-8 space-y-6">
-          <div className="surface-panel rounded-[2.5rem] p-6 lg:p-8">
+          <div className="surface-panel rounded-[2rem] lg:rounded-[2.5rem] p-5 lg:p-8">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.26em] text-muted-foreground">
                   Radar de Actividad
                 </p>
-                <h2 className="mt-2 text-2xl lg:text-3xl font-black tracking-[-0.05em] text-foreground">
+                <h2 className="mt-2 text-[1.7rem] lg:text-3xl font-black tracking-[-0.05em] text-foreground">
                   Propuestas abiertas por cliente
                 </h2>
               </div>
               <Link
                 href="/pipeline"
-                className="inline-flex items-center gap-2 rounded-full bg-accent/55 px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-foreground"
+                className="inline-flex items-center gap-2 rounded-full border border-white/75 bg-white/34 px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-foreground backdrop-blur-xl"
               >
                 Ver Pipeline
                 <ArrowRight className="h-3.5 w-3.5 text-primary" />
@@ -199,7 +390,7 @@ export default function Home() {
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-4 min-w-0">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-[1.2rem] bg-[#171717] text-primary shadow-[0_16px_32px_rgba(23,23,23,0.16)]">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-[1.2rem] bg-accent/48 text-primary border border-white/70">
                           <Eye className="h-5 w-5" />
                         </div>
                         <div className="min-w-0">
@@ -229,26 +420,26 @@ export default function Home() {
                   </Link>
                 ))
               ) : (
-                <div className="surface-card rounded-[2rem] p-8 text-sm font-semibold text-muted-foreground">
+                <div className="surface-card rounded-[1.5rem] lg:rounded-[2rem] p-6 text-sm font-semibold text-muted-foreground">
                   No hay actividad reciente detectada todavía.
                 </div>
               )}
             </div>
           </div>
 
-          <div className="surface-panel rounded-[2.5rem] overflow-hidden">
-            <div className="flex items-center justify-between border-b border-border/70 px-6 py-5 lg:px-8">
+          <div className="surface-panel rounded-[2rem] lg:rounded-[2.5rem] overflow-hidden">
+            <div className="flex items-center justify-between border-b border-border/70 px-5 py-5 lg:px-8">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground">
                   Historial Reciente
                 </p>
-                <h3 className="mt-2 text-2xl font-black tracking-[-0.04em] text-foreground">
+                <h3 className="mt-2 text-[1.7rem] lg:text-2xl font-black tracking-[-0.04em] text-foreground">
                   Cotizaciones recientes
                 </h3>
               </div>
               <Link
                 href="/quotes"
-                className="rounded-full bg-[#171717] px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-[#fff4cc]"
+                className="rounded-full border border-primary/18 bg-primary/14 px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-foreground"
               >
                 Abrir módulo
               </Link>
@@ -312,12 +503,12 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="xl:col-span-4 space-y-6">
-          <div className="surface-panel rounded-[2.5rem] p-6 lg:p-8">
+        <div className="xl:col-span-4 space-y-4 lg:space-y-6">
+          <div className="surface-panel rounded-[2rem] lg:rounded-[2.5rem] p-5 lg:p-8">
             <p className="text-[10px] font-black uppercase tracking-[0.26em] text-muted-foreground">
               Clientes Premium
             </p>
-            <h3 className="mt-2 text-2xl font-black tracking-[-0.05em] text-foreground">
+            <h3 className="mt-2 text-[1.7rem] lg:text-2xl font-black tracking-[-0.05em] text-foreground">
               Top compradores
             </h3>
             <div className="mt-6 space-y-4">
@@ -328,7 +519,7 @@ export default function Home() {
                     className="surface-card rounded-[1.8rem] p-4 flex items-center justify-between gap-4"
                   >
                     <div className="flex items-center gap-4 min-w-0">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-[1rem] bg-[#171717] text-primary text-xs font-black shadow-[0_14px_30px_rgba(23,23,23,0.16)]">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-[1rem] bg-accent/48 border border-white/70 text-primary text-xs font-black">
                         {index + 1}
                       </div>
                       <div className="min-w-0">
@@ -356,11 +547,11 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="surface-panel rounded-[2.5rem] p-6 lg:p-8">
+          <div className="surface-panel rounded-[2rem] lg:rounded-[2.5rem] p-5 lg:p-8">
             <p className="text-[10px] font-black uppercase tracking-[0.26em] text-muted-foreground">
               Estado del Funnel
             </p>
-            <h3 className="mt-2 text-2xl font-black tracking-[-0.05em] text-foreground">
+            <h3 className="mt-2 text-[1.7rem] lg:text-2xl font-black tracking-[-0.05em] text-foreground">
               Distribución comercial
             </h3>
             <div className="mt-6 space-y-4">
@@ -374,8 +565,8 @@ export default function Home() {
                     <span className="text-foreground">{item.label}</span>
                     <span className="text-muted-foreground">{item.value}</span>
                   </div>
-                  <div className="h-3 rounded-full bg-white/70 border border-border/60 overflow-hidden">
-                    <div className={clsx("h-full rounded-full bg-[#171717]", item.width)} />
+                    <div className="h-3 rounded-full bg-white/52 border border-white/62 overflow-hidden">
+                    <div className={clsx("h-full rounded-full bg-primary/80", item.width)} />
                   </div>
                 </div>
               ))}

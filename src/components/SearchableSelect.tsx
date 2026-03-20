@@ -16,7 +16,21 @@ interface SearchableSelectProps {
     placeholder?: string;
     label?: string;
     className?: string;
+    allowCustomValue?: boolean;
 }
+
+const FEATURED_CITIES = [
+    'Bogotá',
+    'Medellín',
+    'Cali',
+    'Barranquilla',
+    'Cartagena',
+    'Bucaramanga',
+    'Pereira',
+    'Santa Marta',
+    'Manizales',
+    'Villavicencio',
+];
 
 export default function SearchableSelect({
     options,
@@ -24,16 +38,30 @@ export default function SearchableSelect({
     onChange,
     placeholder = "Buscar...",
     label,
-    className
+    className,
+    allowCustomValue = true,
 }: SearchableSelectProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState("");
     const containerRef = useRef<HTMLDivElement>(null);
 
-    const filteredOptions = options.filter(opt =>
+    const normalizedSearch = search.trim().toLowerCase();
+
+    const sortedOptions = [...options].sort((a, b) => {
+        const aFeatured = FEATURED_CITIES.includes(a.name) ? 0 : 1;
+        const bFeatured = FEATURED_CITIES.includes(b.name) ? 0 : 1;
+        if (aFeatured !== bFeatured) return aFeatured - bFeatured;
+        return a.name.localeCompare(b.name, 'es');
+    });
+
+    const filteredOptions = sortedOptions.filter(opt =>
         opt.name.toLowerCase().includes(search.toLowerCase()) ||
         (opt.department && opt.department.toLowerCase().includes(search.toLowerCase()))
     ).slice(0, 100); // Limit results for performance
+
+    const exactMatchExists = options.some(
+        (opt) => opt.name.trim().toLowerCase() === normalizedSearch
+    );
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -85,6 +113,23 @@ export default function SearchableSelect({
                     </div>
 
                     <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
+                        {allowCustomValue && normalizedSearch && !exactMatchExists && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    onChange(search.trim());
+                                    setIsOpen(false);
+                                    setSearch("");
+                                }}
+                                className="w-full flex items-center justify-between px-5 py-3.5 text-left border-b border-white/5 bg-primary/8 text-primary hover:bg-primary/12 transition-all"
+                            >
+                                <div>
+                                    <p className="text-sm font-bold">Usar "{search.trim()}"</p>
+                                    <p className="text-[9px] uppercase tracking-widest opacity-70 font-black">Ciudad personalizada</p>
+                                </div>
+                                <Check className="w-4 h-4" />
+                            </button>
+                        )}
                         {filteredOptions.length > 0 ? (
                             filteredOptions.map((opt, i) => (
                                 <div key={`${opt.name}-${i}`}

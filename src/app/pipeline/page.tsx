@@ -139,7 +139,10 @@ interface Column {
 function Droppable({ id, children }: { id: string, children: React.ReactNode }) {
     const { setNodeRef } = useDroppable({ id });
     return (
-        <div ref={setNodeRef} className="flex-1 bg-white/[0.02] rounded-[3rem] p-5 space-y-5 border border-white/5 min-h-[600px] shadow-2xl backdrop-blur-xl">
+        <div
+            ref={setNodeRef}
+            className="flex-1 min-h-0 h-full bg-white/18 rounded-[3rem] p-5 space-y-5 border border-white/60 backdrop-blur-xl overflow-y-auto overflow-x-hidden custom-scrollbar"
+        >
             {children}
         </div>
     );
@@ -651,12 +654,12 @@ export default function PipelinePage() {
     };
 
     return (
-        <div className="h-full flex flex-col space-y-8 animate-in fade-in duration-700 pb-20">
+        <div className="h-full min-h-0 flex flex-col space-y-8 animate-in fade-in duration-700 overflow-hidden">
             {/* Header Section */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 px-2 lg:px-0">
                 <div>
                     <div className="flex items-center gap-3">
-                        <h1 className="text-2xl lg:text-3xl font-black tracking-tighter text-white uppercase italic">Sales Pipeline</h1>
+                        <h1 className="page-hero-title page-hero-title--accent text-2xl lg:text-3xl font-black tracking-tighter uppercase italic">Sales Pipeline</h1>
                         <span className="text-[10px] bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20 font-black tracking-widest uppercase">Motor V3.2</span>
                     </div>
                     <p className="text-muted-foreground text-xs lg:text-sm font-medium mt-1">Gestión integral de leads y sincronización operativa en tiempo real.</p>
@@ -672,7 +675,7 @@ export default function PipelinePage() {
                     </button>
                     <button
                         onClick={() => setIsNewModalOpen(true)}
-                        className="flex-1 lg:flex-none bg-primary text-black font-black px-8 py-4 rounded-2xl flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-primary/20 text-[10px] uppercase tracking-[0.2em]"
+                        className="flex-1 lg:flex-none bg-primary text-black font-black px-8 py-4 rounded-2xl flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all text-[10px] uppercase tracking-[0.2em]"
                     >
                         <Plus className="w-5 h-5" />
                         <span>Abrir Negocio</span>
@@ -681,38 +684,38 @@ export default function PipelinePage() {
             </div>
 
             {/* Pipeline View */}
-            <div className="flex-1 overflow-x-auto pb-8 custom-scrollbar scroll-smooth">
+            <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden custom-scrollbar scroll-smooth pb-2">
                 <DndContext
                     sensors={sensors}
                     collisionDetection={closestCorners}
                     onDragStart={onDragStart}
                     onDragEnd={onDragEnd}
                 >
-                    <div className="flex flex-nowrap gap-6 min-w-max px-2">
+                    <div className="flex flex-nowrap items-stretch gap-6 min-w-max h-full px-2">
                         {columns.map((column) => (
-                            <div key={column.id} className="w-[320px] lg:w-[380px] flex flex-col space-y-6 shrink-0">
+                            <div key={column.id} className="w-[320px] lg:w-[380px] h-full flex flex-col space-y-4 shrink-0">
                                 <div className="px-2 space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <h3 className="text-[10px] font-black uppercase tracking-[0.25em] text-white/90 truncate">{column.title}</h3>
-                                        <div className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[10px] font-black text-white/40">{column.tasks.length}</div>
+                                        <h3 className="text-[10px] font-black uppercase tracking-[0.25em] text-foreground truncate">{column.title}</h3>
+                                        <div className="w-6 h-6 rounded-full bg-white/48 border border-white/70 flex items-center justify-center text-[10px] font-black text-muted-foreground">{column.tasks.length}</div>
                                     </div>
-                                    <div className="flex items-center justify-between bg-white/[0.03] border border-white/5 px-5 py-3 rounded-2xl backdrop-blur-md">
-                                        <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">Pipeline Value</span>
+                                    <div className="flex items-center justify-between bg-white/36 border border-white/70 px-5 py-3 rounded-2xl backdrop-blur-md">
+                                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Pipeline Value</span>
                                         <span className="text-xs font-black text-primary">
                                             ${column.tasks.reduce((acc, t) => acc + t.numericValue, 0).toLocaleString()}
                                         </span>
                                     </div>
                                 </div>
 
-                                <div className="flex-1">
+                                <div className="flex-1 min-h-0">
                                     <Droppable id={column.id}>
                                         <SortableContext items={column.tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                                            <div className="flex flex-col gap-4 min-h-[500px]">
+                                            <div className="flex flex-col gap-4 min-h-full">
                                                 {column.tasks.map((task) => (
                                                     <SortableTask key={task.id} task={task} onClick={handleTaskClick} />
                                                 ))}
                                                 {column.tasks.length === 0 && (
-                                                    <div className="h-60 border-2 border-dashed border-white/5 rounded-[2.5rem] flex flex-col items-center justify-center text-white/10 gap-3 opacity-30 mt-10">
+                                                    <div className="min-h-[260px] border-2 border-dashed border-border/50 rounded-[2.5rem] flex flex-col items-center justify-center text-muted-foreground gap-3 opacity-60 bg-white/18">
                                                         <AlertCircle className="w-6 h-6" />
                                                         <span className="text-[10px] font-black uppercase tracking-widest">Sin Actividad</span>
                                                     </div>

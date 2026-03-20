@@ -15,7 +15,6 @@ import {
     Save,
     CheckCircle,
     UserPlus,
-    X,
     Filter,
     Box,
     RefreshCw
@@ -144,57 +143,134 @@ export default function QuoteEngine() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-6">
                 {/* Client Selector */}
-                <div className="bg-[#0a0a0b] border border-white/10 rounded-[2.5rem] p-8 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
+                <div className="surface-panel rounded-[2.5rem] p-8 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-4 opacity-[0.04] group-hover:opacity-[0.08] transition-opacity text-primary/20">
                         <User size={120} />
                     </div>
-                    <div className="w-20 h-20 rounded-[2rem] bg-primary/10 flex items-center justify-center text-primary shrink-0 border border-primary/20 shadow-xl shadow-primary/5 group-hover:scale-110 transition-transform duration-500">
+                    <div className="w-20 h-20 rounded-[2rem] bg-accent/70 flex items-center justify-center text-primary shrink-0 border border-primary/15 shadow-[0_16px_40px_rgba(250,181,16,0.08)] group-hover:scale-110 transition-transform duration-500">
                         <Building2 className="w-10 h-10" />
                     </div>
                     <div className="flex-1 w-full space-y-4">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(250,181,16,0.6)]"></span>
-                                <label className="text-[10px] font-black uppercase text-white/30 tracking-[0.3em] pl-1 font-outfit">CLIENTE VINCULADO A LA OFERTA</label>
+                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.3em] pl-1">CLIENTE VINCULADO A LA OFERTA</label>
                             </div>
                             <button
-                                onClick={() => setShowNewClientForm(true)}
-                                className="text-[9px] font-black uppercase text-primary hover:text-white transition-colors flex items-center gap-2"
+                                type="button"
+                                onClick={() => setShowNewClientForm((prev) => !prev)}
+                                className="text-[9px] font-black uppercase text-primary hover:text-foreground transition-colors flex items-center gap-2"
                             >
                                 <UserPlus className="w-3 h-3" />
-                                Crear nuevo cliente
+                                {showNewClientForm ? "Cerrar formulario" : "Crear nuevo cliente"}
                             </button>
                         </div>
                         <select
                             value={selectedClientId}
                             onChange={(e) => setSelectedClientId(e.target.value)}
-                            className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-sm focus:border-primary focus:bg-white/[0.05] outline-none transition-all font-black appearance-none cursor-pointer text-white italic"
+                            className="w-full bg-white/75 border border-border/70 rounded-2xl px-6 py-4 text-sm focus:border-primary focus:bg-white outline-none transition-all font-black appearance-none cursor-pointer text-foreground italic"
                         >
-                            <option value="" className="bg-[#0a0a0b]">Selecciona el prospecto o cliente...</option>
+                            <option value="">Selecciona el prospecto o cliente...</option>
                             {clients.map(c => (
-                                <option key={c.id} value={c.id} className="bg-[#0a0a0b]">{c.name} - {c.company}</option>
+                                <option key={c.id} value={c.id}>{c.name} - {c.company}</option>
                             ))}
                         </select>
+
+                        {showNewClientForm && (
+                            <div className="rounded-[2rem] border border-primary/20 bg-white/72 p-6 shadow-[0_18px_50px_rgba(23,23,23,0.06)] backdrop-blur-xl">
+                                <div className="flex items-center gap-3 mb-5">
+                                    <div className="p-2 bg-accent/70 rounded-xl border border-primary/15">
+                                        <UserPlus className="w-4 h-4 text-primary" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-black uppercase tracking-[0.16em] text-foreground">Nuevo Cliente</h3>
+                                        <p className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">CreaciOn rApida dentro de la cotizaciOn</p>
+                                    </div>
+                                </div>
+
+                                <form onSubmit={handleCreateClient} className="space-y-4">
+                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                        <div className="space-y-2">
+                                            <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest pl-1">Nombre Completo</label>
+                                            <input
+                                                required
+                                                className="w-full bg-white border border-border/70 rounded-2xl px-5 py-4 text-sm font-black text-foreground outline-none focus:border-primary transition-all italic"
+                                                placeholder="Ej: Juan Perez"
+                                                value={newClient.name}
+                                                onChange={e => setNewClient({ ...newClient, name: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest pl-1">Empresa</label>
+                                            <input
+                                                className="w-full bg-white border border-border/70 rounded-2xl px-5 py-4 text-sm font-black text-foreground outline-none focus:border-primary transition-all italic"
+                                                placeholder="Ej: Arte Concreto SAS"
+                                                value={newClient.company}
+                                                onChange={e => setNewClient({ ...newClient, company: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                        <div className="space-y-2">
+                                            <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest pl-1">Email</label>
+                                            <input
+                                                type="email"
+                                                required
+                                                className="w-full bg-white border border-border/70 rounded-2xl px-5 py-4 text-sm font-black text-foreground outline-none focus:border-primary transition-all italic"
+                                                placeholder="juan@ejemplo.com"
+                                                value={newClient.email}
+                                                onChange={e => setNewClient({ ...newClient, email: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest pl-1">TelEfono</label>
+                                            <input
+                                                required
+                                                className="w-full bg-white border border-border/70 rounded-2xl px-5 py-4 text-sm font-black text-foreground outline-none focus:border-primary transition-all italic"
+                                                placeholder="+57 321..."
+                                                value={newClient.phone}
+                                                onChange={e => setNewClient({ ...newClient, phone: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col gap-3 pt-2 md:flex-row">
+                                        <button type="submit" className="flex-1 bg-primary text-black font-black py-4 rounded-2xl flex items-center justify-center gap-3 hover:scale-[1.01] active:scale-95 transition-all shadow-xl shadow-primary/15">
+                                            <CheckCircle className="w-4 h-4" />
+                                            <span className="uppercase text-[10px] tracking-[0.2em]">Guardar y Vincular</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowNewClientForm(false)}
+                                            className="md:w-auto bg-white border border-border/70 text-foreground font-black py-4 px-5 rounded-2xl uppercase text-[10px] tracking-[0.18em] transition-all hover:bg-accent/35"
+                                        >
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        )}
                     </div>
                 </div>
 
                 {/* Generator */}
-                <div className="bg-[#0a0a0b] border border-white/10 rounded-[2.5rem] p-10 shadow-sm relative overflow-hidden group">
+                <div className="surface-panel rounded-[2.5rem] p-10 shadow-sm relative overflow-hidden group">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
                         <div>
                             <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-primary/10 rounded-lg">
+                                <div className="p-2 bg-accent/70 rounded-lg border border-primary/15">
                                     <Calculator className="w-6 h-6 text-primary" />
                                 </div>
-                                <h2 className="text-xl font-black text-white italic tracking-tighter uppercase">Generador de Cotización</h2>
+                                <h2 className="text-xl font-black text-foreground italic tracking-tighter uppercase">Generador de Cotización</h2>
                             </div>
-                            <p className="text-[10px] font-black text-white/30 uppercase tracking-widest pl-11">Sincronizado con inventario real de Arte Concreto</p>
+                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-11">Sincronizado con inventario real de Arte Concreto</p>
                         </div>
                         <div className="flex items-center gap-3">
                             <button
                                 onClick={handleSync}
                                 disabled={isSyncing}
-                                className="bg-white/5 text-white/40 border border-white/10 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:text-primary hover:border-primary/20 transition-all flex items-center gap-3 disabled:opacity-50"
+                                className="bg-white/70 text-muted-foreground border border-border/70 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:text-primary hover:border-primary/20 transition-all flex items-center gap-3 disabled:opacity-50"
                                 title="Sincronizar precios con la web original"
                             >
                                 <RefreshCw className={clsx("w-4 h-4", isSyncing && "animate-spin")} />
@@ -212,10 +288,10 @@ export default function QuoteEngine() {
 
                     <div className="space-y-8">
                         {items.map((item, index) => (
-                            <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end p-6 rounded-3xl bg-white/[0.02] border border-white/5 group/row hover:border-white/10 transition-all">
+                            <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end p-6 rounded-3xl bg-white/70 border border-border/70 group/row hover:border-primary/20 transition-all">
                                 <div className="md:col-span-6 space-y-4">
                                     <div className="flex items-center justify-between px-1">
-                                        <label className="text-[10px] font-black uppercase text-white/20 tracking-[0.2em]">Buscador de Productos</label>
+                                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Buscador de Productos</label>
                                         {item.productId && (
                                             <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1">
                                                 <CheckCircle className="w-2.5 h-2.5" /> Vinculado
@@ -223,13 +299,13 @@ export default function QuoteEngine() {
                                         )}
                                     </div>
                                     <div className="relative">
-                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20">
+                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
                                             <Search className="w-4 h-4" />
                                         </div>
                                         <input
                                             type="text"
                                             placeholder="Busca por nombre o SKU..."
-                                            className="w-full bg-white/[0.03] border border-white/10 rounded-xl pl-12 pr-4 py-4 text-sm font-black text-white outline-none focus:border-primary transition-all placeholder:text-white/10 italic"
+                                            className="w-full bg-white border border-border/70 rounded-xl pl-12 pr-4 py-4 text-sm font-black text-foreground outline-none focus:border-primary transition-all placeholder:text-muted-foreground italic"
                                             value={item.name}
                                             onChange={(e) => {
                                                 updateItem(item.id, 'name', e.target.value);
@@ -240,58 +316,58 @@ export default function QuoteEngine() {
 
                                         {/* Dropdown for search results */}
                                         {item.name.length > 2 && !item.productId && (
-                                            <div className="absolute top-full left-0 w-full mt-2 bg-[#121214] border border-white/10 rounded-2xl shadow-2xl z-50 max-h-60 overflow-y-auto overflow-x-hidden custom-scrollbar">
+                                            <div className="absolute top-full left-0 w-full mt-2 bg-white border border-border/80 rounded-2xl shadow-[0_20px_50px_rgba(23,23,23,0.12)] z-50 max-h-60 overflow-y-auto overflow-x-hidden custom-scrollbar">
                                                 {products.filter(p => p.name.toLowerCase().includes(item.name.toLowerCase())).map(p => (
                                                     <button
                                                         key={p.id}
                                                         onClick={() => selectFromInventory(item.id, p)}
-                                                        className="w-full p-4 hover:bg-white/5 text-left border-b border-white/5 last:border-0 flex items-center gap-4 transition-colors"
+                                                        className="w-full p-4 hover:bg-accent/35 text-left border-b border-border/50 last:border-0 flex items-center gap-4 transition-colors"
                                                     >
-                                                        <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                                                        <div className="w-10 h-10 rounded-xl bg-accent/35 border border-border/60 flex items-center justify-center overflow-hidden shrink-0">
                                                             {p.image ? (
                                                                 <img src={p.image} className="w-full h-full object-cover" />
                                                             ) : (
-                                                                <Box className="w-4 h-4 text-white/20" />
+                                                                <Box className="w-4 h-4 text-muted-foreground" />
                                                             )}
                                                         </div>
                                                         <div className="min-w-0 flex-1">
-                                                            <p className="text-[11px] font-black text-white uppercase truncate">{p.name}</p>
+                                                            <p className="text-[11px] font-black text-foreground uppercase truncate">{p.name}</p>
                                                             <p className="text-[9px] font-bold text-primary italic tracking-tight">{formatCurrency(p.price)}</p>
                                                         </div>
                                                     </button>
                                                 ))}
                                                 {products.filter(p => p.name.toLowerCase().includes(item.name.toLowerCase())).length === 0 && (
-                                                    <div className="p-4 text-[9px] font-bold text-white/20 uppercase text-center tracking-widest italic">No se encontraron productos</div>
+                                                    <div className="p-4 text-[9px] font-bold text-muted-foreground uppercase text-center tracking-widest italic">No se encontraron productos</div>
                                                 )}
                                             </div>
                                         )}
                                     </div>
                                 </div>
                                 <div className="md:col-span-2 space-y-3">
-                                    <label className="text-[10px] font-black uppercase text-white/20 tracking-widest block text-center">Cant.</label>
+                                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest block text-center">Cant.</label>
                                     <div className="relative">
                                         <input
                                             type="number"
                                             value={item.quantity}
                                             onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                                            className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-4 text-sm focus:border-primary outline-none transition-all font-black text-center text-white italic"
+                                            className="w-full bg-white border border-border/70 rounded-xl px-4 py-4 text-sm focus:border-primary outline-none transition-all font-black text-center text-foreground italic"
                                         />
                                         <span className="absolute bottom-[-15px] left-0 w-full text-[8px] font-black text-primary/60 uppercase tracking-tighter text-center">{item.unit || 'un'}</span>
                                     </div>
                                 </div>
                                 <div className="md:col-span-3 space-y-3">
-                                    <label className="text-[10px] font-black uppercase text-white/20 tracking-widest block">Precio Unit.</label>
+                                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest block">Precio Unit.</label>
                                     <input
                                         type="number"
                                         value={item.price}
                                         onChange={(e) => updateItem(item.id, 'price', parseFloat(e.target.value) || 0)}
-                                        className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-6 py-4 text-sm focus:border-primary outline-none transition-all font-black text-primary italic"
+                                        className="w-full bg-white border border-border/70 rounded-xl px-6 py-4 text-sm focus:border-primary outline-none transition-all font-black text-primary italic"
                                     />
                                 </div>
                                 <div className="md:col-span-1 pb-1 flex justify-center">
                                     <button
                                         onClick={() => removeItem(item.id)}
-                                        className="p-4 text-white/20 hover:text-rose-500 bg-white/5 hover:bg-rose-500/10 rounded-2xl transition-all border border-white/5"
+                                        className="p-4 text-muted-foreground hover:text-rose-500 bg-white border border-border/70 hover:bg-rose-500/10 rounded-2xl transition-all"
                                     >
                                         <Trash2 className="w-5 h-5" />
                                     </button>
@@ -303,29 +379,29 @@ export default function QuoteEngine() {
             </div>
 
             <div className="space-y-6">
-                <div className="bg-[#0a0a0b] border border-white/10 rounded-[2.5rem] p-10 flex flex-col h-full shadow-2xl relative overflow-hidden sticky top-8 group">
-                    <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary/5 rounded-full blur-3xl opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                <div className="surface-panel rounded-[2.5rem] p-10 flex flex-col h-full shadow-2xl relative overflow-hidden sticky top-8 group">
+                    <div className="absolute -top-24 -right-24 w-48 h-48 bg-primary/10 rounded-full blur-3xl opacity-50 group-hover:opacity-100 transition-opacity"></div>
 
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.4em] mb-12 flex items-center gap-4 text-white/30 italic">
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.4em] mb-12 flex items-center gap-4 text-muted-foreground italic">
                         Resumen de Facturación
-                        <div className="h-[1px] flex-1 bg-gradient-to-r from-white/10 to-transparent"></div>
+                        <div className="h-[1px] flex-1 bg-gradient-to-r from-border/90 to-transparent"></div>
                     </h3>
 
                     <div className="space-y-8 flex-1">
                         <div className="flex justify-between items-center">
-                            <span className="text-[11px] font-black uppercase text-white/30 tracking-widest">Subtotal Bruto</span>
-                            <span className="text-lg font-black text-white italic tracking-tighter">{formatCurrency(subtotal)}</span>
+                            <span className="text-[11px] font-black uppercase text-muted-foreground tracking-widest">Subtotal Bruto</span>
+                            <span className="text-lg font-black text-foreground italic tracking-tighter">{formatCurrency(subtotal)}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                            <span className="text-[11px] font-black uppercase text-white/30 tracking-widest">Impuestos (IVA 19%)</span>
-                            <span className="text-lg font-black text-white italic tracking-tighter">{formatCurrency(tax)}</span>
+                            <span className="text-[11px] font-black uppercase text-muted-foreground tracking-widest">Impuestos (IVA 19%)</span>
+                            <span className="text-lg font-black text-foreground italic tracking-tighter">{formatCurrency(tax)}</span>
                         </div>
 
-                        <div className="pt-10 mt-10 border-t border-white/5 flex flex-col gap-3 relative">
+                        <div className="pt-10 mt-10 border-t border-border/60 flex flex-col gap-3 relative">
                             <div className="absolute top-0 left-0 w-1/4 h-1 bg-primary rounded-full -translate-y-1/2"></div>
                             <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary italic">Inversión Total Estimada</span>
                             <div className="flex justify-between items-baseline">
-                                <span className="text-5xl font-black text-white italic tracking-tighter leading-none">{formatCurrency(total)}</span>
+                                <span className="text-5xl font-black text-foreground italic tracking-tighter leading-none">{formatCurrency(total)}</span>
                             </div>
                         </div>
                     </div>
@@ -352,22 +428,21 @@ export default function QuoteEngine() {
                             <span className="uppercase text-[11px] tracking-[0.2em]">Guardar Cotización</span>
                         </button>
 
-                        <button className="w-full bg-white/5 hover:bg-white/10 text-white font-black py-5 rounded-2xl flex items-center justify-center gap-4 border border-white/10 transition-all overflow-hidden relative group">
-                            <div className="absolute inset-0 bg-primary/20 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-700"></div>
+                        <button className="w-full bg-white border border-border/70 hover:bg-accent/35 text-foreground font-black py-5 rounded-2xl flex items-center justify-center gap-4 transition-all overflow-hidden relative group">
                             <Mail className="w-5 h-5 text-primary relative z-10" />
                             <span className="relative z-10 uppercase text-[11px] tracking-[0.2em]">Enviar por Correo</span>
                         </button>
 
                         <div className="pt-10 flex flex-col items-center gap-4 group">
                             <div className="flex items-center gap-3">
-                                <span className="text-[9px] font-black uppercase tracking-[0.3em] text-white/20 group-hover:text-primary transition-colors">Powered by</span>
+                                <span className="text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground group-hover:text-primary transition-colors">Powered by</span>
                                 <img
                                     src="https://cuantium.com/wp-content/uploads/2025/12/wibicrmblanco@4x.png"
                                     alt="MiWibi"
-                                    className="h-4 object-contain opacity-60 group-hover:opacity-100 transition-all duration-700"
+                                    className="h-4 object-contain opacity-60 group-hover:opacity-100 transition-all duration-700 brightness-0"
                                 />
                             </div>
-                            <div className="w-32 h-1 bg-white/[0.03] rounded-full overflow-hidden">
+                            <div className="w-32 h-1 bg-accent/60 rounded-full overflow-hidden">
                                 <div className="h-full bg-primary w-1/3 group-hover:w-full transition-all duration-1000"></div>
                             </div>
                         </div>
@@ -375,85 +450,6 @@ export default function QuoteEngine() {
                 </div>
             </div>
 
-            {/* Modal: New Client Quick Create */}
-            {showNewClientForm && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="bg-[#0a0a0b] border border-white/10 rounded-[3rem] p-10 w-full max-w-xl shadow-2xl relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-8 opacity-10">
-                            <UserPlus size={160} />
-                        </div>
-
-                        <div className="flex items-center justify-between mb-8 relative z-10">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-primary/10 rounded-2xl">
-                                    <UserPlus className="w-6 h-6 text-primary" />
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-black text-white italic tracking-tighter uppercase">Nuevo Cliente</h3>
-                                    <p className="text-[9px] font-black text-white/20 uppercase tracking-[0.2em]">Vínculo rápido en cotización</p>
-                                </div>
-                            </div>
-                            <button onClick={() => setShowNewClientForm(false)} className="bg-white/5 p-3 rounded-xl hover:bg-rose-500/10 hover:text-rose-500 transition-all">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleCreateClient} className="space-y-6 relative z-10">
-                            <div className="grid grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <label className="text-[9px] font-black uppercase text-white/30 tracking-widest pl-1">Nombre Completo</label>
-                                    <input
-                                        required
-                                        className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-sm font-black text-white outline-none focus:border-primary transition-all italic"
-                                        placeholder="Ej: Juan Perez"
-                                        value={newClient.name}
-                                        onChange={e => setNewClient({ ...newClient, name: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[9px] font-black uppercase text-white/30 tracking-widest pl-1">Empresa</label>
-                                    <input
-                                        className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-sm font-black text-white outline-none focus:border-primary transition-all italic"
-                                        placeholder="Ej: Arte Concreto SAS"
-                                        value={newClient.company}
-                                        onChange={e => setNewClient({ ...newClient, company: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <label className="text-[9px] font-black uppercase text-white/30 tracking-widest pl-1">Email</label>
-                                    <input
-                                        type="email"
-                                        required
-                                        className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-sm font-black text-white outline-none focus:border-primary transition-all italic"
-                                        placeholder="juan@ejemplo.com"
-                                        value={newClient.email}
-                                        onChange={e => setNewClient({ ...newClient, email: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[9px] font-black uppercase text-white/30 tracking-widest pl-1">Teléfono</label>
-                                    <input
-                                        required
-                                        className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-sm font-black text-white outline-none focus:border-primary transition-all italic"
-                                        placeholder="+57 321..."
-                                        value={newClient.phone}
-                                        onChange={e => setNewClient({ ...newClient, phone: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="pt-6">
-                                <button type="submit" className="w-full bg-primary text-black font-black py-5 rounded-3xl flex items-center justify-center gap-4 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-primary/20">
-                                    <CheckCircle className="w-5 h-5" />
-                                    <span className="uppercase text-[11px] tracking-[0.2em]">Guardar y Vincular</span>
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
