@@ -6,11 +6,14 @@ export type WhatsAppRuntimeConfig = {
 };
 
 export function resolveWhatsAppConfig(input?: WhatsAppRuntimeConfig): Required<WhatsAppRuntimeConfig> {
+    const allowClientConfig = process.env.NODE_ENV !== 'production';
+    const runtimeInput = allowClientConfig ? input : undefined;
+
     return {
-        accessToken: input?.accessToken || process.env.WHATSAPP_ACCESS_TOKEN || '',
-        phoneNumberId: input?.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || '',
-        businessAccountId: input?.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
-        verifyToken: input?.verifyToken || process.env.WHATSAPP_VERIFY_TOKEN || '',
+        accessToken: runtimeInput?.accessToken || process.env.WHATSAPP_ACCESS_TOKEN || '',
+        phoneNumberId: runtimeInput?.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+        businessAccountId: runtimeInput?.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '',
+        verifyToken: runtimeInput?.verifyToken || process.env.WHATSAPP_VERIFY_TOKEN || '',
     };
 }
 

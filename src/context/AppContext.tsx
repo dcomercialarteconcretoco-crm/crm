@@ -298,6 +298,19 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+function sanitizeSettingsForStorage(settings: AppSettings): AppSettings {
+    return {
+        ...settings,
+        geminiKey: '',
+        resendKey: '',
+        whatsapp: {
+            ...settings.whatsapp,
+            accessToken: '',
+            verifyToken: '',
+        },
+    };
+}
+
 // --- Provider ---
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -325,7 +338,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }));
     const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-    const [settings, setSettings] = useState<AppSettings>(() => loadData('crm_settings', {
+    const [settings, setSettings] = useState<AppSettings>(() => sanitizeSettingsForStorage(loadData('crm_settings', {
         cities: [
             { name: 'Bogotá', department: 'Cundinamarca' },
             { name: 'Medellín', department: 'Antioquia' },
@@ -419,7 +432,7 @@ REGLAS DE ORO:
                 whatsappSync: true,
             },
         },
-    }));
+    })));
 
     // Persist state with a small delay so UI interactions are not blocked by repeated JSON serialization.
     useEffect(() => {
@@ -433,7 +446,7 @@ REGLAS DE ORO:
             localStorage.setItem('crm_notifications', JSON.stringify(notifications));
             localStorage.setItem('crm_audit_logs_v_final', JSON.stringify(auditLogs));
             localStorage.setItem('crm_anomalies_v_final', JSON.stringify(anomalies));
-            localStorage.setItem('crm_settings', JSON.stringify(settings));
+            localStorage.setItem('crm_settings', JSON.stringify(sanitizeSettingsForStorage(settings)));
             localStorage.setItem('crm_events', JSON.stringify(events));
             localStorage.setItem('crm_inventory_products', JSON.stringify(products));
             localStorage.setItem('crm_forms', JSON.stringify(forms));

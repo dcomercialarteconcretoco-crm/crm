@@ -49,6 +49,7 @@ const categories = [
 
 export default function SettingsPage() {
     const { settings, updateSettings } = useApp();
+    const allowClientSecrets = process.env.NODE_ENV !== 'production';
     const [activeTab, setActiveTab] = useState('profile');
     const [showPassword, setShowPassword] = useState(false);
     const [aiActive, setAiActive] = useState(true);
@@ -106,11 +107,11 @@ export default function SettingsPage() {
                 headers: {
                     'content-type': 'application/json',
                 },
-                body: JSON.stringify({
+                body: JSON.stringify(allowClientSecrets ? {
                     accessToken: settings.whatsapp.accessToken,
                     phoneNumberId: settings.whatsapp.phoneNumberId,
                     businessAccountId: settings.whatsapp.businessAccountId,
-                }),
+                } : {}),
             });
 
             const payload = await response.json();
@@ -146,7 +147,7 @@ export default function SettingsPage() {
                 body: JSON.stringify({
                     to: whatsAppTestTo,
                     text: 'Mensaje de prueba desde MiWibi CRM. Si recibiste esto, el canal de WhatsApp Business quedo listo.',
-                    config: settings.whatsapp,
+                    ...(allowClientSecrets ? { config: settings.whatsapp } : {}),
                 }),
             });
 
