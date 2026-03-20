@@ -47,19 +47,19 @@ export default function LoginPage() {
             </div>
 
             <div className="w-full max-w-md z-10">
-                <div className="text-center mb-10 space-y-4">
-                    <div className="flex justify-center mb-12">
+                <div className="text-center mb-8 space-y-2">
+                    <div className="flex justify-center mb-4">
                         <img
                             src="https://cuantium.com/wp-content/uploads/2026/02/logo.png"
                             alt="Logo"
-                            className="w-56 h-56 object-contain drop-shadow-[0_0_30px_rgba(255,255,255,0.15)] animate-in zoom-in duration-1000"
+                            className="w-44 h-44 object-contain drop-shadow-[0_0_30px_rgba(255,255,255,0.15)] animate-in zoom-in duration-1000 md:w-48 md:h-48"
                         />
                     </div>
                     <div>
                         <h1 className="text-4xl font-black text-foreground italic tracking-tighter uppercase leading-none">
                             Intelligence <span className="text-primary not-italic">Core</span>
                         </h1>
-                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mt-2">Acceso restringido • Arte Concreto</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mt-1">Acceso restringido • Arte Concreto</p>
                     </div>
                 </div>
 

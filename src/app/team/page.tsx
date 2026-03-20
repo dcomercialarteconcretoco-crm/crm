@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     Plus,
     Search,
@@ -25,7 +25,7 @@ import { clsx } from 'clsx';
 import { useApp, Seller } from '@/context/AppContext';
 
 export default function TeamPage() {
-    const { sellers, addSeller, deleteSeller, updateSeller } = useApp();
+    const { sellers, addSeller, deleteSeller, updateSeller, currentUser } = useApp();
     const [searchTerm, setSearchTerm] = useState("");
     const [view, setView] = useState<'team' | 'stats'>('team');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -45,7 +45,41 @@ export default function TeamPage() {
         password: ''
     });
 
-    const filteredSellers = sellers.filter(s =>
+    const teamSellers = useMemo(() => {
+        const normalizedCurrentIdentity = (
+            currentUser?.email ||
+            currentUser?.username ||
+            ''
+        ).trim().toLowerCase();
+
+        const sanitized = sellers.filter((seller) => {
+            if (seller.role !== 'SuperAdmin') return true;
+            if (!normalizedCurrentIdentity) return false;
+
+            const sellerIdentity = (seller.email || seller.username || '').trim().toLowerCase();
+            return sellerIdentity === normalizedCurrentIdentity || seller.id === currentUser?.id;
+        });
+
+        if (!currentUser) return sanitized;
+
+        const currentIdentity = (currentUser.email || currentUser.username || '').trim().toLowerCase();
+        const withoutCurrent = sanitized.filter((seller) => {
+            const sellerIdentity = (seller.email || seller.username || '').trim().toLowerCase();
+            return seller.id !== currentUser.id && sellerIdentity !== currentIdentity;
+        });
+
+        const canonicalSuperAdmin: Seller = {
+            ...currentUser,
+            name: currentUser.name || 'Juan Sierra',
+            role: 'SuperAdmin',
+            status: 'Activo',
+            avatar: currentUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name || 'Juan Sierra')}&background=fab510&color=000`,
+        };
+
+        return [canonicalSuperAdmin, ...withoutCurrent];
+    }, [currentUser, sellers]);
+
+    const filteredSellers = teamSellers.filter(s =>
         s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         s.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         s.role.toLowerCase().includes(searchTerm.toLowerCase())
@@ -219,14 +253,14 @@ export default function TeamPage() {
                 /* Stats View */
                 <div className="space-y-6">
                     {filteredSellers.map((seller) => (
-                        <div key={seller.id} className="bg-[#0a0a0b] border border-white/10 rounded-[2.5rem] p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center hover:border-primary/20 transition-all shadow-2xl relative group">
+                        <div key={seller.id} className="surface-card rounded-[2.5rem] p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center hover:border-primary/20 transition-all shadow-[0_20px_60px_rgba(15,23,42,0.07)] relative group">
                             <div className="lg:col-span-4 flex items-center gap-6">
-                                <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center text-xl font-black text-primary/40 group-hover:bg-primary group-hover:text-black transition-all">
+                                <div className="w-16 h-16 rounded-2xl bg-white/55 border border-white/75 flex items-center justify-center text-xl font-black text-primary/70 group-hover:bg-primary group-hover:text-black transition-all">
                                     {seller.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                                 </div>
                                 <div>
-                                    <h3 className="text-base font-black text-white uppercase italic tracking-tighter group-hover:text-primary transition-colors">{seller.name}</h3>
-                                    <p className="text-[10px] font-black text-white/30 uppercase tracking-widest mt-0.5 italic">{seller.role}</p>
+                                    <h3 className="text-base font-black text-foreground uppercase italic tracking-tighter group-hover:text-primary transition-colors">{seller.name}</h3>
+                                    <p className="text-[10px] font-black text-primary/70 uppercase tracking-widest mt-0.5 italic">{seller.role}</p>
                                 </div>
                                 <div className="ml-auto lg:hidden bg-primary/10 px-3 py-1 rounded-full">
                                     <span className="text-[9px] font-black text-primary uppercase">KPI 100%</span>
@@ -236,22 +270,22 @@ export default function TeamPage() {
                             <div className="lg:col-span-8 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                                 {[
                                     { label: 'Cotizaciones', val: '0', color: 'text-sky-400', bg: 'bg-sky-400/5' },
-                                    { label: 'Vistas', val: '0%', sub: '0 de 0', color: 'text-white/40', bg: 'bg-white/5' },
+                                    { label: 'Vistas', val: '0%', sub: '0 de 0', color: 'text-muted-foreground', bg: 'bg-white/45' },
                                     { label: 'Ganadas', val: '0', sub: '0% de cierre', color: 'text-emerald-500', bg: 'bg-emerald-500/5' },
                                     { label: 'Pipeline', val: '$0', sub: 'en progreso', color: 'text-amber-500', bg: 'bg-amber-500/5' },
                                     { label: 'Contratos', val: '0', sub: 'este mes', color: 'text-primary', bg: 'bg-primary/5' },
                                     { label: 'Comisión', val: '$0', sub: '$0 este mes', color: 'text-rose-400', bg: 'bg-rose-400/5' }
                                 ].map((kpi) => (
-                                    <div key={kpi.label} className={clsx("p-4 rounded-2xl flex flex-col items-center justify-center border border-white/5 transition-all hover:scale-105", kpi.bg)}>
-                                        <p className="text-[8px] font-black text-white/20 uppercase tracking-widest mb-1">{kpi.label}</p>
+                                    <div key={kpi.label} className={clsx("p-4 rounded-2xl flex flex-col items-center justify-center border border-white/70 transition-all hover:scale-105", kpi.bg)}>
+                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">{kpi.label}</p>
                                         <p className={clsx("text-sm font-black italic tracking-tighter", kpi.color)}>{kpi.val}</p>
-                                        {kpi.sub && <p className="text-[7px] font-black text-white/10 uppercase tracking-tighter mt-1">{kpi.sub}</p>}
+                                        {kpi.sub && <p className="text-[7px] font-black text-muted-foreground/70 uppercase tracking-tighter mt-1">{kpi.sub}</p>}
                                     </div>
                                 ))}
                             </div>
 
                             <div className="hidden lg:block absolute top-6 right-8">
-                                <span className="text-[8px] font-black text-white/20 uppercase tracking-[0.3em] flex items-center gap-2">
+                                <span className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.3em] flex items-center gap-2">
                                     <Clock className="w-3 h-3" /> Hace 2 min
                                 </span>
                             </div>
@@ -262,21 +296,21 @@ export default function TeamPage() {
 
             {/* Add/Edit Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-3xl">
-                    <div className="bg-[#0a0a0b] border border-white/10 w-full max-w-xl rounded-[3rem] overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-300">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[rgba(247,243,234,0.78)] backdrop-blur-xl">
+                    <div className="surface-panel w-full max-w-xl rounded-[3rem] overflow-hidden shadow-[0_28px_80px_rgba(20,16,8,0.14)] flex flex-col animate-in zoom-in-95 duration-300 border border-white/85">
                         {/* Modal Header */}
-                        <div className="p-10 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
-                            <h2 className="text-3xl font-black text-white italic tracking-tighter uppercase">
+                        <div className="p-8 border-b border-border/60 flex items-center justify-between bg-white/56">
+                            <h2 className="text-3xl font-black text-foreground italic tracking-tighter uppercase">
                                 {editingSeller ? 'Editar Perfil' : 'Nuevo Miembro'}
                             </h2>
-                            <X className="w-8 h-8 text-white/20 cursor-pointer hover:text-white transition-colors" onClick={() => setIsModalOpen(false)} />
+                            <X className="w-8 h-8 text-muted-foreground cursor-pointer hover:text-foreground transition-colors" onClick={() => setIsModalOpen(false)} />
                         </div>
 
-                        <div className="p-10 space-y-8 overflow-y-auto max-h-[70vh] custom-scrollbar">
+                        <div className="p-8 space-y-8 overflow-y-auto max-h-[70vh] custom-scrollbar bg-white/42">
                             {/* Avatar Section */}
                             <div className="flex flex-col items-center gap-6">
                                 <div className="relative group">
-                                    <div className="w-28 h-28 rounded-[2.5rem] overflow-hidden border-4 border-primary/20 bg-white/5 shadow-2xl transition-all group-hover:border-primary/50">
+                                    <div className="w-28 h-28 rounded-[2.5rem] overflow-hidden border-4 border-primary/20 bg-white/80 shadow-xl transition-all group-hover:border-primary/50">
                                         {form.avatar ? (
                                             <img src={form.avatar} className="w-full h-full object-cover" alt="Profile" />
                                         ) : (
@@ -308,71 +342,70 @@ export default function TeamPage() {
 
                             <div className="grid grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <p className="text-[10px] font-black text-white/30 uppercase ml-2">Nombre Completo</p>
+                                    <p className="text-[10px] font-black text-muted-foreground uppercase ml-2">Nombre Completo</p>
                                     <div className="relative">
-                                        <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                                        <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
                                         <input
                                             type="text"
                                             placeholder="Ej: Roberto Gómez"
                                             value={form.name}
                                             onChange={(e) => setForm({ ...form, name: e.target.value })}
-                                            className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white font-bold outline-none focus:border-primary transition-all shadow-inner"
+                                            className="w-full bg-white/74 border border-white/90 rounded-2xl pl-12 pr-4 py-4 text-foreground font-bold outline-none focus:border-primary/50 transition-all shadow-inner placeholder:text-muted-foreground/60"
                                         />
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-[10px] font-black text-white/30 uppercase ml-2">Username @</p>
+                                    <p className="text-[10px] font-black text-muted-foreground uppercase ml-2">Username @</p>
                                     <input
                                         type="text"
                                         placeholder="roberto.g"
                                         value={form.username}
                                         onChange={(e) => setForm({ ...form, username: e.target.value })}
-                                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold outline-none focus:border-primary transition-all shadow-inner"
+                                        className="w-full bg-white/74 border border-white/90 rounded-2xl px-6 py-4 text-foreground font-bold outline-none focus:border-primary/50 transition-all shadow-inner placeholder:text-muted-foreground/60"
                                     />
                                 </div>
                             </div>
 
                             <div className="space-y-2">
-                                <p className="text-[10px] font-black text-white/30 uppercase ml-2">Email Corporativo</p>
+                                <p className="text-[10px] font-black text-muted-foreground uppercase ml-2">Email Corporativo</p>
                                 <div className="relative">
-                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
                                     <input
                                         type="email"
                                         placeholder="nombre@arteconcreto.co"
                                         value={form.email}
                                         onChange={(e) => setForm({ ...form, email: e.target.value })}
-                                        className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white font-bold outline-none focus:border-primary transition-all shadow-inner"
+                                        className="w-full bg-white/74 border border-white/90 rounded-2xl pl-12 pr-4 py-4 text-foreground font-bold outline-none focus:border-primary/50 transition-all shadow-inner placeholder:text-muted-foreground/60"
                                     />
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <p className="text-[10px] font-black text-white/30 uppercase ml-2">Rol de Acceso</p>
+                                    <p className="text-[10px] font-black text-muted-foreground uppercase ml-2">Rol de Acceso</p>
                                     <select
                                         value={form.role}
                                         onChange={(e) => setForm({ ...form, role: e.target.value as any })}
-                                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold outline-none focus:border-primary appearance-none shadow-inner"
+                                        className="w-full bg-white/74 border border-white/90 rounded-2xl px-6 py-4 text-foreground font-bold outline-none focus:border-primary/50 appearance-none shadow-inner"
                                     >
-                                        <option value="Vendedor" className="bg-[#0a0a0b]">Vendedor Senior</option>
-                                        <option value="Manager" className="bg-[#0a0a0b]">Manager Operativo</option>
-                                        <option value="SuperAdmin" className="bg-[#0a0a0b]">Super Admin</option>
+                                        <option value="Vendedor">Vendedor Senior</option>
+                                        <option value="Manager">Manager Operativo</option>
                                     </select>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-[10px] font-black text-white/30 uppercase ml-2">Contraseña de Acceso</p>
+                                    <p className="text-[10px] font-black text-muted-foreground uppercase ml-2">Contraseña de Acceso</p>
                                     <div className="relative">
-                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
                                         <input
                                             type={showPassword ? "text" : "password"}
                                             placeholder="••••••••"
                                             value={form.password}
                                             onChange={(e) => setForm({ ...form, password: e.target.value })}
-                                            className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-12 py-4 text-white font-bold outline-none focus:border-primary transition-all shadow-inner"
+                                            className="w-full bg-white/74 border border-white/90 rounded-2xl pl-12 pr-12 py-4 text-foreground font-bold outline-none focus:border-primary/50 transition-all shadow-inner placeholder:text-muted-foreground/60"
                                         />
                                         <button
                                             onClick={() => setShowPassword(!showPassword)}
-                                            className="absolute right-4 top-1/2 -translate-y-1/2 hover:text-primary transition-colors text-white/20"
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 hover:text-primary transition-colors text-muted-foreground/50"
                                         >
                                             {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                         </button>
@@ -382,11 +415,11 @@ export default function TeamPage() {
                         </div>
 
                         {/* Modal Footer */}
-                        <div className="p-8 border-t border-white/5 flex gap-4 bg-white/[0.01]">
-                            <button onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-5 rounded-2xl border border-white/10 text-white font-black uppercase text-[10px] tracking-widest hover:bg-white/5 transition-all">
+                        <div className="p-8 border-t border-border/60 flex gap-4 bg-white/56">
+                            <button onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-5 rounded-2xl border border-white/90 text-foreground font-black uppercase text-[10px] tracking-widest hover:bg-white/80 transition-all">
                                 Cancelar
                             </button>
-                            <button onClick={handleSave} className="flex-1 bg-primary text-black font-black px-4 py-5 rounded-2xl shadow-2xl shadow-primary/20 uppercase text-[10px] tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                            <button onClick={handleSave} className="flex-1 bg-primary text-black font-black px-4 py-5 rounded-2xl shadow-xl shadow-primary/15 uppercase text-[10px] tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2">
                                 <CheckCircle2 className="w-4 h-4" />
                                 {editingSeller ? 'Actualizar Miembro' : 'Crear Usuario'}
                             </button>

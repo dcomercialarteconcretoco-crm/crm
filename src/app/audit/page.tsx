@@ -123,7 +123,7 @@ export default function AuditPage() {
                         <div className="p-2.5 bg-primary/20 rounded-2xl border border-primary/20">
                             <Shield className="w-6 h-6 text-primary" />
                         </div>
-                        <h1 className="text-3xl font-black tracking-tight text-white italic underline decoration-primary underline-offset-8">TRUTH <span className="text-primary not-italic text-2xl">ENGINE</span></h1>
+                        <h1 className="text-3xl font-black tracking-tight text-foreground italic underline decoration-primary underline-offset-8">TRUTH <span className="text-primary not-italic text-2xl">ENGINE</span></h1>
                     </div>
                     <p className="text-muted-foreground font-medium ml-14">
                         Sistema de Detección de Inconsistencias y Auditoría Forense
@@ -131,12 +131,12 @@ export default function AuditPage() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <div className="bg-white/5 p-1 rounded-2xl border border-white/10 flex">
+                    <div className="bg-white/60 p-1 rounded-2xl border border-white/80 shadow-[0_14px_40px_rgba(15,23,42,0.06)] flex">
                         <button
                             onClick={() => setActiveView('logs')}
                             className={clsx(
                                 "px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-                                activeView === 'logs' ? "bg-primary text-black" : "text-white/40 hover:text-white"
+                                activeView === 'logs' ? "bg-primary text-black" : "text-muted-foreground hover:text-foreground"
                             )}
                         >
                             Log General
@@ -145,7 +145,7 @@ export default function AuditPage() {
                             onClick={() => setActiveView('anomalies')}
                             className={clsx(
                                 "px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
-                                activeView === 'anomalies' ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20" : "text-white/40 hover:text-white"
+                                activeView === 'anomalies' ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20" : "text-muted-foreground hover:text-foreground"
                             )}
                         >
                             {anomalies.length > 0 && <span className="w-2 h-2 bg-white rounded-full animate-pulse" />}
@@ -186,7 +186,7 @@ export default function AuditPage() {
                             </div>
                             <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-50 group-hover:opacity-100 transition-opacity">Live Sync</span>
                         </div>
-                        <h3 className="text-3xl font-black text-white mb-1">{stat.value}</h3>
+                        <h3 className="text-3xl font-black text-foreground mb-1">{stat.value}</h3>
                         <p className="text-sm font-bold text-muted-foreground">{stat.label}</p>
                         <p className="mt-4 text-[10px] font-black uppercase tracking-tighter text-muted-foreground/40">{stat.subText}</p>
                     </div>
@@ -257,7 +257,7 @@ export default function AuditPage() {
                                             <tr key={log.id} className="hover:bg-white/[0.02] transition-colors group">
                                                 <td className="px-8 py-6">
                                                     <div className="flex flex-col">
-                                                        <span className="text-sm font-black text-white">{format(new Date(log.timestamp), 'dd MMM, HH:mm', { locale: es })}</span>
+                                                        <span className="text-sm font-black text-foreground">{format(new Date(log.timestamp), 'dd MMM, HH:mm', { locale: es })}</span>
                                                         <span className="text-[10px] font-bold text-muted-foreground opacity-50 font-mono tracking-tighter">ID: {log.id}</span>
                                                     </div>
                                                 </td>
