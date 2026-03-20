@@ -38,7 +38,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     const isPublicPage =
         pathname.toLowerCase().includes('login') ||
         pathname.toLowerCase().includes('register') ||
-        pathname.startsWith('/public');
+        pathname.startsWith('/public') ||
+        pathname.startsWith('/widget');
 
     useEffect(() => {
         if (!currentUser && !isPublicPage) {

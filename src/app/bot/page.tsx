@@ -260,6 +260,10 @@ export default function MiWiBotPage() {
         }, 250);
     };
 
+    const widgetBaseUrl = typeof window !== "undefined"
+        ? window.location.origin
+        : "https://crm-intelligence-six.vercel.app";
+
     const widgetSnippet = `<script>
   window.miwiSettings = {
     apiKey: "${widgetConfig.apiKey}",
@@ -270,7 +274,7 @@ export default function MiWiBotPage() {
     whatsappSync: ${widgetConfig.whatsappSync}
   };
 </script>
-<script src="https://cdn.miwibi.com/widget.js" async></script>`;
+<script src="${widgetBaseUrl}/widget.js" async></script>`;
 
     const copyWidgetSnippet = async () => {
         await navigator.clipboard.writeText(widgetSnippet);
