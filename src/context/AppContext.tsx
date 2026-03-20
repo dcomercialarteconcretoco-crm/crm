@@ -707,6 +707,29 @@ REGLAS DE ORO:
 
     const updateSeller = (id: string, updates: Partial<Seller>) => {
         setSellers(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+
+        setCurrentUser(prev => {
+            if (!prev) return prev;
+
+            const normalizedPrevEmail = prev.email.trim().toLowerCase();
+            const normalizedPrevUsername = (prev.username || "").trim().toLowerCase();
+            const normalizedUpdateEmail = (updates.email || "").trim().toLowerCase();
+            const normalizedUpdateUsername = (updates.username || "").trim().toLowerCase();
+
+            const sameIdentity =
+                prev.id === id ||
+                (normalizedUpdateEmail && normalizedPrevEmail === normalizedUpdateEmail) ||
+                (normalizedUpdateUsername && normalizedPrevUsername === normalizedUpdateUsername);
+
+            if (!sameIdentity) return prev;
+
+            return {
+                ...prev,
+                ...updates,
+                role: updates.role ?? prev.role,
+                status: updates.status ?? prev.status,
+            } as Seller;
+        });
     };
 
     const deleteSeller = (sellerId: string) => {
