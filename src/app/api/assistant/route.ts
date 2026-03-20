@@ -19,10 +19,11 @@ export async function POST(req: NextRequest) {
 
     const input = body.input?.trim();
     const messages = Array.isArray(body.messages) ? body.messages : [];
+    const allowClientKey = process.env.NODE_ENV !== "production";
     const apiKey =
-      body.apiKey?.trim() ||
       process.env.GEMINI_API_KEY ||
       process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
+      (allowClientKey ? body.apiKey?.trim() : "") ||
       "";
 
     if (!input) {

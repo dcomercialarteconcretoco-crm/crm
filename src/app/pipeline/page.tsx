@@ -266,10 +266,7 @@ export default function PipelinePage() {
             const res = await fetch('/api/production-order', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    ...payload,
-                    api_key: settings.resendKey
-                })
+                body: JSON.stringify(payload)
             });
 
             const data = await res.json();

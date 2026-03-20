@@ -261,7 +261,7 @@ interface AppContextType {
     currentUser: Seller | null;
     productSyncStatus: ProductSyncStatus;
     refreshProducts: () => Promise<void>;
-    login: (username: string, password: string) => boolean;
+    login: (username: string, password: string) => Promise<boolean>;
     logout: () => void;
 
     addClient: (client: Omit<Client, 'id'>) => string;
@@ -421,33 +421,6 @@ REGLAS DE ORO:
         },
     }));
 
-    // Seed default admin if no sellers exist
-    useEffect(() => {
-        if (sellers.length === 0) {
-            const admin1: Seller = {
-                id: 's-admin',
-                name: 'Administrador Principal',
-                username: 'admin',
-                password: 'arteconcreto2024',
-                role: 'SuperAdmin',
-                email: 'admin@arteconcreto.co',
-                status: 'Activo',
-                avatar: 'https://ui-avatars.com/api/?name=Admin&background=fab510&color=000'
-            };
-            const admin2: Seller = {
-                id: 's-admin-alt',
-                name: 'Acceso Alternativo',
-                username: 'admin',
-                password: 'laqueledije',
-                role: 'SuperAdmin',
-                email: 'soporte@arteconcreto.co',
-                status: 'Activo',
-                avatar: 'https://ui-avatars.com/api/?name=Soporte&background=000&color=fff'
-            };
-            setSellers([admin1, admin2]);
-        }
-    }, [sellers.length]);
-
     // Persist state with a small delay so UI interactions are not blocked by repeated JSON serialization.
     useEffect(() => {
         if (isInitialLoad) return;
@@ -539,38 +512,49 @@ REGLAS DE ORO:
         }
     }, [isInitialLoad]);
 
-    const login = (username: string, password: string): boolean => {
-        // Maestro: Acceso de soporte garantizado
-        if (username === 'admin' && (password === 'laqueledije' || password === 'arteconcreto2024')) {
-            const masterAdmin: Seller = {
-                id: 's-admin-master',
-                name: 'Administrador Principal',
-                username: 'admin',
-                password: password,
-                role: 'SuperAdmin',
-                email: 'admin@arteconcreto.co',
-                status: 'Activo',
-                avatar: 'https://ui-avatars.com/api/?name=Admin&background=fab510&color=000'
-            };
+    const login = async (username: string, password: string): Promise<boolean> => {
+        const normalizedUsername = username.trim().toLowerCase();
+        const normalizedPassword = password.trim();
 
-            // Si no está en la lista actual, lo agregamos para persistencia
-            if (!sellers.some(s => s.username === 'admin')) {
-                setSellers(prev => [...prev, masterAdmin]);
-            }
-
-            setCurrentUser(masterAdmin);
-            addAuditLog({
-                userId: masterAdmin.id,
-                userName: masterAdmin.name,
-                userRole: masterAdmin.role,
-                action: 'SYSTEM_LOGIN',
-                details: `Acceso maestro utilizado`,
-                verified: true
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username: normalizedUsername,
+                    password: normalizedPassword,
+                }),
             });
-            return true;
+
+            if (response.ok) {
+                const data = await response.json();
+                const serverUser = data.user as Seller | undefined;
+
+                if (serverUser) {
+                    setCurrentUser(serverUser);
+                    addAuditLog({
+                        userId: serverUser.id,
+                        userName: serverUser.name,
+                        userRole: serverUser.role,
+                        action: 'SYSTEM_LOGIN',
+                        details: 'Sesión iniciada correctamente',
+                        verified: true
+                    });
+                    return true;
+                }
+            }
+        } catch (error) {
+            console.warn('Server-side login failed, falling back to local users.', error);
         }
 
-        const user = sellers.find(s => s.username === username && s.password === password);
+        const user = sellers.find(
+            (seller) =>
+                seller.username?.trim().toLowerCase() === normalizedUsername &&
+                seller.password === normalizedPassword
+        );
+
         if (user) {
             setCurrentUser(user);
             addAuditLog({

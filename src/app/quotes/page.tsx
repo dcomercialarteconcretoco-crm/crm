@@ -289,40 +289,40 @@ export default function QuotesPage() {
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500 pb-20">
+        <div className="space-y-4 lg:space-y-6 animate-in fade-in duration-500 pb-24 lg:pb-20">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="page-hero-title page-hero-title--accent text-2xl font-black tracking-tight flex items-center gap-3 italic uppercase">
+                    <h1 className="page-hero-title page-hero-title--accent text-[1.85rem] sm:text-2xl font-black tracking-tight flex flex-wrap items-center gap-3 italic uppercase">
                         Gestión de Cotizaciones
                         <span className="text-[10px] font-black uppercase text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 animate-pulse">Sync Live</span>
                     </h1>
-                    <p className="text-sm text-muted-foreground font-medium">Exportación oficial de PDFs con firma digital y tracking de inteligencia.</p>
+                    <p className="text-[15px] sm:text-sm text-muted-foreground font-medium">Exportación oficial de PDFs con firma digital y tracking de inteligencia.</p>
                 </div>
-                <Link href="/quotes/new" className="bg-primary text-black font-black px-6 py-3 rounded-xl flex items-center gap-2 hover:scale-105 transition-all shadow-lg shadow-primary/20 text-[10px] uppercase tracking-widest">
+                <Link href="/quotes/new" className="bg-primary text-black font-black px-5 py-3.5 rounded-xl flex items-center justify-center gap-2 hover:scale-105 transition-all shadow-lg shadow-primary/20 text-[10px] uppercase tracking-widest">
                     <Plus className="w-4 h-4" />
                     <span>Nueva Cotización</span>
                 </Link>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-6">
                 {[
                     { label: 'Enviadas', value: stats.sent.toString().padStart(2, '0'), icon: Mail, color: 'text-sky-500', bg: 'bg-sky-500/10' },
                     { label: 'Aprobadas', value: stats.approved.toString().padStart(2, '0'), icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
                     { label: 'Pendientes', value: stats.pending.toString().padStart(2, '0'), icon: Clock, color: 'text-orange-500', bg: 'bg-orange-500/10' },
                     { label: 'Valor Total', value: `$${(stats.totalValue / 1000000).toFixed(1)}M`, icon: FileText, color: 'text-primary', bg: 'bg-primary/10' },
                 ].map((stat) => (
-                    <div key={stat.label} className="bg-card border border-border/40 p-6 rounded-[1.5rem] relative overflow-hidden transition-all hover:border-primary/25 group">
+                    <div key={stat.label} className="bg-card border border-border/40 p-4 lg:p-6 rounded-[1.4rem] lg:rounded-[1.5rem] relative overflow-hidden transition-all hover:border-primary/25 group">
                         <div className={`p-2 rounded-lg w-fit mb-4 ${stat.bg} ${stat.color} group-hover:scale-110 transition-transform`}>
                             <stat.icon className="w-5 h-5" />
                         </div>
                         <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">{stat.label}</p>
-                        <p className="text-2xl font-black">{stat.value}</p>
+                        <p className="text-[1.7rem] lg:text-2xl font-black">{stat.value}</p>
                     </div>
                 ))}
             </div>
 
-            <div className="bg-card/85 border border-white/70 rounded-[2.5rem] overflow-hidden shadow-[0_24px_55px_rgba(15,23,42,0.08)] backdrop-blur-xl">
-                <div className="p-8 border-b border-white/55 bg-white/18 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="bg-card/85 border border-white/70 rounded-[2rem] lg:rounded-[2.5rem] overflow-hidden shadow-[0_24px_55px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+                <div className="p-5 lg:p-8 border-b border-white/55 bg-white/18 flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div className="relative flex-1 max-w-md">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <input
@@ -334,7 +334,77 @@ export default function QuotesPage() {
                         />
                     </div>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="grid gap-3 p-4 sm:p-5 md:hidden">
+                    {filteredQuotes.length > 0 ? filteredQuotes.map((quote) => (
+                        <div key={quote.id} className="rounded-[1.4rem] border border-white/75 bg-white/46 p-4 backdrop-blur-xl">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                    <p className="text-sm font-black text-foreground">{quote.number}</p>
+                                    <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{quote.date}</p>
+                                </div>
+                                <span className={clsx(
+                                    "shrink-0 text-[9px] font-black px-3 py-1 rounded-lg uppercase tracking-widest border",
+                                    quote.status === 'Approved' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" :
+                                        quote.status === 'Sent' ? "bg-sky-500/10 text-sky-500 border-sky-500/20" :
+                                            quote.status === 'Draft' ? "bg-white/50 text-muted-foreground border-white/80" :
+                                                "bg-rose-500/10 text-rose-500 border-rose-500/20"
+                                )}>
+                                    {quote.status}
+                                </span>
+                            </div>
+
+                            <div className="mt-4 space-y-3">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">Cliente</p>
+                                    <p className="mt-1 text-sm font-black text-foreground">{quote.client}</p>
+                                </div>
+                                <div className="flex items-end justify-between gap-4">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">Inversión</p>
+                                        <p className="mt-1 text-lg font-black text-foreground">{quote.total}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">Aperturas</p>
+                                        <p className={clsx(
+                                            "mt-1 text-sm font-black",
+                                            (quote.opens || 0) > 4 ? "text-rose-500" : "text-muted-foreground"
+                                        )}>
+                                            {quote.opens || 0}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 grid grid-cols-3 gap-2">
+                                <button
+                                    onClick={() => handleDownloadPDF(quote)}
+                                    disabled={isGenerating === quote.id}
+                                    className="flex items-center justify-center rounded-xl border border-white/75 bg-white/55 px-3 py-3 text-foreground transition-all hover:bg-primary hover:text-black disabled:opacity-50"
+                                    title="Descargar PDF Oficial"
+                                >
+                                    {isGenerating === quote.id ? (
+                                        <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+                                    ) : <Download className="w-4.5 h-4.5" />}
+                                </button>
+                                <button
+                                    onClick={() => handleSendEmail(quote)}
+                                    className="flex items-center justify-center rounded-xl border border-white/75 bg-white/55 px-3 py-3 text-foreground transition-all hover:bg-sky-500 hover:text-white"
+                                    title="Reenviar por Email Tracking"
+                                >
+                                    <Mail className="w-4.5 h-4.5" />
+                                </button>
+                                <button className="flex items-center justify-center rounded-xl border border-white/75 bg-white/55 px-3 py-3 text-muted-foreground transition-all hover:bg-white hover:text-foreground">
+                                    <MoreVertical className="w-4.5 h-4.5" />
+                                </button>
+                            </div>
+                        </div>
+                    )) : (
+                        <div className="rounded-[1.4rem] border border-white/75 bg-white/46 p-5 text-sm font-semibold text-muted-foreground">
+                            No hay cotizaciones registradas todavía.
+                        </div>
+                    )}
+                </div>
+                <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left">
                         <thead>
                             <tr className="border-b border-white/55 bg-white/14">

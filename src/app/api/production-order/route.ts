@@ -144,9 +144,8 @@ function generateProductionEmailHTML(order: ProductionOrderPayload): string {
 export async function POST(req: NextRequest) {
     try {
         const body: ProductionOrderPayload & { api_key?: string } = await req.json();
-
-        // Usar la llave enviada desde el frontend (Configuración Maestra) o la del .env
-        const finalApiKey = body.api_key || RESEND_API_KEY;
+        const allowClientKey = process.env.NODE_ENV !== 'production';
+        const finalApiKey = RESEND_API_KEY || (allowClientKey ? body.api_key : undefined);
 
         if (!finalApiKey) {
             return NextResponse.json({ error: 'RESEND_API_KEY no configurada. Por favor regístrala en Configuración > Integraciones.' }, { status: 400 });

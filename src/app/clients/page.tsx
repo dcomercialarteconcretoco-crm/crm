@@ -318,8 +318,8 @@ export default function ClientsPage() {
 
             {/* Advanced Filters Panel */}
             {isAdvancedFiltersOpen && (
-                <div className="bg-card border border-border/40 rounded-3xl p-8 space-y-8 animate-in slide-in-from-top-4 duration-300">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div className="bg-card/85 border border-white/70 rounded-[2rem] lg:rounded-3xl p-5 lg:p-8 space-y-6 lg:space-y-8 animate-in slide-in-from-top-4 duration-300 shadow-[0_24px_55px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-5 lg:gap-8">
                         {/* LTV Range */}
                         <div className="space-y-3">
                             <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Rango LTV (Misión)</label>
@@ -327,7 +327,7 @@ export default function ClientsPage() {
                                 <input
                                     type="number"
                                     placeholder="Min"
-                                    className="w-full bg-muted/10 border border-border/40 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-primary transition-all text-white font-bold"
+                                    className="w-full bg-white/50 border border-white/75 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-primary transition-all text-foreground font-bold placeholder:text-muted-foreground"
                                     value={filters.minLtv}
                                     onChange={(e) => setFilters({ ...filters, minLtv: e.target.value })}
                                 />
@@ -335,7 +335,7 @@ export default function ClientsPage() {
                                 <input
                                     type="number"
                                     placeholder="Max"
-                                    className="w-full bg-muted/10 border border-border/40 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-primary transition-all text-white font-bold"
+                                    className="w-full bg-white/50 border border-white/75 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-primary transition-all text-foreground font-bold placeholder:text-muted-foreground"
                                     value={filters.maxLtv}
                                     onChange={(e) => setFilters({ ...filters, maxLtv: e.target.value })}
                                 />
@@ -374,7 +374,7 @@ export default function ClientsPage() {
                         <div className="space-y-3">
                             <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Sector Industrial</label>
                             <select
-                                className="w-full bg-muted/10 border border-border/40 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-primary transition-all appearance-none text-white font-bold"
+                                className="w-full bg-white/50 border border-white/75 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-primary transition-all appearance-none text-foreground font-bold"
                                 value={filters.category}
                                 onChange={(e) => setFilters({ ...filters, category: e.target.value })}
                             >
@@ -386,8 +386,8 @@ export default function ClientsPage() {
                         </div>
                     </div>
 
-                    <div className="pt-4 flex items-center justify-between border-t border-border/40">
-                        <div className="flex gap-4">
+                    <div className="pt-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-t border-border/40">
+                        <div className="flex flex-wrap gap-4">
                             {['Active', 'Lead', 'Inactive'].map((s) => (
                                 <label key={s} className="flex items-center gap-2 cursor-pointer group">
                                     <div
@@ -427,9 +427,9 @@ export default function ClientsPage() {
             )}
 
             {/* Client Grid Layout */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 lg:gap-8 pb-20">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-8 pb-20">
                 {sortedAndFilteredClients.map((client) => (
-                    <div key={client.id} className="bg-[#0a0a0b] border border-white/10 rounded-[2.5rem] p-8 relative overflow-hidden group hover:border-primary/20 transition-all shadow-2xl flex flex-col">
+                    <div key={client.id} className="surface-panel rounded-[1.9rem] lg:rounded-[2.5rem] p-5 lg:p-8 relative overflow-hidden group hover:border-primary/20 transition-all flex flex-col">
                         {/* Propuesta Abierta Badge */}
                         <div className="absolute top-0 right-10">
                             <div className="bg-primary/10 border-x border-b border-primary/20 px-4 py-1.5 rounded-b-xl animate-in slide-in-from-top-2 duration-700">
@@ -438,15 +438,15 @@ export default function ClientsPage() {
                         </div>
 
                         {/* Card Header: Initials + Main Info */}
-                        <div className="flex items-center gap-5 mt-4">
-                            <div className="w-16 h-16 rounded-[1.75rem] bg-white/5 border border-white/10 flex items-center justify-center text-xl font-black text-primary group-hover:scale-110 transition-transform shadow-inner">
+                        <div className="flex items-center gap-4 lg:gap-5 mt-4">
+                            <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-[1.3rem] lg:rounded-[1.75rem] bg-primary/10 border border-primary/15 flex items-center justify-center text-lg lg:text-xl font-black text-primary group-hover:scale-110 transition-transform shadow-inner">
                                 {client.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                             </div>
                             <div className="flex-1 min-w-0">
                                 <Link href={`/leads/${client.id}`}>
-                                    <h3 className="text-base font-black text-white uppercase group-hover:text-primary transition-colors truncate">{client.name}</h3>
+                                    <h3 className="text-base font-black text-foreground uppercase group-hover:text-primary transition-colors truncate">{client.name}</h3>
                                 </Link>
-                                <div className="flex items-center gap-1.5 opacity-40 mt-1 truncate">
+                                <div className="flex items-center gap-1.5 opacity-70 mt-1 truncate text-muted-foreground">
                                     <Mail className="w-3 h-3" />
                                     <p className="text-[10px] font-bold lowercase truncate">{client.email}</p>
                                 </div>
@@ -454,32 +454,32 @@ export default function ClientsPage() {
                         </div>
 
                         {/* Contact Info Row */}
-                        <div className="grid grid-cols-2 gap-4 mt-8 pt-8 border-t border-white/5">
+                        <div className="grid grid-cols-2 gap-3 lg:gap-4 mt-6 lg:mt-8 pt-6 lg:pt-8 border-t border-border/50">
                             <div className="flex items-center gap-3 group/item">
-                                <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-white/20 group-hover/item:text-emerald-500 transition-colors">
+                                <div className="w-8 h-8 rounded-xl bg-white/50 border border-white/75 flex items-center justify-center text-muted-foreground group-hover/item:text-emerald-500 transition-colors">
                                     <Phone className="w-4 h-4" />
                                 </div>
-                                <span className="text-[10px] font-black text-white/60 tracking-tighter truncate">{client.phone}</span>
+                                <span className="text-[10px] font-black text-muted-foreground tracking-tighter truncate">{client.phone}</span>
                             </div>
                             <div className="flex items-center gap-3 group/item">
-                                <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-white/20 group-hover/item:text-sky-500 transition-colors">
+                                <div className="w-8 h-8 rounded-xl bg-white/50 border border-white/75 flex items-center justify-center text-muted-foreground group-hover/item:text-sky-500 transition-colors">
                                     <MapPin className="w-4 h-4" />
                                 </div>
-                                <span className="text-[10px] font-black text-white/60 tracking-tighter truncate">{client.city}</span>
+                                <span className="text-[10px] font-black text-muted-foreground tracking-tighter truncate">{client.city}</span>
                             </div>
                         </div>
 
                         {/* Stats Panel: Volumen Cotizado */}
-                        <div className="mt-8 py-6 rounded-[1.5rem] bg-white/[0.02] border border-white/5 relative">
+                        <div className="mt-6 lg:mt-8 py-5 lg:py-6 rounded-[1.4rem] lg:rounded-[1.5rem] bg-white/42 border border-white/75 relative">
                             <div className="px-6">
-                                <p className="text-[8px] font-black text-white/20 uppercase tracking-widest mb-1">Volumen de Proyectos (COP)</p>
+                                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">Volumen de Proyectos (COP)</p>
                                 <p className="text-sm font-black text-primary italic tracking-tighter">{formatCurrency(client.ltv)}</p>
-                                <p className="text-[8px] font-black text-white/40 uppercase tracking-tighter mt-1">{Math.floor(Math.random() * 3) + 1} propuestas generadas en firme</p>
+                                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-tighter mt-1">{Math.floor(Math.random() * 3) + 1} propuestas generadas en firme</p>
                             </div>
                         </div>
 
                         {/* Action Footer */}
-                        <div className="grid grid-cols-3 gap-3 mt-8">
+                        <div className="grid grid-cols-3 gap-2 lg:gap-3 mt-6 lg:mt-8">
                             <button className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-black font-black uppercase text-[9px] tracking-widest transition-all border border-emerald-500/10">
                                 <MessageSquare className="w-3.5 h-3.5" />
                                 WhatsApp
@@ -488,7 +488,7 @@ export default function ClientsPage() {
                                 <Clock className="w-3.5 h-3.5" />
                                 Historial
                             </Link>
-                            <button className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-white/40 hover:text-white font-black uppercase text-[9px] tracking-widest transition-all border border-white/10">
+                            <button className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-white/50 hover:bg-white text-muted-foreground hover:text-foreground font-black uppercase text-[9px] tracking-widest transition-all border border-white/75">
                                 <Edit2 className="w-3.5 h-3.5" />
                                 Editar
                             </button>
@@ -499,73 +499,73 @@ export default function ClientsPage() {
 
             {/* New Client Modal */}
             {isNewClientModalOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-3xl animate-in fade-in duration-300">
-                    <div className="bg-[#0a0a0b] border border-white/10 w-full max-w-2xl rounded-[3rem] overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-500">
-                        <div className="p-10 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
-                            <h2 className="text-3xl font-black text-white italic tracking-tighter uppercase">Registrar Nuevo Socio</h2>
-                            <X className="w-8 h-8 text-white/20 cursor-pointer hover:text-white transition-colors" onClick={() => setIsNewClientModalOpen(false)} />
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[rgba(245,238,223,0.72)] backdrop-blur-2xl animate-in fade-in duration-300">
+                    <div className="bg-card/95 border border-white/80 w-full max-w-2xl rounded-[2.2rem] lg:rounded-[3rem] overflow-hidden shadow-[0_32px_80px_rgba(23,23,23,0.12)] flex flex-col animate-in zoom-in-95 duration-500">
+                        <div className="p-6 lg:p-10 border-b border-border/60 flex items-center justify-between bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(250,243,228,0.82))]">
+                            <h2 className="text-[1.8rem] lg:text-3xl font-black text-foreground italic tracking-tighter uppercase">Registrar Nuevo Socio</h2>
+                            <X className="w-7 h-7 lg:w-8 lg:h-8 text-muted-foreground cursor-pointer hover:text-foreground transition-colors" onClick={() => setIsNewClientModalOpen(false)} />
                         </div>
 
-                        <div className="p-10 space-y-8 overflow-y-auto max-h-[70vh] custom-scrollbar">
-                            <div className="grid grid-cols-2 gap-8">
+                        <div className="p-6 lg:p-10 space-y-6 lg:space-y-8 overflow-y-auto max-h-[70vh] custom-scrollbar">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
                                 <div className="space-y-2">
                                     <p className="text-[10px] font-black text-primary uppercase ml-2 tracking-widest">Nombre del Contacto</p>
                                     <div className="relative">
-                                        <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                                        <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                         <input
                                             type="text"
                                             placeholder="Ej: Carlos Mendoza"
                                             value={newClientForm.name}
                                             onChange={(e) => setNewClientForm({ ...newClientForm, name: e.target.value })}
-                                            className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white font-bold outline-none focus:border-primary transition-all"
+                                            className="w-full bg-white/60 border border-white/80 rounded-2xl pl-12 pr-4 py-4 text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground"
                                         />
                                     </div>
                                 </div>
                                 <div className="space-y-2">
                                     <p className="text-[10px] font-black text-primary uppercase ml-2 tracking-widest">Empresa / Entidad</p>
                                     <div className="relative">
-                                        <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                                        <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                         <input
                                             type="text"
                                             placeholder="Ej: Constructora Bolívar"
                                             value={newClientForm.company}
                                             onChange={(e) => setNewClientForm({ ...newClientForm, company: e.target.value })}
-                                            className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white font-bold outline-none focus:border-primary transition-all"
+                                            className="w-full bg-white/60 border border-white/80 rounded-2xl pl-12 pr-4 py-4 text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground"
                                         />
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-8">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
                                 <div className="space-y-2">
-                                    <p className="text-[10px] font-black text-white/30 uppercase ml-2">Email Corporativo</p>
+                                    <p className="text-[10px] font-black text-muted-foreground uppercase ml-2">Email Corporativo</p>
                                     <div className="relative">
-                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                         <input
                                             type="email"
                                             placeholder="c.mendoza@empresa.com"
                                             value={newClientForm.email}
                                             onChange={(e) => setNewClientForm({ ...newClientForm, email: e.target.value })}
-                                            className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white font-bold outline-none focus:border-primary transition-all"
+                                            className="w-full bg-white/60 border border-white/80 rounded-2xl pl-12 pr-4 py-4 text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground"
                                         />
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-[10px] font-black text-white/30 uppercase ml-2">Teléfono / WhatsApp</p>
+                                    <p className="text-[10px] font-black text-muted-foreground uppercase ml-2">Teléfono / WhatsApp</p>
                                     <div className="relative">
-                                        <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                                        <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                         <input
                                             type="text"
                                             placeholder="+57 321..."
                                             value={newClientForm.phone}
                                             onChange={(e) => setNewClientForm({ ...newClientForm, phone: e.target.value })}
-                                            className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white font-bold outline-none focus:border-primary transition-all"
+                                            className="w-full bg-white/60 border border-white/80 rounded-2xl pl-12 pr-4 py-4 text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground"
                                         />
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-6 text-white/60">
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-muted-foreground">
                                 <div className="space-y-2">
                                     <SearchableSelect
                                         options={settings.cities}
@@ -575,33 +575,33 @@ export default function ClientsPage() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-[10px] font-black uppercase ml-2">Sector</p>
+                                    <p className="text-[10px] font-black uppercase ml-2 text-muted-foreground">Sector</p>
                                     <select
                                         value={newClientForm.category}
                                         onChange={(e) => setNewClientForm({ ...newClientForm, category: e.target.value })}
-                                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 font-bold outline-none focus:border-primary appearance-none"
+                                        className="w-full bg-white/60 border border-white/80 rounded-2xl px-4 py-4 font-bold outline-none focus:border-primary appearance-none text-foreground"
                                     >
                                         {settings.sectors.map(sector => (
-                                            <option key={sector} value={sector} className="bg-[#0a0a0b]">{sector}</option>
+                                            <option key={sector} value={sector}>{sector}</option>
                                         ))}
                                     </select>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-[10px] font-black uppercase ml-2">Estado Inicial</p>
+                                    <p className="text-[10px] font-black uppercase ml-2 text-muted-foreground">Estado Inicial</p>
                                     <select
                                         value={newClientForm.status}
                                         onChange={(e) => setNewClientForm({ ...newClientForm, status: e.target.value as any })}
-                                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 font-bold outline-none focus:border-primary appearance-none"
+                                        className="w-full bg-white/60 border border-white/80 rounded-2xl px-4 py-4 font-bold outline-none focus:border-primary appearance-none text-foreground"
                                     >
-                                        <option value="Active" className="bg-[#0a0a0b]">Activo</option>
-                                        <option value="Lead" className="bg-[#0a0a0b]">Lead Nuevo</option>
+                                        <option value="Active">Activo</option>
+                                        <option value="Lead">Lead Nuevo</option>
                                     </select>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="p-10 border-t border-white/5 flex gap-4 bg-white/[0.01]">
-                            <button onClick={() => setIsNewClientModalOpen(false)} className="flex-1 px-4 py-5 rounded-2xl border border-white/10 text-white font-black uppercase text-[10px] tracking-widest hover:bg-white/5 transition-all">
+                        <div className="p-6 lg:p-10 border-t border-border/60 flex gap-4 bg-white/[0.18]">
+                            <button onClick={() => setIsNewClientModalOpen(false)} className="flex-1 px-4 py-5 rounded-2xl border border-white/80 text-foreground font-black uppercase text-[10px] tracking-widest hover:bg-white/60 transition-all">
                                 Cancelar
                             </button>
                             <button

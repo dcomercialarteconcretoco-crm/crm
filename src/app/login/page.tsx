@@ -29,7 +29,7 @@ export default function LoginPage() {
         // Slow down slightly for effect
         await new Promise(resolve => setTimeout(resolve, 800));
 
-        const success = login(username, password);
+        const success = await login(username, password);
         if (success) {
             router.push('/');
         } else {
@@ -39,11 +39,11 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen bg-[#050505] flex items-center justify-center p-6 relative overflow-hidden">
+        <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden bg-premium-gradient">
             {/* Background elements */}
             <div className="absolute top-0 left-0 w-full h-full">
-                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] animate-pulse"></div>
-                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '1s' }}></div>
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/12 rounded-full blur-[120px] animate-pulse"></div>
+                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-sky-200/30 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '1s' }}></div>
             </div>
 
             <div className="w-full max-w-md z-10">
@@ -56,27 +56,27 @@ export default function LoginPage() {
                         />
                     </div>
                     <div>
-                        <h1 className="text-4xl font-black text-white italic tracking-tighter uppercase leading-none">
-                            Intelligence <span className="text-primary NOT-italic">Core</span>
+                        <h1 className="text-4xl font-black text-foreground italic tracking-tighter uppercase leading-none">
+                            Intelligence <span className="text-primary not-italic">Core</span>
                         </h1>
-                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 mt-2">Acceso Restringido • Arte Concreto</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mt-2">Acceso restringido • Arte Concreto</p>
                     </div>
                 </div>
 
-                <div className="bg-[#0a0a0b] border border-white/10 rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden group">
+                <div className="surface-panel rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden group">
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase text-white/30 tracking-widest ml-1">Usuario</label>
+                            <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Usuario</label>
                             <div className="relative group/input">
-                                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within/input:text-primary transition-colors" />
+                                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50 group-focus-within/input:text-primary transition-colors" />
                                 <input
                                     type="text"
                                     placeholder="nombre.usuario"
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
-                                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white font-bold outline-none focus:border-primary/50 focus:bg-white/[0.05] transition-all shadow-inner"
+                                    className="w-full bg-white/70 border border-white/80 rounded-2xl pl-12 pr-4 py-4 text-foreground font-bold outline-none focus:border-primary/50 focus:bg-white transition-all shadow-inner placeholder:text-muted-foreground/60"
                                     required
                                 />
                             </div>
@@ -84,23 +84,23 @@ export default function LoginPage() {
 
                         <div className="space-y-2">
                             <div className="flex justify-between items-center px-1">
-                                <label className="text-[10px] font-black uppercase text-white/30 tracking-widest">Contraseña</label>
+                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Contraseña</label>
                                 <button type="button" className="text-[9px] font-black uppercase text-primary/50 hover:text-primary transition-colors">¿Olvidaste tu clave?</button>
                             </div>
                             <div className="relative group/input">
-                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-focus-within/input:text-primary transition-colors" />
+                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50 group-focus-within/input:text-primary transition-colors" />
                                 <input
                                     type={showPassword ? "text" : "password"}
                                     placeholder="••••••••"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-12 pr-12 py-4 text-white font-bold outline-none focus:border-primary/50 focus:bg-white/[0.05] transition-all shadow-inner"
+                                    className="w-full bg-white/70 border border-white/80 rounded-2xl pl-12 pr-12 py-4 text-foreground font-bold outline-none focus:border-primary/50 focus:bg-white transition-all shadow-inner placeholder:text-muted-foreground/60"
                                     required
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white transition-colors"
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground transition-colors"
                                 >
                                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
@@ -119,11 +119,11 @@ export default function LoginPage() {
                             disabled={loading}
                             className={clsx(
                                 "w-full py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all flex items-center justify-center gap-3 shadow-xl shadow-primary/10 hover:shadow-primary/20",
-                                loading ? "bg-white/5 text-white/20" : "bg-primary text-black hover:scale-[1.02] active:scale-[0.98]"
+                                loading ? "bg-muted text-muted-foreground" : "bg-primary text-black hover:scale-[1.02] active:scale-[0.98]"
                             )}
                         >
                             {loading ? (
-                                <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                                <div className="w-4 h-4 border-2 border-muted-foreground/20 border-t-muted-foreground rounded-full animate-spin"></div>
                             ) : (
                                 <>
                                     <span>Iniciar Sesión</span>
@@ -133,28 +133,28 @@ export default function LoginPage() {
                         </button>
                     </form>
 
-                    <div className="mt-8 pt-8 border-t border-white/5 flex flex-col items-center gap-4 text-center">
-                        <p className="text-[9px] font-black uppercase text-white/20 tracking-widest leading-relaxed">
+                    <div className="mt-8 pt-8 border-t border-border/50 flex flex-col items-center gap-4 text-center">
+                        <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest leading-relaxed">
                             Al ingresar certificas que eres personal autorizado por <br />
-                            <span className="text-white/40">Industrias Arte Concreto S.A.S</span>
+                            <span className="text-foreground/70">Industrias Arte Concreto S.A.S</span>
                         </p>
-                        <div className="flex items-center gap-2 opacity-30">
+                        <div className="flex items-center gap-2 opacity-60">
                             <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                            <span className="text-[8px] font-black text-white uppercase tracking-tighter">Conexión Encriptada SSL-256</span>
+                            <span className="text-[8px] font-black text-foreground uppercase tracking-tighter">Conexión Encriptada SSL-256</span>
                         </div>
                     </div>
                 </div>
 
-                <div className="mt-12 flex flex-col items-center gap-6 opacity-40">
+                <div className="mt-12 flex flex-col items-center gap-6 opacity-70">
                     <div className="flex items-center gap-3">
-                        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30 italic">Powered by</span>
+                        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground italic">Powered by</span>
                         <img
                             src="https://cuantium.com/wp-content/uploads/2025/12/wibicrmblanco@4x.png"
                             alt="MiWibi"
-                            className="h-4 object-contain opacity-60 hover:opacity-100 transition-opacity duration-300"
+                            className="h-4 object-contain brightness-0 opacity-60 hover:opacity-100 transition-opacity duration-300"
                         />
                     </div>
-                    <p className="text-[8px] font-black text-white/20 uppercase tracking-widest">V 2.0.4 • © 2026 ARTE CONCRETO INTELLIGENCE</p>
+                    <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">V 2.0.4 • © 2026 ARTE CONCRETO INTELLIGENCE</p>
                 </div>
             </div>
         </div>

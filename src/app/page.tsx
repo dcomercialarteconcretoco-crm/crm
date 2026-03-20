@@ -195,109 +195,128 @@ export default function Home() {
   return (
     <div className="space-y-4 lg:space-y-6 animate-in fade-in duration-700">
       <section className="grid grid-cols-1 items-start gap-4 lg:gap-6 xl:grid-cols-12">
-        <div className="xl:col-span-9 space-y-5">
+        <div className="xl:col-span-8 space-y-5">
           <div className="surface-panel rounded-[2rem] lg:rounded-[2.5rem] p-4 sm:p-5 lg:p-7 overflow-hidden relative">
             <div className="absolute inset-y-0 right-0 w-1/3 bg-[radial-gradient(circle_at_top_right,rgba(250,181,16,0.14),transparent_58%)] pointer-events-none" />
-            <div className="relative grid gap-4 lg:gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-              <div className="rounded-[1.6rem] lg:rounded-[2rem] border border-white/80 bg-white/38 p-4 sm:p-5 lg:p-6">
-                <Link
-                  href={insightCards.primary.href}
-                  className="group block rounded-[1.4rem] lg:rounded-[1.6rem] border border-primary/15 bg-[linear-gradient(135deg,rgba(250,181,16,0.08),rgba(255,255,255,0.52))] p-4 sm:p-5 transition hover:-translate-y-0.5"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-muted-foreground">
-                        {insightCards.primary.label}
-                      </p>
-                      <h1 className="mt-3 max-w-2xl text-[1.8rem] leading-[1.06] font-black tracking-[-0.06em] text-foreground sm:text-2xl lg:text-[2.15rem] lg:leading-[1.04]">
-                        {insightCards.primary.title}
-                      </h1>
-                      <p className="mt-3 max-w-2xl text-[15px] font-semibold leading-7 text-muted-foreground">
-                        {insightCards.primary.body}
-                      </p>
-                    </div>
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] border border-primary/20 bg-primary/10 text-primary">
-                      <AlertTriangle className="h-4.5 w-4.5" />
-                    </div>
+            <div className="relative grid gap-4 lg:gap-5 xl:grid-cols-[minmax(300px,0.95fr)_minmax(0,1.25fr)]">
+              <div className="rounded-[1.6rem] lg:rounded-[2rem] border border-white/80 bg-white/40 p-4 sm:p-5 lg:p-6">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.28em] text-muted-foreground">
+                    Acciones rápidas
+                  </p>
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[1rem] border border-primary/20 bg-primary/10 text-primary">
+                    <AlertTriangle className="h-4.5 w-4.5" />
                   </div>
-                  <div className="mt-4 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-primary">
-                    {insightCards.primary.cta}
-                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
-                  </div>
-                </Link>
+                </div>
 
-                {insightCards.secondary.length > 0 && (
-                  <div className="mt-4 grid gap-3">
-                    {insightCards.secondary.map((item, index) => (
-                      <Link
-                        key={`${item.label}-${index}`}
-                        href={item.href}
-                        className="rounded-[1.2rem] border border-white/80 bg-white/56 px-4 py-4 transition hover:-translate-y-0.5"
-                      >
-                        <p className="text-[9px] font-black uppercase tracking-[0.22em] text-muted-foreground">
-                          {item.label}
-                        </p>
-                        <p className="mt-2 text-sm font-semibold leading-6 text-foreground/80">
-                          {item.body}
-                        </p>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="grid w-full gap-3 sm:grid-cols-2">
-                <Link
-                  href="/quotes/new"
-                  className="sm:col-span-2 inline-flex min-h-[76px] sm:min-h-[88px] items-center justify-between rounded-[1.35rem] sm:rounded-[1.6rem] border border-primary/25 bg-[linear-gradient(135deg,rgba(250,181,16,0.24),rgba(255,255,255,0.54))] px-4 sm:px-5 py-4 sm:py-5 text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.22em] text-foreground backdrop-blur-xl transition hover:-translate-y-0.5"
-                >
-                  <span className="inline-flex items-center gap-3">
-                    <Plus className="h-4 w-4 text-primary" />
-                    Nueva cotización
-                  </span>
-                  <ArrowRight className="h-4 w-4 text-primary" />
-                </Link>
-                <Link
-                  href="/clients"
-                  className="inline-flex min-h-[72px] sm:min-h-[88px] items-center justify-between rounded-[1.35rem] sm:rounded-[1.6rem] border border-white/85 bg-white/48 px-4 sm:px-5 py-4 sm:py-5 text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.22em] text-foreground backdrop-blur-xl transition hover:-translate-y-0.5"
-                >
-                  <span className="inline-flex items-center gap-3">
-                    <Users className="h-4 w-4 text-primary" />
-                    Clientes
-                  </span>
-                  <ArrowRight className="h-4 w-4 text-primary" />
-                </Link>
-                {canExport && (
-                  <button
-                    onClick={handleExport}
-                    className="inline-flex min-h-[72px] sm:min-h-[88px] items-center justify-between rounded-[1.35rem] sm:rounded-[1.6rem] border border-white/85 bg-white/42 px-4 sm:px-5 py-4 sm:py-5 text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.22em] text-foreground backdrop-blur-xl transition hover:-translate-y-0.5"
-                  >
-                    <span className="inline-flex items-center gap-3">
-                      <FileText className="h-4 w-4 text-primary" />
-                      <span className="hidden sm:inline">Exportar PDF ejecutivo</span>
-                      <span className="sm:hidden">Exportar PDF</span>
-                    </span>
-                    <ArrowRight className="h-4 w-4 text-primary" />
-                  </button>
-                )}
-                {!canExport && (
+                <div className="mt-4 grid gap-3">
                   <Link
-                    href="/clients"
-                    className="inline-flex min-h-[72px] sm:min-h-[88px] items-center justify-between rounded-[1.35rem] sm:rounded-[1.6rem] border border-white/85 bg-white/42 px-4 sm:px-5 py-4 sm:py-5 text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.22em] text-foreground backdrop-blur-xl transition hover:-translate-y-0.5"
+                    href="/quotes/new"
+                    className="inline-flex min-h-[72px] items-center justify-between rounded-[1.3rem] border border-primary/25 bg-[linear-gradient(135deg,rgba(250,181,16,0.24),rgba(255,255,255,0.54))] px-4 py-4 text-[10px] font-black uppercase tracking-[0.22em] text-foreground backdrop-blur-xl transition hover:-translate-y-0.5"
                   >
                     <span className="inline-flex items-center gap-3">
-                      <PlusCircle className="h-4 w-4 text-primary" />
-                      <span className="hidden sm:inline">Crear cliente y alimentar pipeline</span>
-                      <span className="sm:hidden">Activar pipeline</span>
+                      <Plus className="h-4 w-4 text-primary" />
+                      Nueva cotización
                     </span>
                     <ArrowRight className="h-4 w-4 text-primary" />
                   </Link>
-                )}
+
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                    <Link
+                      href="/clients"
+                      className="inline-flex min-h-[68px] items-center justify-between rounded-[1.25rem] border border-white/85 bg-white/56 px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-foreground backdrop-blur-xl transition hover:-translate-y-0.5"
+                    >
+                      <span className="inline-flex items-center gap-3">
+                        <Users className="h-4 w-4 text-primary" />
+                        Clientes
+                      </span>
+                      <ArrowRight className="h-4 w-4 text-primary" />
+                    </Link>
+
+                    {canExport ? (
+                      <button
+                        onClick={handleExport}
+                        className="inline-flex min-h-[68px] items-center justify-between rounded-[1.25rem] border border-white/85 bg-white/52 px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-foreground backdrop-blur-xl transition hover:-translate-y-0.5"
+                      >
+                        <span className="inline-flex items-center gap-3">
+                          <FileText className="h-4 w-4 text-primary" />
+                          Exportar PDF
+                        </span>
+                        <ArrowRight className="h-4 w-4 text-primary" />
+                      </button>
+                    ) : (
+                      <Link
+                        href="/pipeline"
+                        className="inline-flex min-h-[68px] items-center justify-between rounded-[1.25rem] border border-white/85 bg-white/52 px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-foreground backdrop-blur-xl transition hover:-translate-y-0.5"
+                      >
+                        <span className="inline-flex items-center gap-3">
+                          <PlusCircle className="h-4 w-4 text-primary" />
+                          Activar pipeline
+                        </span>
+                        <ArrowRight className="h-4 w-4 text-primary" />
+                      </Link>
+                    )}
+                  </div>
+                </div>
               </div>
+
+              <Link
+                href={insightCards.primary.href}
+                className="group rounded-[1.6rem] lg:rounded-[2rem] border border-white/80 bg-white/44 p-4 sm:p-5 lg:p-6 transition hover:-translate-y-0.5"
+              >
+                <div className="flex flex-col gap-5 xl:grid xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.95fr)] xl:items-start">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.28em] text-muted-foreground">
+                      {insightCards.primary.label}
+                    </p>
+                    <h1 className="mt-3 max-w-2xl text-[1.7rem] leading-[1.05] font-black tracking-[-0.06em] text-foreground sm:text-[2rem] lg:text-[2.15rem]">
+                      {insightCards.primary.title}
+                    </h1>
+                    <p className="mt-3 max-w-2xl text-[14px] font-semibold leading-7 text-muted-foreground">
+                      {insightCards.primary.body}
+                    </p>
+                    <div className="mt-4 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-primary">
+                      {insightCards.primary.cta}
+                      <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {stats.map((stat) => (
+                      <div
+                        key={stat.label}
+                        className="rounded-[1.35rem] border border-white/85 bg-white/58 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+                              {stat.label}
+                            </p>
+                            <p className="mt-3 text-[1.65rem] sm:text-[2rem] leading-none font-black tracking-[-0.08em] text-foreground">
+                              {stat.value}
+                            </p>
+                            <p className="mt-2 text-xs font-semibold leading-5 text-muted-foreground">
+                              {stat.note}
+                            </p>
+                          </div>
+                          <div
+                            className={clsx(
+                              "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-[0.95rem] border",
+                              stat.tone
+                            )}
+                          >
+                            <stat.icon className="h-4.5 w-4.5" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Link>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 2xl:grid-cols-4">
+          <div className="hidden grid-cols-2 gap-3 sm:gap-4 2xl:grid-cols-4">
             {stats.map((stat) => (
               <div
                 key={stat.label}
@@ -329,7 +348,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="xl:col-span-3 self-start surface-panel rounded-[2rem] lg:rounded-[2.5rem] p-5 lg:p-7">
+        <div className="xl:col-span-4 self-start surface-panel rounded-[2rem] lg:rounded-[2.5rem] p-5 lg:p-7">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground">
               Sales Funnel
