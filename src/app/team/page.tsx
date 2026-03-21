@@ -68,15 +68,15 @@ export default function TeamPage() {
             return seller.id !== currentUser.id && sellerIdentity !== currentIdentity;
         });
 
-        const canonicalSuperAdmin: Seller = {
+        const canonicalCurrentUser: Seller = {
             ...currentUser,
             name: currentUser.name || 'Juan Sierra',
-            role: 'SuperAdmin',
-            status: 'Activo',
+            role: currentUser.role || 'SuperAdmin',
+            status: currentUser.status || 'Activo',
             avatar: currentUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name || 'Juan Sierra')}&background=fab510&color=000`,
         };
 
-        return [canonicalSuperAdmin, ...withoutCurrent];
+        return [canonicalCurrentUser, ...withoutCurrent];
     }, [currentUser, sellers]);
 
     const filteredSellers = teamSellers.filter(s =>

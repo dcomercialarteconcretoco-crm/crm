@@ -559,7 +559,14 @@ REGLAS DE ORO:
                 }
             }
         } catch (error) {
-            console.warn('Server-side login failed, falling back to local users.', error);
+            console.warn('Server-side login failed.', error);
+            if (process.env.NODE_ENV === 'production') {
+                return false;
+            }
+        }
+
+        if (process.env.NODE_ENV === 'production') {
+            return false;
         }
 
         const user = sellers.find(
