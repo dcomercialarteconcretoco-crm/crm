@@ -314,9 +314,12 @@ function sanitizeSettingsForStorage(settings: AppSettings): AppSettings {
 // --- Provider ---
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+    const isProduction = process.env.NODE_ENV === 'production';
+
     // Helper to load from localStorage
     const loadData = <T,>(key: string, defaultValue: T): T => {
         if (typeof window === 'undefined') return defaultValue;
+        if (isProduction && (key === 'crm_clients' || key === 'crm_sellers')) return defaultValue;
         const saved = localStorage.getItem(key);
         return saved ? JSON.parse(saved) : defaultValue;
     };
@@ -525,6 +528,31 @@ REGLAS DE ORO:
         }
     }, [isInitialLoad]);
 
+    useEffect(() => {
+        const syncSharedData = async () => {
+            try {
+                const [teamRes, clientsRes] = await Promise.all([
+                    fetch('/api/team', { cache: 'no-store' }),
+                    fetch('/api/clients', { cache: 'no-store' })
+                ]);
+
+                if (teamRes.ok) {
+                    const teamData = await teamRes.json();
+                    if (Array.isArray(teamData.users)) setSellers(teamData.users);
+                }
+
+                if (clientsRes.ok) {
+                    const clientsData = await clientsRes.json();
+                    if (Array.isArray(clientsData.clients)) setClients(clientsData.clients);
+                }
+            } catch (error) {
+                console.warn('Shared data sync failed:', error);
+            }
+        };
+
+        syncSharedData();
+    }, []);
+
     const login = async (username: string, password: string): Promise<boolean> => {
         const normalizedUsername = username.trim().toLowerCase();
         const normalizedPassword = password.trim();
@@ -610,6 +638,11 @@ REGLAS DE ORO:
         const id = `c-${Date.now()}`;
         const newClient = { ...client, id };
         setClients(prev => [...prev, newClient]);
+        fetch('/api/clients', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newClient),
+        }).catch((error) => console.warn('Failed to persist client:', error));
         return id;
     };
 
@@ -630,6 +663,11 @@ REGLAS DE ORO:
     const addSeller = (sellerData: Omit<Seller, 'id'>) => {
         const newSeller: Seller = { ...sellerData, id: `s-${Date.now()}` };
         setSellers(prev => [...prev, newSeller]);
+        fetch('/api/team', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newSeller),
+        }).catch((error) => console.warn('Failed to persist seller:', error));
         return newSeller.id;
     };
 
@@ -681,11 +719,26 @@ REGLAS DE ORO:
     };
 
     const updateClient = (clientId: string, updates: Partial<Client>) => {
-        setClients(prev => prev.map(c => c.id === clientId ? { ...c, ...updates } : c));
+        let mergedClient: Client | null = null;
+        setClients(prev => prev.map(c => {
+            if (c.id !== clientId) return c;
+            mergedClient = { ...c, ...updates };
+            return mergedClient;
+        }));
+        if (mergedClient) {
+            fetch(`/api/clients/${clientId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(mergedClient),
+            }).catch((error) => console.warn('Failed to update client:', error));
+        }
     };
 
     const deleteClient = (clientId: string) => {
         setClients(prev => prev.filter(c => c.id !== clientId));
+        fetch(`/api/clients/${clientId}`, {
+            method: 'DELETE',
+        }).catch((error) => console.warn('Failed to delete client:', error));
     };
 
     const updateTask = (taskId: string, updates: Partial<Task>) => {
@@ -713,7 +766,12 @@ REGLAS DE ORO:
     };
 
     const updateSeller = (id: string, updates: Partial<Seller>) => {
-        setSellers(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+        let mergedSeller: Seller | null = null;
+        setSellers(prev => prev.map(s => {
+            if (s.id !== id) return s;
+            mergedSeller = { ...s, ...updates };
+            return mergedSeller;
+        }));
 
         setCurrentUser(prev => {
             if (!prev) return prev;
@@ -737,6 +795,14 @@ REGLAS DE ORO:
                 status: updates.status ?? prev.status,
             } as Seller;
         });
+
+        if (mergedSeller) {
+            fetch(`/api/team/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(mergedSeller),
+            }).catch((error) => console.warn('Failed to update seller:', error));
+        }
     };
 
     const deleteSeller = (sellerId: string) => {
@@ -746,6 +812,9 @@ REGLAS DE ORO:
             return;
         }
         setSellers(prev => prev.filter(s => s.id !== sellerId));
+        fetch(`/api/team/${sellerId}`, {
+            method: 'DELETE',
+        }).catch((error) => console.warn('Failed to delete seller:', error));
     };
 
     const updateForm = (id: string, form: Partial<FormDefinition>) => {
