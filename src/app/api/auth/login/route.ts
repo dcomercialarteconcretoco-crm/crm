@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureCrmSchema, getPool, hasDatabase } from "@/lib/postgres";
+import { createSessionToken, SESSION_COOKIE_NAME, type SessionUser } from "@/lib/auth-session";
 
 const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL?.trim().toLowerCase() || "";
 const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD?.trim() || "";
@@ -29,18 +30,26 @@ export async function POST(req: NextRequest) {
     }
 
     if (username === SUPERADMIN_EMAIL && password === SUPERADMIN_PASSWORD) {
-      return NextResponse.json({
-        user: {
-          id: "superadmin-server",
-          name: "Juan Sierra",
-          username: SUPERADMIN_EMAIL,
-          email: SUPERADMIN_EMAIL,
-          role: "SuperAdmin",
-          status: "Activo",
-          avatar:
-            "https://ui-avatars.com/api/?name=Juan+Sierra&background=fab510&color=000",
-        },
+      const user: SessionUser = {
+        id: "superadmin-server",
+        name: "Juan Sierra",
+        username: SUPERADMIN_EMAIL,
+        email: SUPERADMIN_EMAIL,
+        role: "SuperAdmin",
+        status: "Activo",
+        avatar:
+          "https://ui-avatars.com/api/?name=Juan+Sierra&background=fab510&color=000",
+      };
+
+      const response = NextResponse.json({ user });
+      response.cookies.set(SESSION_COOKIE_NAME, createSessionToken(user), {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7,
       });
+      return response;
     }
 
     if (hasDatabase()) {
@@ -59,20 +68,28 @@ export async function POST(req: NextRequest) {
       const user = rows[0];
 
       if (user && (user.password || "") === password) {
-        return NextResponse.json({
-          user: {
-            id: user.id,
-            name: user.name,
-            username: user.username || user.email,
-            email: user.email,
-            role: user.role,
-            status: user.status || "Activo",
-            avatar: user.avatar || undefined,
-            phone: user.phone || "",
-            sales: user.sales || "$0",
-            commission: user.commission || "10%",
-          },
+        const sessionUser: SessionUser = {
+          id: user.id,
+          name: user.name,
+          username: user.username || user.email,
+          email: user.email,
+          role: user.role,
+          status: user.status || "Activo",
+          avatar: user.avatar || undefined,
+          phone: user.phone || "",
+          sales: user.sales || "$0",
+          commission: user.commission || "10%",
+        };
+
+        const response = NextResponse.json({ user: sessionUser });
+        response.cookies.set(SESSION_COOKIE_NAME, createSessionToken(sessionUser), {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: process.env.NODE_ENV === "production",
+          path: "/",
+          maxAge: 60 * 60 * 24 * 7,
         });
+        return response;
       }
     }
 

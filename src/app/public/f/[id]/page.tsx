@@ -54,15 +54,24 @@ export default function PublicFormPage() {
     const [focusedField, setFocusedField] = useState<string | null>(null);
 
     useEffect(() => {
-        const savedForms = JSON.parse(localStorage.getItem('crm_forms') || '[]');
-        const found = savedForms.find((f: any) => f.id === params.id);
+        const loadPublicForm = async () => {
+            try {
+                const stateRes = await fetch('/api/state?keys=forms,products', { cache: 'no-store' });
+                if (stateRes.ok) {
+                    const state = await stateRes.json();
+                    const savedForms = Array.isArray(state.forms) ? state.forms : [];
+                    const found = savedForms.find((f: any) => f.id === params.id);
+                    setAllProducts(Array.isArray(state.products) ? state.products : []);
 
-        const savedProducts = JSON.parse(localStorage.getItem('crm_inventory_products') || '[]');
-        setAllProducts(savedProducts);
+                    if (found) {
+                        setForm(found);
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.warn('Failed to load public form state:', error);
+            }
 
-        if (found) {
-            setForm(found);
-        } else {
             setForm({
                 id: params.id as string,
                 title: 'Registro de Interés Arquitectónico',
@@ -72,7 +81,9 @@ export default function PublicFormPage() {
                 theme: 'glass',
                 buttonText: 'Solicitar Asesoría'
             });
-        }
+        };
+
+        loadPublicForm();
     }, [params.id]);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -81,7 +92,6 @@ export default function PublicFormPage() {
 
         await new Promise(r => setTimeout(r, 2000));
 
-        const savedClients = JSON.parse(localStorage.getItem('crm_clients') || '[]');
         const newClient = {
             id: `c-${Date.now()}`,
             name: formData.name || 'Anónimo',
@@ -99,11 +109,13 @@ export default function PublicFormPage() {
             interestedProducts: selectedProducts.map(p => ({ id: p.id, name: p.name, sku: p.sku }))
         };
 
-        localStorage.setItem('crm_clients', JSON.stringify([...savedClients, newClient]));
+        await fetch('/api/clients', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newClient),
+        });
 
-        // Add lead details as a specific log entry for better CRM tracking
-        const auditLogs = JSON.parse(localStorage.getItem('crm_audit_logs_v_final') || '[]');
-        auditLogs.push({
+        const auditEntry = {
             id: `log-${Date.now()}`,
             userId: 'SYSTEM',
             userName: 'Formulario Publico',
@@ -114,14 +126,26 @@ export default function PublicFormPage() {
             timestamp: new Date(),
             details: `Nuevo lead interesado en: ${selectedProducts.map(p => p.name).join(', ') || 'Consultoria General'}`,
             verified: true
-        });
-        localStorage.setItem('crm_audit_logs_v_final', JSON.stringify(auditLogs));
+        };
 
-        const savedForms = JSON.parse(localStorage.getItem('crm_forms') || '[]');
-        const updatedForms = savedForms.map((f: any) =>
-            f.id === params.id ? { ...f, submissions: (f.submissions || 0) + 1 } : f
-        );
-        localStorage.setItem('crm_forms', JSON.stringify(updatedForms));
+        const stateRes = await fetch('/api/state?keys=forms,auditLogs', { cache: 'no-store' });
+        if (stateRes.ok) {
+            const state = await stateRes.json();
+            const auditLogs = Array.isArray(state.auditLogs) ? state.auditLogs : [];
+            const forms = Array.isArray(state.forms) ? state.forms : [];
+            const updatedForms = forms.map((f: any) =>
+                f.id === params.id ? { ...f, submissions: (f.submissions || 0) + 1 } : f
+            );
+
+            await fetch('/api/state', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    auditLogs: [auditEntry, ...auditLogs],
+                    forms: updatedForms,
+                }),
+            });
+        }
 
         setStatus('success');
     };

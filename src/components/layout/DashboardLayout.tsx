@@ -19,7 +19,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [layoutMode, setLayoutMode] = useState('classic');
     const [selectedNotification, setSelectedNotification] = useState<any>(null);
-    const { notifications, setNotifications, settings, currentUser, logout } = useApp() as any;
+    const { notifications, setNotifications, settings, currentUser, isHydrating, logout } = useApp() as any;
     const pathname = usePathname();
     const router = useRouter();
 
@@ -42,10 +42,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         pathname.startsWith('/widget');
 
     useEffect(() => {
-        if (!currentUser && !isPublicPage) {
+        if (!currentUser && !isPublicPage && !isHydrating) {
             router.push('/login');
         }
-    }, [currentUser, pathname, router, isPublicPage]);
+    }, [currentUser, pathname, router, isPublicPage, isHydrating]);
 
     // Apply/remove anti-screenshot mode on body based on SuperAdmin setting
     useEffect(() => {
@@ -77,6 +77,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
     if (isPublicPage) {
         return <div className="min-h-screen bg-premium-gradient overflow-auto">{children}</div>;
+    }
+
+    if (isHydrating) {
+        return null;
     }
 
     if (!currentUser) {

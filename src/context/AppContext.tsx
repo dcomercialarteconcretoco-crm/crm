@@ -259,6 +259,7 @@ interface AppContextType {
     products: Product[];
     forms: FormDefinition[];
     currentUser: Seller | null;
+    isHydrating: boolean;
     productSyncStatus: ProductSyncStatus;
     refreshProducts: () => Promise<void>;
     login: (username: string, password: string) => Promise<boolean>;
@@ -319,7 +320,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Helper to load from localStorage
     const loadData = <T,>(key: string, defaultValue: T): T => {
         if (typeof window === 'undefined') return defaultValue;
-        if (isProduction && (key === 'crm_clients' || key === 'crm_sellers')) return defaultValue;
+        if (isProduction && (
+            key === 'crm_clients' ||
+            key === 'crm_sellers' ||
+            key === 'crm_tasks' ||
+            key === 'crm_quotes' ||
+            key === 'crm_notifications' ||
+            key === 'crm_audit_logs_v_final' ||
+            key === 'crm_anomalies_v_final' ||
+            key === 'crm_events' ||
+            key === 'crm_inventory_products' ||
+            key === 'crm_forms' ||
+            key === 'crm_current_user' ||
+            key === 'crm_product_sync_status'
+        )) return defaultValue;
         const saved = localStorage.getItem(key);
         return saved ? JSON.parse(saved) : defaultValue;
     };
@@ -340,6 +354,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         syncedCount: 0,
     }));
     const [isInitialLoad, setIsInitialLoad] = useState(true);
+    const [isHydrating, setIsHydrating] = useState(true);
+
+    const persistSharedState = (patch: Record<string, unknown>) => {
+        fetch('/api/state', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patch),
+        }).catch((error) => console.warn('Failed to persist shared state:', error));
+    };
 
     const [settings, setSettings] = useState<AppSettings>(() => sanitizeSettingsForStorage(loadData('crm_settings', {
         cities: [
@@ -442,6 +465,10 @@ REGLAS DE ORO:
         if (isInitialLoad) return;
 
         const persist = () => {
+            if (isProduction) {
+                localStorage.setItem('crm_settings', JSON.stringify(sanitizeSettingsForStorage(settings)));
+                return;
+            }
             localStorage.setItem('crm_clients', JSON.stringify(clients));
             localStorage.setItem('crm_tasks', JSON.stringify(tasks));
             localStorage.setItem('crm_quotes', JSON.stringify(quotes));
@@ -502,39 +529,49 @@ REGLAS DE ORO:
 
             if (mapped.length > 0) {
                 setProducts(mapped);
+                persistSharedState({ products: mapped });
             }
 
-            setProductSyncStatus({
+            const successStatus: ProductSyncStatus = {
                 lastAttemptAt: attemptAt,
                 lastSuccessAt: new Date().toISOString(),
                 lastResult: 'success',
                 syncedCount: mapped.length,
                 message: `Catalogo sincronizado correctamente. ${mapped.length} productos recibidos.`,
-            });
+            };
+            setProductSyncStatus(successStatus);
+            persistSharedState({ productSyncStatus: successStatus });
         } catch (error) {
             console.warn("WooCommerce sync failed:", error);
-            setProductSyncStatus(prev => ({
-                ...prev,
-                lastAttemptAt: attemptAt,
-                lastResult: 'error',
-                message: error instanceof Error ? error.message : 'No se pudo sincronizar el catalogo.',
-            }));
+            setProductSyncStatus(prev => {
+                const nextStatus: ProductSyncStatus = {
+                    ...prev,
+                    lastAttemptAt: attemptAt,
+                    lastResult: 'error',
+                    message: error instanceof Error ? error.message : 'No se pudo sincronizar el catalogo.',
+                };
+                persistSharedState({ productSyncStatus: nextStatus });
+                return nextStatus;
+            });
         }
     };
 
     useEffect(() => {
-        if (isInitialLoad) {
-            setIsInitialLoad(false);
-        }
-    }, [isInitialLoad]);
-
-    useEffect(() => {
         const syncSharedData = async () => {
             try {
-                const [teamRes, clientsRes] = await Promise.all([
+                const [meRes, teamRes, clientsRes, stateRes] = await Promise.all([
+                    fetch('/api/auth/me', { cache: 'no-store' }),
                     fetch('/api/team', { cache: 'no-store' }),
-                    fetch('/api/clients', { cache: 'no-store' })
+                    fetch('/api/clients', { cache: 'no-store' }),
+                    fetch('/api/state', { cache: 'no-store' })
                 ]);
+
+                if (meRes.ok) {
+                    const meData = await meRes.json();
+                    if (meData.user) setCurrentUser(meData.user);
+                } else if (isProduction) {
+                    setCurrentUser(null);
+                }
 
                 if (teamRes.ok) {
                     const teamData = await teamRes.json();
@@ -545,13 +582,30 @@ REGLAS DE ORO:
                     const clientsData = await clientsRes.json();
                     if (Array.isArray(clientsData.clients)) setClients(clientsData.clients);
                 }
+
+                if (stateRes.ok) {
+                    const stateData = await stateRes.json();
+                    if (Array.isArray(stateData.tasks)) setTasks(stateData.tasks);
+                    if (Array.isArray(stateData.quotes)) setQuotes(stateData.quotes);
+                    if (Array.isArray(stateData.notifications)) setNotifications(stateData.notifications);
+                    if (Array.isArray(stateData.auditLogs)) setAuditLogs(stateData.auditLogs);
+                    if (Array.isArray(stateData.anomalies)) setAnomalies(stateData.anomalies);
+                    if (Array.isArray(stateData.events)) setEvents(stateData.events);
+                    if (Array.isArray(stateData.forms)) setForms(stateData.forms);
+                    if (Array.isArray(stateData.products) && stateData.products.length > 0) setProducts(stateData.products);
+                    if (stateData.productSyncStatus) setProductSyncStatus(stateData.productSyncStatus);
+                    if (stateData.settings) setSettings(prev => ({ ...prev, ...stateData.settings }));
+                }
             } catch (error) {
                 console.warn('Shared data sync failed:', error);
+            } finally {
+                setIsHydrating(false);
+                setIsInitialLoad(false);
             }
         };
 
         syncSharedData();
-    }, []);
+    }, [isProduction]);
 
     const login = async (username: string, password: string): Promise<boolean> => {
         const normalizedUsername = username.trim().toLowerCase();
@@ -629,6 +683,7 @@ REGLAS DE ORO:
                 verified: true
             });
         }
+        fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
         setCurrentUser(null);
     };
 
@@ -649,14 +704,22 @@ REGLAS DE ORO:
     const addTask = (task: Omit<Task, 'id'>) => {
         const id = `t-${Date.now()}`;
         const newTask = { ...task, id };
-        setTasks(prev => [...prev, newTask]);
+        setTasks(prev => {
+            const next = [...prev, newTask];
+            persistSharedState({ tasks: next });
+            return next;
+        });
         return id;
     };
 
     const addQuote = (quote: Omit<Quote, 'id'>) => {
         const id = `q-${Date.now()}`;
         const newQuote = { ...quote, id };
-        setQuotes(prev => [...prev, newQuote]);
+        setQuotes(prev => {
+            const next = [...prev, newQuote];
+            persistSharedState({ quotes: next });
+            return next;
+        });
         return id;
     };
 
@@ -673,7 +736,11 @@ REGLAS DE ORO:
 
     const addEvent = (eventData: Omit<CalendarEvent, 'id'>) => {
         const newEvent: CalendarEvent = { ...eventData, id: `ev-${Date.now()}` };
-        setEvents(prev => [...prev, newEvent]);
+        setEvents(prev => {
+            const next = [...prev, newEvent];
+            persistSharedState({ events: next });
+            return next;
+        });
         return newEvent.id;
     };
 
@@ -685,37 +752,53 @@ REGLAS DE ORO:
             submissions: 0,
             createdAt: new Date().toISOString()
         };
-        setForms(prev => [...prev, newForm]);
+        setForms(prev => {
+            const next = [...prev, newForm];
+            persistSharedState({ forms: next });
+            return next;
+        });
         return id;
     };
 
     const addNotification = (notif: Omit<Notification, 'id' | 'time' | 'read'>) => {
         const id = `n-${Date.now()}`;
-        setNotifications(prev => [{
-            ...notif,
-            id,
-            time: 'Ahora',
-            read: false
-        }, ...prev]);
+        setNotifications(prev => {
+            const next = [{
+                ...notif,
+                id,
+                time: 'Ahora',
+                read: false
+            }, ...prev];
+            persistSharedState({ notifications: next });
+            return next;
+        });
     };
 
     const addAuditLog = (log: Omit<AuditLog, 'id' | 'timestamp'>) => {
         const id = `audit-${Date.now()}`;
-        setAuditLogs(prev => [{
-            ...log,
-            id,
-            timestamp: new Date()
-        }, ...prev]);
+        setAuditLogs(prev => {
+            const next = [{
+                ...log,
+                id,
+                timestamp: new Date()
+            }, ...prev];
+            persistSharedState({ auditLogs: next });
+            return next;
+        });
     };
 
     const addAnomaly = (anom: Omit<Anomaly, 'id' | 'timestamp' | 'status'>) => {
         const id = `anom-${Date.now()}`;
-        setAnomalies(prev => [{
-            ...anom,
-            id,
-            timestamp: new Date(),
-            status: 'pending'
-        }, ...prev]);
+        setAnomalies(prev => {
+            const next: Anomaly[] = [{
+                ...anom,
+                id,
+                timestamp: new Date(),
+                status: 'pending'
+            }, ...prev];
+            persistSharedState({ anomalies: next });
+            return next;
+        });
     };
 
     const updateClient = (clientId: string, updates: Partial<Client>) => {
@@ -742,27 +825,51 @@ REGLAS DE ORO:
     };
 
     const updateTask = (taskId: string, updates: Partial<Task>) => {
-        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates } : t));
+        setTasks(prev => {
+            const next = prev.map(t => t.id === taskId ? { ...t, ...updates } : t);
+            persistSharedState({ tasks: next });
+            return next;
+        });
     };
 
     const deleteTask = (taskId: string) => {
-        setTasks(prev => prev.filter(t => t.id !== taskId));
+        setTasks(prev => {
+            const next = prev.filter(t => t.id !== taskId);
+            persistSharedState({ tasks: next });
+            return next;
+        });
     };
 
     const updateQuote = (quoteId: string, updates: Partial<Quote>) => {
-        setQuotes(prev => prev.map(q => q.id === quoteId ? { ...q, ...updates } : q));
+        setQuotes(prev => {
+            const next = prev.map(q => q.id === quoteId ? { ...q, ...updates } : q);
+            persistSharedState({ quotes: next });
+            return next;
+        });
     };
 
     const deleteQuote = (quoteId: string) => {
-        setQuotes(prev => prev.filter(q => q.id !== quoteId));
+        setQuotes(prev => {
+            const next = prev.filter(q => q.id !== quoteId);
+            persistSharedState({ quotes: next });
+            return next;
+        });
     };
 
     const updateEvent = (eventId: string, updates: Partial<CalendarEvent>) => {
-        setEvents(prev => prev.map(e => e.id === eventId ? { ...e, ...updates } : e));
+        setEvents(prev => {
+            const next = prev.map(e => e.id === eventId ? { ...e, ...updates } : e);
+            persistSharedState({ events: next });
+            return next;
+        });
     };
 
     const deleteEvent = (eventId: string) => {
-        setEvents(prev => prev.filter(e => e.id !== eventId));
+        setEvents(prev => {
+            const next = prev.filter(e => e.id !== eventId);
+            persistSharedState({ events: next });
+            return next;
+        });
     };
 
     const updateSeller = (id: string, updates: Partial<Seller>) => {
@@ -818,33 +925,64 @@ REGLAS DE ORO:
     };
 
     const updateForm = (id: string, form: Partial<FormDefinition>) => {
-        setForms(prev => prev.map(f => f.id === id ? { ...f, ...form } : f));
+        setForms(prev => {
+            const next = prev.map(f => f.id === id ? { ...f, ...form } : f);
+            persistSharedState({ forms: next });
+            return next;
+        });
     };
 
     const deleteForm = (id: string) => {
-        setForms(prev => prev.filter(f => f.id !== id));
+        setForms(prev => {
+            const next = prev.filter(f => f.id !== id);
+            persistSharedState({ forms: next });
+            return next;
+        });
     };
 
     const updateSettings = (updates: Partial<AppSettings>) => {
-        setSettings(prev => ({ ...prev, ...updates }));
+        setSettings(prev => {
+            const next = { ...prev, ...updates };
+            persistSharedState({ settings: sanitizeSettingsForStorage(next) });
+            return next;
+        });
     };
 
     const markNotificationAsRead = (id: string) => {
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+        setNotifications(prev => {
+            const next = prev.map(n => n.id === id ? { ...n, read: true } : n);
+            persistSharedState({ notifications: next });
+            return next;
+        });
     };
 
     const updateProduct = (id: string, updates: Partial<Product>) => {
-        setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } as Product : p));
+        setProducts(prev => {
+            const next = prev.map(p => p.id === id ? { ...p, ...updates } as Product : p);
+            persistSharedState({ products: next });
+            return next;
+        });
     };
 
     const deleteProduct = (id: string) => {
-        setProducts(prev => prev.filter(p => p.id !== id));
+        setProducts(prev => {
+            const next = prev.filter(p => p.id !== id);
+            persistSharedState({ products: next });
+            return next;
+        });
     };
 
-    const clearNotifications = () => setNotifications([]);
+    const clearNotifications = () => {
+        setNotifications([]);
+        persistSharedState({ notifications: [] });
+    };
 
     const removeNotification = (id: string) => {
-        setNotifications(prev => prev.filter(n => n.id !== id));
+        setNotifications(prev => {
+            const next = prev.filter(n => n.id !== id);
+            persistSharedState({ notifications: next });
+            return next;
+        });
     };
 
     const contextValue = useMemo(() => ({
@@ -859,10 +997,10 @@ REGLAS DE ORO:
             markNotificationAsRead, clearNotifications, removeNotification, setNotifications,
             auditLogs, addAuditLog, anomalies, addAnomaly,
             products, productSyncStatus, refreshProducts, updateProduct, deleteProduct,
-            currentUser, login, logout
+            currentUser, isHydrating, login, logout
         }), [
             clients, tasks, quotes, sellers, notifications, settings, events, forms,
-            auditLogs, anomalies, products, productSyncStatus, currentUser
+            auditLogs, anomalies, products, productSyncStatus, currentUser, isHydrating
         ]);
 
     return (
