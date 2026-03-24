@@ -90,7 +90,7 @@ export interface AuditLog {
     userId: string;
     userName: string;
     userRole: string;
-    action: 'QUOTE_SENT' | 'SALE_REGISTERED' | 'CLIENT_CONTACTED' | 'LEAD_CREATED' | 'SYSTEM_LOGIN' | 'TASK_DELETED' | 'SETTINGS_CHANGED' | 'WHATSAPP_SENT' | 'CALL_MADE' | 'LEAD_STATUS_CHANGE';
+    action: 'QUOTE_SENT' | 'SALE_REGISTERED' | 'CLIENT_CONTACTED' | 'LEAD_CREATED' | 'SYSTEM_LOGIN' | 'SYSTEM_LOGOUT' | 'TASK_DELETED' | 'SETTINGS_CHANGED' | 'WHATSAPP_SENT' | 'CALL_MADE' | 'LEAD_STATUS_CHANGE';
     targetId?: string;
     targetName?: string;
     timestamp: Date;
