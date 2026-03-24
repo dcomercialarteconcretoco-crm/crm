@@ -33,17 +33,17 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     [
       id,
       payload.name,
-      payload.company,
-      payload.email,
-      payload.phone,
-      payload.status,
-      payload.value,
-      payload.ltv,
-      payload.lastContact,
-      payload.city,
-      payload.score,
-      payload.category,
-      payload.registrationDate,
+      payload.company || '',
+      payload.email || '',
+      payload.phone || '',
+      payload.status || 'Activo',
+      payload.value || '$0',
+      payload.ltv || 0,
+      payload.lastContact || new Date().toISOString().split('T')[0],
+      payload.city || '',
+      payload.score || 0,
+      payload.category || 'General',
+      payload.registrationDate || new Date().toISOString().split('T')[0],
     ]
   );
 

@@ -49,14 +49,31 @@ export interface Client {
     registrationDate: string;
 }
 
+export interface QuoteItem {
+    id: string;
+    name: string;
+    price: number;
+    quantity: number;
+    unit: string;
+    total: number;
+}
+
 export interface Quote {
     id: string;
     number: string;
     client: string;
     clientId: string;
+    clientEmail?: string;
+    clientCompany?: string;
     date: string;
     total: string;
     numericTotal: number;
+    subtotal?: number;
+    tax?: number;
+    items?: QuoteItem[];
+    notes?: string;
+    sellerId?: string;
+    sellerName?: string;
     status: 'Draft' | 'Sent' | 'Approved' | 'Rejected';
     taskId?: string;
     opens?: number;

@@ -33,7 +33,7 @@ interface QuoteItem {
 }
 
 export default function QuoteEngine() {
-    const { products, clients, addClient, refreshProducts } = useApp();
+    const { products, clients, addClient, refreshProducts, addQuote, currentUser, settings } = useApp();
     const [selectedClientId, setSelectedClientId] = useState("");
     const [items, setItems] = useState<QuoteItem[]>([
         { id: Math.random().toString(), name: '', price: 0, quantity: 1, unit: 'un' }
@@ -42,6 +42,7 @@ export default function QuoteEngine() {
     const [taxRate, setTaxRate] = useState(0.19); // IVA 19%
     const [isSaving, setIsSaving] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
     const [showNewClientForm, setShowNewClientForm] = useState(false);
 
     // New client state
@@ -106,11 +107,86 @@ export default function QuoteEngine() {
     };
 
     const handleSave = () => {
+        const client = clients.find(c => c.id === selectedClientId);
+        if (!client) {
+            alert("Por favor selecciona un cliente para vincular la cotización.");
+            return;
+        }
+        if (items.length === 0 || items.every(i => !i.name)) {
+            alert("Por favor agrega al menos un ítem a la cotización.");
+            return;
+        }
         setIsSaving(true);
+        const quoteNumber = `AC-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000 + 1000)}`;
+        addQuote({
+            number: quoteNumber,
+            client: client.name,
+            clientId: client.id,
+            clientEmail: client.email || '',
+            clientCompany: client.company || '',
+            date: new Date().toLocaleDateString('es-CO'),
+            total: formatCurrency(total),
+            numericTotal: total,
+            subtotal,
+            tax,
+            items: items.map(i => ({
+                id: i.id,
+                name: i.name,
+                price: i.price,
+                quantity: i.quantity,
+                unit: i.unit,
+                total: i.price * i.quantity,
+            })),
+            notes: '',
+            sellerId: currentUser?.id || '',
+            sellerName: currentUser?.name || '',
+            status: 'Draft' as const,
+        });
         setTimeout(() => {
             setIsSaving(false);
-            alert("Cotización guardada exitosamente en el sistema de Arte Concreto.");
-        }, 1500);
+            alert(`✅ Cotización ${quoteNumber} guardada exitosamente.`);
+        }, 600);
+    };
+
+    const handleSendEmail = async () => {
+        const client = clients.find(c => c.id === selectedClientId);
+        if (!client || !client.email) {
+            alert("El cliente seleccionado no tiene email. Agrégalo primero.");
+            return;
+        }
+        if (items.length === 0 || items.every(i => !i.name)) {
+            alert("Por favor agrega al menos un ítem a la cotización.");
+            return;
+        }
+        setIsSendingEmail(true);
+        try {
+            const quoteNumber = `AC-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000 + 1000)}`;
+            const res = await fetch('/api/quotes/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    quoteNumber,
+                    clientName: client.name,
+                    clientEmail: client.email,
+                    clientCompany: client.company || '',
+                    sellerName: currentUser?.name || 'Arte Concreto',
+                    items: items.map(i => ({ name: i.name, price: i.price, quantity: i.quantity, unit: i.unit })),
+                    subtotal,
+                    tax,
+                    total,
+                }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                alert(`✅ Cotización enviada a ${client.email}`);
+            } else {
+                alert(`❌ Error: ${data.error || 'No se pudo enviar. Verifica la clave Resend en Configuración.'}`);
+            }
+        } catch {
+            alert("❌ Error de conexión al enviar la cotización.");
+        } finally {
+            setIsSendingEmail(false);
+        }
     };
 
     const handleCreateClient = (e: React.FormEvent) => {
@@ -428,9 +504,9 @@ export default function QuoteEngine() {
                             <span className="uppercase text-[11px] tracking-[0.2em]">Guardar Cotización</span>
                         </button>
 
-                        <button className="w-full bg-white border border-border/70 hover:bg-accent/35 text-foreground font-black py-5 rounded-2xl flex items-center justify-center gap-4 transition-all overflow-hidden relative group">
+                        <button onClick={handleSendEmail} disabled={isSendingEmail} className="w-full bg-white border border-border/70 hover:bg-accent/35 text-foreground font-black py-5 rounded-2xl flex items-center justify-center gap-4 transition-all overflow-hidden relative group disabled:opacity-60">
                             <Mail className="w-5 h-5 text-primary relative z-10" />
-                            <span className="relative z-10 uppercase text-[11px] tracking-[0.2em]">Enviar por Correo</span>
+                            <span className="relative z-10 uppercase text-[11px] tracking-[0.2em]">{isSendingEmail ? 'Enviando...' : 'Enviar por Correo'}</span>
                         </button>
 
                         <div className="pt-10 flex flex-col items-center gap-4 group">
