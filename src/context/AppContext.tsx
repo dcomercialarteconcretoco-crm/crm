@@ -198,6 +198,9 @@ export interface AppSettings {
     fromEmail: string;
     geminiKey?: string;
     resendKey?: string;
+    wooUrl?: string;
+    wooKey?: string;
+    wooSecret?: string;
     whatsapp: WhatsAppConfig;
     botSettings?: BotSettings;
 }
@@ -528,7 +531,12 @@ REGLAS DE ORO:
         }));
 
         try {
-            const res = await fetch('/api/woocommerce');
+            const wooHeaders: Record<string, string> = {};
+            if (settings.wooUrl) wooHeaders['x-woo-url'] = settings.wooUrl;
+            if (settings.wooKey) wooHeaders['x-woo-key'] = settings.wooKey;
+            if (settings.wooSecret) wooHeaders['x-woo-secret'] = settings.wooSecret;
+
+            const res = await fetch('/api/woocommerce', { headers: wooHeaders });
             if (!res.ok) throw new Error('Error fetching WooCommerce products');
             const data = await res.json();
 

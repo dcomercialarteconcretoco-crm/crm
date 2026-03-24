@@ -725,6 +725,68 @@ export default function SettingsPage() {
                                         </div>
                                     </div>
 
+                                    {/* WooCommerce */}
+                                    <div className="p-8 bg-muted/5 border border-border rounded-[2.5rem] space-y-6">
+                                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                            <div className="flex items-center gap-4">
+                                                <div className="p-3 bg-purple-500/10 rounded-2xl border border-purple-500/20">
+                                                    <Globe className="w-6 h-6 text-purple-400" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-black tracking-tight text-lg text-foreground">WooCommerce (arteconcreto.co)</h4>
+                                                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em]">Sincronización de Catálogo</p>
+                                                </div>
+                                            </div>
+                                            <div className={clsx(
+                                                "px-4 py-2 rounded-xl border text-[10px] font-black uppercase tracking-[0.2em]",
+                                                settings.wooUrl && settings.wooKey && settings.wooSecret
+                                                    ? "text-emerald-500 bg-emerald-500/10 border-emerald-500/20"
+                                                    : "text-muted-foreground bg-muted/30 border-border"
+                                            )}>
+                                                {settings.wooUrl && settings.wooKey && settings.wooSecret ? 'Configurado' : 'Sin configurar'}
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="space-y-3 md:col-span-2">
+                                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">URL de la Tienda</label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.wooUrl || ''}
+                                                    onChange={(e) => updateSettings({ wooUrl: e.target.value })}
+                                                    placeholder="https://arteconcreto.co"
+                                                    className="w-full bg-muted/20 border border-border rounded-2xl px-6 py-4 text-sm focus:border-primary/50 outline-none transition-all font-bold text-foreground"
+                                                />
+                                            </div>
+                                            <div className="space-y-3">
+                                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Consumer Key</label>
+                                                <input
+                                                    type={showPassword ? "text" : "password"}
+                                                    value={settings.wooKey || ''}
+                                                    onChange={(e) => updateSettings({ wooKey: e.target.value })}
+                                                    placeholder="ck_xxxxxxxxxxxxxxxxxxxx"
+                                                    className="w-full bg-muted/20 border border-border rounded-2xl px-6 py-4 text-sm focus:border-primary/50 outline-none transition-all font-bold text-foreground"
+                                                />
+                                            </div>
+                                            <div className="space-y-3">
+                                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Consumer Secret</label>
+                                                <input
+                                                    type={showPassword ? "text" : "password"}
+                                                    value={settings.wooSecret || ''}
+                                                    onChange={(e) => updateSettings({ wooSecret: e.target.value })}
+                                                    placeholder="cs_xxxxxxxxxxxxxxxxxxxx"
+                                                    className="w-full bg-muted/20 border border-border rounded-2xl px-6 py-4 text-sm focus:border-primary/50 outline-none transition-all font-bold text-foreground"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="p-4 bg-purple-500/5 border border-purple-500/10 rounded-2xl">
+                                            <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">
+                                                <span className="text-purple-400 font-black">¿Cómo obtener las credenciales?</span> En tu WordPress: <strong>WooCommerce → Ajustes → Avanzado → REST API → Crear nueva clave</strong>. Selecciona permiso <strong>Lectura/Escritura</strong> y copia las claves aquí.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* WhatsApp */}
                                     <div className="p-8 bg-muted/5 border border-border rounded-[2.5rem] space-y-8">
                                         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                                             <div className="flex items-center gap-4">

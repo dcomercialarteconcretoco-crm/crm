@@ -1,32 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const WOO_URL = process.env.WOOCOMMERCE_URL;
-const WOO_KEY = process.env.WOOCOMMERCE_KEY;
-const WOO_SECRET = process.env.WOOCOMMERCE_SECRET;
+function getCredentials(req: NextRequest) {
+    // Priority: env vars > request headers (passed from client settings)
+    const url = process.env.WOOCOMMERCE_URL || req.headers.get('x-woo-url') || '';
+    const key = process.env.WOOCOMMERCE_KEY || req.headers.get('x-woo-key') || '';
+    const secret = process.env.WOOCOMMERCE_SECRET || req.headers.get('x-woo-secret') || '';
+    return { url, key, secret };
+}
 
-function getHeaders() {
+function getWooHeaders(key: string, secret: string) {
     return {
-        'Authorization': 'Basic ' + Buffer.from(`${WOO_KEY}:${WOO_SECRET}`).toString('base64'),
+        'Authorization': 'Basic ' + Buffer.from(`${key}:${secret}`).toString('base64'),
         'Content-Type': 'application/json'
     };
 }
 
 export async function GET(req: NextRequest) {
-    if (!WOO_URL || !WOO_KEY || !WOO_SECRET) {
-        return NextResponse.json({ error: 'Missing WooCommerce API credentials in .env.local' }, { status: 500 });
+    const { url, key, secret } = getCredentials(req);
+
+    if (!url || !key || !secret) {
+        return NextResponse.json({
+            error: 'Credenciales de WooCommerce no configuradas. Ve a Configuración → Integraciones API y completa la URL, Consumer Key y Consumer Secret de tu tienda.'
+        }, { status: 400 });
     }
 
     try {
-        // Fetch products from WooCommerce
-        const response = await fetch(`${WOO_URL}/wp-json/wc/v3/products?per_page=100`, {
+        const response = await fetch(`${url.replace(/\/$/, '')}/wp-json/wc/v3/products?per_page=100&status=publish`, {
             method: 'GET',
-            headers: getHeaders(),
+            headers: getWooHeaders(key, secret),
             cache: 'no-store'
         });
 
         if (!response.ok) {
             const errText = await response.text();
-            throw new Error(`WooCommerce API Error: ${errText}`);
+            throw new Error(`WooCommerce respondió con error ${response.status}: ${errText.slice(0, 200)}`);
         }
 
         const data = await response.json();
@@ -37,16 +44,16 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-    if (!WOO_URL || !WOO_KEY || !WOO_SECRET) {
-        return NextResponse.json({ error: 'Missing WooCommerce API credentials in .env.local' }, { status: 500 });
+    const { url, key, secret } = getCredentials(req);
+    if (!url || !key || !secret) {
+        return NextResponse.json({ error: 'Credenciales de WooCommerce no configuradas.' }, { status: 400 });
     }
 
     try {
         const body = await req.json();
-
-        const response = await fetch(`${WOO_URL}/wp-json/wc/v3/products`, {
+        const response = await fetch(`${url.replace(/\/$/, '')}/wp-json/wc/v3/products`, {
             method: 'POST',
-            headers: getHeaders(),
+            headers: getWooHeaders(key, secret),
             body: JSON.stringify(body)
         });
 
@@ -63,21 +70,20 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-    if (!WOO_URL || !WOO_KEY || !WOO_SECRET) {
-        return NextResponse.json({ error: 'Missing WooCommerce API credentials in .env.local' }, { status: 500 });
+    const { url, key, secret } = getCredentials(req);
+    if (!url || !key || !secret) {
+        return NextResponse.json({ error: 'Credenciales de WooCommerce no configuradas.' }, { status: 400 });
     }
 
     try {
-        const url = new URL(req.url);
-        const id = url.searchParams.get('id');
-
+        const reqUrl = new URL(req.url);
+        const id = reqUrl.searchParams.get('id');
         if (!id) return NextResponse.json({ error: 'Missing product ID' }, { status: 400 });
 
         const body = await req.json();
-
-        const response = await fetch(`${WOO_URL}/wp-json/wc/v3/products/${id}`, {
+        const response = await fetch(`${url.replace(/\/$/, '')}/wp-json/wc/v3/products/${id}`, {
             method: 'PUT',
-            headers: getHeaders(),
+            headers: getWooHeaders(key, secret),
             body: JSON.stringify(body)
         });
 
@@ -94,19 +100,19 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-    if (!WOO_URL || !WOO_KEY || !WOO_SECRET) {
-        return NextResponse.json({ error: 'Missing WooCommerce API credentials in .env.local' }, { status: 500 });
+    const { url, key, secret } = getCredentials(req);
+    if (!url || !key || !secret) {
+        return NextResponse.json({ error: 'Credenciales de WooCommerce no configuradas.' }, { status: 400 });
     }
 
     try {
-        const url = new URL(req.url);
-        const id = url.searchParams.get('id');
-
+        const reqUrl = new URL(req.url);
+        const id = reqUrl.searchParams.get('id');
         if (!id) return NextResponse.json({ error: 'Missing product ID' }, { status: 400 });
 
-        const response = await fetch(`${WOO_URL}/wp-json/wc/v3/products/${id}?force=true`, {
+        const response = await fetch(`${url.replace(/\/$/, '')}/wp-json/wc/v3/products/${id}?force=true`, {
             method: 'DELETE',
-            headers: getHeaders()
+            headers: getWooHeaders(key, secret)
         });
 
         if (!response.ok) {

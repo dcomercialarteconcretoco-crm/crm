@@ -133,6 +133,14 @@ export default function InventoryPage() {
         // refreshProducts();
     }, []);
 
+    const getWooFetchHeaders = () => {
+        const h: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (settings.wooUrl) h['x-woo-url'] = settings.wooUrl;
+        if (settings.wooKey) h['x-woo-key'] = settings.wooKey;
+        if (settings.wooSecret) h['x-woo-secret'] = settings.wooSecret;
+        return h;
+    };
+
     const handleSave = async () => {
         setIsSyncing(true);
         try {
@@ -149,22 +157,21 @@ export default function InventoryPage() {
             if (editingProduct && editingProduct.wooId) {
                 await fetch(`/api/woocommerce?id=${editingProduct.wooId}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getWooFetchHeaders(),
                     body: JSON.stringify(payload)
                 });
                 updateProduct(editingProduct.id, form);
             } else {
                 const res = await fetch('/api/woocommerce', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getWooFetchHeaders(),
                     body: JSON.stringify(payload)
                 });
                 const wooP = await res.json();
                 if (wooP && wooP.id) {
-                    await refreshProducts(); // Re-fetch to get new product with proper mapping
+                    await refreshProducts();
                 } else {
-                    // Fallback
-                    alert("No se pudo sincronizar con WooCommerce");
+                    alert("No se pudo sincronizar con WooCommerce. Revisa las credenciales en Configuración → Integraciones API.");
                 }
             }
             alert("Sincronización automática con WooCommerce completa.");
