@@ -33,6 +33,12 @@ export interface Task {
     stageId?: string;
 }
 
+export interface ClientNote {
+    text: string;
+    date: string;
+    author: string;
+}
+
 export interface Client {
     id: string;
     name: string;
@@ -47,6 +53,7 @@ export interface Client {
     score: number;
     category: string;
     registrationDate: string;
+    notes?: ClientNote[];
 }
 
 export interface QuoteItem {
@@ -77,6 +84,9 @@ export interface Quote {
     status: 'Draft' | 'Sent' | 'Approved' | 'Rejected';
     taskId?: string;
     opens?: number;
+    sentAt?: string;        // ISO timestamp del envío
+    sentByName?: string;    // Nombre del usuario que lo envió
+    sentById?: string;      // ID del usuario que lo envió
 }
 
 export interface Seller {

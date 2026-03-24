@@ -860,7 +860,7 @@ export default function PipelinePage() {
                                                     sellers.find(s => s.id === newDeal.assignedTo)?.avatar ? (
                                                         <img src={sellers.find(s => s.id === newDeal.assignedTo)?.avatar} className="w-full h-full object-cover" />
                                                     ) : <User className="w-4 h-4 text-primary" />
-                                                ) : <img src={currentUser.avatar} className="w-full h-full object-cover" />}
+                                                ) : currentUser?.avatar ? <img src={currentUser.avatar} className="w-full h-full object-cover" /> : <User className="w-4 h-4 text-primary" />}
                                             </div>
                                             <select
                                                 value={isSuperAdmin ? newDeal.assignedTo : currentUser.id}

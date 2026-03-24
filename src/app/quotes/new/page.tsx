@@ -1,9 +1,13 @@
 "use client";
 
-import React from 'react';
+import React, { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import QuoteEngine from '@/components/quotes/QuoteEngine';
 
-export default function NewQuotePage() {
+function NewQuoteContent() {
+    const searchParams = useSearchParams();
+    const clientId = searchParams.get('clientId') || '';
+
     return (
         <div className="space-y-8 animate-in fade-in duration-700">
             <div>
@@ -11,7 +15,15 @@ export default function NewQuotePage() {
                 <p className="text-muted-foreground">Genera presupuestos personalizados para productos de Arte Concreto.</p>
             </div>
 
-            <QuoteEngine />
+            <QuoteEngine defaultClientId={clientId} />
         </div>
+    );
+}
+
+export default function NewQuotePage() {
+    return (
+        <Suspense fallback={<div className="p-8 text-muted-foreground">Cargando...</div>}>
+            <NewQuoteContent />
+        </Suspense>
     );
 }

@@ -1,12 +1,11 @@
 "use client";
 
 import React, { useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import {
     ArrowLeft,
     Edit2,
     Share2,
-    MoreHorizontal,
     User,
     Mail,
     Phone,
@@ -17,17 +16,26 @@ import {
     MessageSquare,
     Sparkles,
     ExternalLink,
-    Plus
+    Plus,
+    Send
 } from 'lucide-react';
 
 import Link from 'next/link';
 import { clsx } from 'clsx';
 import { useApp } from '@/context/AppContext';
 
+const STATUS_LABEL: Record<string, string> = {
+    'Active': 'Activo',
+    'Lead': 'Lead',
+    'Inactive': 'Inactivo'
+};
+
 export default function Lead360Page() {
     const params = useParams();
-    const { clients, addAuditLog, sellers, tasks, quotes, auditLogs, currentUser } = useApp();
+    const router = useRouter();
+    const { clients, addAuditLog, sellers, tasks, quotes, auditLogs, currentUser, updateClient } = useApp();
     const [activeTab, setActiveTab] = useState('Actividad');
+    const [noteText, setNoteText] = useState('');
 
     const leadId = params.id as string;
     const lead = clients.find(c => c.id === leadId);
@@ -35,6 +43,7 @@ export default function Lead360Page() {
     const leadTasks = tasks.filter(t => t.clientId === leadId);
     const leadQuotes = quotes.filter(q => q.clientId === leadId);
     const leadActivity = auditLogs.filter(log => log.targetId === leadId).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const sentQuotes = leadQuotes.filter(q => q.status === 'Sent' || q.status === 'Approved');
 
     const handleLogContact = (type: 'WHATSAPP_SENT' | 'CALL_MADE' | 'QUOTE_SENT', details: string) => {
         if (!lead || !currentUser) return;
@@ -48,6 +57,23 @@ export default function Lead360Page() {
             details,
             verified: true
         });
+    };
+
+    const handleSaveNote = () => {
+        if (!lead || !currentUser || !noteText.trim()) return;
+        const newNote = {
+            text: noteText.trim(),
+            date: new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }),
+            author: currentUser.name
+        };
+        const existingNotes = lead.notes || [];
+        updateClient(lead.id, { notes: [newNote, ...existingNotes] });
+        setNoteText('');
+    };
+
+    const handleRedactarCorreo = () => {
+        if (!lead) return;
+        window.location.href = `mailto:${lead.email}`;
     };
 
     if (!lead) {
@@ -69,7 +95,13 @@ export default function Lead360Page() {
                     </Link>
                 </div>
                 <div className="flex items-center gap-3">
-                    <button className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2.5 border border-border/40 rounded-xl text-[10px] lg:text-xs font-black uppercase tracking-widest hover:bg-muted/50 transition-colors">
+                    <button
+                        onClick={() => {
+                            const info = `${lead.name} | ${lead.email} | ${lead.phone}`;
+                            navigator.clipboard?.writeText(info).catch(() => {});
+                        }}
+                        className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2.5 border border-border/40 rounded-xl text-[10px] lg:text-xs font-black uppercase tracking-widest hover:bg-muted/50 transition-colors"
+                    >
                         <Share2 className="w-4 h-4" />
                         <span>Exportar</span>
                     </button>
@@ -92,7 +124,7 @@ export default function Lead360Page() {
                             <div className="relative">
                                 <div className="w-28 h-28 lg:w-36 lg:h-36 rounded-[2.5rem] border-4 border-primary/20 flex items-center justify-center bg-primary/5 shadow-[0_0_30px_rgba(250,181,16,0.1)] relative overflow-hidden group">
                                     <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent"></div>
-                                    <span className="text-4xl lg:text-6xl font-black text-primary relative z-10">85</span>
+                                    <span className="text-4xl lg:text-6xl font-black text-primary relative z-10">{lead.score || 85}</span>
                                 </div>
                                 <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-primary text-black text-[8px] lg:text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest shadow-xl border-4 border-background whitespace-nowrap">
                                     Lead Score
@@ -126,7 +158,7 @@ export default function Lead360Page() {
                         <div className="grid grid-cols-3 gap-3 pt-4 border-t border-border/20">
                             <button
                                 onClick={() => {
-                                    handleLogContact('QUOTE_SENT', 'Envío manual de propuesta técnica revisada');
+                                    handleLogContact('QUOTE_SENT', 'Contacto por correo electrónico');
                                     window.location.href = `mailto:${lead.email}`;
                                 }}
                                 className="flex flex-col items-center justify-center gap-2 bg-muted/20 hover:bg-primary/10 p-4 lg:p-5 rounded-[2rem] border border-border/10 hover:border-primary/40 transition-all group"
@@ -166,10 +198,10 @@ export default function Lead360Page() {
                             <div className="space-y-2">
                                 <div className="flex justify-between items-end">
                                     <p className="text-[10px] font-black uppercase text-muted-foreground">Potencial de Cierre</p>
-                                    <span className="text-xs font-black text-primary">85%</span>
+                                    <span className="text-xs font-black text-primary">{lead.score || 85}%</span>
                                 </div>
                                 <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                                    <div className="h-full bg-primary shadow-[0_0_8px_rgba(250,181,16,0.6)]" style={{ width: '85%' }}></div>
+                                    <div className="h-full bg-primary shadow-[0_0_8px_rgba(250,181,16,0.6)]" style={{ width: `${lead.score || 85}%` }}></div>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
@@ -179,7 +211,7 @@ export default function Lead360Page() {
                                 </div>
                                 <div className="p-4 bg-muted/20 rounded-2xl border border-border/10">
                                     <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Etapa</p>
-                                    <p className="text-lg font-black text-primary capitalize">{lead.status}</p>
+                                    <p className="text-lg font-black text-primary capitalize">{STATUS_LABEL[lead.status] || lead.status}</p>
                                 </div>
                             </div>
                         </div>
@@ -226,22 +258,24 @@ export default function Lead360Page() {
                                             {
                                                 step: 'Análisis de Intención',
                                                 status: 'Success',
-                                                content: 'El cliente menciona "prioridad" y "tercer trimestre", lo que indica una urgencia alta para el proyecto de urbanismo.'
+                                                content: `El cliente ${lead.company || lead.name} tiene ${leadQuotes.length} cotizacion(es) y ${leadTasks.length} tarea(s) activa(s). Perfil con ${lead.score || 85}% de score.`
                                             },
                                             {
                                                 step: 'Evaluación de Capacidad',
                                                 status: 'Success',
-                                                content: 'Revisión de inventario: Disponemos de moldes H-20 para entrega inmediata. Capacidad de producción libre en planta principal.'
+                                                content: `Categoría: ${lead.category}. Ubicación: ${lead.city}. Registro desde: ${lead.registrationDate}.`
                                             },
                                             {
                                                 step: 'Cálculo de Score',
                                                 status: 'Info',
-                                                content: 'Asignación de +25 pts por volumen (>50 unidades) y +15 pts por recurrencia histórica con Arte Concreto.'
+                                                content: `Score asignado: ${lead.score || 85}/100. Estado actual: ${STATUS_LABEL[lead.status] || lead.status}. LTV acumulado: ${new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(lead.ltv || 0)}.`
                                             },
                                             {
-                                                step: 'Predicción de Riesgo',
-                                                status: 'Warning',
-                                                content: 'Posible cuello de botella en logística pesada si el pedido se retrasa más de 10 días.'
+                                                step: 'Recomendación',
+                                                status: sentQuotes.length > 0 ? 'Warning' : 'Info',
+                                                content: sentQuotes.length > 0
+                                                    ? `${sentQuotes.length} cotización(es) enviada(s). Hacer seguimiento para cierre.`
+                                                    : 'Sin cotizaciones enviadas. Considerar enviar propuesta para activar el proceso de compra.'
                                             }
                                         ].map((log, i) => (
                                             <div key={i} className="flex gap-5 p-6 bg-white/[0.02] border border-white/5 rounded-3xl hover:border-white/10 transition-all">
@@ -265,15 +299,19 @@ export default function Lead360Page() {
                                             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
                                                 <ExternalLink className="w-4 h-4 text-primary" />
                                             </div>
-                                            <h4 className="text-[11px] font-black uppercase tracking-widest text-primary">Metadata Cruda del Motor</h4>
+                                            <h4 className="text-[11px] font-black uppercase tracking-widest text-primary">Metadata del Cliente</h4>
                                         </div>
                                         <pre className="text-[10px] font-mono text-muted-foreground/60 overflow-x-auto">
                                             {JSON.stringify({
-                                                model: "gpt-4o-2024-05-13",
-                                                processing_time: "842ms",
-                                                tokens_used: 124,
-                                                intent_classification: "commercial_high_value",
-                                                recommended_action_id: "suministro_prioritario_01"
+                                                id: lead.id,
+                                                status: lead.status,
+                                                score: lead.score,
+                                                category: lead.category,
+                                                city: lead.city,
+                                                ltv: lead.ltv,
+                                                quotes_count: leadQuotes.length,
+                                                tasks_count: leadTasks.length,
+                                                activity_count: leadActivity.length
                                             }, null, 2)}
                                         </pre>
                                     </div>
@@ -293,10 +331,15 @@ export default function Lead360Page() {
                                             </div>
                                             <div className="space-y-4">
                                                 <p className="text-[13px] lg:text-[15px] leading-relaxed text-foreground/90 font-medium">
-                                                    He analizado la interacción reciente con <span className="text-primary font-black">Robert Sterling</span>. Sugiero ofrecer el <span className="underline decoration-primary/40 underline-offset-8 font-bold">Plan de Suministro Prioritario</span> para asegurar la plaza este trimestre.
+                                                    Cliente <span className="text-primary font-black">{lead.company || lead.name}</span> con score <span className="text-primary font-black">{lead.score || 85}/100</span>. {sentQuotes.length > 0 ? `${sentQuotes.length} cotización(es) enviada(s). Hacer seguimiento para cierre.` : 'Sin cotizaciones activas. Considera generar una propuesta.'}
                                                 </p>
                                                 <div className="flex flex-col lg:flex-row gap-3">
-                                                    <button className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest bg-primary text-black px-6 py-2.5 rounded-xl hover:bg-primary/80 transition-all active:scale-95 shadow-lg shadow-primary/20">Aplicar Estrategia</button>
+                                                    <button
+                                                        onClick={() => router.push(`/quotes/new?clientId=${lead.id}`)}
+                                                        className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest bg-primary text-black px-6 py-2.5 rounded-xl hover:bg-primary/80 transition-all active:scale-95 shadow-lg shadow-primary/20"
+                                                    >
+                                                        Generar Cotización
+                                                    </button>
                                                     <button className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest bg-muted/40 text-muted-foreground px-6 py-2.5 rounded-xl hover:bg-muted/60 transition-all border border-border/40">Ignorar</button>
                                                 </div>
                                             </div>
@@ -312,10 +355,11 @@ export default function Lead360Page() {
                                                 </div>
                                                 <div className="flex justify-between items-start">
                                                     <div>
-                                                        <h4 className="text-sm font-black uppercase tracking-tight">{log.action.replace('_', ' ')}</h4>
+                                                        <h4 className="text-sm font-black uppercase tracking-tight">{log.action.replace(/_/g, ' ')}</h4>
                                                         <p className="text-xs text-muted-foreground mt-1.5 font-medium leading-relaxed">{log.details}</p>
+                                                        <p className="text-[10px] text-muted-foreground/50 mt-1">por {log.userName}</p>
                                                     </div>
-                                                    <span className="text-[10px] font-black text-muted-foreground uppercase bg-muted/30 px-2 py-1 rounded">{new Date(log.timestamp).toLocaleDateString()}</span>
+                                                    <span className="text-[10px] font-black text-muted-foreground uppercase bg-muted/30 px-2 py-1 rounded whitespace-nowrap ml-3">{new Date(log.timestamp).toLocaleDateString('es-CO')}</span>
                                                 </div>
                                             </div>
                                         )) : (
@@ -330,10 +374,10 @@ export default function Lead360Page() {
                             {activeTab === 'Cotizaciones' && (
                                 <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
                                     <div className="flex items-center justify-between mb-4">
-                                        <h3 className="text-sm font-black uppercase tracking-widest text-white">Propuestas Enviadas (Smart Tracking)</h3>
+                                        <h3 className="text-sm font-black uppercase tracking-widest text-white">Propuestas Enviadas</h3>
                                         <div className="flex items-center gap-2">
                                             <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-                                            <span className="text-[9px] font-black uppercase text-emerald-500">Motor de Rastreo Activo</span>
+                                            <span className="text-[9px] font-black uppercase text-emerald-500">{leadQuotes.length} cotización(es)</span>
                                         </div>
                                     </div>
 
@@ -348,15 +392,20 @@ export default function Lead360Page() {
                                                         <div>
                                                             <p className="text-base font-black text-white">{quote.number}</p>
                                                             <p className="text-[10px] font-black uppercase text-white/30 tracking-widest">{quote.date}</p>
+                                                            {quote.sentByName && (
+                                                                <p className="text-[10px] text-white/30 mt-0.5">Enviado por {quote.sentByName}</p>
+                                                            )}
                                                         </div>
                                                     </div>
                                                     <div className="text-right">
                                                         <p className="text-lg font-black text-white">{quote.total}</p>
                                                         <span className={clsx(
                                                             "text-[9px] font-black px-2 py-0.5 rounded border uppercase tracking-widest",
-                                                            quote.status === 'Approved' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-white/5 text-white/40 border-white/10"
+                                                            quote.status === 'Approved' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" :
+                                                            quote.status === 'Sent' ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+                                                            "bg-white/5 text-white/40 border-white/10"
                                                         )}>
-                                                            {quote.status}
+                                                            {quote.status === 'Sent' ? 'Enviado' : quote.status === 'Approved' ? 'Aprobado' : quote.status === 'Draft' ? 'Borrador' : quote.status}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -368,9 +417,12 @@ export default function Lead360Page() {
                                         )}
                                     </div>
 
-                                    <button className="w-full py-5 border-2 border-dashed border-white/5 rounded-3xl text-[10px] font-black uppercase tracking-widest text-white/20 hover:text-primary hover:border-primary/20 hover:bg-primary/5 transition-all flex items-center justify-center gap-3">
+                                    <button
+                                        onClick={() => router.push(`/quotes/new?clientId=${lead.id}`)}
+                                        className="w-full py-5 border-2 border-dashed border-white/5 rounded-3xl text-[10px] font-black uppercase tracking-widest text-white/20 hover:text-primary hover:border-primary/20 hover:bg-primary/5 transition-all flex items-center justify-center gap-3"
+                                    >
                                         <Plus className="w-4 h-4" />
-                                        Generar Nueva Propuesta Inteligente
+                                        Generar Nueva Propuesta
                                     </button>
                                 </div>
                             )}
@@ -378,25 +430,37 @@ export default function Lead360Page() {
                             {activeTab === 'Correos' && (
                                 <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
                                     <div className="flex items-center justify-between mb-2">
-                                        <h3 className="text-sm font-black uppercase tracking-widest">Historial de Corresponencia</h3>
-                                        <button className="bg-primary/10 text-primary text-[10px] font-black px-4 py-2 rounded-xl border border-primary/20 hover:bg-primary hover:text-black transition-all">+ Redactar Correo</button>
+                                        <h3 className="text-sm font-black uppercase tracking-widest">Historial de Correspondencia</h3>
+                                        <button
+                                            onClick={handleRedactarCorreo}
+                                            className="bg-primary/10 text-primary text-[10px] font-black px-4 py-2 rounded-xl border border-primary/20 hover:bg-primary hover:text-black transition-all flex items-center gap-2"
+                                        >
+                                            <Send className="w-3 h-3" />
+                                            Redactar Correo
+                                        </button>
                                     </div>
-                                    {[
-                                        { subject: 'Seguimiento: Propuesta Mobiliario Parque Central', date: 'Hace 2 horas', status: 'Leído' },
-                                        { subject: 'Confirmación de especificaciones técnicas v2', date: 'Ayer', status: 'Leído' },
-                                        { subject: 'Re: Catálogo Industrial Concrete Arte', date: 'Oct 15', status: 'Leído' }
-                                    ].map((email, i) => (
-                                        <div key={i} className="flex items-center gap-4 p-5 bg-muted/5 border border-border/40 rounded-2xl hover:bg-muted/10 transition-colors cursor-pointer group">
+
+                                    {sentQuotes.length > 0 ? sentQuotes.map((quote) => (
+                                        <div key={quote.id} className="flex items-center gap-4 p-5 bg-muted/5 border border-border/40 rounded-2xl hover:bg-muted/10 transition-colors cursor-pointer group">
                                             <div className="w-10 h-10 rounded-xl bg-muted/20 flex items-center justify-center text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary transition-all">
                                                 <Mail className="w-5 h-5" />
                                             </div>
                                             <div className="flex-1">
-                                                <p className="text-sm font-bold truncate">{email.subject}</p>
-                                                <p className="text-[10px] text-muted-foreground uppercase font-black mt-1 tracking-tighter">{email.date}</p>
+                                                <p className="text-sm font-bold truncate">Cotización {quote.number} — {quote.clientCompany || 'Propuesta Comercial'}</p>
+                                                <p className="text-[10px] text-muted-foreground uppercase font-black mt-1 tracking-tighter">
+                                                    {quote.sentAt ? new Date(quote.sentAt).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : quote.date}
+                                                    {quote.sentByName ? ` · ${quote.sentByName}` : ''}
+                                                </p>
                                             </div>
-                                            <span className="text-[9px] font-black uppercase text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-full">{email.status}</span>
+                                            <span className="text-[9px] font-black uppercase text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-full">Enviado</span>
                                         </div>
-                                    ))}
+                                    )) : (
+                                        <div className="text-center py-16 bg-muted/5 border border-dashed border-border/40 rounded-[2rem]">
+                                            <Mail className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+                                            <p className="text-xs font-black uppercase text-white/20 tracking-widest">Sin correos enviados aún</p>
+                                            <p className="text-[10px] text-muted-foreground/40 mt-2">Los correos de cotizaciones aparecerán aquí</p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -404,17 +468,28 @@ export default function Lead360Page() {
                                 <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300 h-full flex flex-col">
                                     <div className="relative group">
                                         <textarea
+                                            value={noteText}
+                                            onChange={(e) => setNoteText(e.target.value)}
                                             placeholder="Añadir una nota interna sobre el proyecto o el lead..."
                                             className="w-full bg-muted/20 border-2 border-dashed border-border/40 rounded-3xl p-6 text-sm focus:border-primary focus:bg-muted/30 outline-none transition-all resize-none min-h-[150px] font-medium"
                                         />
-                                        <button className="absolute bottom-6 right-6 bg-primary text-black font-black px-6 py-2.5 rounded-xl text-[10px] uppercase tracking-widest opacity-0 group-focus-within:opacity-100 transition-all shadow-xl shadow-primary/20">Guardar Nota</button>
+                                        {noteText.trim() && (
+                                            <button
+                                                onClick={handleSaveNote}
+                                                className="absolute bottom-6 right-6 bg-primary text-black font-black px-6 py-2.5 rounded-xl text-[10px] uppercase tracking-widest transition-all shadow-xl shadow-primary/20 hover:bg-primary/90"
+                                            >
+                                                Guardar Nota
+                                            </button>
+                                        )}
                                     </div>
 
                                     <div className="space-y-4 pt-4">
-                                        {[
-                                            { text: 'El cliente prefiere el acabado en concreto pulido color gris ceniza para las 50 bancas del proyecto.', date: 'Oct 12', author: 'Juan Sierra' },
-                                            { text: 'Pendiente confirmar si requieren transporte industrial pesado o si ellos retiran en planta.', date: 'Oct 10', author: 'Admin Core' }
-                                        ].map((note, i) => (
+                                        {(lead.notes || []).length === 0 ? (
+                                            <div className="text-center py-8">
+                                                <StickyNote className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
+                                                <p className="text-xs font-black uppercase text-white/20 tracking-widest">Sin notas aún</p>
+                                            </div>
+                                        ) : (lead.notes || []).map((note, i) => (
                                             <div key={i} className="p-5 bg-primary/5 border-l-4 border-primary rounded-r-2xl space-y-3">
                                                 <p className="text-sm font-medium leading-relaxed">{note.text}</p>
                                                 <div className="flex items-center gap-3">
@@ -429,7 +504,7 @@ export default function Lead360Page() {
                         </div>
                     </div>
                 </div>
-            </div >
-        </div >
+            </div>
+        </div>
     );
 }

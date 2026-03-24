@@ -20,6 +20,13 @@ import Link from 'next/link';
 import { clsx } from 'clsx';
 import { useApp, Quote, Seller } from '@/context/AppContext';
 
+const QUOTE_STATUS_LABEL: Record<string, string> = {
+    'Draft': 'Borrador',
+    'Sent': 'Enviado',
+    'Approved': 'Aprobado',
+    'Rejected': 'Rechazado'
+};
+
 export default function QuotesPage() {
     const { quotes, sellers, tasks, addNotification } = useApp();
     const [searchTerm, setSearchTerm] = useState("");
@@ -349,7 +356,7 @@ export default function QuotesPage() {
                                             quote.status === 'Draft' ? "bg-white/50 text-muted-foreground border-white/80" :
                                                 "bg-rose-500/10 text-rose-500 border-rose-500/20"
                                 )}>
-                                    {quote.status}
+                                    {QUOTE_STATUS_LABEL[quote.status] || quote.status}
                                 </span>
                             </div>
 
@@ -433,7 +440,7 @@ export default function QuotesPage() {
                                                     quote.status === 'Draft' ? "bg-white/50 text-muted-foreground border-white/80" :
                                                         "bg-rose-500/10 text-rose-500 border-rose-500/20"
                                         )}>
-                                            {quote.status}
+                                            {QUOTE_STATUS_LABEL[quote.status] || quote.status}
                                         </span>
                                     </td>
                                     <td className="px-10 py-8">

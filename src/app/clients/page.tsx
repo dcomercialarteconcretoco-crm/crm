@@ -29,13 +29,13 @@ import { useApp, Client } from '@/context/AppContext';
 import SearchableSelect from '@/components/SearchableSelect';
 
 export default function ClientsPage() {
-    const { clients, addClient, addNotification, settings, sellers } = useApp();
+    const { clients, addClient, addNotification, settings, sellers, quotes, currentUser: ctxUser } = useApp();
     const [searchTerm, setSearchTerm] = useState("");
     const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
     const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const currentUser = sellers[0];
+    const currentUser = ctxUser || sellers[0];
     const userIsSuperAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
     const canExport = userIsSuperAdmin && settings.allowExports;
 
@@ -234,8 +234,8 @@ export default function ClientsPage() {
             })
             .sort((a, b) => {
                 if (!sortConfig.key) return 0;
-                const aValue = a[sortConfig.key];
-                const bValue = b[sortConfig.key];
+                const aValue = a[sortConfig.key] ?? '';
+                const bValue = b[sortConfig.key] ?? '';
 
                 if (aValue < bValue) {
                     return sortConfig.direction === 'asc' ? -1 : 1;
@@ -388,23 +388,23 @@ export default function ClientsPage() {
 
                     <div className="pt-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-t border-border/40">
                         <div className="flex flex-wrap gap-4">
-                            {['Active', 'Lead', 'Inactive'].map((s) => (
-                                <label key={s} className="flex items-center gap-2 cursor-pointer group">
+                            {[{ value: 'Active', label: 'Activo' }, { value: 'Lead', label: 'Lead' }, { value: 'Inactive', label: 'Inactivo' }].map((s) => (
+                                <label key={s.value} className="flex items-center gap-2 cursor-pointer group">
                                     <div
                                         onClick={() => {
-                                            const newStatus = filters.status.includes(s)
-                                                ? filters.status.filter(item => item !== s)
-                                                : [...filters.status, s];
+                                            const newStatus = filters.status.includes(s.value)
+                                                ? filters.status.filter(item => item !== s.value)
+                                                : [...filters.status, s.value];
                                             setFilters({ ...filters, status: newStatus });
                                         }}
                                         className={clsx(
                                             "w-4 h-4 rounded border transition-all flex items-center justify-center",
-                                            filters.status.includes(s) ? "bg-primary border-primary" : "border-border/60 group-hover:border-primary/50"
+                                            filters.status.includes(s.value) ? "bg-primary border-primary" : "border-border/60 group-hover:border-primary/50"
                                         )}
                                     >
-                                        {filters.status.includes(s) && <BadgeCheck className="w-3 h-3 text-black" />}
+                                        {filters.status.includes(s.value) && <BadgeCheck className="w-3 h-3 text-black" />}
                                     </div>
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground group-hover:text-foreground transition-colors">{s}</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground group-hover:text-foreground transition-colors">{s.label}</span>
                                 </label>
                             ))}
                         </div>
@@ -428,14 +428,19 @@ export default function ClientsPage() {
 
             {/* Client Grid Layout */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-8 pb-20">
-                {sortedAndFilteredClients.map((client) => (
+                {sortedAndFilteredClients.map((client) => {
+                    const clientQuotes = quotes.filter(q => q.clientId === client.id);
+                    const openQuotes = clientQuotes.filter(q => q.status === 'Sent' || q.status === 'Draft');
+                    return (
                     <div key={client.id} className="surface-panel rounded-[1.9rem] lg:rounded-[2.5rem] p-5 lg:p-8 relative overflow-hidden group hover:border-primary/20 transition-all flex flex-col">
-                        {/* Propuesta Abierta Badge */}
+                        {/* Propuesta Abierta Badge — only when client has open/sent quotes */}
+                        {openQuotes.length > 0 && (
                         <div className="absolute top-0 right-10">
                             <div className="bg-primary/10 border-x border-b border-primary/20 px-4 py-1.5 rounded-b-xl animate-in slide-in-from-top-2 duration-700">
                                 <span className="text-[8px] font-black text-primary uppercase tracking-[0.2em]">Propuesta Abierta</span>
                             </div>
                         </div>
+                        )}
 
                         {/* Card Header: Initials + Main Info */}
                         <div className="flex items-center gap-4 lg:gap-5 mt-4">
@@ -474,13 +479,16 @@ export default function ClientsPage() {
                             <div className="px-6">
                                 <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">Volumen de Proyectos (COP)</p>
                                 <p className="text-sm font-black text-primary italic tracking-tighter">{formatCurrency(client.ltv)}</p>
-                                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-tighter mt-1">{Math.floor(Math.random() * 3) + 1} propuestas generadas en firme</p>
+                                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-tighter mt-1">{clientQuotes.length} {clientQuotes.length === 1 ? 'propuesta generada' : 'propuestas generadas'}</p>
                             </div>
                         </div>
 
                         {/* Action Footer */}
                         <div className="grid grid-cols-3 gap-2 lg:gap-3 mt-6 lg:mt-8">
-                            <button className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-black font-black uppercase text-[9px] tracking-widest transition-all border border-emerald-500/10">
+                            <button
+                                onClick={() => window.open(`https://wa.me/${client.phone.replace(/\D/g, '')}`, '_blank')}
+                                className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-black font-black uppercase text-[9px] tracking-widest transition-all border border-emerald-500/10"
+                            >
                                 <MessageSquare className="w-3.5 h-3.5" />
                                 WhatsApp
                             </button>
@@ -494,7 +502,8 @@ export default function ClientsPage() {
                             </button>
                         </div>
                     </div>
-                ))}
+                    );
+                })}
             </div>
 
             {/* New Client Modal */}

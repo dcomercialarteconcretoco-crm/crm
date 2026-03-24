@@ -32,9 +32,13 @@ interface QuoteItem {
     productId?: string;
 }
 
-export default function QuoteEngine() {
-    const { products, clients, addClient, refreshProducts, addQuote, currentUser, settings } = useApp();
-    const [selectedClientId, setSelectedClientId] = useState("");
+interface QuoteEngineProps {
+    defaultClientId?: string;
+}
+
+export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) {
+    const { products, clients, addClient, refreshProducts, addQuote, updateQuote, currentUser, settings } = useApp();
+    const [selectedClientId, setSelectedClientId] = useState(defaultClientId);
     const [items, setItems] = useState<QuoteItem[]>([
         { id: Math.random().toString(), name: '', price: 0, quantity: 1, unit: 'un' }
     ]);
@@ -160,7 +164,39 @@ export default function QuoteEngine() {
         }
         setIsSendingEmail(true);
         try {
+            const sentAt = new Date().toISOString();
             const quoteNumber = `AC-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000 + 1000)}`;
+
+            // 1️⃣ Guardar la cotización en el sistema primero
+            const quoteId = addQuote({
+                number: quoteNumber,
+                client: client.name,
+                clientId: client.id,
+                clientEmail: client.email || '',
+                clientCompany: client.company || '',
+                date: new Date().toLocaleDateString('es-CO'),
+                total: formatCurrency(total),
+                numericTotal: total,
+                subtotal,
+                tax,
+                items: items.map(i => ({
+                    id: i.id,
+                    name: i.name,
+                    price: i.price,
+                    quantity: i.quantity,
+                    unit: i.unit,
+                    total: i.price * i.quantity,
+                })),
+                notes: '',
+                sellerId: currentUser?.id || '',
+                sellerName: currentUser?.name || '',
+                status: 'Draft' as const,
+                sentAt,
+                sentByName: currentUser?.name || '',
+                sentById: currentUser?.id || '',
+            });
+
+            // 2️⃣ Enviar por email con copia a marketing
             const res = await fetch('/api/quotes/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -170,6 +206,10 @@ export default function QuoteEngine() {
                     clientEmail: client.email,
                     clientCompany: client.company || '',
                     sellerName: currentUser?.name || 'Arte Concreto',
+                    sellerId: currentUser?.id || '',
+                    sentAt,
+                    sentByName: currentUser?.name || '',
+                    sentById: currentUser?.id || '',
                     items: items.map(i => ({ name: i.name, price: i.price, quantity: i.quantity, unit: i.unit })),
                     subtotal,
                     tax,
@@ -178,8 +218,16 @@ export default function QuoteEngine() {
             });
             const data = await res.json();
             if (res.ok) {
-                alert(`✅ Cotización enviada a ${client.email}`);
+                // 3️⃣ Actualizar estado a "Sent" con fecha y usuario
+                updateQuote(quoteId, {
+                    status: 'Sent',
+                    sentAt: data.sentAt || sentAt,
+                    sentByName: data.sentByName || currentUser?.name || '',
+                    sentById: data.sentById || currentUser?.id || '',
+                });
+                alert(`✅ Cotización ${quoteNumber} enviada a ${client.email}\n📋 Copia guardada en el sistema\n📧 Copia enviada a marketing@arteconcreto.co`);
             } else {
+                // Si falló el envío, eliminar la cotización guardada y notificar
                 alert(`❌ Error: ${data.error || 'No se pudo enviar. Verifica la clave Resend en Configuración.'}`);
             }
         } catch {
