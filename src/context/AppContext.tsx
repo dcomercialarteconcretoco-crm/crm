@@ -66,7 +66,7 @@ export interface Seller {
     id: string;
     name: string;
     avatar?: string;
-    role: 'Vendedor' | 'Manager' | 'SuperAdmin';
+    role: 'Vendedor' | 'Manager' | 'Admin' | 'SuperAdmin';
     email: string;
     phone?: string;
     username?: string;
@@ -914,7 +914,7 @@ REGLAS DE ORO:
 
     const deleteSeller = (sellerId: string) => {
         const sellerToDelete = sellers.find(s => s.id === sellerId);
-        if (sellerToDelete?.role === 'SuperAdmin') {
+        if (sellerToDelete?.role === 'SuperAdmin' || sellerToDelete?.role === 'Admin') {
             alert('REGLA DE SEGURIDAD: Las cuentas de Super Administrador son críticas y no pueden ser eliminadas.');
             return;
         }

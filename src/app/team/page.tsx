@@ -389,6 +389,7 @@ export default function TeamPage() {
                                         className="w-full bg-white/74 border border-white/90 rounded-2xl px-6 py-4 text-foreground font-bold outline-none focus:border-primary/50 appearance-none shadow-inner"
                                     >
                                         <option value="Vendedor">Vendedor Senior</option>
+                                        <option value="Admin">Administrador</option>
                                         <option value="Manager">Manager Operativo</option>
                                     </select>
                                 </div>

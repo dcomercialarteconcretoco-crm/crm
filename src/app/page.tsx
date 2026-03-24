@@ -28,7 +28,7 @@ function formatCurrency(value: number) {
 export default function Home() {
   const { clients, tasks, quotes, settings, currentUser } = useApp();
 
-  const userIsSuperAdmin = currentUser?.role === "SuperAdmin";
+  const userIsSuperAdmin = currentUser?.role === "SuperAdmin" || currentUser?.role === "Admin";
   const canExport = userIsSuperAdmin && settings.allowExports;
 
   const totalForecast = useMemo(

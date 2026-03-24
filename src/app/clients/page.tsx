@@ -36,7 +36,7 @@ export default function ClientsPage() {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const currentUser = sellers[0];
-    const userIsSuperAdmin = currentUser?.role === 'SuperAdmin';
+    const userIsSuperAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
     const canExport = userIsSuperAdmin && settings.allowExports;
 
     // Form state for new client

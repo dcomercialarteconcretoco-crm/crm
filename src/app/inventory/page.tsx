@@ -25,7 +25,7 @@ const INITIAL_PRODUCTS: Product[] = [];
 
 export default function InventoryPage() {
     const { settings, sellers, products, productSyncStatus, refreshProducts, updateProduct, deleteProduct, currentUser } = useApp();
-    const userIsSuperAdmin = currentUser?.role === 'SuperAdmin';
+    const userIsSuperAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
     const canExport = userIsSuperAdmin && settings.allowExports;
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);

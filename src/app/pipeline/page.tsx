@@ -183,7 +183,7 @@ export default function PipelinePage() {
 
     // Simulate current user (SuperAdmin)
     const currentUser: Seller = sellers.find(s => s.role === 'SuperAdmin') || sellers[0];
-    const isSuperAdmin = currentUser?.role === 'SuperAdmin';
+    const isSuperAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
 
     const [newDeal, setNewDeal] = useState({
         title: '',

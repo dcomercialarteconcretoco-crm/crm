@@ -57,7 +57,7 @@ export function Sidebar({ isCompact }: SidebarProps) {
       ? 'Juan Sierra'
       : currentUser?.name || 'Usuario';
   const displayRole =
-    currentUser?.role === 'SuperAdmin' ? 'Admin Core' : currentUser?.role || 'Usuario';
+    currentUser?.role === 'SuperAdmin' ? 'Dios Mode' : currentUser?.role === 'Admin' ? 'Administrador' : currentUser?.role || 'Usuario';
   const initials = displayName
     .split(' ')
     .slice(0, 2)
