@@ -8,11 +8,10 @@ function getCredentials(req: NextRequest) {
     return { url, key, secret };
 }
 
-function getWooHeaders(key: string, secret: string) {
-    return {
-        'Authorization': 'Basic ' + Buffer.from(`${key}:${secret}`).toString('base64'),
-        'Content-Type': 'application/json'
-    };
+/** Build a WooCommerce URL with auth as query params (avoids Authorization header being stripped by hosting) */
+function wooUrl(base: string, path: string, key: string, secret: string, extra?: Record<string, string>) {
+    const params = new URLSearchParams({ consumer_key: key, consumer_secret: secret, ...extra });
+    return `${base.replace(/\/$/, '')}${path}?${params.toString()}`;
 }
 
 export async function GET(req: NextRequest) {
@@ -25,11 +24,10 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        const response = await fetch(`${url.replace(/\/$/, '')}/wp-json/wc/v3/products?per_page=100&status=publish`, {
-            method: 'GET',
-            headers: getWooHeaders(key, secret),
-            cache: 'no-store'
-        });
+        const response = await fetch(
+            wooUrl(url, '/wp-json/wc/v3/products', key, secret, { per_page: '100', status: 'publish' }),
+            { method: 'GET', headers: { 'Content-Type': 'application/json' }, cache: 'no-store' }
+        );
 
         if (!response.ok) {
             const errText = await response.text();
@@ -51,11 +49,10 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const response = await fetch(`${url.replace(/\/$/, '')}/wp-json/wc/v3/products`, {
-            method: 'POST',
-            headers: getWooHeaders(key, secret),
-            body: JSON.stringify(body)
-        });
+        const response = await fetch(
+            wooUrl(url, '/wp-json/wc/v3/products', key, secret),
+            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+        );
 
         if (!response.ok) {
             const errText = await response.text();
@@ -81,11 +78,10 @@ export async function PUT(req: NextRequest) {
         if (!id) return NextResponse.json({ error: 'Missing product ID' }, { status: 400 });
 
         const body = await req.json();
-        const response = await fetch(`${url.replace(/\/$/, '')}/wp-json/wc/v3/products/${id}`, {
-            method: 'PUT',
-            headers: getWooHeaders(key, secret),
-            body: JSON.stringify(body)
-        });
+        const response = await fetch(
+            wooUrl(url, `/wp-json/wc/v3/products/${id}`, key, secret),
+            { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+        );
 
         if (!response.ok) {
             const errText = await response.text();
@@ -110,10 +106,10 @@ export async function DELETE(req: NextRequest) {
         const id = reqUrl.searchParams.get('id');
         if (!id) return NextResponse.json({ error: 'Missing product ID' }, { status: 400 });
 
-        const response = await fetch(`${url.replace(/\/$/, '')}/wp-json/wc/v3/products/${id}?force=true`, {
-            method: 'DELETE',
-            headers: getWooHeaders(key, secret)
-        });
+        const response = await fetch(
+            wooUrl(url, `/wp-json/wc/v3/products/${id}`, key, secret, { force: 'true' }),
+            { method: 'DELETE', headers: { 'Content-Type': 'application/json' } }
+        );
 
         if (!response.ok) {
             const errText = await response.text();
