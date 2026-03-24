@@ -678,7 +678,7 @@ REGLAS DE ORO:
                 userId: currentUser.id,
                 userName: currentUser.name,
                 userRole: currentUser.role,
-                action: 'SYSTEM_LOGIN',
+                action: 'SYSTEM_LOGOUT',
                 details: `Sesión cerrada`,
                 verified: true
             });

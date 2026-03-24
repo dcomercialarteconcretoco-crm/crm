@@ -22,14 +22,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!SUPERADMIN_EMAIL || !SUPERADMIN_PASSWORD) {
-      return NextResponse.json(
-        { error: "Acceso superadmin no configurado." },
-        { status: 503 }
-      );
-    }
-
-    if (username === SUPERADMIN_EMAIL && password === SUPERADMIN_PASSWORD) {
+    // Superadmin login (only attempted if env vars are configured)
+    if (SUPERADMIN_EMAIL && SUPERADMIN_PASSWORD && username === SUPERADMIN_EMAIL && password === SUPERADMIN_PASSWORD) {
       const user: SessionUser = {
         id: "superadmin-server",
         name: "Juan Sierra",
