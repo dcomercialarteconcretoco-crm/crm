@@ -84,7 +84,7 @@ export default function SchedulerPage() {
     // Form State
     const [form, setForm] = useState({
         title: '',
-        date: '2026-02-25',
+        date: new Date().toISOString().split('T')[0],
         time: '10:00',
         type: 'meeting' as CalendarEvent['type'],
         invitees: [] as Invitee[],

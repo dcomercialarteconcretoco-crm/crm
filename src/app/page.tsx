@@ -25,6 +25,13 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
+const QUOTE_STATUS_LABEL: Record<string, string> = {
+  Draft: 'Borrador',
+  Sent: 'Enviado',
+  Approved: 'Aprobado',
+  Rejected: 'Rechazado',
+};
+
 export default function Home() {
   const { clients, tasks, quotes, settings, currentUser } = useApp();
 
@@ -317,22 +324,28 @@ export default function Home() {
             </h2>
           </div>
           <div className="mt-6 space-y-5">
-            {[
-              { label: "Leads totales", value: clients.length || 0, width: "w-[90%]" },
-              { label: "Cotizaciones", value: quotes.length || 0, width: "w-[62%]" },
-              { label: "Propuestas activas", value: tasks.length || 0, width: "w-[48%]" },
-              { label: "Cierres", value: approvedQuotes || 0, width: "w-[24%]" },
-            ].map((item) => (
-              <div key={item.label} className="space-y-2">
-                <div className="flex items-center justify-between text-sm font-semibold">
-                  <span className="text-foreground">{item.label}</span>
-                  <span className="text-muted-foreground">{item.value}</span>
+            {(() => {
+              const maxVal = Math.max(clients.length, quotes.length, tasks.length, approvedQuotes, 1);
+              return [
+                { label: "Leads totales", value: clients.length || 0 },
+                { label: "Cotizaciones", value: quotes.length || 0 },
+                { label: "Propuestas activas", value: tasks.length || 0 },
+                { label: "Cierres", value: approvedQuotes || 0 },
+              ].map((item) => (
+                <div key={item.label} className="space-y-2">
+                  <div className="flex items-center justify-between text-sm font-semibold">
+                    <span className="text-foreground">{item.label}</span>
+                    <span className="text-muted-foreground">{item.value}</span>
+                  </div>
+                  <div className="h-3 rounded-full bg-white/44 border border-white/70 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-[linear-gradient(90deg,rgba(250,181,16,0.95),rgba(250,181,16,0.35))] transition-all duration-500"
+                      style={{ width: `${Math.max(4, Math.round((item.value / maxVal) * 100))}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="h-3 rounded-full bg-white/44 border border-white/70 overflow-hidden">
-                  <div className={clsx("h-full rounded-full bg-[linear-gradient(90deg,rgba(250,181,16,0.95),rgba(250,181,16,0.35))]", item.width)} />
-                </div>
-              </div>
-            ))}
+              ));
+            })()}
           </div>
         </div>
       </section>
@@ -460,7 +473,7 @@ export default function Home() {
                                   : "bg-[#171717] text-[#fff4cc]"
                             )}
                           >
-                            {quote.status}
+                            {QUOTE_STATUS_LABEL[quote.status] || quote.status}
                           </span>
                         </td>
                       </tr>
@@ -533,21 +546,28 @@ export default function Home() {
               Distribución comercial
             </h3>
             <div className="mt-6 space-y-4">
-              {[
-                { label: "Nuevo", value: 0, width: "w-[18%]" },
-                { label: "Visto", value: tasks.length, width: "w-[72%]" },
-                { label: "Ganado", value: approvedQuotes, width: "w-[38%]" },
-              ].map((item) => (
-                <div key={item.label} className="space-y-2">
-                  <div className="flex items-center justify-between text-sm font-bold">
-                    <span className="text-foreground">{item.label}</span>
-                    <span className="text-muted-foreground">{item.value}</span>
-                  </div>
+              {(() => {
+                const newLeads = clients.filter(c => c.status === 'Lead').length;
+                const distMax = Math.max(newLeads, tasks.length, approvedQuotes, 1);
+                return [
+                  { label: "Nuevos leads", value: newLeads },
+                  { label: "En seguimiento", value: tasks.length },
+                  { label: "Ganado", value: approvedQuotes },
+                ].map((item) => (
+                  <div key={item.label} className="space-y-2">
+                    <div className="flex items-center justify-between text-sm font-bold">
+                      <span className="text-foreground">{item.label}</span>
+                      <span className="text-muted-foreground">{item.value}</span>
+                    </div>
                     <div className="h-3 rounded-full bg-white/52 border border-white/62 overflow-hidden">
-                    <div className={clsx("h-full rounded-full bg-primary/80", item.width)} />
+                      <div
+                        className="h-full rounded-full bg-primary/80 transition-all duration-500"
+                        style={{ width: `${Math.max(4, Math.round((item.value / distMax) * 100))}%` }}
+                      />
+                    </div>
                   </div>
-                </div>
-              ))}
+                ));
+              })()}
             </div>
           </div>
         </div>
