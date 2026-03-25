@@ -8,10 +8,15 @@ function getCredentials(req: NextRequest) {
     return { url, key, secret };
 }
 
-/** Build a WooCommerce URL with auth as query params (avoids Authorization header being stripped by hosting) */
+/** Build a WooCommerce URL with auth as query params */
 function wooUrl(base: string, path: string, key: string, secret: string, extra?: Record<string, string>) {
     const params = new URLSearchParams({ consumer_key: key, consumer_secret: secret, ...extra });
     return `${base.replace(/\/$/, '')}${path}?${params.toString()}`;
+}
+
+/** Build Basic Auth header from key:secret */
+function basicAuth(key: string, secret: string) {
+    return 'Basic ' + Buffer.from(`${key}:${secret}`).toString('base64');
 }
 
 export async function GET(req: NextRequest) {
@@ -26,7 +31,15 @@ export async function GET(req: NextRequest) {
     try {
         const response = await fetch(
             wooUrl(url, '/wp-json/wc/v3/products', key, secret, { per_page: '100', status: 'publish' }),
-            { method: 'GET', headers: { 'Content-Type': 'application/json' }, cache: 'no-store' }
+            {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': basicAuth(key, secret),
+                    'User-Agent': 'CRM-ArteConcreto/1.0',
+                },
+                cache: 'no-store'
+            }
         );
 
         if (!response.ok) {
