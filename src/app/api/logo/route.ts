@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 export async function GET() {
     try {
         const response = await fetch(
-            'https://voltaris.co/wp-content/uploads/2026/02/Voltarisco@3x.png',
+            'https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png',
             { next: { revalidate: 86400 } }
         );
         if (!response.ok) throw new Error('Logo fetch failed');
