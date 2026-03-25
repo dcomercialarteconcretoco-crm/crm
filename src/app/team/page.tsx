@@ -26,7 +26,7 @@ import { useApp, Seller } from '@/context/AppContext';
 import AvatarUpload from '@/components/ui/AvatarUpload';
 
 export default function TeamPage() {
-    const { sellers, addSeller, deleteSeller, updateSeller, currentUser } = useApp();
+    const { sellers, addSeller, deleteSeller, updateSeller, currentUser, quotes, tasks, clients } = useApp();
     const [searchTerm, setSearchTerm] = useState("");
     const [view, setView] = useState<'team' | 'stats'>('team');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -266,42 +266,64 @@ export default function TeamPage() {
             ) : (
                 /* Stats View */
                 <div className="space-y-6">
-                    {filteredSellers.map((seller) => (
+                    {filteredSellers.map((seller) => {
+                        const sellerQuotes = quotes.filter(q => q.sellerId === seller.id || q.sellerName === seller.name);
+                        const sellerTasks = tasks.filter(t => t.assignedTo === seller.id || t.assignedTo === seller.name);
+                        const wonQuotes = sellerQuotes.filter(q => q.status === 'Approved');
+                        const totalRevenue = wonQuotes.reduce((acc, q) => acc + (q.numericTotal || 0), 0);
+                        const conversionRate = sellerQuotes.length > 0 ? Math.round((wonQuotes.length / sellerQuotes.length) * 100) : 0;
+                        const revenueFormatted = totalRevenue > 0
+                            ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(totalRevenue)
+                            : '$0';
+
+                        return (
                         <div key={seller.id} className="surface-card rounded-[2.5rem] p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center hover:border-primary/20 transition-all shadow-[0_20px_60px_rgba(15,23,42,0.07)] relative group">
                             <div className="lg:col-span-4 flex items-center gap-6">
-                                <div className="w-16 h-16 rounded-2xl bg-white/55 border border-white/75 flex items-center justify-center text-xl font-black text-primary/70 group-hover:bg-primary group-hover:text-black transition-all">
-                                    {seller.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                                <div className="w-16 h-16 rounded-2xl bg-white/55 border border-white/75 flex items-center justify-center text-xl font-black text-primary/70 group-hover:bg-primary group-hover:text-black transition-all overflow-hidden">
+                                    {seller.avatar ? (
+                                        <img src={seller.avatar} alt={seller.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        seller.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                                    )}
                                 </div>
                                 <div>
                                     <h3 className="text-base font-black text-foreground uppercase italic tracking-tighter group-hover:text-primary transition-colors">{seller.name}</h3>
                                     <p className="text-[10px] font-black text-primary/70 uppercase tracking-widest mt-0.5 italic">{seller.role}</p>
+                                    <p className="text-[9px] text-muted-foreground mt-1">{sellerTasks.length} tarea{sellerTasks.length !== 1 ? 's' : ''} asignada{sellerTasks.length !== 1 ? 's' : ''}</p>
                                 </div>
                             </div>
 
-                            <div className="lg:col-span-8 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                                {[
-                                    { label: 'Cotizaciones', val: '0', color: 'text-sky-400', bg: 'bg-sky-400/5' },
-                                    { label: 'Vistas', val: '0%', sub: '0 de 0', color: 'text-muted-foreground', bg: 'bg-white/45' },
-                                    { label: 'Ganadas', val: '0', sub: '0% de cierre', color: 'text-emerald-500', bg: 'bg-emerald-500/5' },
-                                    { label: 'Pipeline', val: '$0', sub: 'en progreso', color: 'text-amber-500', bg: 'bg-amber-500/5' },
-                                    { label: 'Contratos', val: '0', sub: 'este mes', color: 'text-primary', bg: 'bg-primary/5' },
-                                    { label: 'Comisión', val: '$0', sub: '$0 este mes', color: 'text-rose-400', bg: 'bg-rose-400/5' }
-                                ].map((kpi) => (
-                                    <div key={kpi.label} className={clsx("p-4 rounded-2xl flex flex-col items-center justify-center border border-white/70 transition-all hover:scale-105", kpi.bg)}>
-                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">{kpi.label}</p>
-                                        <p className={clsx("text-sm font-black italic tracking-tighter", kpi.color)}>{kpi.val}</p>
-                                        {kpi.sub && <p className="text-[7px] font-black text-muted-foreground/70 uppercase tracking-tighter mt-1">{kpi.sub}</p>}
-                                    </div>
-                                ))}
+                            <div className="lg:col-span-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="p-4 rounded-2xl flex flex-col items-center justify-center border border-border/40 bg-sky-500/5 transition-all hover:scale-105">
+                                    <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">Cotizaciones</p>
+                                    <p className="text-xl font-black italic tracking-tighter text-sky-500">{sellerQuotes.length}</p>
+                                    <p className="text-[7px] font-black text-muted-foreground/70 uppercase tracking-tighter mt-1">total enviadas</p>
+                                </div>
+                                <div className="p-4 rounded-2xl flex flex-col items-center justify-center border border-border/40 bg-emerald-500/5 transition-all hover:scale-105">
+                                    <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">Ganadas</p>
+                                    <p className="text-xl font-black italic tracking-tighter text-emerald-500">{wonQuotes.length}</p>
+                                    <p className="text-[7px] font-black text-muted-foreground/70 uppercase tracking-tighter mt-1">aprobadas</p>
+                                </div>
+                                <div className="p-4 rounded-2xl flex flex-col items-center justify-center border border-border/40 bg-primary/5 transition-all hover:scale-105">
+                                    <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">Tasa</p>
+                                    <p className="text-xl font-black italic tracking-tighter text-primary">{conversionRate}%</p>
+                                    <p className="text-[7px] font-black text-muted-foreground/70 uppercase tracking-tighter mt-1">conversión</p>
+                                </div>
+                                <div className="p-4 rounded-2xl flex flex-col items-center justify-center border border-border/40 bg-amber-500/5 transition-all hover:scale-105">
+                                    <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">Revenue</p>
+                                    <p className="text-sm font-black italic tracking-tighter text-amber-500 text-center leading-tight">{revenueFormatted}</p>
+                                    <p className="text-[7px] font-black text-muted-foreground/70 uppercase tracking-tighter mt-1">ganado</p>
+                                </div>
                             </div>
 
                             <div className="hidden lg:block absolute top-6 right-8">
                                 <span className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.3em] flex items-center gap-2">
-                                    <Clock className="w-3 h-3" /> Hace 2 min
+                                    <Clock className="w-3 h-3" /> En vivo
                                 </span>
                             </div>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 

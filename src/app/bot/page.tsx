@@ -1616,25 +1616,16 @@ export default function MiWiBotPage() {
                             </div>
                         </div>
 
-                        {/* Info banner */}
-                        <div className="mx-6 mt-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
-                            <Wand2 className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-                            <div>
-                                <p className="text-[11px] font-black text-amber-800">¿Cómo funciona?</p>
-                                <p className="text-[10px] text-amber-700 mt-0.5">ConcreBOT te hace preguntas para aprender sobre tus productos, precios y políticas. Lo que le enseñes aquí se usará como contexto cuando chatee con clientes en el widget.</p>
-                            </div>
-                        </div>
-
                         {/* Chat area */}
                         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 custom-scrollbar">
                             {learningMsgs.length === 0 && !learningStarted && (
-                                <div className="flex flex-col items-center justify-center h-full space-y-6 pb-12">
-                                    <div className="w-20 h-20 rounded-[2rem] bg-primary/10 border border-primary/20 flex items-center justify-center">
-                                        <BrainCircuit className="w-10 h-10 text-primary" />
+                                <div className="flex flex-col items-center justify-center h-full gap-5 px-6">
+                                    <div className="w-16 h-16 rounded-[2rem] bg-primary/10 border border-primary/20 flex items-center justify-center">
+                                        <BrainCircuit className="w-8 h-8 text-primary" />
                                     </div>
-                                    <div className="text-center space-y-2 max-w-xs">
-                                        <h4 className="text-base font-black text-foreground">ConcreBOT quiere aprender</h4>
-                                        <p className="text-[12px] text-muted-foreground">Inicia una sesión y ConcreBOT comenzará a hacerte preguntas sobre tus productos y procesos de venta.</p>
+                                    <div className="text-center max-w-sm">
+                                        <h4 className="text-base font-black text-foreground mb-1">ConcreBOT quiere aprender</h4>
+                                        <p className="text-[12px] text-muted-foreground leading-relaxed">Inicia una sesión y ConcreBOT comenzará a hacerte preguntas sobre productos, precios y procesos de venta. Lo que enseñes aquí se usará cuando chatee con clientes.</p>
                                     </div>
                                     <button
                                         onClick={startLearningSession}

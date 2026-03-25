@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 // ── Configuración ────────────────────────────────────────────────────────────
 // Cambia esta URL por la URL de producción de tu CRM
-define( 'AC_CRM_ENDPOINT', 'https://crm-intelligence.vercel.app/api/woo-quote' );
+define( 'AC_CRM_ENDPOINT', 'https://crm-sand-three.vercel.app/api/woo-quote' );
 // Color primario del botón (dorado Arte Concreto)
 define( 'AC_BUTTON_COLOR', '#fab510' );
 

@@ -133,7 +133,7 @@ export default function AuditPage() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <div className="bg-white/60 p-1 rounded-2xl border border-white/80 shadow-[0_14px_40px_rgba(15,23,42,0.06)] flex">
+                    <div className="bg-background/60 p-1 rounded-2xl border border-border/40 shadow-[0_14px_40px_rgba(15,23,42,0.06)] flex">
                         <button
                             onClick={() => setActiveView('logs')}
                             className={clsx(
@@ -256,7 +256,7 @@ export default function AuditPage() {
                                     {filteredLogs.map((log: AuditLog) => {
                                         const badge = getActionBadge(log.action);
                                         return (
-                                            <tr key={log.id} className="hover:bg-white/[0.02] transition-colors group">
+                                            <tr key={log.id} className="hover:bg-muted/20 transition-colors group">
                                                 <td className="px-8 py-6">
                                                     <div className="flex flex-col">
                                                         <span className="text-sm font-black text-foreground">{format(new Date(log.timestamp), 'dd MMM, HH:mm', { locale: es })}</span>
@@ -269,7 +269,7 @@ export default function AuditPage() {
                                                             <User className="w-5 h-5 text-muted-foreground group-hover:text-primary" />
                                                         </div>
                                                         <div>
-                                                            <p className="text-sm font-black text-white">{log.userName}</p>
+                                                            <p className="text-sm font-black text-foreground">{log.userName}</p>
                                                             <p className="text-[10px] font-black uppercase text-primary tracking-widest">{log.userRole}</p>
                                                         </div>
                                                     </div>
@@ -284,7 +284,7 @@ export default function AuditPage() {
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-6 max-w-md">
-                                                    <p className="text-sm font-bold text-white/90 leading-relaxed mb-1">
+                                                    <p className="text-sm font-bold text-foreground/90 leading-relaxed mb-1">
                                                         {log.details}
                                                     </p>
                                                     {log.targetName && (
@@ -322,11 +322,11 @@ export default function AuditPage() {
                 <div className="space-y-6">
                     <div className="bg-rose-500/10 border border-rose-500/20 p-8 rounded-[2.5rem] flex items-center justify-between">
                         <div className="space-y-1">
-                            <h2 className="text-xl font-black text-white flex items-center gap-3">
+                            <h2 className="text-xl font-black text-foreground flex items-center gap-3">
                                 <AlertTriangle className="w-6 h-6 text-rose-500" />
                                 Truth Engine: Análisis de Anomalías
                             </h2>
-                            <p className="text-sm font-bold text-white/60">Cruzando reportes manuales con actividad digital detectada en tiempo real.</p>
+                            <p className="text-sm font-bold text-foreground/60">Cruzando reportes manuales con actividad digital detectada en tiempo real.</p>
                         </div>
                         <div className="px-6 py-2 bg-rose-500 text-white text-[10px] font-black uppercase tracking-widest rounded-full animate-pulse">
                             Escaneando Sistema...
@@ -338,7 +338,7 @@ export default function AuditPage() {
                             const style = getAnomalyStyles(anom.severity);
                             return (
                                 <div key={anom.id} className={clsx(
-                                    "p-8 rounded-[2.5rem] border bg-card flex items-center justify-between group hover:bg-white/[0.02] transition-all",
+                                    "p-8 rounded-[2.5rem] border bg-card flex items-center justify-between group hover:bg-muted/20 transition-all",
                                     style.border
                                 )}>
                                     <div className="flex items-center gap-8">
@@ -350,25 +350,25 @@ export default function AuditPage() {
                                                 <span className={clsx("text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border", style.text, style.border)}>
                                                     ALERTA: {anom.severity === 'high' ? 'CRÍTICA' : anom.severity === 'medium' ? 'MODERADA' : 'INFORMATIVA'}
                                                 </span>
-                                                <span className="text-xs font-black text-white/40 uppercase tracking-tighter">
+                                                <span className="text-xs font-black text-foreground/40 uppercase tracking-tighter">
                                                     {format(new Date(anom.timestamp), 'dd MMM, HH:mm', { locale: es })}
                                                 </span>
                                             </div>
-                                            <h4 className="text-lg font-black text-white group-hover:text-rose-500 transition-colors">{anom.description}</h4>
+                                            <h4 className="text-lg font-black text-foreground group-hover:text-rose-500 transition-colors">{anom.description}</h4>
                                             <div className="flex items-center gap-4 text-xs font-bold text-muted-foreground">
                                                 <div className="flex items-center gap-1.5">
                                                     <User className="w-3.5 h-3.5" />
-                                                    Vendedor: <span className="text-white">{anom.userName}</span>
+                                                    Vendedor: <span className="text-foreground">{anom.userName}</span>
                                                 </div>
                                                 <div className="flex items-center gap-1.5">
                                                     <ShieldCheck className="w-3.5 h-3.5" />
-                                                    Objetivo: <span className="text-white">{anom.targetName}</span>
+                                                    Objetivo: <span className="text-foreground">{anom.targetName}</span>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        <button className="px-6 py-3 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all">
+                                        <button className="px-6 py-3 bg-muted/20 border border-border/40 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-muted/30 transition-all">
                                             Descartar
                                         </button>
                                         <button className={clsx("px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg",
@@ -383,7 +383,7 @@ export default function AuditPage() {
                         {anomalies.length === 0 && (
                             <div className="py-20 text-center bg-card border border-border/40 rounded-[2.5rem]">
                                 <Sparkles className="w-12 h-12 text-primary mx-auto mb-4 opacity-20" />
-                                <p className="font-black text-white/40 uppercase tracking-[0.3em]">Sistema Limpio: 100% Veracidad</p>
+                                <p className="font-black text-foreground/40 uppercase tracking-[0.3em]">Sistema Limpio: 100% Veracidad</p>
                             </div>
                         )}
                     </div>
@@ -405,19 +405,19 @@ export default function AuditPage() {
 
             {/* Report Modal */}
             {showReportModal && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/95 backdrop-blur-2xl animate-in fade-in duration-300">
-                    <div className="bg-card border border-primary/30 w-full max-w-4xl rounded-[3rem] overflow-hidden shadow-[0_0_100px_rgba(250,181,16,0.1)] flex flex-col max-h-[90vh]">
-                        <div className="p-10 border-b border-white/5 bg-primary/5 flex items-center justify-between">
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-2xl animate-in fade-in duration-300">
+                    <div className="bg-card border border-border w-full max-w-4xl rounded-[3rem] overflow-hidden shadow-[0_0_100px_rgba(250,181,16,0.1)] flex flex-col max-h-[90vh]">
+                        <div className="p-10 border-b border-border/40 bg-primary/5 flex items-center justify-between">
                             <div className="flex items-center gap-4">
                                 <div className="p-3 bg-primary rounded-2xl">
                                     <FileText className="w-6 h-6 text-black" />
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-black text-white italic">INFORME EJECUTIVO <span className="text-primary not-italic">DE AUDITORÍA</span></h2>
-                                    <p className="text-[10px] font-black uppercase text-white/40 tracking-[0.2em]">Hash: 8f2a...9d1c / Cifrado Grado Militar</p>
+                                    <h2 className="text-2xl font-black text-foreground italic">INFORME EJECUTIVO <span className="text-primary not-italic">DE AUDITORÍA</span></h2>
+                                    <p className="text-[10px] font-black uppercase text-foreground/40 tracking-[0.2em]">Hash: 8f2a...9d1c / Cifrado Grado Militar</p>
                                 </div>
                             </div>
-                            <button onClick={() => setShowReportModal(false)} className="p-4 hover:bg-white/5 rounded-full transition-colors text-white/40 hover:text-white">
+                            <button onClick={() => setShowReportModal(false)} className="p-4 hover:bg-muted/30 rounded-full transition-colors text-foreground/40 hover:text-foreground">
                                 <Search className="w-6 h-6 rotate-45" /> {/* Use Search icon rotated as X if X is not imported or just use generic close */}
                             </button>
                         </div>
@@ -427,33 +427,33 @@ export default function AuditPage() {
                             <div className="grid grid-cols-3 gap-8">
                                 <div className="space-y-2">
                                     <p className="text-[10px] font-black text-primary uppercase tracking-widest">Periodo</p>
-                                    <p className="text-lg font-bold text-white">Últimas 24 Horas</p>
+                                    <p className="text-lg font-bold text-foreground">Últimas 24 Horas</p>
                                 </div>
                                 <div className="space-y-2">
                                     <p className="text-[10px] font-black text-primary uppercase tracking-widest">Total Eventos</p>
-                                    <p className="text-lg font-bold text-white">{auditLogs.length} Registros</p>
+                                    <p className="text-lg font-bold text-foreground">{auditLogs.length} Registros</p>
                                 </div>
                                 <div className="space-y-2">
                                     <p className="text-[10px] font-black text-primary uppercase tracking-widest">Nivel de Veracidad</p>
-                                    <p className="text-lg font-bold text-emerald-400">92.4% (Óptimo)</p>
+                                    <p className="text-lg font-bold text-emerald-500">92.4% (Óptimo)</p>
                                 </div>
                             </div>
 
-                            <div className="h-px bg-white/5" />
+                            <div className="h-px bg-border/40" />
 
                             {/* Findings */}
                             <div className="space-y-6">
-                                <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-3">
+                                <h3 className="text-sm font-black text-foreground uppercase tracking-widest flex items-center gap-3">
                                     <TrendingUp className="w-4 h-4 text-primary" />
                                     HALLAZGOS OPERATIVOS
                                 </h3>
                                 <div className="grid grid-cols-1 gap-4">
-                                    <div className="p-6 bg-white/[0.02] border border-white/5 rounded-3xl space-y-4">
+                                    <div className="p-6 bg-muted/20 border border-border/20 rounded-3xl space-y-4">
                                         <div className="flex items-center justify-between">
-                                            <span className="text-[10px] font-black text-emerald-400 bg-emerald-400/10 px-3 py-1 rounded-full border border-emerald-400/20 uppercase tracking-widest">Efectividad Alta</span>
-                                            <span className="text-xs font-bold text-white/40">Motor IA</span>
+                                            <span className="text-[10px] font-black text-emerald-600 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 uppercase tracking-widest">Efectividad Alta</span>
+                                            <span className="text-xs font-bold text-foreground/40">Motor IA</span>
                                         </div>
-                                        <p className="text-sm text-white/80 font-medium leading-relaxed">
+                                        <p className="text-sm text-foreground/80 font-medium leading-relaxed">
                                             Se detectó alineación continua operativa según los logs más recientes del sistema en tareas de envío y recepción.
                                         </p>
                                     </div>
@@ -461,9 +461,9 @@ export default function AuditPage() {
                                     <div className="p-6 bg-rose-500/5 border border-rose-500/20 rounded-3xl space-y-4">
                                         <div className="flex items-center justify-between">
                                             <span className="text-[10px] font-black text-rose-500 bg-rose-500/10 px-3 py-1 rounded-full border border-rose-500/20 uppercase tracking-widest">Alerta de Veracidad</span>
-                                            <span className="text-xs font-bold text-white/40">Truth Engine Core</span>
+                                            <span className="text-xs font-bold text-foreground/40">Truth Engine Core</span>
                                         </div>
-                                        <p className="text-sm text-white/80 font-medium leading-relaxed">
+                                        <p className="text-sm text-foreground/80 font-medium leading-relaxed">
                                             Existen <span className="text-rose-500 font-black">{anomalies.length} anomalías</span> detectadas en el sistema. Se listan inconsistencias operativas activas recientes. <span className="underline decoration-rose-500/50 underline-offset-4 pointer-events-none">Se recomienda revisión cruzada.</span>
                                         </p>
                                     </div>
@@ -471,19 +471,19 @@ export default function AuditPage() {
                             </div>
 
                             {/* Verification Footer */}
-                            <div className="p-8 bg-black/40 rounded-3xl border border-white/5 flex items-center gap-6">
+                            <div className="p-8 bg-muted/30 rounded-3xl border border-border/40 flex items-center gap-6">
                                 <ShieldCheck className="w-12 h-12 text-primary opacity-50" />
                                 <div>
-                                    <p className="text-xs font-bold text-white/90">Certificación Inmutable</p>
-                                    <p className="text-[10px] text-white/40 leading-relaxed max-w-lg">
+                                    <p className="text-xs font-bold text-foreground/90">Certificación Inmutable</p>
+                                    <p className="text-[10px] text-foreground/40 leading-relaxed max-w-lg">
                                         Este informe ha sido generado automáticamente cruzando datos de telemetría digital y registros manuales. La inmutabilidad de los datos garantiza que no existe alteración humana en el análisis.
                                     </p>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="p-10 border-t border-white/5 bg-white/[0.02] flex justify-end gap-4">
-                            <button onClick={() => setShowReportModal(false)} className="px-10 py-4 rounded-2xl border border-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">
+                        <div className="p-10 border-t border-border/40 bg-muted/20 flex justify-end gap-4">
+                            <button onClick={() => setShowReportModal(false)} className="px-10 py-4 rounded-2xl border border-border/40 text-foreground text-[10px] font-black uppercase tracking-widest hover:bg-muted/30 transition-all">
                                 Cerrar
                             </button>
                             <button className="bg-primary text-black px-12 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-[1.05] active:scale-[0.95] transition-all flex items-center gap-3 shadow-2xl shadow-primary/20">
