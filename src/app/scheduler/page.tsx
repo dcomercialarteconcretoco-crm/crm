@@ -78,7 +78,6 @@ export default function SchedulerPage() {
         const now = new Date();
         return new Date(now.getFullYear(), now.getMonth(), 1);
     });
-    const [isGeneratingLink, setIsGeneratingLink] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [isGoogleReady, setIsGoogleReady] = useState(false);
     const [isGoogleConnecting, setIsGoogleConnecting] = useState(false);
@@ -422,15 +421,6 @@ export default function SchedulerPage() {
         setExternalEmail('');
     };
 
-    const generateMeetLink = () => {
-        setIsGeneratingLink(true);
-        setTimeout(() => {
-            const randomCode = Math.random().toString(36).substring(2, 5) + '-' + Math.random().toString(36).substring(2, 6) + '-' + Math.random().toString(36).substring(2, 5);
-            setForm(prev => ({ ...prev, meetingLink: `https://meet.google.com/${randomCode}` }));
-            setIsGeneratingLink(false);
-        }, 1500);
-    };
-
     const handleSave = async () => {
         if (!currentUser) return;
 
@@ -583,13 +573,11 @@ export default function SchedulerPage() {
                     <p className="text-sm text-muted-foreground font-medium">
                         Gestiona visitas, entregas y reuniones. La agenda ahora puede sincronizarse con Google Calendar por usuario.
                     </p>
-                    <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                        {!GOOGLE_CLIENT_ID
-                            ? 'Google no configurado: falta NEXT_PUBLIC_GOOGLE_CLIENT_ID en .env.local'
-                            : googleAccessToken
-                                ? `Auto-sync activo mientras la app este abierta${googleAccountEmail ? ` · ${googleAccountEmail}` : ''}`
-                                : 'Conecta Google para activar sync automatico cada 5 minutos'}
-                    </p>
+                    {googleAccessToken && (
+                        <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-600">
+                            ✓ Google Calendar conectado{googleAccountEmail ? ` · ${googleAccountEmail}` : ''} · Sync cada 5 min
+                        </p>
+                    )}
                 </div>
                 <div className="flex flex-col sm:flex-row items-center gap-3">
                     <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
@@ -840,101 +828,81 @@ export default function SchedulerPage() {
 
             {/* Agendar Evento Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-xl animate-in fade-in duration-300">
-                    <div className="bg-[#0a0a0b] border border-white/10 w-full max-w-4xl rounded-[3rem] overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] animate-in zoom-in-95 duration-300 flex flex-col md:flex-row h-[85vh]">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-card border border-border w-full max-w-4xl rounded-[2.5rem] overflow-hidden shadow-[0_32px_80px_rgba(0,0,0,0.18)] animate-in zoom-in-95 duration-300 flex flex-col md:flex-row h-[85vh]">
                         {/* Left Side: Form */}
-                        <div className="flex-1 p-12 overflow-y-auto space-y-10 custom-scrollbar">
+                        <div className="flex-1 p-10 overflow-y-auto space-y-8">
                             <div className="flex items-center justify-between">
-                                <h2 className="text-3xl font-black text-white tracking-tighter">Agendar Sesión</h2>
-                                <button onClick={() => setIsModalOpen(false)} className="p-3 hover:bg-white/5 rounded-2xl transition-all">
-                                    <X className="w-6 h-6 text-white/20 hover:text-white" />
+                                <h2 className="text-2xl font-black text-foreground tracking-tighter">Agendar Sesión</h2>
+                                <button onClick={() => setIsModalOpen(false)} className="p-2.5 hover:bg-muted rounded-2xl transition-all">
+                                    <X className="w-5 h-5 text-muted-foreground hover:text-foreground" />
                                 </button>
                             </div>
 
-                            <div className="space-y-8">
-                                <div className="space-y-3">
-                                    <label className="text-[10px] font-black uppercase text-white/30 tracking-[0.2em] pl-1">Título del Evento</label>
+                            <div className="space-y-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] pl-1">Título del Evento *</label>
                                     <input
                                         type="text"
                                         value={form.title}
                                         onChange={(e) => setForm({ ...form, title: e.target.value })}
                                         placeholder="Ej: Revisión de Diseño - Parque del Río"
-                                        className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm text-white focus:border-primary/50 outline-none transition-all font-bold"
+                                        className="w-full bg-muted/30 border border-border rounded-2xl px-5 py-3.5 text-sm text-foreground focus:border-primary/60 outline-none transition-all font-bold placeholder:font-normal placeholder:text-muted-foreground"
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-6">
-                                    <div className="space-y-3">
-                                        <label className="text-[10px] font-black uppercase text-white/30 tracking-[0.2em] pl-1">Fecha</label>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] pl-1">Fecha</label>
                                         <input
                                             type="date"
                                             value={form.date}
                                             onChange={(e) => setForm({ ...form, date: e.target.value })}
-                                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm text-white focus:border-primary/50 outline-none transition-all font-bold"
+                                            className="w-full bg-muted/30 border border-border rounded-2xl px-5 py-3.5 text-sm text-foreground focus:border-primary/60 outline-none transition-all font-bold"
                                         />
                                     </div>
-                                    <div className="space-y-3">
-                                        <label className="text-[10px] font-black uppercase text-white/30 tracking-[0.2em] pl-1">Hora</label>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] pl-1">Hora</label>
                                         <input
                                             type="time"
                                             value={form.time}
                                             onChange={(e) => setForm({ ...form, time: e.target.value })}
-                                            className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm text-white focus:border-primary/50 outline-none transition-all font-bold"
+                                            className="w-full bg-muted/30 border border-border rounded-2xl px-5 py-3.5 text-sm text-foreground focus:border-primary/60 outline-none transition-all font-bold"
                                         />
                                     </div>
                                 </div>
 
-                                <div className="p-8 bg-white/[0.02] border border-white/10 rounded-[2.5rem] space-y-6">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-4">
-                                            <div className="p-3 bg-emerald-500/10 text-emerald-500 rounded-2xl">
-                                                <Video className="w-6 h-6" />
-                                            </div>
-                                            <div>
-                                                <h4 className="text-[11px] font-black uppercase tracking-widest text-white">Google Meet</h4>
-                                                <p className="text-[10px] text-white/40">Generar link automático para los invitados.</p>
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={generateMeetLink}
-                                            disabled={isGeneratingLink}
-                                            className={clsx(
-                                                "px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all",
-                                                form.meetingLink ? "bg-emerald-500 text-black" : "bg-white/5 text-white/40 hover:bg-white/10 border border-white/10"
-                                            )}
-                                        >
-                                            {isGeneratingLink ? 'Generando...' : form.meetingLink ? 'Link Generado' : 'Activar Meet'}
-                                        </button>
+                                {/* Meeting Link — manual input */}
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] pl-1">Link de Reunión (opcional)</label>
+                                    <div className="flex items-center gap-3 bg-muted/30 border border-border rounded-2xl px-5 py-3.5">
+                                        <LinkIcon className="w-4 h-4 text-muted-foreground shrink-0" />
+                                        <input
+                                            type="url"
+                                            value={form.meetingLink}
+                                            onChange={(e) => setForm({ ...form, meetingLink: e.target.value })}
+                                            placeholder="https://meet.google.com/... o Zoom, Teams..."
+                                            className="flex-1 bg-transparent text-sm text-foreground outline-none font-bold placeholder:font-normal placeholder:text-muted-foreground"
+                                        />
                                     </div>
-                                    {form.meetingLink && (
-                                        <div className="p-4 bg-white/5 rounded-2xl border border-white/10 flex items-center justify-between group">
-                                            <div className="flex items-center gap-3">
-                                                <LinkIcon className="w-4 h-4 text-emerald-500" />
-                                                <span className="text-xs text-white/60 font-mono truncate">{form.meetingLink}</span>
-                                            </div>
-                                            <button className="text-[9px] font-black text-primary uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Copiar</button>
-                                        </div>
-                                    )}
+                                    <p className="text-[10px] text-muted-foreground pl-1">Pega el link de tu reunión de Google Meet, Zoom o Teams.</p>
                                 </div>
 
-                                <div className="space-y-4">
-                                    <label className="text-[10px] font-black uppercase text-white/30 tracking-[0.2em] pl-1">Lista de Invitados ({form.invitees.length})</label>
-                                    <div className="flex flex-wrap gap-2">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] pl-1">Invitados seleccionados ({form.invitees.length})</label>
+                                    <div className="flex flex-wrap gap-2 min-h-[40px]">
                                         {form.invitees.map((inv) => (
-                                            <div key={inv.id} className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-2 group">
+                                            <div key={inv.id} className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-3 py-1.5">
                                                 {inv.type === 'vendedor' ? <Shield className="w-3 h-3 text-primary" /> :
                                                     inv.type === 'lead' ? <User className="w-3 h-3 text-primary" /> : <Globe className="w-3 h-3 text-primary" />}
                                                 <span className="text-[10px] font-black text-primary uppercase">{inv.name}</span>
-                                                <button
-                                                    onClick={() => setForm(prev => ({ ...prev, invitees: prev.invitees.filter(i => i.id !== inv.id) }))}
-                                                    className="hover:text-rose-500 transition-colors"
-                                                >
-                                                    <X className="w-3 h-3" />
+                                                <button onClick={() => setForm(prev => ({ ...prev, invitees: prev.invitees.filter(i => i.id !== inv.id) }))}>
+                                                    <X className="w-3 h-3 text-primary/60 hover:text-rose-500 transition-colors" />
                                                 </button>
                                             </div>
                                         ))}
                                         {form.invitees.length === 0 && (
-                                            <div className="text-[10px] text-white/20 font-bold py-2">No has seleccionado invitados aún.</div>
+                                            <p className="text-[11px] text-muted-foreground">Selecciona invitados desde el directorio →</p>
                                         )}
                                     </div>
                                 </div>
@@ -942,61 +910,54 @@ export default function SchedulerPage() {
                         </div>
 
                         {/* Right Side: Search & Directory */}
-                        <div className="w-full md:w-[400px] border-l border-white/10 bg-[#0a0a0b] p-10 flex flex-col h-full">
-                            <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-white/30 mb-8">Directorio & Invitaciones</h3>
+                        <div className="w-full md:w-[380px] border-l border-border bg-muted/20 p-8 flex flex-col h-full">
+                            <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-6">Directorio & Invitaciones</h3>
 
-                            <div className="relative mb-8">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                            <div className="relative mb-6">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                 <input
                                     type="text"
                                     placeholder="Buscar prospecto o equipo..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm text-white focus:border-primary/50 outline-none transition-all"
+                                    className="w-full bg-card border border-border rounded-2xl py-3 pl-11 pr-4 text-sm text-foreground focus:border-primary/50 outline-none transition-all"
                                 />
                             </div>
 
                             <div className="flex-1 overflow-y-auto space-y-8 custom-scrollbar">
                                 {/* External Invitations */}
                                 <div className="space-y-4">
-                                    <h4 className="text-[9px] font-black uppercase text-white/20 tracking-widest pl-2">Externo (Otra Empresa)</h4>
+                                    <h4 className="text-[9px] font-black uppercase text-muted-foreground tracking-widest pl-1">Externo (Otra Empresa)</h4>
                                     <div className="flex gap-2">
                                         <input
                                             type="email"
                                             placeholder="correo@empresa.com"
                                             value={externalEmail}
                                             onChange={(e) => setExternalEmail(e.target.value)}
-                                            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[11px] text-white focus:border-primary/50 outline-none transition-all"
+                                            className="flex-1 bg-card border border-border rounded-xl px-4 py-2.5 text-[11px] text-foreground focus:border-primary/50 outline-none transition-all"
                                         />
-                                        <button
-                                            onClick={addExternal}
-                                            className="bg-white/5 border border-white/10 p-3 rounded-xl hover:bg-white/10 transition-all"
-                                        >
+                                        <button onClick={addExternal} className="bg-primary/10 border border-primary/20 p-2.5 rounded-xl hover:bg-primary hover:text-black transition-all">
                                             <Plus className="w-4 h-4 text-primary" />
                                         </button>
                                     </div>
                                 </div>
 
                                 {/* Sellers */}
-                                <div className="space-y-4">
-                                    <h4 className="text-[9px] font-black uppercase text-white/20 tracking-widest pl-2">Equipo Comercial</h4>
-                                    <div className="space-y-2">
+                                <div className="space-y-3">
+                                    <h4 className="text-[9px] font-black uppercase text-muted-foreground tracking-widest pl-1">Equipo Comercial</h4>
+                                    <div className="space-y-1.5">
                                         {sellers.filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase())).map(seller => (
-                                            <button
-                                                key={seller.id}
-                                                onClick={() => toggleInvitee(seller, 'vendedor')}
-                                                className={clsx(
-                                                    "w-full flex items-center justify-between p-4 rounded-2xl border transition-all text-left",
-                                                    form.invitees.find(i => i.id === seller.id) ? "bg-primary/10 border-primary/50" : "bg-white/[0.02] border-white/5 hover:border-white/10"
-                                                )}
-                                            >
+                                            <button key={seller.id} onClick={() => toggleInvitee(seller, 'vendedor')}
+                                                className={clsx("w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left",
+                                                    form.invitees.find(i => i.id === seller.id) ? "bg-primary/10 border-primary/30" : "bg-card border-border hover:border-primary/30"
+                                                )}>
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[10px] font-black text-white">
+                                                    <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-black text-primary">
                                                         {seller.name.charAt(0)}
                                                     </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[11px] font-black text-white">{seller.name}</span>
-                                                        <span className="text-[9px] font-bold text-white/30 uppercase">{seller.role}</span>
+                                                    <div>
+                                                        <p className="text-[11px] font-black text-foreground">{seller.name}</p>
+                                                        <p className="text-[9px] text-muted-foreground uppercase">{seller.role}</p>
                                                     </div>
                                                 </div>
                                                 {form.invitees.find(i => i.id === seller.id) && <CheckCircle2 className="w-4 h-4 text-primary" />}
@@ -1005,42 +966,39 @@ export default function SchedulerPage() {
                                     </div>
                                 </div>
 
-                                {/* Leads */}
-                                <div className="space-y-4 pb-10">
-                                    <h4 className="text-[9px] font-black uppercase text-white/20 tracking-widest pl-2">Prospectos / Clientes</h4>
-                                    <div className="space-y-2">
+                                {/* Clients */}
+                                <div className="space-y-3 pb-6">
+                                    <h4 className="text-[9px] font-black uppercase text-muted-foreground tracking-widest pl-1">Prospectos / Clientes</h4>
+                                    <div className="space-y-1.5">
                                         {clients.filter(l => l.name.toLowerCase().includes(searchQuery.toLowerCase())).map(lead => (
-                                            <button
-                                                key={lead.id}
-                                                onClick={() => toggleInvitee(lead, 'lead')}
-                                                className={clsx(
-                                                    "w-full flex items-center justify-between p-4 rounded-2xl border transition-all text-left",
-                                                    form.invitees.find(i => i.id === lead.id) ? "bg-primary/10 border-primary/50" : "bg-white/[0.02] border-white/5 hover:border-white/10"
-                                                )}
-                                            >
+                                            <button key={lead.id} onClick={() => toggleInvitee(lead, 'lead')}
+                                                className={clsx("w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left",
+                                                    form.invitees.find(i => i.id === lead.id) ? "bg-primary/10 border-primary/30" : "bg-card border-border hover:border-primary/30"
+                                                )}>
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-black text-primary border border-primary/20">
-                                                        {lead.company ? lead.company.charAt(0) : lead.name.charAt(0)}
+                                                    <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-black text-primary border border-primary/20">
+                                                        {(lead.company || lead.name).charAt(0)}
                                                     </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[11px] font-black text-white">{lead.name}</span>
-                                                        <span className="text-[9px] font-bold text-white/30 truncate max-w-[150px]">{lead.company}</span>
+                                                    <div>
+                                                        <p className="text-[11px] font-black text-foreground">{lead.name}</p>
+                                                        <p className="text-[9px] text-muted-foreground truncate max-w-[140px]">{lead.company}</p>
                                                     </div>
                                                 </div>
                                                 {form.invitees.find(i => i.id === lead.id) && <CheckCircle2 className="w-4 h-4 text-primary" />}
                                             </button>
                                         ))}
+                                        {clients.length === 0 && <p className="text-[11px] text-muted-foreground pl-1">No hay clientes registrados aún.</p>}
                                     </div>
                                 </div>
                             </div>
 
                             <button
                                 onClick={handleSave}
-                                disabled={!form.title || form.invitees.length === 0}
-                                className="mt-8 bg-primary text-black font-black py-4 rounded-2xl flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-primary/20 disabled:opacity-50 disabled:hover:scale-100"
+                                disabled={!form.title}
+                                className="mt-4 bg-primary text-black font-black py-3.5 rounded-2xl flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-primary/20 disabled:opacity-40 disabled:hover:scale-100"
                             >
-                                <Send className="w-5 h-5" />
-                                <span>Agendar e Invitar</span>
+                                <Send className="w-4 h-4" />
+                                <span>Guardar Evento</span>
                             </button>
                         </div>
                     </div>

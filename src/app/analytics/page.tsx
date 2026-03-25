@@ -52,15 +52,15 @@ export default function AnalyticsPage() {
             }
         });
 
-        return days.map(d => ({ month: d.month, sales: d.sales || 2, quotes: d.quotes || 5 })); // base values to prevent empty charts
+        return days.map(d => ({ month: d.month, sales: d.sales || 0, quotes: d.quotes || 0 }));
     }, [auditLogs]);
 
     const conversionData = React.useMemo(() => {
         return [
-            { name: 'Leads', value: clients.length || 1, color: '#fab510' },
-            { name: 'Negocios', value: tasks.length || 1, color: '#fab510dd' },
-            { name: 'Cotizados', value: quotes.length || 1, color: '#fab510aa' },
-            { name: 'Ganados', value: quotes.filter(q => q.status === 'Approved').length || 1, color: '#fab51077' },
+            { name: 'Leads', value: clients.length, color: '#fab510' },
+            { name: 'Negocios', value: tasks.length, color: '#fab510dd' },
+            { name: 'Cotizados', value: quotes.length, color: '#fab510aa' },
+            { name: 'Ganados', value: quotes.filter(q => q.status === 'Approved').length, color: '#fab51077' },
         ];
     }, [clients, tasks, quotes]);
 
@@ -138,12 +138,14 @@ export default function AnalyticsPage() {
                             <div key={item.name} className="relative">
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="text-sm font-bold opacity-80">{item.name}</span>
-                                    <span className="text-xs font-black text-primary">{item.value} registros</span>
+                                    <span className={`text-xs font-black ${item.value > 0 ? 'text-primary' : 'text-muted-foreground'}`}>
+                                        {item.value > 0 ? `${item.value} registros` : 'Sin datos'}
+                                    </span>
                                 </div>
                                 <div className="h-3 w-full bg-muted rounded-full overflow-hidden p-0.5">
                                     <div
                                         className="h-full bg-primary rounded-full shadow-[0_0_12px_rgba(250,181,16,0.3)] transition-all duration-1000"
-                                        style={{ width: `${Math.min(100, (item.value / Math.max(conversionData[0].value, 1)) * 100)}%`, opacity: 1 - (idx * 0.2) }}
+                                        style={{ width: conversionData[0].value === 0 ? '0%' : `${Math.min(100, (item.value / conversionData[0].value) * 100)}%`, opacity: 1 - (idx * 0.2) }}
                                     ></div>
 
                                 </div>
