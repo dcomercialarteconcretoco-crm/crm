@@ -40,7 +40,11 @@ import {
     ShieldCheck,
     MapPin,
     Briefcase,
-    Upload
+    Upload,
+    ChevronRight,
+    GripVertical,
+    FileText,
+    MessageCircle
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useApp, Task, Activity, Seller, Client } from '@/context/AppContext';
@@ -48,79 +52,151 @@ import SearchableSelect from '@/components/SearchableSelect';
 
 // --- Components ---
 
-function SortableTask({ task, onClick }: { task: Task, onClick: (task: Task) => void }) {
-    const { sellers } = useApp();
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-        isDragging
-    } = useSortable({ id: task.id });
-
-    const style = {
-        transform: CSS.Translate.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1,
-    };
+function SortableTask({ task, onClick, onNote }: { task: Task; onClick: (task: Task) => void; onNote: (task: Task) => void }) {
+    const { sellers, quotes, updateTask, updateQuote, addNotification } = useApp();
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
+    const style = { transform: CSS.Translate.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
 
     const assignedSeller = sellers.find(s => s.name === task.assignedTo);
+    const linkedQuote = quotes.find(q => q.id === (task as any).quoteId);
+
+    const STAGE_ORDER = ['lead', 'contacted', 'qualified', 'proposal', 'won'];
+    const STAGE_LABELS: Record<string, string> = { lead: 'Nuevo Lead', contacted: 'Contactado', qualified: 'Calificado', proposal: 'Propuesta', won: 'Cerrado' };
+    const currentIdx = STAGE_ORDER.indexOf((task as any).stageId || 'lead');
+    const nextStage = STAGE_ORDER[currentIdx + 1];
+
+    const daysAgo = linkedQuote?.date ? Math.floor((Date.now() - new Date(linkedQuote.date).getTime()) / 86400000) : 0;
+
+    const statusCfg: Record<string, { label: string; cls: string }> = {
+        Draft: { label: 'Borrador', cls: 'bg-gray-100 text-gray-500 border-gray-200' },
+        Sent:  { label: 'Enviado',  cls: 'bg-sky-50 text-sky-600 border-sky-200' },
+        Viewed:{ label: '👁 Visto',  cls: 'bg-violet-50 text-violet-600 border-violet-200' },
+        Approved:{ label: '✓ Ganado', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+        Rejected:{ label: 'Perdido', cls: 'bg-rose-50 text-rose-500 border-rose-200' },
+    };
+    const qst = linkedQuote ? (statusCfg[linkedQuote.status] || statusCfg.Draft) : null;
+
+    const stop = (fn: () => void) => (e: React.MouseEvent) => { e.stopPropagation(); fn(); };
+
+    const handleWA = stop(() => {
+        const phone = (task as any).phone?.replace(/\D/g,'') || '';
+        if (phone) window.open(`https://wa.me/57${phone}`, '_blank');
+        else if (task.email) window.open(`https://wa.me/?text=Hola ${task.contactName}`, '_blank');
+        updateTask(task.id, { aiScore: Math.min(100, (task.aiScore||50)+5) } as any);
+    });
+
+    const handleEmail = stop(() => {
+        if (task.email) window.open(`mailto:${task.email}?subject=Cotización Arte Concreto`, '_blank');
+        updateTask(task.id, { aiScore: Math.min(100, (task.aiScore||50)+3) } as any);
+    });
+
+    const handleAdvance = stop(() => {
+        if (!nextStage) return;
+        updateTask(task.id, { stageId: nextStage } as any);
+        if (linkedQuote && nextStage === 'won') updateQuote(linkedQuote.id, { status: 'Approved' });
+        addNotification({ title: `Avanzó → ${STAGE_LABELS[nextStage]}`, description: task.title, type: 'success' });
+    });
+
+    const handleWon = stop(() => {
+        updateTask(task.id, { stageId: 'won' } as any);
+        if (linkedQuote) updateQuote(linkedQuote.id, { status: 'Approved' });
+        addNotification({ title: '🏆 ¡Venta Cerrada!', description: `${task.title} marcado como ganado.`, type: 'success' });
+    });
+
+    const handleLost = stop(() => {
+        updateTask(task.id, { stageId: 'won' } as any);
+        if (linkedQuote) updateQuote(linkedQuote.id, { status: 'Rejected' });
+        addNotification({ title: 'Negocio perdido', description: `${task.title} cerrado como perdido.`, type: 'alert' });
+    });
 
     return (
-        <div
-            ref={setNodeRef}
-            style={style}
-            {...attributes}
-            {...listeners}
-            onClick={() => onClick(task)}
-            className="bg-[#141417] border border-white/5 p-4 rounded-2xl space-y-4 cursor-grab active:cursor-grabbing hover:border-primary/40 transition-all hover:bg-muted/50 group shadow-lg"
-        >
-            <div className="flex justify-between items-start">
-                <span className={clsx(
-                    "px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border",
-                    task.priority === 'High' ? "bg-rose-500/10 text-rose-500 border-rose-500/20" :
-                        task.priority === 'Medium' ? "bg-amber-500/10 text-amber-500 border-amber-500/20" :
-                            "bg-sky-500/10 text-sky-500 border-sky-500/20"
-                )}>
-                    {task.priority}
-                </span>
-                <div className="flex items-center gap-1">
-                    <div className={clsx(
-                        "w-2 h-2 rounded-full",
-                        task.aiScore > 80 ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" :
-                            task.aiScore > 50 ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" :
-                                "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]"
-                    )} />
-                    <span className="text-[10px] font-black opacity-40">{task.aiScore}</span>
-                </div>
+        <div ref={setNodeRef} style={style} {...attributes} className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all">
+            {/* Drag handle */}
+            <div {...listeners} className="h-6 bg-muted/20 border-b border-border/30 flex items-center justify-center cursor-grab active:cursor-grabbing hover:bg-muted/40 transition-colors">
+                <div className="flex gap-0.5">{[...Array(6)].map((_,i)=><div key={i} className="w-1 h-1 rounded-full bg-muted-foreground/25"/>)}</div>
             </div>
 
-            <div className="space-y-1">
-                <h4 className="text-xs font-black text-white group-hover:text-primary transition-colors leading-tight">{task.title}</h4>
-                <div className="flex flex-col gap-0.5 opacity-60">
-                    <p className="text-[8px] text-white font-bold uppercase tracking-widest flex items-center gap-1.5">
-                        <User className="w-2.5 h-2.5" />
-                        {task.contactName}
-                    </p>
-                    <p className="text-[8px] text-white/40 font-bold uppercase tracking-widest flex items-center gap-1.5">
-                        <Building2 className="w-2.5 h-2.5" />
-                        {task.client}
-                    </p>
-                </div>
-            </div>
-
-            <div className="pt-2 flex items-center justify-between border-t border-white/5">
-                <span className="text-xs font-black text-white">{task.value}</span>
-                <div className="flex items-center gap-2">
-                    <span className="text-[9px] font-black text-muted-foreground uppercase">{task.assignedTo?.split(' ')[0]}</span>
-                    <div className="w-7 h-7 rounded-full overflow-hidden border border-primary/20 bg-primary/10 flex items-center justify-center">
-                        {assignedSeller?.avatar ? (
-                            <img src={assignedSeller.avatar} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                            <User className="w-3.5 h-3.5 text-primary" />
-                        )}
+            {/* Main info — clickable to open detail */}
+            <div className="p-4 space-y-2.5 cursor-pointer" onClick={() => onClick(task)}>
+                {/* Status + quote number + days */}
+                <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        {qst && <span className={`text-[8px] font-black px-2 py-0.5 rounded border uppercase tracking-widest ${qst.cls}`}>{qst.label}</span>}
+                        {!qst && <span className={clsx('text-[8px] font-black px-2 py-0.5 rounded border uppercase tracking-widest',
+                            task.priority==='High'?'bg-rose-50 text-rose-500 border-rose-200':task.priority==='Medium'?'bg-amber-50 text-amber-600 border-amber-200':'bg-sky-50 text-sky-500 border-sky-200'
+                        )}>{task.priority}</span>}
+                        {linkedQuote?.number && <span className="text-[8px] text-muted-foreground font-bold">{linkedQuote.number}</span>}
                     </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                        {daysAgo > 0 && <span className="text-[8px] text-muted-foreground">{daysAgo}d</span>}
+                        <div className={clsx('w-2 h-2 rounded-full', task.aiScore>80?'bg-emerald-400':task.aiScore>50?'bg-amber-400':'bg-rose-400')}/>
+                        <span className="text-[9px] font-black text-muted-foreground">{task.aiScore}</span>
+                    </div>
+                </div>
+
+                {/* Name + company */}
+                <div>
+                    <h4 className="text-sm font-black text-foreground group-hover:text-primary transition-colors leading-tight truncate">{task.title}</h4>
+                    <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-1 mt-0.5 truncate">
+                        <Building2 className="w-2.5 h-2.5 shrink-0"/>{task.client}
+                    </p>
+                    {task.email && <p className="text-[9px] text-muted-foreground/70 truncate">{task.email}</p>}
+                </div>
+
+                {/* Score bar */}
+                <div className="h-1 rounded-full bg-muted overflow-hidden">
+                    <div className={clsx('h-full rounded-full', task.aiScore>70?'bg-emerald-500':task.aiScore>40?'bg-amber-400':'bg-rose-400')} style={{width:`${task.aiScore}%`}}/>
+                </div>
+
+                {/* Items preview */}
+                {linkedQuote?.items && linkedQuote.items.length > 0 && (
+                    <div className="space-y-0.5">
+                        {linkedQuote.items.slice(0,2).map(item=>(
+                            <div key={item.id} className="flex justify-between text-[9px]">
+                                <span className="text-muted-foreground truncate max-w-[65%]">{item.name}</span>
+                                <span className="font-bold text-foreground">${item.total.toLocaleString('es-CO')}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Value + seller */}
+                <div className="flex items-center justify-between pt-1.5 border-t border-border/40">
+                    <span className="text-sm font-black text-foreground">{task.value}</span>
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] font-bold text-muted-foreground uppercase">{task.assignedTo?.split(' ')[0]||'—'}</span>
+                        <div className="w-6 h-6 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center overflow-hidden">
+                            {assignedSeller?.avatar ? <img src={assignedSeller.avatar} alt="" className="w-full h-full object-cover"/> : <User className="w-3 h-3 text-primary"/>}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="border-t border-border/40 p-3 space-y-2" onClick={e=>e.stopPropagation()}>
+                <div className="grid grid-cols-2 gap-1.5">
+                    <button onClick={handleWA} className="flex items-center justify-center gap-1 py-2 rounded-lg bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white transition-all text-[8px] font-black uppercase border border-emerald-200">
+                        <MessageCircle className="w-3 h-3"/>WhatsApp
+                    </button>
+                    <button onClick={handleEmail} className="flex items-center justify-center gap-1 py-2 rounded-lg bg-sky-50 hover:bg-sky-500 text-sky-600 hover:text-white transition-all text-[8px] font-black uppercase border border-sky-200">
+                        <Mail className="w-3 h-3"/>Correo
+                    </button>
+                </div>
+                <button onClick={stop(()=>onNote(task))} className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-amber-50 hover:bg-amber-400 text-amber-600 hover:text-black transition-all text-[8px] font-black uppercase border border-amber-200">
+                    <FileText className="w-3 h-3"/>Dejar Nota / Abrir Ficha
+                </button>
+                {nextStage && nextStage !== 'won' && (
+                    <button onClick={handleAdvance} className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-primary/5 hover:bg-primary text-primary hover:text-black transition-all text-[8px] font-black uppercase border border-primary/20">
+                        <ChevronRight className="w-3 h-3"/>Avanzar → {STAGE_LABELS[nextStage]}
+                    </button>
+                )}
+                <div className="grid grid-cols-2 gap-1.5">
+                    <button onClick={handleWon} className="flex items-center justify-center gap-1 py-2 rounded-lg bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white transition-all text-[8px] font-black uppercase border border-emerald-200">
+                        <CheckCircle2 className="w-3 h-3"/>Ganado
+                    </button>
+                    <button onClick={handleLost} className="flex items-center justify-center gap-1 py-2 rounded-lg bg-rose-50 hover:bg-rose-500 text-rose-500 hover:text-white transition-all text-[8px] font-black uppercase border border-rose-200">
+                        <X className="w-3 h-3"/>Perdido
+                    </button>
                 </div>
             </div>
         </div>
@@ -151,7 +227,7 @@ function Droppable({ id, children }: { id: string, children: React.ReactNode }) 
 // Replaced by useApp() products
 
 export default function PipelinePage() {
-    const { tasks, clients, sellers, addTask, addQuote, addNotification, addAuditLog, updateTask, deleteTask, addClient, settings, products } = useApp();
+    const { tasks, clients, sellers, quotes, addTask, addQuote, addNotification, addAuditLog, updateTask, updateQuote, deleteTask, addClient, settings, products } = useApp();
 
     const [columns, setColumns] = useState<Column[]>([
         { id: 'lead', title: 'Nuevo Lead', tasks: [] },
@@ -178,6 +254,10 @@ export default function PipelinePage() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [automationStep, setAutomationStep] = useState('');
     const [showNewClientForm, setShowNewClientForm] = useState(false);
+    const [noteTask, setNoteTask] = useState<Task | null>(null);
+    const [noteText, setNoteText] = useState('');
+    const STAGE_ORDER = ['lead', 'contacted', 'qualified', 'proposal', 'won'];
+    const STAGE_LABELS: Record<string,string> = { lead:'Nuevo Lead', contacted:'Contactado', qualified:'Calificado', proposal:'Propuesta', won:'Cerrado' };
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -297,6 +377,23 @@ export default function PipelinePage() {
                 type: 'alert'
             });
         }
+    };
+
+    const saveNote = () => {
+        if (!noteTask || !noteText.trim()) return;
+        const newActivity: Activity = {
+            id: `act-${Date.now()}`,
+            type: 'note',
+            content: noteText.trim(),
+            timestamp: new Date(),
+        };
+        updateTask(noteTask.id, {
+            activities: [...noteTask.activities, newActivity],
+            aiScore: Math.min(100, (noteTask.aiScore || 50) + 8),
+        } as any);
+        addNotification({ title: 'Nota guardada', description: 'Actividad registrada en el pipeline.', type: 'success' });
+        setNoteTask(null);
+        setNoteText('');
     };
 
     const handleCreateDeal = async () => {
@@ -709,7 +806,7 @@ export default function PipelinePage() {
                                         <SortableContext items={column.tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
                                             <div className="flex flex-col gap-4 min-h-full">
                                                 {column.tasks.map((task) => (
-                                                    <SortableTask key={task.id} task={task} onClick={handleTaskClick} />
+                                                    <SortableTask key={task.id} task={task} onClick={handleTaskClick} onNote={(t) => { setNoteTask(t); setNoteText(''); }} />
                                                 ))}
                                                 {column.tasks.length === 0 && (
                                                     <div className="min-h-[260px] border-2 border-dashed border-border/50 rounded-[2.5rem] flex flex-col items-center justify-center text-muted-foreground gap-3 opacity-60 bg-white/18">
@@ -728,12 +825,47 @@ export default function PipelinePage() {
                     <DragOverlay>
                         {activeTask ? (
                             <div className="w-80 lg:w-[calc(100%-40px)] rotate-3 shadow-2xl opacity-90 cursor-grabbing pointer-events-none scale-105 z-[1000]">
-                                <SortableTask task={activeTask} onClick={() => { }} />
+                                <SortableTask task={activeTask} onClick={() => { }} onNote={() => {}} />
                             </div>
                         ) : null}
                     </DragOverlay>
                 </DndContext>
             </div>
+
+            {/* ── Quick Note Modal ─────────────────────────────────── */}
+            {noteTask && (
+                <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-card border border-border w-full max-w-md rounded-[2rem] overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+                        <div className="p-6 border-b border-border flex items-center justify-between">
+                            <div>
+                                <h3 className="text-sm font-black text-foreground">Dejar Nota</h3>
+                                <p className="text-[10px] text-muted-foreground mt-0.5">{noteTask.title} · {noteTask.client}</p>
+                            </div>
+                            <button onClick={() => setNoteTask(null)} className="p-2 hover:bg-muted rounded-xl transition-all">
+                                <X className="w-4 h-4 text-muted-foreground"/>
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <textarea
+                                value={noteText}
+                                onChange={e => setNoteText(e.target.value)}
+                                placeholder="¿Qué pasó en la llamada o contacto? Escribe aquí..."
+                                rows={4}
+                                autoFocus
+                                className="w-full bg-muted/30 border border-border rounded-2xl px-4 py-3 text-sm text-foreground resize-none outline-none focus:border-primary/60 transition-all font-medium placeholder:font-normal"
+                            />
+                            <div className="flex gap-3">
+                                <a href={`/leads/${noteTask.clientId}`} target="_blank" className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border text-[10px] font-black uppercase text-muted-foreground hover:text-foreground hover:bg-muted transition-all">
+                                    <User className="w-3.5 h-3.5"/> Ver Ficha
+                                </a>
+                                <button onClick={saveNote} disabled={!noteText.trim()} className="flex-1 bg-primary text-black font-black py-2.5 rounded-xl text-[10px] uppercase tracking-widest hover:scale-[1.02] transition-all disabled:opacity-40 flex items-center justify-center gap-2">
+                                    <CheckCircle2 className="w-3.5 h-3.5"/> Guardar Nota (+8 score)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* New Deal Modal */}
             {isNewModalOpen && (
@@ -962,162 +1094,152 @@ export default function PipelinePage() {
 
             {/* Edit Modal (Detalle del Negocio) */}
             {isEditModalOpen && selectedTask && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/98 backdrop-blur-3xl animate-in fade-in duration-500">
-                    <div className="bg-[#0a0a0b] border border-white/10 w-full max-w-7xl rounded-[4rem] overflow-hidden flex h-[92vh] shadow-[0_0_150px_rgba(0,0,0,1)]">
-                        {/* Sidebar */}
-                        <div className="w-96 border-r border-white/5 p-12 flex flex-col space-y-10 bg-white/[0.01]">
-                            <div className="space-y-6">
-                                <div className="w-24 h-24 rounded-[2.5rem] bg-primary/10 border-2 border-primary/20 flex items-center justify-center shadow-2xl shadow-primary/10">
-                                    <Building2 className="w-10 h-10 text-primary" />
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-card border border-border w-full max-w-6xl rounded-[2.5rem] overflow-hidden flex h-[90vh] shadow-[0_32px_80px_rgba(0,0,0,0.15)] animate-in zoom-in-95 duration-300">
+
+                        {/* ── Sidebar ──────────────────────────────────────── */}
+                        <div className="w-80 border-r border-border bg-muted/20 p-8 flex flex-col space-y-8">
+                            <div className="space-y-4">
+                                <div className="w-16 h-16 rounded-[1.5rem] bg-primary/10 border-2 border-primary/20 flex items-center justify-center">
+                                    <Building2 className="w-8 h-8 text-primary" />
                                 </div>
-                                <div className="space-y-1">
-                                    <h2 className="text-2xl font-black text-white leading-none tracking-tighter uppercase italic">{selectedTask.client}</h2>
-                                    <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] opacity-80 mt-2">NEGOCIO: {selectedTask.id}</p>
+                                <div>
+                                    <h2 className="text-xl font-black text-foreground leading-none tracking-tighter uppercase">{selectedTask.client}</h2>
+                                    <p className="text-[10px] font-black text-primary uppercase tracking-[0.18em] mt-1.5">NEGOCIO: {selectedTask.id.slice(0, 18)}</p>
                                 </div>
                             </div>
 
-                            <div className="space-y-8 flex-1">
-                                <div className="space-y-4">
-                                    <p className="text-[9px] font-black text-white/20 uppercase tracking-[0.25em] ml-2">Asignación Operativa</p>
-                                    <div className={clsx(
-                                        "p-6 rounded-3xl border transition-all space-y-5",
-                                        isSuperAdmin ? "bg-primary/[0.03] border-primary/20" : "bg-white/5 border-white/5 opacity-80"
-                                    )}>
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 rounded-full border-2 border-primary/30 bg-primary/20 flex items-center justify-center overflow-hidden shadow-lg">
-                                                {sellers.find(s => s.name === selectedTask.assignedTo)?.avatar ? (
-                                                    <img src={sellers.find(s => s.name === selectedTask.assignedTo)?.avatar} className="w-full h-full object-cover" />
-                                                ) : <User className="w-5 h-5 text-primary" />}
-                                            </div>
-                                            <div className="flex-1">
-                                                <p className="text-[9px] font-black text-white/30 uppercase mb-1">Vendedor Cargo</p>
-                                                <select
-                                                    disabled={!isSuperAdmin}
-                                                    className={clsx(
-                                                        "bg-transparent text-xs font-black text-white outline-none w-full",
-                                                        !isSuperAdmin && "cursor-not-allowed"
-                                                    )}
-                                                    value={sellers.find(s => s.name === selectedTask.assignedTo)?.id || ''}
-                                                    onChange={(e) => {
-                                                        const s = sellers.find(sel => sel.id === e.target.value);
-                                                        if (s) updateTask(selectedTask.id, { assignedTo: s.name });
-                                                    }}
-                                                >
-                                                    {sellers.map(s => (
-                                                        <option key={s.id} value={s.id} className="bg-[#0a0a0b]">{s.name}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                            {!isSuperAdmin && <Lock className="w-4 h-4 text-white/20" />}
+                            <div className="flex-1 space-y-4">
+                                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.25em] pl-1">Asignación Operativa</p>
+                                <div className={clsx(
+                                    "p-5 rounded-2xl border transition-all",
+                                    isSuperAdmin ? "bg-primary/5 border-primary/20" : "bg-muted/30 border-border opacity-80"
+                                )}>
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full border-2 border-primary/30 bg-primary/10 flex items-center justify-center overflow-hidden">
+                                            {sellers.find(s => s.name === selectedTask.assignedTo)?.avatar ? (
+                                                <img src={sellers.find(s => s.name === selectedTask.assignedTo)?.avatar} className="w-full h-full object-cover" alt="" />
+                                            ) : <User className="w-4 h-4 text-primary" />}
                                         </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Vendedor Cargo</p>
+                                            <select
+                                                disabled={!isSuperAdmin}
+                                                className={clsx(
+                                                    "bg-transparent text-xs font-black text-foreground outline-none w-full",
+                                                    !isSuperAdmin && "cursor-not-allowed"
+                                                )}
+                                                value={sellers.find(s => s.name === selectedTask.assignedTo)?.id || ''}
+                                                onChange={(e) => {
+                                                    const s = sellers.find(sel => sel.id === e.target.value);
+                                                    if (s) updateTask(selectedTask.id, { assignedTo: s.name });
+                                                }}
+                                            >
+                                                {sellers.map(s => (
+                                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        {!isSuperAdmin && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
                                     </div>
                                 </div>
                             </div>
 
-                            <button onClick={handleDelete} className="flex items-center gap-4 text-rose-500/40 hover:text-rose-500 transition-all group mt-auto p-4 rounded-2xl hover:bg-rose-500/5">
-                                <Trash className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                                <span className="text-[10px] font-black uppercase tracking-[0.2em]">Cerrar/Eliminar Lead</span>
+                            <button onClick={handleDelete} className="flex items-center gap-3 text-rose-400 hover:text-rose-600 transition-all group p-3 rounded-2xl hover:bg-rose-50 border border-transparent hover:border-rose-200">
+                                <Trash className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                <span className="text-[10px] font-black uppercase tracking-[0.15em]">Cerrar/Eliminar Lead</span>
                             </button>
                         </div>
 
-                        {/* Main Content */}
-                        <div className="flex-1 p-16 flex flex-col bg-gradient-to-br from-transparent to-white/[0.01]">
-                            <div className="flex items-center justify-between mb-12">
-                                <div className="space-y-2">
-                                    <div className="flex items-center gap-4">
-                                        <h3 className="text-4xl font-black text-white tracking-tighter italic uppercase">{selectedTask.title}</h3>
-                                        <span className="px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-black text-white/40 uppercase tracking-widest">{selectedTask.aiScore} AI Score</span>
+                        {/* ── Main Content ─────────────────────────────────── */}
+                        <div className="flex-1 p-8 lg:p-10 flex flex-col overflow-hidden">
+                            {/* Header */}
+                            <div className="flex items-start justify-between mb-8">
+                                <div className="space-y-1.5">
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                        <h3 className="text-2xl font-black text-foreground tracking-tighter uppercase">{selectedTask.title}</h3>
+                                        <span className="px-3 py-1 rounded-full bg-muted border border-border text-[9px] font-black text-muted-foreground uppercase tracking-widest">{selectedTask.aiScore} AI Score</span>
                                     </div>
                                     {selectedTask.quoteId && (
                                         <p className="text-xs font-bold text-primary flex items-center gap-2">
                                             <Tag className="w-3 h-3" />
-                                            COTIZACIÓN VINCULADA: {selectedTask.quoteId}
+                                            Cotización vinculada: {selectedTask.quoteId}
                                         </p>
                                     )}
                                 </div>
-                                <div className="flex items-center gap-6">
-                                    <div className="px-8 py-4 bg-white/[0.03] border border-white/10 rounded-[2rem] flex items-center gap-4 group hover:border-primary/40 transition-all">
-                                        <DollarSign className="w-6 h-6 text-primary group-hover:scale-125 transition-transform" />
-                                        <span className="text-2xl font-black text-white tabular-nums tracking-tighter">{selectedTask.value}</span>
+                                <div className="flex items-center gap-4">
+                                    <div className="px-5 py-3 bg-primary/5 border border-primary/20 rounded-2xl flex items-center gap-3">
+                                        <DollarSign className="w-5 h-5 text-primary" />
+                                        <span className="text-xl font-black text-foreground tabular-nums">{selectedTask.value}</span>
                                     </div>
-                                    <button onClick={() => setIsEditModalOpen(false)} className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all">
-                                        <X className="w-6 h-6 text-white/20" />
+                                    <button onClick={() => setIsEditModalOpen(false)} className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center hover:bg-muted/80 transition-all border border-border">
+                                        <X className="w-5 h-5 text-muted-foreground" />
                                     </button>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-16 flex-1 overflow-y-auto pr-8 custom-scrollbar">
-                                <div className="space-y-10">
-                                    <div className="p-10 bg-white/[0.03] rounded-[3rem] border border-white/5 relative overflow-hidden shadow-inner uppercase tracking-wide">
-                                        <div className="absolute top-0 right-0 p-8 opacity-5">
-                                            <UserPlus className="w-16 h-16 text-primary" />
+                            <div className="grid grid-cols-2 gap-8 flex-1 overflow-y-auto custom-scrollbar">
+                                {/* Left: Client info + actions */}
+                                <div className="space-y-6">
+                                    <div className="p-6 bg-white/60 rounded-[1.5rem] border border-border relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-6 opacity-5">
+                                            <UserPlus className="w-14 h-14 text-primary" />
                                         </div>
-                                        <p className="text-[10px] font-black text-primary uppercase tracking-[0.25em] mb-10">Ficha Industrial del Cliente</p>
-                                        <div className="space-y-8">
-                                            <div className="flex items-center gap-6 group">
-                                                <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:border-primary/20 transition-all">
-                                                    <User className="w-6 h-6 text-white/20 group-hover:text-primary transition-colors" />
+                                        <p className="text-[10px] font-black text-primary uppercase tracking-[0.22em] mb-6">Ficha del Cliente</p>
+                                        <div className="space-y-5">
+                                            {[
+                                                { icon: User, label: 'Contacto', value: selectedTask.contactName },
+                                                { icon: Mail, label: 'Email', value: selectedTask.email || '—' },
+                                                { icon: MapPin, label: 'Ciudad', value: selectedTask.city || 'Colombia' },
+                                            ].map(({ icon: Icon, label, value }) => (
+                                                <div key={label} className="flex items-center gap-4 group">
+                                                    <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center border border-border group-hover:border-primary/30 group-hover:bg-primary/5 transition-all">
+                                                        <Icon className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{label}</p>
+                                                        <span className="text-sm font-bold text-foreground">{value}</span>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className="text-[9px] font-black text-white/20 uppercase tracking-widest mb-1">Interpuesto por / Contacto</p>
-                                                    <span className="text-lg font-bold text-white group-hover:text-primary transition-colors">{selectedTask.contactName}</span>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-6 group">
-                                                <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:border-primary/20 transition-all">
-                                                    <Mail className="w-6 h-6 text-white/20 group-hover:text-primary transition-colors" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-[9px] font-black text-white/20 uppercase tracking-widest mb-1">Canal de Notificación</p>
-                                                    <span className="text-lg font-bold text-white group-hover:text-primary transition-colors">{selectedTask.email || 'c.mendoza@cbolivar.com'}</span>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-6 group">
-                                                <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:border-primary/20 transition-all">
-                                                    <MapPin className="w-6 h-6 text-white/20 group-hover:text-primary transition-colors" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-[9px] font-black text-white/20 uppercase tracking-widest mb-1">Localización Operativa</p>
-                                                    <span className="text-lg font-bold text-white group-hover:text-primary transition-colors">{selectedTask.city || 'Bogotá, Colombia'}</span>
-                                                </div>
-                                            </div>
+                                            ))}
                                         </div>
                                     </div>
 
-                                    <div className="flex gap-6">
-                                        <button onClick={() => logAction('call', 'Intercambio comercial telefónico')} className="flex-1 bg-primary text-black p-8 rounded-[2.5rem] flex flex-col items-center gap-3 hover:scale-[1.05] shadow-[0_0_40px_rgba(250,181,16,0.2)] transition-all group">
-                                            <Phone className="w-8 h-8 group-hover:rotate-12 transition-transform" />
-                                            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Registrar Llamada</span>
+                                    <div className="flex gap-4">
+                                        <button onClick={() => logAction('call', 'Intercambio comercial telefónico')} className="flex-1 bg-primary text-black p-5 rounded-[1.5rem] flex flex-col items-center gap-2 hover:scale-[1.03] shadow-lg shadow-primary/20 transition-all group">
+                                            <Phone className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+                                            <span className="text-[9px] font-black uppercase tracking-[0.15em]">Registrar Llamada</span>
                                         </button>
-                                        <button onClick={() => logAction('email', 'Seguimiento especializado vía Email')} className="flex-1 bg-white/5 border border-white/10 text-white p-8 rounded-[2.5rem] flex flex-col items-center gap-3 hover:bg-white/10 transition-all group">
-                                            <Mail className="w-8 h-8 group-hover:-translate-y-1 transition-transform" />
-                                            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Enlace de Seguimiento</span>
+                                        <button onClick={() => logAction('email', 'Seguimiento vía Email')} className="flex-1 bg-card border border-border text-foreground p-5 rounded-[1.5rem] flex flex-col items-center gap-2 hover:bg-muted/40 transition-all group">
+                                            <Mail className="w-6 h-6 group-hover:-translate-y-0.5 transition-transform" />
+                                            <span className="text-[9px] font-black uppercase tracking-[0.15em]">Enlace de Seguimiento</span>
                                         </button>
                                     </div>
                                 </div>
 
-                                <div className="space-y-8">
-                                    <div className="flex items-center justify-between px-4">
-                                        <h3 className="text-xs font-black uppercase text-white/40 tracking-[0.3em]">Muro de Inteligencia</h3>
-                                        <span className="text-[9px] font-black uppercase text-emerald-500 flex items-center gap-2 px-3 py-1 bg-emerald-500/5 rounded-full border border-emerald-500/20">
-                                            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                                {/* Right: Activity feed */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between px-1">
+                                        <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.25em]">Muro de Inteligencia</h3>
+                                        <span className="text-[9px] font-black uppercase text-emerald-600 flex items-center gap-1.5 px-3 py-1 bg-emerald-50 rounded-full border border-emerald-200">
+                                            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                                             Synced
                                         </span>
                                     </div>
-                                    <div className="space-y-5 max-h-[550px] overflow-y-auto pr-4 custom-scrollbar">
+                                    <div className="space-y-3 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar">
                                         {selectedTask.activities.map(a => (
-                                            <div key={a.id} className="bg-white/[0.02] p-6 rounded-[2rem] border-l-2 border-primary/40 relative group hover:bg-white/[0.04] transition-all">
-                                                <div className="flex items-center gap-2 mb-3">
+                                            <div key={a.id} className="bg-white/70 p-4 rounded-2xl border-l-2 border-primary/40 border border-border/60 hover:bg-white/90 transition-all">
+                                                <div className="flex items-center gap-2 mb-2">
                                                     <div className={clsx(
                                                         "w-1.5 h-1.5 rounded-full",
                                                         a.type === 'system' ? "bg-primary" : a.type === 'call' ? "bg-sky-500" : "bg-emerald-500"
                                                     )} />
-                                                    <p className="text-[10px] font-black text-white/20 uppercase tracking-widest">{a.type}</p>
+                                                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{a.type}</p>
                                                 </div>
-                                                <p className="text-sm font-bold text-white/80 leading-relaxed mb-4">{a.content}</p>
-                                                <div className="flex items-center justify-between border-t border-white/5 pt-4">
-                                                    <p className="text-[9px] text-white/10 font-bold uppercase tracking-widest">{new Date(a.timestamp).toLocaleDateString()} • {new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                                                    <Tag className="w-3.5 h-3.5 text-white/10" />
+                                                <p className="text-sm font-semibold text-foreground leading-relaxed mb-3">{a.content}</p>
+                                                <div className="flex items-center justify-between border-t border-border/40 pt-2">
+                                                    <p className="text-[9px] text-muted-foreground/60 font-bold">{new Date(a.timestamp).toLocaleDateString()} · {new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                                    <Tag className="w-3 h-3 text-muted-foreground/40" />
                                                 </div>
                                             </div>
                                         ))}

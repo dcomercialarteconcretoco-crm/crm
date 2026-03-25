@@ -30,6 +30,7 @@ import SearchableSelect from '@/components/SearchableSelect';
 
 export default function ClientsPage() {
     const { clients, addClient, addNotification, settings, sellers, quotes, currentUser: ctxUser } = useApp();
+    const [viewMode, setViewMode] = useState<'grid'|'list'>('list');
     const [searchTerm, setSearchTerm] = useState("");
     const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
     const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
@@ -304,6 +305,14 @@ export default function ClientsPage() {
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
+                <div className="flex items-center gap-1 bg-muted/40 border border-border/40 rounded-xl p-1">
+                    <button onClick={() => setViewMode('list')} className={clsx('px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all', viewMode==='list'?'bg-white shadow text-foreground':'text-muted-foreground hover:text-foreground')}>
+                        Lista
+                    </button>
+                    <button onClick={() => setViewMode('grid')} className={clsx('px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all', viewMode==='grid'?'bg-white shadow text-foreground':'text-muted-foreground hover:text-foreground')}>
+                        Tarjetas
+                    </button>
+                </div>
                 <button
                     onClick={() => setIsAdvancedFiltersOpen(!isAdvancedFiltersOpen)}
                     className={clsx(
@@ -426,11 +435,64 @@ export default function ClientsPage() {
                 </div>
             )}
 
-            {/* Client Grid Layout */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-8 pb-20">
+            {/* Client Grid/List Layout */}
+            <div className={clsx('pb-20', viewMode==='grid' ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6' : 'space-y-2')}>
                 {sortedAndFilteredClients.map((client) => {
                     const clientQuotes = quotes.filter(q => q.clientId === client.id);
                     const openQuotes = clientQuotes.filter(q => q.status === 'Sent' || q.status === 'Draft');
+
+                    if (viewMode === 'list') {
+                        return (
+                            <div key={client.id} className="bg-white border border-border/50 rounded-2xl px-5 py-3.5 flex items-center gap-4 hover:border-primary/30 hover:bg-primary/[0.02] transition-all group">
+                                {/* Avatar */}
+                                <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/15 flex items-center justify-center text-sm font-black text-primary shrink-0">
+                                    {client.name.split(' ').map((n:string) => n[0]).join('').slice(0,2).toUpperCase()}
+                                </div>
+                                {/* Name + email */}
+                                <div className="flex-1 min-w-0">
+                                    <Link href={`/leads/${client.id}`}>
+                                        <p className="text-sm font-black text-foreground group-hover:text-primary transition-colors truncate">{client.name}</p>
+                                    </Link>
+                                    <p className="text-[10px] text-muted-foreground truncate">{client.email}</p>
+                                </div>
+                                {/* Company */}
+                                <div className="hidden md:block w-32 shrink-0">
+                                    <p className="text-[10px] font-bold text-muted-foreground truncate">{client.company}</p>
+                                    <p className="text-[9px] text-muted-foreground/60">{client.city}</p>
+                                </div>
+                                {/* Status badge */}
+                                <div className="hidden lg:flex items-center gap-2 w-28 shrink-0">
+                                    <span className={clsx('text-[8px] font-black px-2 py-0.5 rounded-full border uppercase tracking-widest',
+                                        client.status==='Active'?'bg-emerald-50 text-emerald-600 border-emerald-200':
+                                        client.status==='Lead'?'bg-amber-50 text-amber-600 border-amber-200':
+                                        'bg-gray-100 text-gray-500 border-gray-200'
+                                    )}>{client.status}</span>
+                                    {openQuotes.length > 0 && <span className="text-[8px] font-black text-primary">●</span>}
+                                </div>
+                                {/* Score */}
+                                <div className="hidden lg:block w-16 shrink-0 text-center">
+                                    <p className="text-[10px] font-black text-foreground">{client.score || 0}</p>
+                                    <p className="text-[8px] text-muted-foreground uppercase">score</p>
+                                </div>
+                                {/* Value */}
+                                <div className="hidden xl:block w-28 shrink-0 text-right">
+                                    <p className="text-xs font-black text-primary">{formatCurrency(client.ltv)}</p>
+                                    <p className="text-[8px] text-muted-foreground">{clientQuotes.length} cotiz.</p>
+                                </div>
+                                {/* Actions */}
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                    <button onClick={() => window.open(`https://wa.me/${client.phone?.replace(/\D/g,'')}`, '_blank')} className="p-2 rounded-lg bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white transition-all border border-emerald-100">
+                                        <MessageSquare className="w-3.5 h-3.5"/>
+                                    </button>
+                                    <Link href={`/leads/${client.id}`} className="p-2 rounded-lg bg-sky-50 hover:bg-sky-500 text-sky-600 hover:text-white transition-all border border-sky-100">
+                                        <ExternalLink className="w-3.5 h-3.5"/>
+                                    </Link>
+                                </div>
+                            </div>
+                        );
+                    }
+
+                    // Grid view: existing card
                     return (
                     <div key={client.id} className="surface-panel rounded-[1.9rem] lg:rounded-[2.5rem] p-5 lg:p-8 relative overflow-hidden group hover:border-primary/20 transition-all flex flex-col">
                         {/* Propuesta Abierta Badge — only when client has open/sent quotes */}

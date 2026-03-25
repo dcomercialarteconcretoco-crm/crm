@@ -27,6 +27,7 @@ import {
 } from 'recharts';
 
 import { useApp } from '@/context/AppContext';
+import { generatePDFReport } from '@/lib/pdf-generator';
 
 export default function AnalyticsPage() {
     const { clients, tasks, quotes, auditLogs, addNotification } = useApp();
@@ -87,7 +88,28 @@ export default function AnalyticsPage() {
                         Últimos 6 Meses
                     </button>
                     <button
-                        onClick={() => { window.print(); addNotification({ title: 'Exportando reporte', description: 'Abriendo diálogo de impresión para exportar analíticas.', type: 'success' }); }}
+                        onClick={() => {
+                            const totalCotizado = quotes.reduce((s, q) => s + (q.numericTotal || 0), 0);
+                            const totalGanado = quotes.filter(q => q.status === 'Approved').reduce((s, q) => s + (q.numericTotal || 0), 0);
+                            const pipelineValue = tasks.reduce((s, t) => s + (t.numericValue || 0), 0);
+                            generatePDFReport({
+                                title: 'Reporte de Inteligencia Comercial',
+                                stats: [
+                                    { label: 'Leads / Clientes', value: clients.length.toString(), change: `${clients.filter(c=>c.status==='Active').length} activos` },
+                                    { label: 'Negocios en Pipeline', value: tasks.length.toString(), change: `$${pipelineValue.toLocaleString('es-CO')} en pipeline` },
+                                    { label: 'Cotizaciones Generadas', value: quotes.length.toString(), change: `$${totalCotizado.toLocaleString('es-CO')} cotizado` },
+                                    { label: 'Tasa de Conversión', value: quotes.length ? ((quotes.filter(q=>q.status==='Approved').length/quotes.length)*100).toFixed(1)+'%' : '0%', change: `${quotes.filter(q=>q.status==='Approved').length} aprobadas` },
+                                    { label: 'Ventas Cerradas', value: quotes.filter(q=>q.status==='Approved').length.toString(), change: `$${totalGanado.toLocaleString('es-CO')} ganado` },
+                                    { label: 'Cierres Exitosos (Audit)', value: auditLogs.filter(a=>a.action==='SALE_REGISTERED').length.toString(), change: 'Registrados en auditoría' },
+                                ],
+                                topLeads: clients.slice(0,8).map(c => ({
+                                    name: c.name,
+                                    company: c.company || '—',
+                                    score: c.score || 0,
+                                })),
+                            });
+                            addNotification({ title: '📊 PDF Generado', description: 'Reporte descargado correctamente.', type: 'success' });
+                        }}
                         className="bg-primary text-black font-bold px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 text-xs uppercase tracking-widest"
                     >
                         <Download className="w-4 h-4" />
