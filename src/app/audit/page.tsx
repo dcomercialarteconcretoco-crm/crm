@@ -21,7 +21,8 @@ import {
     Sparkles,
     Eye,
     AlertTriangle,
-    Zap
+    Zap,
+    Package
 } from 'lucide-react';
 import { useApp, AuditLog, Seller, Anomaly } from '@/context/AppContext';
 import { clsx } from 'clsx';
@@ -34,6 +35,9 @@ export default function AuditPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterAction, setFilterAction] = useState<string>('all');
     const [filterUser, setFilterUser] = useState<string>('all');
+    const [filterTargetType, setFilterTargetType] = useState<string>('all');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
     const [isGeneratingReport, setIsGeneratingReport] = useState(false);
     const [showReportModal, setShowReportModal] = useState(false);
 
@@ -45,17 +49,37 @@ export default function AuditPage() {
         }, 2000);
     };
 
-    const filteredLogs = auditLogs.filter((log: AuditLog) => {
-        const matchesSearch =
-            log.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            log.details.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            log.targetName?.toLowerCase().includes(searchTerm.toLowerCase());
+    const getTargetType = (action: AuditLog['action']): string => {
+        switch (action) {
+            case 'WHATSAPP_SENT':
+            case 'CALL_MADE':
+            case 'QUOTE_SENT':
+            case 'LEAD_CREATED':
+                return 'clientes';
+            case 'SALE_REGISTERED':
+                return 'ventas';
+            case 'SYSTEM_LOGIN':
+                return 'sistema';
+            default:
+                return 'otros';
+        }
+    };
 
-        const matchesAction = filterAction === 'all' || log.action === filterAction;
-        const matchesUser = filterUser === 'all' || log.userId === filterUser;
-
-        return matchesSearch && matchesAction && matchesUser;
-    });
+    const getTargetTypeLabel = (action: AuditLog['action']): string => {
+        switch (action) {
+            case 'WHATSAPP_SENT':
+            case 'CALL_MADE':
+            case 'QUOTE_SENT':
+            case 'LEAD_CREATED':
+                return '👤 Cliente';
+            case 'SALE_REGISTERED':
+                return '💰 Venta';
+            case 'SYSTEM_LOGIN':
+                return '🔐 Sistema';
+            default:
+                return '📋 Otro';
+        }
+    };
 
     const getActionBadge = (action: AuditLog['action']) => {
         switch (action) {
@@ -65,6 +89,7 @@ export default function AuditPage() {
             case 'CALL_MADE': return { color: 'text-orange-400 bg-orange-400/10 border-orange-400/20', label: 'Llamada', icon: Smartphone };
             case 'SYSTEM_LOGIN': return { color: 'text-purple-400 bg-purple-400/10 border-purple-400/20', label: 'Acceso Sistema', icon: ShieldCheck };
             case 'LEAD_CREATED': return { color: 'text-cyan-400 bg-cyan-400/10 border-cyan-400/20', label: 'Lead Creado', icon: User };
+            case 'PRODUCT_UPDATED' as AuditLog['action']: return { color: 'text-violet-400 bg-violet-400/10 border-violet-400/20', label: 'Producto Actualizado', icon: Package };
             default: return { color: 'text-gray-400 bg-gray-400/10 border-gray-400/20', label: action, icon: History };
         }
     };
@@ -77,15 +102,60 @@ export default function AuditPage() {
         }
     };
 
+    const filteredLogs = auditLogs.filter((log: AuditLog) => {
+        const badge = getActionBadge(log.action);
+        const matchesSearch =
+            log.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            log.details.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (log.targetName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
+            badge.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            log.action.toLowerCase().includes(searchTerm.toLowerCase());
+
+        const matchesAction = filterAction === 'all' || log.action === filterAction;
+        const matchesUser = filterUser === 'all' || log.userId === filterUser;
+
+        const targetType = getTargetType(log.action);
+        const matchesTargetType = filterTargetType === 'all' || targetType === filterTargetType;
+
+        const matchesDate =
+            (!dateFrom || new Date(log.timestamp) >= new Date(dateFrom)) &&
+            (!dateTo || new Date(log.timestamp) <= new Date(dateTo + 'T23:59:59'));
+
+        return matchesSearch && matchesAction && matchesUser && matchesTargetType && matchesDate;
+    });
+
+    const hasActiveFilters = searchTerm || filterAction !== 'all' || filterUser !== 'all' || filterTargetType !== 'all' || dateFrom || dateTo;
+
+    const exportCSV = () => {
+        const headers = ['Fecha', 'Usuario', 'Rol', 'Acción', 'Tipo', 'Objetivo', 'Detalles'];
+        const rows = filteredLogs.map((l: AuditLog) => [
+            new Date(l.timestamp).toLocaleString('es-CO'),
+            l.userName,
+            l.userRole,
+            l.action,
+            getTargetTypeLabel(l.action),
+            l.targetName || '',
+            l.details
+        ]);
+        const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `auditoria_${Date.now()}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     // Stats calculations
     const stats = [
         {
             label: 'Total Acciones',
-            value: auditLogs.length,
+            value: hasActiveFilters ? `${filteredLogs.length}/${auditLogs.length}` : auditLogs.length,
             icon: History,
             color: 'text-blue-400',
             bg: 'bg-blue-400/10',
-            subText: 'Últimos 30 días'
+            subText: hasActiveFilters ? 'Con filtros activos' : 'Últimos 30 días'
         },
         {
             label: 'Verificados por IA',
@@ -198,18 +268,29 @@ export default function AuditPage() {
             {activeView === 'logs' ? (
                 <>
                     {/* Filters & Search */}
-                    <div className="flex flex-col lg:flex-row gap-4 p-4 bg-muted/10 border border-border/40 rounded-[2.5rem]">
-                        <div className="flex-1 relative">
-                            <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                            <input
-                                type="text"
-                                placeholder="Buscar por vendedor, acción o cliente..."
-                                className="w-full h-14 pl-14 pr-6 bg-background/50 border border-border/40 rounded-3xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium text-sm"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
+                    <div className="flex flex-col gap-4 p-4 bg-muted/10 border border-border/40 rounded-[2.5rem]">
+                        {/* Row 1: Search + CSV */}
+                        <div className="flex gap-4">
+                            <div className="flex-1 relative">
+                                <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar por vendedor, acción, cliente o tipo..."
+                                    className="w-full h-14 pl-14 pr-6 bg-background/50 border border-border/40 rounded-3xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium text-sm"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                            <button
+                                onClick={exportCSV}
+                                className="h-14 px-6 bg-background/50 border border-border/40 rounded-3xl text-[10px] font-black uppercase tracking-widest hover:bg-muted/30 transition-colors flex items-center gap-2 text-muted-foreground hover:text-foreground"
+                            >
+                                <Download className="w-4 h-4" />
+                                CSV
+                            </button>
                         </div>
-                        <div className="flex gap-3">
+                        {/* Row 2: Selects + Date Range */}
+                        <div className="flex flex-wrap gap-3">
                             <div className="min-w-[180px]">
                                 <select
                                     className="w-full h-14 px-6 bg-background/50 border border-border/40 rounded-3xl outline-none text-sm font-bold appearance-none cursor-pointer hover:bg-muted/30 transition-colors"
@@ -222,6 +303,8 @@ export default function AuditPage() {
                                     <option value="CALL_MADE">Llamadas</option>
                                     <option value="SALE_REGISTERED">Ventas</option>
                                     <option value="SYSTEM_LOGIN">Accesos</option>
+                                    <option value="LEAD_CREATED">Leads</option>
+                                    <option value="PRODUCT_UPDATED">Productos</option>
                                 </select>
                             </div>
                             <div className="min-w-[180px]">
@@ -236,6 +319,45 @@ export default function AuditPage() {
                                     ))}
                                 </select>
                             </div>
+                            <div className="min-w-[160px]">
+                                <select
+                                    className="w-full h-14 px-6 bg-background/50 border border-border/40 rounded-3xl outline-none text-sm font-bold appearance-none cursor-pointer hover:bg-muted/30 transition-colors"
+                                    value={filterTargetType}
+                                    onChange={(e) => setFilterTargetType(e.target.value)}
+                                >
+                                    <option value="all">Todo</option>
+                                    <option value="clientes">Clientes</option>
+                                    <option value="ventas">Ventas / Productos</option>
+                                    <option value="sistema">Sistema</option>
+                                </select>
+                            </div>
+                            <input
+                                type="date"
+                                value={dateFrom}
+                                onChange={e => setDateFrom(e.target.value)}
+                                className="h-14 px-4 bg-background/50 border border-border/40 rounded-3xl outline-none text-sm font-bold cursor-pointer hover:bg-muted/30 transition-colors"
+                            />
+                            <input
+                                type="date"
+                                value={dateTo}
+                                onChange={e => setDateTo(e.target.value)}
+                                className="h-14 px-4 bg-background/50 border border-border/40 rounded-3xl outline-none text-sm font-bold cursor-pointer hover:bg-muted/30 transition-colors"
+                            />
+                            {hasActiveFilters && (
+                                <button
+                                    onClick={() => {
+                                        setSearchTerm('');
+                                        setFilterAction('all');
+                                        setFilterUser('all');
+                                        setFilterTargetType('all');
+                                        setDateFrom('');
+                                        setDateTo('');
+                                    }}
+                                    className="h-14 px-6 bg-rose-500/10 border border-rose-500/20 rounded-3xl text-[10px] font-black uppercase tracking-widest text-rose-500 hover:bg-rose-500/20 transition-colors"
+                                >
+                                    Limpiar
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -247,14 +369,22 @@ export default function AuditPage() {
                                     <tr className="border-b border-border/40 bg-muted/20">
                                         <th className="px-8 py-5 text-left text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Timestamp / ID</th>
                                         <th className="px-8 py-5 text-left text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Usuario / Actor</th>
-                                        <th className="px-8 py-5 text-left text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Acción / Evento</th>
+                                        <th className="px-8 py-5 text-left text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Acción / Tipo</th>
                                         <th className="px-8 py-5 text-left text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Detalles Operativos</th>
                                         <th className="px-8 py-5 text-center text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Verificación</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border/20">
-                                    {filteredLogs.map((log: AuditLog) => {
+                                    {filteredLogs.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} className="px-8 py-20 text-center">
+                                                <History className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
+                                                <p className="text-sm font-bold text-muted-foreground/40 uppercase tracking-widest">Sin registros con los filtros actuales</p>
+                                            </td>
+                                        </tr>
+                                    ) : filteredLogs.map((log: AuditLog) => {
                                         const badge = getActionBadge(log.action);
+                                        const typeLabel = getTargetTypeLabel(log.action);
                                         return (
                                             <tr key={log.id} className="hover:bg-muted/20 transition-colors group">
                                                 <td className="px-8 py-6">
@@ -275,12 +405,15 @@ export default function AuditPage() {
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-6">
-                                                    <div className={clsx(
-                                                        "inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-black border",
-                                                        badge.color
-                                                    )}>
-                                                        <badge.icon className="w-3.5 h-3.5" />
-                                                        {badge.label}
+                                                    <div className="flex flex-col gap-1.5">
+                                                        <div className={clsx(
+                                                            "inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-black border w-fit",
+                                                            badge.color
+                                                        )}>
+                                                            <badge.icon className="w-3.5 h-3.5" />
+                                                            {badge.label}
+                                                        </div>
+                                                        <span className="text-[10px] font-bold text-muted-foreground/50 pl-1">{typeLabel}</span>
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-6 max-w-md">
@@ -418,7 +551,7 @@ export default function AuditPage() {
                                 </div>
                             </div>
                             <button onClick={() => setShowReportModal(false)} className="p-4 hover:bg-muted/30 rounded-full transition-colors text-foreground/40 hover:text-foreground">
-                                <Search className="w-6 h-6 rotate-45" /> {/* Use Search icon rotated as X if X is not imported or just use generic close */}
+                                <Search className="w-6 h-6 rotate-45" />
                             </button>
                         </div>
 

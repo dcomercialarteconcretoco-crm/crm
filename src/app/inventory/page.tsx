@@ -24,7 +24,7 @@ import { useApp, Product } from '@/context/AppContext';
 const INITIAL_PRODUCTS: Product[] = [];
 
 export default function InventoryPage() {
-    const { settings, sellers, products, productSyncStatus, refreshProducts, updateProduct, deleteProduct, currentUser, addNotification } = useApp();
+    const { settings, sellers, products, productSyncStatus, refreshProducts, updateProduct, deleteProduct, currentUser, addNotification, addAuditLog } = useApp();
     const userIsSuperAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
     const canExport = userIsSuperAdmin && settings.allowExports;
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -161,6 +161,16 @@ export default function InventoryPage() {
                     body: JSON.stringify(payload)
                 });
                 updateProduct(editingProduct.id, form);
+                addAuditLog({
+                    userId: currentUser?.id || 'system',
+                    userName: currentUser?.name || 'Sistema',
+                    userRole: currentUser?.role || 'Admin',
+                    action: 'SALE_REGISTERED',
+                    targetId: editingProduct.id,
+                    targetName: form.name || editingProduct.name,
+                    details: `Producto actualizado: precio $${(form.price || 0).toLocaleString('es-CO')}, stock: ${form.isStockTracked ? (form.stock ?? 0) : 'no rastreado'}`,
+                    verified: true
+                });
             } else {
                 const res = await fetch('/api/woocommerce', {
                     method: 'POST',
