@@ -538,10 +538,12 @@ REGLAS DE ORO:
             if (settings.wooSecret) wooHeaders['x-woo-secret'] = settings.wooSecret;
 
             const res = await fetch('/api/woocommerce', { headers: wooHeaders });
-            if (!res.ok) throw new Error('Error fetching WooCommerce products');
             const data = await res.json();
 
-            if (data.error) throw new Error(data.error);
+            if (!res.ok || data.error) {
+                const msg = data?.error || `HTTP ${res.status}`;
+                throw new Error(msg);
+            }
 
             const mapped: Product[] = data.map((wooP: any) => ({
                 id: wooP.id.toString(),

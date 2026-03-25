@@ -68,7 +68,16 @@ interface Message {
     };
 }
 
-const chats: Message[] = [];
+interface WidgetConversation {
+    id: string;
+    lead: { name: string; email: string; phone: string; city: string; company: string; };
+    messages: { role: 'user' | 'assistant'; content: string; timestamp: string; }[];
+    createdAt: string;
+    updatedAt: string;
+    status: 'active' | 'closed';
+    source: 'widget' | 'whatsapp';
+}
+
 const DEFAULT_BOT_SETTINGS = {
     deliveryTimes: '10 a 15 días hábiles',
     shippingCost: 'Gratis en Medellín y Bogotá. Resto del país: Cotización personalizada.',
@@ -112,6 +121,8 @@ export default function MiWiBotPage() {
     const { products, quotes, settings, updateSettings, addNotification } = useApp();
     const [activeTab, setActiveTab] = useState<'monitor' | 'programming' | 'capture' | 'widget'>('monitor');
     const [selectedChat, setSelectedChat] = useState<Message | null>(null);
+    const [liveConversations, setLiveConversations] = useState<WidgetConversation[]>([]);
+    const [selectedConversation, setSelectedConversation] = useState<WidgetConversation | null>(null);
     const [isHumanInControl, setIsHumanInControl] = useState(false);
     const [activeAlert, setActiveAlert] = useState<{ type: 'help' | 'sale'; visible: boolean }>({ type: 'help', visible: false });
     const botSettings = settings.botSettings || DEFAULT_BOT_SETTINGS;
@@ -186,6 +197,28 @@ export default function MiWiBotPage() {
         setEscalationRules(merged.escalationRules);
         setWidgetConfig(merged.widget);
     }, [settings.botSettings]);
+
+    // Poll live widget conversations every 6 seconds
+    useEffect(() => {
+        const fetchConversations = async () => {
+            try {
+                const res = await fetch('/api/conversations');
+                if (res.ok) {
+                    const data = await res.json();
+                    setLiveConversations(data.conversations || []);
+                    // Update selected conversation if still open
+                    if (selectedConversation) {
+                        const updated = (data.conversations || []).find((c: WidgetConversation) => c.id === selectedConversation.id);
+                        if (updated) setSelectedConversation(updated);
+                    }
+                }
+            } catch { /* silent */ }
+        };
+        fetchConversations();
+        const interval = setInterval(fetchConversations, 6000);
+        return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Alerts are triggered only by real WhatsApp/chat events, never simulated
 
@@ -428,53 +461,68 @@ export default function MiWiBotPage() {
                             </div>
 
                             <div className="flex-1 overflow-y-auto divide-y divide-border/10 custom-scrollbar">
-                                {chats.map((chat) => (
-                                    <div
-                                        key={chat.id}
-                                        onClick={() => setSelectedChat(chat)}
-                                        className={clsx(
-                                            "p-5 lg:p-6 cursor-pointer transition-all hover:bg-muted/10 relative group",
-                                            selectedChat?.id === chat.id ? "bg-primary/[0.03]" : ""
-                                        )}
-                                    >
-                                        {selectedChat?.id === chat.id && <div className="absolute left-0 top-0 w-1 h-full bg-primary"></div>}
-                                        <div className="flex gap-4">
-                                            <div className="relative shrink-0">
-                                                <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-2xl bg-muted border border-border/40 flex items-center justify-center font-black text-[10px] lg:text-xs text-foreground uppercase overflow-hidden">
-                                                    {chat.online ? (
-                                                        <div className="w-full h-full bg-primary/20 text-primary flex items-center justify-center">{chat.sender[0]}</div>
-                                                    ) : chat.sender[0]}
+                                {liveConversations.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center py-16 px-6 text-center gap-3">
+                                        <div className="w-12 h-12 rounded-2xl bg-muted/40 border border-border/30 flex items-center justify-center">
+                                            <Globe className="w-5 h-5 text-muted-foreground/30" />
+                                        </div>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">Sin conversaciones aún</p>
+                                        <p className="text-[9px] text-muted-foreground/30 font-medium">Los chats del widget web aparecerán aquí en tiempo real</p>
+                                    </div>
+                                ) : liveConversations.map((conv) => {
+                                    const lastMsg = conv.messages[conv.messages.length - 1];
+                                    const isSelected = selectedConversation?.id === conv.id;
+                                    const timeAgo = (() => {
+                                        const d = new Date(conv.updatedAt);
+                                        const diff = Math.floor((Date.now() - d.getTime()) / 60000);
+                                        if (diff < 1) return 'Ahora';
+                                        if (diff < 60) return `${diff}m`;
+                                        return `${Math.floor(diff / 60)}h`;
+                                    })();
+                                    return (
+                                        <div
+                                            key={conv.id}
+                                            onClick={() => setSelectedConversation(conv)}
+                                            className={clsx(
+                                                "p-5 lg:p-6 cursor-pointer transition-all hover:bg-muted/10 relative group",
+                                                isSelected ? "bg-primary/[0.03]" : ""
+                                            )}
+                                        >
+                                            {isSelected && <div className="absolute left-0 top-0 w-1 h-full bg-primary"></div>}
+                                            <div className="flex gap-4">
+                                                <div className="relative shrink-0">
+                                                    <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center font-black text-[10px] lg:text-xs text-primary uppercase">
+                                                        {(conv.lead.name || 'W')[0].toUpperCase()}
+                                                    </div>
+                                                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-emerald-500 border-2 border-card rounded-full"></div>
                                                 </div>
-                                                {chat.online && <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-emerald-500 border-2 border-card rounded-full"></div>}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex justify-between items-start mb-1">
-                                                    <p className="text-xs lg:text-sm font-black text-foreground truncate group-hover:text-primary transition-colors">{chat.sender}</p>
-                                                    <span className="text-[8px] lg:text-[9px] font-bold text-muted-foreground uppercase shrink-0 ml-2">{chat.time}</span>
-                                                </div>
-                                                <p className="text-[10px] lg:text-[11px] text-muted-foreground truncate font-medium">{chat.preview}</p>
-
-                                                <div className="mt-2.5 flex items-center gap-2">
-                                                    <div className={clsx(
-                                                        "px-2 py-0.5 rounded-md border text-[7px] lg:text-[8px] font-black uppercase tracking-tighter",
-                                                        chat.type === 'WhatsApp' ? "text-emerald-500 border-emerald-500/20 bg-emerald-500/5" : "text-sky-500 border-sky-500/20 bg-sky-500/5"
-                                                    )}>
-                                                        {chat.type}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex justify-between items-start mb-1">
+                                                        <p className="text-xs lg:text-sm font-black text-foreground truncate group-hover:text-primary transition-colors">{conv.lead.name || 'Lead Web'}</p>
+                                                        <span className="text-[8px] lg:text-[9px] font-bold text-muted-foreground uppercase shrink-0 ml-2">{timeAgo}</span>
+                                                    </div>
+                                                    {conv.lead.company && <p className="text-[9px] text-muted-foreground/60 font-bold truncate mb-1">{conv.lead.company}{conv.lead.city ? ` · ${conv.lead.city}` : ''}</p>}
+                                                    <p className="text-[10px] lg:text-[11px] text-muted-foreground truncate font-medium">{lastMsg?.content?.slice(0, 60) || '...'}</p>
+                                                    <div className="mt-2 flex items-center gap-2">
+                                                        <div className="px-2 py-0.5 rounded-md border text-[7px] lg:text-[8px] font-black uppercase tracking-tighter text-sky-500 border-sky-500/20 bg-sky-500/5">
+                                                            Web Chat
+                                                        </div>
+                                                        <span className="text-[7px] font-bold text-muted-foreground/40">{conv.messages.length} msgs</span>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
 
                         {/* Chat Area */}
                         <div className={clsx(
                             "flex-1 flex flex-col bg-card duration-300",
-                            !selectedChat && "hidden lg:flex"
+                            !selectedConversation && "hidden lg:flex"
                         )}>
-                            {!selectedChat ? (
+                            {!selectedConversation ? (
                                 <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
                                     <div className="w-24 h-24 rounded-[2.5rem] bg-muted/50 border border-border/40 flex items-center justify-center mb-6">
                                         <MessageCircle className="w-10 h-10 text-muted-foreground/20" />
@@ -484,132 +532,83 @@ export default function MiWiBotPage() {
                                 </div>
                             ) : (
                                 <React.Fragment>
+                                    {/* Chat header */}
                                     <div className="h-20 border-b border-border/40 px-6 lg:px-8 flex items-center justify-between bg-card shrink-0">
                                         <div className="flex items-center gap-4">
-                                            <button
-                                                onClick={() => setSelectedChat(null)}
-                                                className="lg:hidden p-2 -ml-2 hover:bg-muted rounded-xl transition-colors"
-                                            >
+                                            <button onClick={() => setSelectedConversation(null)} className="lg:hidden p-2 -ml-2 hover:bg-muted rounded-xl transition-colors">
                                                 <ChevronRight className="w-5 h-5 rotate-180" />
                                             </button>
                                             <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-black text-[10px] lg:text-xs border border-primary/20 shrink-0">
-                                                {selectedChat.sender[0]}
+                                                {(selectedConversation.lead.name || 'W')[0].toUpperCase()}
                                             </div>
                                             <div className="min-w-0">
-                                                <p className="text-xs lg:text-sm font-black text-foreground tracking-tight truncate">{selectedChat.sender}</p>
-                                                <div className="flex items-center gap-2">
-                                                    <span className={clsx(
-                                                        "w-1 h-1 lg:w-1.5 lg:h-1.5 rounded-full shrink-0",
-                                                        selectedChat.status === 'Needs Help' ? "bg-rose-500 animate-pulse" : "bg-emerald-500"
-                                                    )}></span>
-                                                    <span className="text-[8px] lg:text-[9px] font-black uppercase tracking-widest text-muted-foreground truncate">
-                                                        {selectedChat.status === 'Needs Help' ? 'Ayuda requerida' : (isHumanInControl ? 'Modo Humano' : 'Bot Activo')}
-                                                    </span>
+                                                <p className="text-xs lg:text-sm font-black text-foreground tracking-tight truncate">{selectedConversation.lead.name || 'Lead Web'}</p>
+                                                <div className="flex items-center gap-3 flex-wrap">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                                                        <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">Web Chat · En vivo</span>
+                                                    </div>
+                                                    {selectedConversation.lead.city && <span className="text-[8px] text-muted-foreground/50 font-bold">{selectedConversation.lead.city}</span>}
+                                                    {selectedConversation.lead.company && <span className="text-[8px] text-muted-foreground/50 font-bold">{selectedConversation.lead.company}</span>}
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2 lg:gap-3">
-                                            <button
-                                                onClick={() => setIsHumanInControl(!isHumanInControl)}
-                                                className={clsx(
-                                                    "hidden lg:flex px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all items-center gap-2",
-                                                    isHumanInControl ? "bg-sky-500 text-white shadow-lg shadow-sky-500/20" : "bg-muted border border-border text-muted-foreground hover:text-foreground"
-                                                )}
-                                            >
-                                                <User className="w-3.5 h-3.5" />
-                                                {isHumanInControl ? 'En Control' : 'Intervenir'}
-                                            </button>
-                                            <button
-                                                onClick={() => setIsHumanInControl(!isHumanInControl)}
-                                                className={clsx(
-                                                    "lg:hidden p-2.5 rounded-xl transition-all border shrink-0",
-                                                    isHumanInControl ? "bg-sky-500 text-white border-sky-500" : "bg-card border-border/40 text-muted-foreground"
-                                                )}
-                                            >
-                                                <User className="w-4 h-4" />
-                                            </button>
-                                            <button className="p-2.5 bg-card border border-border/40 rounded-xl text-muted-foreground hover:text-foreground transition-all shrink-0">
-                                                <MoreVertical className="w-4 h-4" />
-                                            </button>
+                                        <div className="flex items-center gap-2">
+                                            {selectedConversation.lead.phone && (
+                                                <a href={`https://wa.me/${selectedConversation.lead.phone.replace(/\D/g,'')}`} target="_blank" rel="noreferrer"
+                                                    className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-500 hover:bg-emerald-500/20 transition-all shrink-0">
+                                                    <Phone className="w-4 h-4" />
+                                                </a>
+                                            )}
+                                            {selectedConversation.lead.email && (
+                                                <a href={`mailto:${selectedConversation.lead.email}`}
+                                                    className="p-2.5 bg-sky-500/10 border border-sky-500/20 rounded-xl text-sky-500 hover:bg-sky-500/20 transition-all shrink-0">
+                                                    <Mail className="w-4 h-4" />
+                                                </a>
+                                            )}
                                         </div>
                                     </div>
 
-                                    <div className="flex-1 overflow-y-auto p-6 lg:p-10 space-y-8 custom-scrollbar bg-background/30 transition-all">
-                                        {/* Sample Messages */}
-                                        <div className="flex gap-4">
-                                            <div className="w-10 h-10 rounded-xl bg-muted border border-border shrink-0 flex items-center justify-center">
-                                                <User className="w-5 h-5 text-muted-foreground" />
-                                            </div>
-                                            <div className="max-w-[70%] bg-card border border-border p-6 rounded-[2rem] rounded-tl-none shadow-xl space-y-3">
-                                                <p className="text-sm leading-relaxed text-foreground font-bold opacity-80">
-                                                    Me gustaría ver opciones de mobiliario urbano para un proyecto en Bogotá. ¿Me recomiendas algo?
-                                                </p>
-                                                <div className="flex items-center justify-between text-[8px] font-black uppercase text-muted-foreground">
-                                                    <span>Hace 10 min</span>
-                                                    <span className="text-sky-500">Vía WhatsApp</span>
-                                                </div>
-                                            </div>
-                                        </div>
+                                    {/* Lead info bar */}
+                                    <div className="px-6 py-3 bg-muted/10 border-b border-border/30 flex items-center gap-4 flex-wrap">
+                                        {selectedConversation.lead.email && (
+                                            <span className="text-[9px] font-bold text-muted-foreground flex items-center gap-1">
+                                                <Mail className="w-3 h-3" />{selectedConversation.lead.email}
+                                            </span>
+                                        )}
+                                        {selectedConversation.lead.phone && (
+                                            <span className="text-[9px] font-bold text-muted-foreground flex items-center gap-1">
+                                                <Phone className="w-3 h-3" />{selectedConversation.lead.phone}
+                                            </span>
+                                        )}
+                                        <span className="text-[9px] font-bold text-muted-foreground ml-auto">
+                                            {selectedConversation.messages.length} mensajes · {new Date(selectedConversation.createdAt).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })}
+                                        </span>
+                                    </div>
 
-                                        <div className="flex gap-4 flex-row-reverse">
-                                            <div className="w-10 h-10 rounded-xl bg-primary shrink-0 flex items-center justify-center">
-                                                <Bot className="w-6 h-6 text-black" />
-                                            </div>
-                                            <div className="max-w-[70%] space-y-4">
-                                                <div className="bg-primary/10 border border-primary/30 p-6 rounded-[2rem] rounded-tr-none shadow-lg space-y-3">
-                                                    <p className="text-sm leading-relaxed text-primary font-black">
-                                                        ¡Claro! Basado en el perfil de tu proyecto, te recomiendo nuestras piezas icónicas de concreto reforzado. Aquí tienes algunos detalles:
+                                    {/* Messages */}
+                                    <div className="flex-1 overflow-y-auto p-6 lg:p-8 space-y-4 custom-scrollbar bg-background/30">
+                                        {selectedConversation.messages.map((msg, i) => (
+                                            <div key={i} className={clsx("flex gap-3", msg.role === 'assistant' ? 'flex-row-reverse' : '')}>
+                                                <div className={clsx(
+                                                    "w-8 h-8 rounded-xl shrink-0 flex items-center justify-center text-[10px] font-black",
+                                                    msg.role === 'assistant' ? 'bg-primary text-black' : 'bg-muted border border-border text-muted-foreground'
+                                                )}>
+                                                    {msg.role === 'assistant' ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                                                </div>
+                                                <div className={clsx(
+                                                    "max-w-[72%] px-4 py-3 rounded-2xl text-sm leading-relaxed",
+                                                    msg.role === 'assistant'
+                                                        ? 'bg-primary/10 border border-primary/20 text-foreground rounded-tr-none'
+                                                        : 'bg-card border border-border text-foreground rounded-tl-none'
+                                                )}>
+                                                    <p className="font-medium">{msg.content}</p>
+                                                    <p className="text-[8px] font-bold text-muted-foreground/50 mt-1 uppercase tracking-wider">
+                                                        {msg.role === 'assistant' ? 'Bot' : selectedConversation.lead.name || 'Lead'} · {new Date(msg.timestamp).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
                                                     </p>
                                                 </div>
-
-                                                {/* Product Card In Chat */}
-                                                <div className="bg-[#141417] border border-white/10 p-4 rounded-[2rem] overflow-hidden group hover:border-primary/50 transition-all">
-                                                    <div className="aspect-video rounded-2xl overflow-hidden mb-4 relative">
-                                                        <img
-                                                            src="https://images.unsplash.com/photo-1594913366159-1832ebbee3f4?w=400&h=225&fit=crop"
-                                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                                                        />
-                                                        <div className="absolute top-3 left-3 px-3 py-1 bg-primary text-black text-[8px] font-black uppercase rounded-full">
-                                                            Best Seller
-                                                        </div>
-                                                    </div>
-                                                    <div className="px-2 space-y-2">
-                                                        <div className="flex justify-between items-start">
-                                                            <h4 className="text-sm font-black text-foreground italic">Banca Hexagonal H-20</h4>
-                                                            <span className="text-primary font-black text-xs">$450.000</span>
-                                                        </div>
-                                                        <p className="text-[10px] text-muted-foreground font-bold line-clamp-2">
-                                                            Diseño icónico con estructura de concreto reforzado de alta resistencia.
-                                                        </p>
-                                                        <div className="pt-2 flex flex-col gap-2">
-                                                            <a
-                                                                href="/catalog/banca-hexagonal-h20"
-                                                                target="_blank"
-                                                                className="w-full bg-muted/10 border border-border/40 hover:bg-muted/30 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest text-center transition-all"
-                                                            >
-                                                                Ver Fotos y Detalles
-                                                            </a>
-                                                            <button className="w-full bg-primary text-black py-3 rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-[1.02] transition-all">
-                                                                Ordenar Ahora
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center justify-between text-[8px] font-black uppercase text-primary/40">
-                                                    <span>Hace 9 min</span>
-                                                    <span>MiWi Intelligence Engine</span>
-                                                </div>
                                             </div>
-                                        </div>
-
-                                        {isHumanInControl && (
-                                            <div className="flex justify-center">
-                                                <div className="px-6 py-2 bg-sky-500/10 border border-sky-500/20 rounded-full text-[9px] font-black text-sky-500 uppercase tracking-widest">
-                                                    SISTEMA: El administrador ha tomado el control de la conversación.
-                                                </div>
-                                            </div>
-                                        )}
+                                        ))}
                                     </div>
 
                                     <div className="p-6 lg:p-8 bg-card border-t border-border/40 relative shrink-0">
@@ -1179,7 +1178,7 @@ export default function MiWiBotPage() {
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    alert(`Enviando ${product.name} al chat...`);
+                                                                    addNotification({ title: 'Enviando al chat', description: `Producto "${product.name}" enviado al bot.`, type: 'success' });
                                                                     setIsProductModalOpen(false);
                                                                     setIsAttachmentMenuOpen(false);
                                                                     setSelectedProducts([]);
@@ -1218,7 +1217,7 @@ export default function MiWiBotPage() {
                                                         </div>
                                                         <button
                                                             onClick={() => {
-                                                                alert(`Enviando Combo ${combo.name} al chat...`);
+                                                                addNotification({ title: 'Combo enviado', description: `Combo "${combo.name}" enviado al bot.`, type: 'success' });
                                                                 setIsProductModalOpen(false);
                                                                 setIsAttachmentMenuOpen(false);
                                                             }}
@@ -1290,7 +1289,7 @@ export default function MiWiBotPage() {
                                     </button>
                                     <button
                                         onClick={() => {
-                                            alert(`Enviando ${selectedProducts.length} productos al chat...`);
+                                            addNotification({ title: 'Productos enviados', description: `${selectedProducts.length} productos enviados al bot.`, type: 'success' });
                                             setIsProductModalOpen(false);
                                             setIsAttachmentMenuOpen(false);
                                             setSelectedProducts([]);
@@ -1472,7 +1471,7 @@ export default function MiWiBotPage() {
                                                 setTimeout(() => {
                                                     setQuoteSuccess(false);
                                                     setIsQuoteModalOpen(false);
-                                                    window.alert("PDF Generado y Enviado al Chat. Lead creado en el sistema.");
+                                                    addNotification({ title: 'PDF generado', description: 'El catálogo PDF fue generado y enviado al chat del bot.', type: 'success' });
                                                 }, 2000);
                                             }, 3000);
                                         }}

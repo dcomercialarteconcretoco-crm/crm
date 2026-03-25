@@ -24,7 +24,7 @@ import { useApp, Product } from '@/context/AppContext';
 const INITIAL_PRODUCTS: Product[] = [];
 
 export default function InventoryPage() {
-    const { settings, sellers, products, productSyncStatus, refreshProducts, updateProduct, deleteProduct, currentUser } = useApp();
+    const { settings, sellers, products, productSyncStatus, refreshProducts, updateProduct, deleteProduct, currentUser, addNotification } = useApp();
     const userIsSuperAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
     const canExport = userIsSuperAdmin && settings.allowExports;
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -104,10 +104,10 @@ export default function InventoryPage() {
             const res = await fetch('/api/upload', { method: 'POST', body: fd });
             const json = await res.json();
             if (json.url) return json.url;
-            alert(json.error || 'Error al subir imagen');
+            addNotification({ title: 'Error al subir imagen', description: json.error || 'No se pudo subir la imagen.', type: 'alert' });
             return null;
         } catch {
-            alert('Error de conexión al subir imagen');
+            addNotification({ title: 'Error de conexión', description: 'No se pudo subir la imagen. Verifica tu conexión.', type: 'alert' });
             return null;
         } finally {
             setIsUploading(false);
@@ -171,14 +171,14 @@ export default function InventoryPage() {
                 if (wooP && wooP.id) {
                     await refreshProducts();
                 } else {
-                    alert("No se pudo sincronizar con WooCommerce. Revisa las credenciales en Configuración → Integraciones API.");
+                    addNotification({ title: 'Error WooCommerce', description: 'No se pudo sincronizar. Revisa las credenciales en Configuración → Integraciones API.', type: 'alert' });
                 }
             }
-            alert("Sincronización automática con WooCommerce completa.");
+            addNotification({ title: 'Sincronización completa', description: 'Producto guardado y sincronizado con WooCommerce.', type: 'success' });
             setIsModalOpen(false);
         } catch (error) {
             console.error(error);
-            alert("Error al sincronizar con WooCommerce.");
+            addNotification({ title: 'Error de sincronización', description: 'No se pudo conectar con WooCommerce.', type: 'alert' });
             setIsModalOpen(false);
         } finally {
             setIsSyncing(false);
@@ -250,10 +250,10 @@ export default function InventoryPage() {
                         .trim();
 
                     parsed.push({
-                        id: values[0]?.trim() || Math.random().toString().slice(2, 9),
+                        id: values[0]?.trim() || `csv-${Date.now()}-${i}`,
                         name: values[1]?.trim() || 'Producto sin nombre',
                         category: values[2]?.trim() || 'General',
-                        sku: values[3]?.trim() || `SKU-${Math.random().toString().slice(2, 6)}`,
+                        sku: values[3]?.trim() || `SKU-${Date.now()}-${i}`,
                         stock: parseInt(values[4]) || 0,
                         isStockTracked: isTracked,
                         price: parseFloat(values[6]) || 0,
@@ -268,12 +268,12 @@ export default function InventoryPage() {
             }
 
             if (parsed.length === 0) {
-                alert('No se encontraron productos válidos en el archivo CSV.');
+                addNotification({ title: 'CSV inválido', description: 'No se encontraron productos válidos en el archivo CSV. Verifica el formato.', type: 'alert' });
                 return;
             }
 
             // Bulk update logic would need to be moved or implemented here
-            alert("Acción de importación deshabilitada temporalmente en modo WooCommerce Sync.");
+            addNotification({ title: 'Importación no disponible', description: 'La importación CSV está deshabilitada en modo WooCommerce Sync. Usa el catálogo web.', type: 'alert' });
             e.target.value = '';
         };
 
@@ -282,12 +282,12 @@ export default function InventoryPage() {
 
     const handleExport = () => {
         if (!canExport) {
-            alert("Acceso denegado: Solo el Administrador principal puede exportar datos o la función está desactivada por seguridad.");
+            addNotification({ title: 'Acceso denegado', description: 'Solo el Administrador principal puede exportar datos.', type: 'alert' });
             return;
         }
 
         if (products.length === 0) {
-            alert("No hay productos para exportar.");
+            addNotification({ title: 'Sin productos', description: 'No hay productos para exportar.', type: 'alert' });
             return;
         }
 

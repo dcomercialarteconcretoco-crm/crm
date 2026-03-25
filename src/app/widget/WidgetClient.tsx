@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { Bot, Send, User, X, Loader2 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 
@@ -12,6 +12,7 @@ interface WidgetClientProps {
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  timestamp: string;
 }
 
 export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClientProps) {
@@ -19,29 +20,29 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
   const savedBotSettings = settings.botSettings;
   const botName = initialBotName || savedBotSettings?.widget.botName || "MiWi AI";
   const primaryColor = initialPrimaryColor || savedBotSettings?.widget.primaryColor || "#FAB510";
+
   const [loading, setLoading] = useState(false);
   const [started, setStarted] = useState(false);
+  const [sessionId] = useState(() => `wchat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`);
+  const [clientSaved, setClientSaved] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
   const [draft, setDraft] = useState("");
-  const [lead, setLead] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    city: "",
-    company: "",
-  });
+  const [lead, setLead] = useState({ name: "", email: "", phone: "", city: "", company: "" });
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
       content: `Hola, soy ${botName}. Estoy listo para ayudarte con mobiliario, cotizaciones y tiempos de entrega de Arte Concreto.`,
+      timestamp: new Date().toISOString(),
     },
   ]);
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
   const captureFields = savedBotSettings?.captureFields || {
-    name: true,
-    email: true,
-    phone: true,
-    city: true,
-    company: true,
+    name: true, email: true, phone: true, city: true, company: true,
   };
 
   const requiredFields = useMemo(
@@ -56,26 +57,84 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
     window.parent.postMessage({ type: "miwi-widget-close" }, "*");
   };
 
-  const startConversation = () => {
+  // Save conversation to CRM DB
+  const saveConversation = async (msgs: ChatMessage[]) => {
+    try {
+      await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversation: {
+            id: sessionId,
+            lead,
+            messages: msgs,
+            createdAt: msgs[0]?.timestamp || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            status: "active",
+            source: "widget",
+          },
+        }),
+      });
+    } catch (e) {
+      console.error("Widget: failed to save conversation", e);
+    }
+  };
+
+  // Create client in CRM
+  const createCrmClient = async () => {
+    if (clientSaved) return;
+    try {
+      const clientId = `widget-${sessionId}`;
+      await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: clientId,
+          name: lead.name || "Lead Web",
+          company: lead.company || "",
+          email: lead.email || "",
+          phone: lead.phone || "",
+          city: lead.city || "",
+          status: "Lead",
+          value: "$0",
+          ltv: 0,
+          lastContact: new Date().toISOString().split("T")[0],
+          score: 15,
+          category: "Widget Lead",
+          registrationDate: new Date().toISOString().split("T")[0],
+        }),
+      });
+      setClientSaved(true);
+    } catch (e) {
+      console.error("Widget: failed to create client", e);
+    }
+  };
+
+  const startConversation = async () => {
     const missing = requiredFields.some((field) => !lead[field as keyof typeof lead].trim());
     if (missing) return;
 
-    const intro = `Lead identificado: Nombre ${lead.name || "No informado"}, empresa ${lead.company || "No informada"}, ciudad ${lead.city || "No informada"}, correo ${lead.email || "No informado"}, telefono ${lead.phone || "No informado"}.`;
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "assistant",
-        content: `Perfecto. Ya registré tus datos básicos. ${intro} Cuéntame qué producto o proyecto necesitas y te ayudo.`,
-      },
-    ]);
+    const welcomeMsg: ChatMessage = {
+      role: "assistant",
+      content: `Perfecto ${lead.name ? lead.name.split(" ")[0] : ""}. Ya registré tus datos. Cuéntame qué producto o proyecto necesitas y te ayudo.`,
+      timestamp: new Date().toISOString(),
+    };
+
+    const newMessages = [...messages, welcomeMsg];
+    setMessages(newMessages);
     setStarted(true);
+
+    // Save to DB in background
+    await createCrmClient();
+    await saveConversation(newMessages);
   };
 
   const sendMessage = async () => {
     const input = draft.trim();
     if (!input || loading) return;
 
-    const nextMessages = [...messages, { role: "user" as const, content: input }];
+    const userMsg: ChatMessage = { role: "user", content: input, timestamp: new Date().toISOString() };
+    const nextMessages = [...messages, userMsg];
     setMessages(nextMessages);
     setDraft("");
     setLoading(true);
@@ -86,28 +145,30 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           input,
-          messages: nextMessages.slice(0, -1),
+          messages: nextMessages.slice(0, -1).map(m => ({ role: m.role, content: m.content })),
         }),
       });
 
       const data = await response.json();
+      const botMsg: ChatMessage = {
+        role: "assistant",
+        content: data?.text || data?.error || "No pude responder en este momento.",
+        timestamp: new Date().toISOString(),
+      };
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: data?.text || data?.error || "No pude responder en este momento.",
-        },
-      ]);
+      const finalMessages = [...nextMessages, botMsg];
+      setMessages(finalMessages);
+
+      // Persist conversation after every exchange
+      await saveConversation(finalMessages);
     } catch (error) {
       console.error("Widget assistant error", error);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "No pude conectar con MiWi en este momento. Intenta de nuevo.",
-        },
-      ]);
+      const errMsg: ChatMessage = {
+        role: "assistant",
+        content: "No pude conectar con MiWi en este momento. Intenta de nuevo.",
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, errMsg]);
     } finally {
       setLoading(false);
     }
@@ -119,6 +180,7 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
   return (
     <div className="min-h-screen bg-premium-gradient p-3">
       <div className="surface-panel mx-auto flex h-[calc(100vh-1.5rem)] max-h-[720px] w-full max-w-[420px] flex-col overflow-hidden rounded-[2rem]">
+        {/* Header */}
         <div className="flex items-center justify-between border-b border-border/60 px-4 py-4">
           <div className="flex items-center gap-3">
             <div
@@ -140,31 +202,36 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
           </button>
         </div>
 
+        {/* Body */}
         {!started ? (
           <div className="flex-1 overflow-y-auto px-4 py-5">
             <div className="space-y-5">
               <div className="rounded-[1.75rem] border border-border/50 bg-white/48 p-5">
                 <h1 className="text-xl font-black tracking-tight text-foreground">Antes de comenzar</h1>
                 <p className="mt-2 text-sm font-medium leading-relaxed text-muted-foreground">
-                  Déjanos tus datos básicos para atenderte mejor y vincular la conversación con el CRM.
+                  Déjanos tus datos básicos para atenderte mejor y vincular la conversación con el equipo comercial.
                 </p>
               </div>
-
               <div className="space-y-3">
                 {captureFields.name && (
-                  <input className={inputClassName} placeholder="Nombre completo" value={lead.name} onChange={(e) => setLead((prev) => ({ ...prev, name: e.target.value }))} />
+                  <input className={inputClassName} placeholder="Nombre completo" value={lead.name}
+                    onChange={(e) => setLead((p) => ({ ...p, name: e.target.value }))} />
                 )}
                 {captureFields.email && (
-                  <input className={inputClassName} placeholder="Correo electrónico" value={lead.email} onChange={(e) => setLead((prev) => ({ ...prev, email: e.target.value }))} />
+                  <input className={inputClassName} placeholder="Correo electrónico" type="email" value={lead.email}
+                    onChange={(e) => setLead((p) => ({ ...p, email: e.target.value }))} />
                 )}
                 {captureFields.phone && (
-                  <input className={inputClassName} placeholder="WhatsApp" value={lead.phone} onChange={(e) => setLead((prev) => ({ ...prev, phone: e.target.value }))} />
+                  <input className={inputClassName} placeholder="WhatsApp / Teléfono" value={lead.phone}
+                    onChange={(e) => setLead((p) => ({ ...p, phone: e.target.value }))} />
                 )}
                 {captureFields.city && (
-                  <input className={inputClassName} placeholder="Ciudad" value={lead.city} onChange={(e) => setLead((prev) => ({ ...prev, city: e.target.value }))} />
+                  <input className={inputClassName} placeholder="Ciudad" value={lead.city}
+                    onChange={(e) => setLead((p) => ({ ...p, city: e.target.value }))} />
                 )}
                 {captureFields.company && (
-                  <input className={inputClassName} placeholder="Empresa" value={lead.company} onChange={(e) => setLead((prev) => ({ ...prev, company: e.target.value }))} />
+                  <input className={inputClassName} placeholder="Empresa / Proyecto" value={lead.company}
+                    onChange={(e) => setLead((p) => ({ ...p, company: e.target.value }))} />
                 )}
               </div>
             </div>
@@ -194,14 +261,16 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
                 <div className="rounded-[1.5rem] border border-border/60 bg-white/76 px-4 py-3 text-sm font-medium text-muted-foreground">
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    MiWi está escribiendo...
+                    {botName} está escribiendo...
                   </div>
                 </div>
               </div>
             )}
+            <div ref={messagesEndRef} />
           </div>
         )}
 
+        {/* Footer */}
         <div className="border-t border-border/60 px-4 py-4">
           {!started ? (
             <button
@@ -219,10 +288,7 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    sendMessage();
-                  }
+                  if (e.key === "Enter") { e.preventDefault(); sendMessage(); }
                 }}
               />
               <button

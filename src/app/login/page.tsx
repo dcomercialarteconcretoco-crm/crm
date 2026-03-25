@@ -14,6 +14,7 @@ export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showPasswordHint, setShowPasswordHint] = useState(false);
 
     useEffect(() => {
         if (currentUser) {
@@ -85,7 +86,7 @@ export default function LoginPage() {
                         <div className="space-y-2">
                             <div className="flex justify-between items-center px-1">
                                 <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Contraseña</label>
-                                <button type="button" className="text-[9px] font-black uppercase text-primary/50 hover:text-primary transition-colors">¿Olvidaste tu clave?</button>
+                                <button type="button" onClick={() => setShowPasswordHint(true)} className="text-[9px] font-black uppercase text-primary/50 hover:text-primary transition-colors">¿Olvidaste tu clave?</button>
                             </div>
                             <div className="relative group/input">
                                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50 group-focus-within/input:text-primary transition-colors" />
@@ -106,6 +107,13 @@ export default function LoginPage() {
                                 </button>
                             </div>
                         </div>
+
+                        {showPasswordHint && (
+                            <div className="px-4 py-3 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <AlertCircle className="w-4 h-4 text-sky-500 shrink-0" />
+                                <p className="text-[10px] font-bold text-sky-500 uppercase tracking-tight">Contacta al administrador del sistema para recuperar tu acceso.</p>
+                            </div>
+                        )}
 
                         {error && (
                             <div className="px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300">

@@ -29,7 +29,7 @@ import {
 import { useApp } from '@/context/AppContext';
 
 export default function AnalyticsPage() {
-    const { clients, tasks, quotes, auditLogs } = useApp();
+    const { clients, tasks, quotes, auditLogs, addNotification } = useApp();
 
     const revenueData = React.useMemo(() => {
         const days = Array.from({ length: 5 }, (_, i) => {
@@ -79,11 +79,17 @@ export default function AnalyticsPage() {
                     <p className="text-sm text-muted-foreground">Análisis avanzado de rendimiento, conversión y proyecciones.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <button className="flex items-center gap-2 px-4 py-2 border border-border/40 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-muted/50 transition-colors">
+                    <button
+                        onClick={() => addNotification({ title: 'Filtros de fecha', description: 'Selecciona un rango de fechas para filtrar las analíticas.', type: 'ai' })}
+                        className="flex items-center gap-2 px-4 py-2 border border-border/40 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-muted/50 transition-colors"
+                    >
                         <Calendar className="w-4 h-4" />
                         Últimos 6 Meses
                     </button>
-                    <button className="bg-primary text-black font-bold px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 text-xs uppercase tracking-widest">
+                    <button
+                        onClick={() => { window.print(); addNotification({ title: 'Exportando reporte', description: 'Abriendo diálogo de impresión para exportar analíticas.', type: 'success' }); }}
+                        className="bg-primary text-black font-bold px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 text-xs uppercase tracking-widest"
+                    >
                         <Download className="w-4 h-4" />
                         PDF Report
                     </button>

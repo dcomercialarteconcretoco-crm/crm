@@ -21,9 +21,30 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     const [isMiWiOpen, setIsMiWiOpen] = useState(false);
     const [layoutMode, setLayoutMode] = useState('classic');
     const [selectedNotification, setSelectedNotification] = useState<any>(null);
-    const { notifications, setNotifications, settings, currentUser, isHydrating, logout } = useApp() as any;
+    const [searchQuery, setSearchQuery] = useState('');
+    const [showSearchResults, setShowSearchResults] = useState(false);
+    const { notifications, setNotifications, settings, currentUser, isHydrating, logout, clients, tasks, quotes, products } = useApp() as any;
     const pathname = usePathname();
     const router = useRouter();
+
+    const searchResults = React.useMemo(() => {
+        const q = searchQuery.toLowerCase().trim();
+        if (!q || q.length < 2) return [];
+        const results: { type: string; label: string; sub: string; href: string }[] = [];
+        (clients || []).filter((c: any) => (c.name + ' ' + c.company).toLowerCase().includes(q)).slice(0, 3).forEach((c: any) => {
+            results.push({ type: 'Cliente', label: c.name, sub: c.company || c.email || '', href: `/clients` });
+        });
+        (tasks || []).filter((t: any) => (t.title + ' ' + t.client).toLowerCase().includes(q)).slice(0, 3).forEach((t: any) => {
+            results.push({ type: 'Lead', label: t.title, sub: t.client || '', href: `/leads/${t.id}` });
+        });
+        (quotes || []).filter((q2: any) => ((q2.number || '') + ' ' + (q2.client || '')).toLowerCase().includes(q)).slice(0, 2).forEach((q2: any) => {
+            results.push({ type: 'Cotización', label: q2.number || 'Sin número', sub: q2.client || '', href: `/quotes` });
+        });
+        (products || []).filter((p: any) => !p.isDeleted && (p.name || '').toLowerCase().includes(q)).slice(0, 2).forEach((p: any) => {
+            results.push({ type: 'Producto', label: p.name, sub: p.sku || '', href: `/inventory` });
+        });
+        return results;
+    }, [searchQuery, clients, tasks, quotes, products]);
 
     const unreadCount = notifications.filter((n: any) => !n.read).length;
     const displayName = currentUser?.name || 'Usuario';
@@ -132,26 +153,54 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                                 </div>
                             </div>
 
-                            <div className="lg:hidden">
+                            {/* Mobile search */}
+                            <div className="lg:hidden relative">
                                 <div className="relative group w-full pill-nav rounded-[1.25rem] bg-white/44">
                                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                                     <input
                                         type="text"
                                         placeholder="Buscar en el CRM..."
+                                        value={searchQuery}
+                                        onChange={e => { setSearchQuery(e.target.value); setShowSearchResults(true); }}
+                                        onBlur={() => setTimeout(() => setShowSearchResults(false), 200)}
                                         className="w-full rounded-[1.25rem] border border-transparent bg-transparent py-3 pl-11 pr-4 text-sm text-foreground outline-none transition-all focus:border-primary/35"
                                     />
                                 </div>
+                                {showSearchResults && searchResults.length > 0 && (
+                                    <div className="absolute top-full left-0 right-0 mt-2 bg-white/95 border border-border/60 rounded-[1.25rem] shadow-xl z-50 overflow-hidden backdrop-blur-xl">
+                                        {searchResults.map((r, i) => (
+                                            <a key={i} href={r.href} className="flex items-center gap-3 px-4 py-3 hover:bg-accent/50 transition-colors border-b border-border/30 last:border-0">
+                                                <span className="text-[8px] font-black uppercase tracking-widest text-primary bg-primary/10 px-2 py-0.5 rounded-md shrink-0">{r.type}</span>
+                                                <div className="min-w-0"><p className="text-xs font-black text-foreground truncate">{r.label}</p>{r.sub && <p className="text-[9px] text-muted-foreground truncate">{r.sub}</p>}</div>
+                                            </a>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
-                            <div className="hidden lg:flex flex-1 max-w-xl">
+                            {/* Desktop search */}
+                            <div className="hidden lg:flex flex-1 max-w-xl relative">
                                 <div className="relative group w-full pill-nav rounded-[1.4rem] bg-white/38">
                                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                                     <input
                                         type="text"
                                         placeholder="Buscar leads, productos o archivos..."
+                                        value={searchQuery}
+                                        onChange={e => { setSearchQuery(e.target.value); setShowSearchResults(true); }}
+                                        onBlur={() => setTimeout(() => setShowSearchResults(false), 200)}
                                         className="w-full bg-transparent border border-transparent focus:border-primary/40 rounded-[1.4rem] py-3 pl-11 pr-4 text-sm outline-none transition-all text-foreground"
                                     />
                                 </div>
+                                {showSearchResults && searchResults.length > 0 && (
+                                    <div className="absolute top-full left-0 right-0 mt-2 bg-white/95 border border-border/60 rounded-[1.5rem] shadow-xl z-50 overflow-hidden backdrop-blur-xl">
+                                        {searchResults.map((r, i) => (
+                                            <a key={i} href={r.href} className="flex items-center gap-3 px-5 py-3.5 hover:bg-accent/50 transition-colors border-b border-border/30 last:border-0">
+                                                <span className="text-[8px] font-black uppercase tracking-widest text-primary bg-primary/10 px-2 py-0.5 rounded-md shrink-0 w-16 text-center">{r.type}</span>
+                                                <div className="min-w-0"><p className="text-sm font-black text-foreground truncate">{r.label}</p>{r.sub && <p className="text-[10px] text-muted-foreground truncate">{r.sub}</p>}</div>
+                                            </a>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             <div className="hidden lg:flex items-center gap-6">

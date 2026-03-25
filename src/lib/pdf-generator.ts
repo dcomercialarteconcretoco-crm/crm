@@ -1,25 +1,5 @@
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
-
-// Extend jsPDF with autoTable for TypeScript
-declare module 'jspdf' {
-    interface jsPDF {
-        autoTable: (options: any) => jsPDF;
-    }
-}
-
-const LOGO_URL = 'https://voltaris.co/wp-content/uploads/2026/02/Voltarisco@3x.png';
-
-async function loadImageAsBase64(url: string): Promise<string> {
-    const response = await fetch(url);
-    const blob = await response.blob();
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-    });
-}
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export interface ReportData {
     title: string;
@@ -39,7 +19,9 @@ export interface ProposalData {
     quoteNumber: string;
     date: string;
     leadName: string;
-    leadCompany: string;
+    leadCompany?: string;
+    leadEmail?: string;
+    leadCity?: string;
     items: {
         name: string;
         price: number;
@@ -52,203 +34,216 @@ export interface ProposalData {
     total: number;
 }
 
-export const generatePDFReport = (data: ReportData) => {
-    const doc = new jsPDF();
-    const primaryColor = [250, 181, 16]; // Arte Concreto Gold #fab510
-    const darkColor = [20, 20, 23];
+const PRIMARY = [250, 181, 16] as [number, number, number];
+const DARK    = [20, 20, 23]   as [number, number, number];
+const WHITE   = [255, 255, 255] as [number, number, number];
+const GRAY    = [100, 100, 100] as [number, number, number];
+const LIGHT   = [245, 245, 245] as [number, number, number];
 
-    // Header background
-    doc.setFillColor(darkColor[0], darkColor[1], darkColor[2]);
-    doc.rect(0, 0, 210, 40, 'F');
+function fmt(n: number): string {
+    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
+}
+
+function addFooter(doc: jsPDF): void {
+    const pages = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= pages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7);
+        doc.setTextColor(...GRAY);
+        const h = doc.internal.pageSize.getHeight();
+        doc.text('ARTE CONCRETO S.A.S — Medellín, Colombia', 105, h - 12, { align: 'center' });
+        doc.text('Documento generado por MiWibi CRM Intelligence', 105, h - 7, { align: 'center' });
+    }
+}
+
+export const generatePDFReport = (data: ReportData): void => {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+    // Header
+    doc.setFillColor(...DARK);
+    doc.rect(0, 0, 210, 42, 'F');
+
+    doc.setFillColor(...PRIMARY);
+    doc.rect(0, 38, 210, 4, 'F');
+
+    doc.setTextColor(...WHITE);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ARTE CONCRETO', 15, 22);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(180, 180, 180);
+    doc.text('CRM Intelligence · Reporte ejecutivo', 15, 30);
+
+    doc.setTextColor(...PRIMARY);
+    doc.setFontSize(8);
+    doc.text(`Fecha: ${new Date().toLocaleDateString('es-CO')}`, 160, 22);
 
     // Title
-    doc.setTextColor(255, 255, 255);
+    doc.setTextColor(...DARK);
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text('ARTE CONCRETO - CRM INTELLIGENCE', 15, 25);
+    doc.text(data.title.toUpperCase(), 15, 62);
 
-    // Date
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Fecha del Reporte: ${new Date().toLocaleDateString()}`, 140, 25);
+    doc.setFillColor(...PRIMARY);
+    doc.rect(15, 66, 50, 1.5, 'F');
 
-    // Report Title
-    doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
-    doc.setFontSize(22);
-    doc.setFont('helvetica', 'bold');
-    doc.text(data.title.toUpperCase(), 15, 55);
+    // Stats
+    doc.setFontSize(11);
+    doc.setTextColor(...DARK);
+    doc.text('MÉTRICAS CLAVE', 15, 80);
 
-    // Branding Bar
-    doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.rect(15, 60, 40, 2, 'F');
-
-    // Stats Grid
-    doc.setFontSize(14);
-    doc.text('MÉTRICAS CLAVE', 15, 75);
-
-    const statsRows = data.stats.map(s => [s.label, s.value, s.change]);
-
-    doc.autoTable({
-        startY: 80,
+    autoTable(doc, {
+        startY: 85,
         head: [['Indicador', 'Valor Actual', 'Tendencia']],
-        body: statsRows,
+        body: data.stats.map(s => [s.label, s.value, s.change]),
         theme: 'grid',
-        headStyles: {
-            fillColor: darkColor,
-            textColor: [255, 255, 255],
-            fontStyle: 'bold'
-        },
-        alternateRowStyles: { fillColor: [245, 245, 245] },
-        margin: { left: 15, right: 15 }
+        headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: 'bold', fontSize: 9 },
+        bodyStyles: { fontSize: 9 },
+        alternateRowStyles: { fillColor: LIGHT },
+        margin: { left: 15, right: 15 },
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY + 20;
+    const y1 = (doc as any).lastAutoTable.finalY + 18;
+    doc.setFontSize(11);
+    doc.setTextColor(...DARK);
+    doc.text('LEADS DE ALTO VALOR', 15, y1);
 
-    // Top Leads
-    doc.setFontSize(14);
-    doc.text('LEADS DE ALTO VALOR', 15, finalY);
-
-    const leadRows = data.topLeads.map(l => [l.name, l.company, `${l.score}%`]);
-
-    doc.autoTable({
-        startY: finalY + 5,
+    autoTable(doc, {
+        startY: y1 + 5,
         head: [['Nombre del Lead', 'Empresa', 'Lead Score']],
-        body: leadRows,
+        body: data.topLeads.map(l => [l.name, l.company, `${l.score}%`]),
         theme: 'striped',
-        headStyles: {
-            fillColor: primaryColor,
-            textColor: [0, 0, 0],
-            fontStyle: 'bold'
-        },
-        margin: { left: 15, right: 15 }
+        headStyles: { fillColor: PRIMARY, textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 9 },
+        bodyStyles: { fontSize: 9 },
+        margin: { left: 15, right: 15 },
     });
 
-    // Footer
     addFooter(doc);
-
-    // Save the PDF
-    doc.save(`Reporte_ArteConcreto_${new Date().getTime()}.pdf`);
+    doc.save(`Reporte_ArteConcreto_${Date.now()}.pdf`);
 };
 
-export const generateProposalPDF = async (data: ProposalData) => {
-    const doc = new jsPDF();
-    const primaryColor = [250, 181, 16];
-    const darkColor = [20, 20, 23];
+export const generateProposalPDF = async (data: ProposalData): Promise<void> => {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-    // Header background
-    doc.setFillColor(darkColor[0], darkColor[1], darkColor[2]);
-    doc.rect(0, 0, 210, 50, 'F');
+    const name    = data.leadName    || 'Cliente';
+    const company = data.leadCompany || '';
+    const email   = data.leadEmail   || '';
+    const city    = data.leadCity    || '';
 
-    // Logo image
-    try {
-        const logoBase64 = await loadImageAsBase64(LOGO_URL);
-        // Place logo: x=12, y=10, width=55, height=22 — adjust to taste
-        doc.addImage(logoBase64, 'PNG', 12, 10, 55, 22);
-    } catch {
-        // Fallback to text if image fails to load
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(20);
-        doc.setFont('helvetica', 'bold');
-        doc.text('ARTE CONCRETO', 15, 30);
-    }
+    // ── Header ──────────────────────────────────────────────────────────────
+    doc.setFillColor(...DARK);
+    doc.rect(0, 0, 210, 46, 'F');
+
+    doc.setFillColor(...PRIMARY);
+    doc.rect(0, 42, 210, 4, 'F');
+
+    // Brand text
+    doc.setTextColor(...WHITE);
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ARTE CONCRETO', 15, 20);
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(180, 180, 180);
+    doc.text('PROPUESTA COMERCIAL', 15, 28);
+
+    // Quote badge (right side)
+    doc.setTextColor(...PRIMARY);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text(data.quoteNumber, 195, 18, { align: 'right' });
+
+    doc.setTextColor(200, 200, 200);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Fecha: ${data.date}`, 195, 26, { align: 'right' });
+    doc.text('Vigencia: 15 días calendario', 195, 32, { align: 'right' });
+
+    // ── Client info ──────────────────────────────────────────────────────────
+    doc.setTextColor(...DARK);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...GRAY);
+    doc.text('PREPARADO PARA:', 15, 60);
+
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...DARK);
+    doc.text(name.toUpperCase(), 15, 69);
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(200, 200, 200);
-    doc.text('PROPUESTA COMERCIAL', 15, 42);
-    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.text(`${data.quoteNumber}`, 160, 30);
-    doc.setTextColor(255, 255, 255);
-    doc.text(`Fecha: ${data.date}`, 160, 40);
+    doc.setTextColor(...GRAY);
+    if (company) doc.text(company, 15, 77);
+    const detailY = company ? 83 : 77;
+    const details = [email, city].filter(Boolean).join(' · ');
+    if (details) doc.text(details, 15, detailY);
 
-    // Client Info Section
-    doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('PREPARADO PARA:', 15, 70);
+    // Divider
+    doc.setFillColor(...PRIMARY);
+    doc.rect(15, detailY + 6, 180, 0.8, 'F');
 
-    doc.setFontSize(16);
-    doc.text(data.leadName.toUpperCase(), 15, 80);
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'normal');
-    doc.text(data.leadCompany, 15, 88);
-
-    // Decorative Line
-    doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.rect(15, 95, 180, 0.5, 'F');
-
-    // Items Table
-    const tableRows = data.items.map(item => [
-        item.name,
-        `${item.quantity} ${item.unit}`,
-        `$${item.price.toLocaleString()}`,
-        `$${item.total.toLocaleString()}`
-    ]);
-
-    doc.autoTable({
-        startY: 110,
+    // ── Items table ──────────────────────────────────────────────────────────
+    autoTable(doc, {
+        startY: detailY + 12,
         head: [['Descripción del Producto', 'Cant.', 'Precio Unit.', 'Total']],
-        body: tableRows,
+        body: data.items.map(item => [
+            item.name,
+            `${item.quantity} ${item.unit}`,
+            fmt(item.price),
+            fmt(item.total),
+        ]),
         theme: 'grid',
-        headStyles: {
-            fillColor: darkColor,
-            textColor: [255, 255, 255],
-            fontStyle: 'bold'
-        },
+        headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: 'bold', fontSize: 9 },
+        bodyStyles: { fontSize: 9 },
+        alternateRowStyles: { fillColor: [250, 248, 244] },
         columnStyles: {
             0: { cellWidth: 90 },
             1: { cellWidth: 20, halign: 'center' },
-            2: { cellWidth: 35, halign: 'right' },
-            3: { cellWidth: 35, halign: 'right' },
-        }
+            2: { cellWidth: 38, halign: 'right' },
+            3: { cellWidth: 38, halign: 'right' },
+        },
+        margin: { left: 15, right: 15 },
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY + 15;
+    const fy = (doc as any).lastAutoTable.finalY + 8;
 
-    // Totals Section
-    doc.setFontSize(11);
-    doc.text('Subtotal:', 140, finalY);
-    doc.text(`$${data.subtotal.toLocaleString()}`, 190, finalY, { align: 'right' });
+    // ── Totals ───────────────────────────────────────────────────────────────
+    doc.setFontSize(9);
+    doc.setTextColor(...DARK);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Subtotal:', 140, fy);
+    doc.text(fmt(data.subtotal), 195, fy, { align: 'right' });
 
-    doc.text('IVA (19%):', 140, finalY + 8);
-    doc.text(`$${data.tax.toLocaleString()}`, 190, finalY + 8, { align: 'right' });
+    doc.text('IVA (19%):', 140, fy + 7);
+    doc.text(fmt(data.tax), 195, fy + 7, { align: 'right' });
 
-    doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.rect(130, finalY + 12, 65, 10, 'F');
+    doc.setFillColor(...PRIMARY);
+    doc.roundedRect(130, fy + 11, 65, 11, 2, 2, 'F');
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.text('TOTAL:', 135, finalY + 19);
-    doc.text(`$${data.total.toLocaleString()}`, 190, finalY + 19, { align: 'right' });
+    doc.setFontSize(10);
+    doc.text('TOTAL:', 135, fy + 18.5);
+    doc.text(fmt(data.total), 192, fy + 18.5, { align: 'right' });
 
-    // Terms & Conditions
-    doc.setTextColor(100, 100, 100);
-    doc.setFontSize(9);
+    // ── Terms ────────────────────────────────────────────────────────────────
+    const termsY = fy + 36;
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
-    doc.text('TÉRMINOS Y CONDICIONES:', 15, finalY + 35);
+    doc.setTextColor(...DARK);
+    doc.text('TÉRMINOS Y CONDICIONES:', 15, termsY);
     doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...GRAY);
     doc.text([
         '• Validez de la oferta: 15 días calendario.',
-        '• Tiempo de entrega: A convenir según disponibilidad de planta.',
+        '• Tiempo de entrega: 10-15 días hábiles según disponibilidad de planta.',
         '• Forma de pago: 50% anticipo, 50% contra entrega.',
-        '• Esta cotización no incluye costos de transporte a menos que se especifique.'
-    ], 15, finalY + 42);
+        '• Esta cotización no incluye costos de transporte a menos que se especifique.',
+    ], 15, termsY + 6);
 
-    // Footer
     addFooter(doc);
-
-    // Save
-    doc.save(`Propuesta_${data.quoteNumber}_Voltaris.pdf`);
-};
-
-const addFooter = (doc: jsPDF) => {
-    const pageCount = (doc as any).internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(180, 180, 180);
-        const footerText = 'ARTE CONCRETO LTD. - NIT: 900.XXX.XXX-X - Calle Industrial #123, Medellín, Colombia';
-        const brandingText = 'Documento generado automáticamente por MiWibi CRM Intelligence';
-        doc.text(footerText, 105, doc.internal.pageSize.height - 15, { align: 'center' });
-        doc.text(brandingText, 105, doc.internal.pageSize.height - 10, { align: 'center' });
-    }
+    doc.save(`Propuesta_${data.quoteNumber}_ArteConcreto.pdf`);
 };
