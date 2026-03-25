@@ -87,6 +87,7 @@ export default function Lead360Page() {
     }
 
     return (
+        <>
         <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
             {/* Breadcrumbs & Actions */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -555,7 +556,7 @@ export default function Lead360Page() {
                         </div>
                     </div>
                     <button
-                        onClick={() => { updateClient(lead.id, editForm); setIsEditOpen(false); }}
+                        onClick={() => { updateClient(lead.id, { ...editForm, status: editForm.status as 'Active' | 'Lead' | 'Inactive' }); setIsEditOpen(false); }}
                         className="w-full bg-primary text-black font-black py-3 rounded-xl uppercase tracking-widest hover:bg-primary/90 transition-all"
                     >
                         Guardar Cambios
@@ -563,5 +564,6 @@ export default function Lead360Page() {
                 </div>
             </div>
         )}
+        </>
     );
 }
