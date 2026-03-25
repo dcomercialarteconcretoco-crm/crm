@@ -35,7 +35,7 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
     const [isSaving, setIsSaving] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [isSendingEmail, setIsSendingEmail] = useState(false);
-    const [sentConfirm, setSentConfirm] = useState<{ quoteNumber: string; email: string } | null>(null);
+    const [sentConfirm, setSentConfirm] = useState<{ quoteNumber: string; email: string; pending?: boolean; pendingAction?: 'send_email' | 'send_whatsapp' | 'generate_pdf' } | null>(null);
     const [showNewClientForm, setShowNewClientForm] = useState(false);
     const [productSearch, setProductSearch] = useState('');
     const [newClient, setNewClient] = useState({ name: '', company: '', email: '', phone: '', city: '' });
@@ -116,6 +116,35 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
         const client = clients.find(c => c.id === selectedClientId);
         if (!client) { addNotification({ title: 'Cliente requerido', description: 'Selecciona un cliente.', type: 'alert' }); return; }
         if (items.length === 0) { addNotification({ title: 'Sin productos', description: 'Agrega al menos un producto.', type: 'alert' }); return; }
+
+        const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
+
+        if (!isAdmin) {
+            const quoteNumber = genQuoteNumber();
+            addQuote({
+                number: quoteNumber, client: client.name, clientId: client.id,
+                clientEmail: client.email || '', clientCompany: client.company || '',
+                date: new Date().toLocaleDateString('es-CO'),
+                total: formatCurrency(total), numericTotal: total, subtotal, tax,
+                items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity })),
+                notes: '', sellerId: currentUser?.id || '', sellerName: currentUser?.name || '',
+                status: 'PENDING_APPROVAL' as const,
+                pendingAction: 'generate_pdf',
+                requestedBy: currentUser?.id || '',
+                requestedByName: currentUser?.name || '',
+                requestedAt: new Date().toISOString(),
+            });
+            addNotification({ title: 'Solicitud enviada', description: 'Tu solicitud fue enviada al administrador para aprobación.', type: 'alert' });
+            addNotification({
+                title: '⏳ Aprobación requerida',
+                description: `${currentUser?.name} solicita generar PDF — Cotización ${quoteNumber} para ${client.name} · Total: ${formatCurrency(total)}`,
+                type: 'alert',
+                forAdmin: true,
+            });
+            setSentConfirm({ quoteNumber, email: '', pending: true, pendingAction: 'generate_pdf' });
+            return;
+        }
+
         setIsSaving(true);
         try {
             const quoteNumber = genQuoteNumber();
@@ -156,6 +185,35 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
         const client = clients.find(c => c.id === selectedClientId);
         if (!client?.phone) { addNotification({ title: 'Teléfono requerido', description: 'El cliente no tiene número registrado.', type: 'alert' }); return; }
         if (items.length === 0) { addNotification({ title: 'Sin productos', description: 'Agrega al menos un producto.', type: 'alert' }); return; }
+
+        const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
+
+        if (!isAdmin) {
+            const quoteNumber = genQuoteNumber();
+            addQuote({
+                number: quoteNumber, client: client.name, clientId: client.id,
+                clientEmail: client.email || '', clientCompany: client.company || '',
+                date: new Date().toLocaleDateString('es-CO'),
+                total: formatCurrency(total), numericTotal: total, subtotal, tax,
+                items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity })),
+                notes: '', sellerId: currentUser?.id || '', sellerName: currentUser?.name || '',
+                status: 'PENDING_APPROVAL' as const,
+                pendingAction: 'send_whatsapp',
+                requestedBy: currentUser?.id || '',
+                requestedByName: currentUser?.name || '',
+                requestedAt: new Date().toISOString(),
+            });
+            addNotification({ title: 'Solicitud enviada', description: 'Tu solicitud fue enviada al administrador para aprobación.', type: 'alert' });
+            addNotification({
+                title: '⏳ Aprobación requerida',
+                description: `${currentUser?.name} solicita enviar WhatsApp — Cotización ${quoteNumber} para ${client.name} · Total: ${formatCurrency(total)}`,
+                type: 'alert',
+                forAdmin: true,
+            });
+            setSentConfirm({ quoteNumber, email: client.phone || '', pending: true, pendingAction: 'send_whatsapp' });
+            return;
+        }
+
         const phone = client.phone.replace(/\D/g, '');
         const intlPhone = phone.startsWith('57') ? phone : `57${phone}`;
         const itemsList = items.map(i => `  • ${i.name} x${i.quantity} → ${formatCurrency(i.price * i.quantity)}`).join('\n');
@@ -190,6 +248,35 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
         const client = clients.find(c => c.id === selectedClientId);
         if (!client?.email) { addNotification({ title: 'Email requerido', description: 'El cliente no tiene email.', type: 'alert' }); return; }
         if (items.length === 0) { addNotification({ title: 'Sin productos', description: 'Agrega al menos un producto.', type: 'alert' }); return; }
+
+        const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
+
+        if (!isAdmin) {
+            const quoteNumber = genQuoteNumber();
+            addQuote({
+                number: quoteNumber, client: client.name, clientId: client.id,
+                clientEmail: client.email || '', clientCompany: client.company || '',
+                date: new Date().toLocaleDateString('es-CO'),
+                total: formatCurrency(total), numericTotal: total, subtotal, tax,
+                items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity })),
+                notes: '', sellerId: currentUser?.id || '', sellerName: currentUser?.name || '',
+                status: 'PENDING_APPROVAL' as const,
+                pendingAction: 'send_email',
+                requestedBy: currentUser?.id || '',
+                requestedByName: currentUser?.name || '',
+                requestedAt: new Date().toISOString(),
+            });
+            addNotification({ title: 'Solicitud enviada', description: 'Tu solicitud fue enviada al administrador para aprobación.', type: 'alert' });
+            addNotification({
+                title: '⏳ Aprobación requerida',
+                description: `${currentUser?.name} solicita enviar email — Cotización ${quoteNumber} para ${client.name} · Total: ${formatCurrency(total)}`,
+                type: 'alert',
+                forAdmin: true,
+            });
+            setSentConfirm({ quoteNumber, email: client.email, pending: true, pendingAction: 'send_email' });
+            return;
+        }
+
         setIsSendingEmail(true);
         try {
             const sentAt = new Date().toISOString();
@@ -572,23 +659,45 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
 
         {sentConfirm && (
           <div className="fixed inset-0 z-[300] flex items-end justify-center p-6 pointer-events-none">
-            <div className="pointer-events-auto bg-card border border-emerald-500/30 rounded-[2rem] shadow-2xl shadow-emerald-500/10 p-6 max-w-sm w-full animate-in slide-in-from-bottom-4 duration-500">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
-                  <CheckCircle className="w-5 h-5 text-emerald-500" />
+            {sentConfirm.pending ? (
+              <div className="pointer-events-auto bg-card border border-amber-400/40 rounded-[2rem] shadow-2xl shadow-amber-500/10 p-6 max-w-sm w-full animate-in slide-in-from-bottom-4 duration-500">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-400/30 flex items-center justify-center shrink-0">
+                    <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-black text-foreground text-sm">Solicitud enviada al administrador</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      <strong>{sentConfirm.quoteNumber}</strong> — en espera de aprobación
+                    </p>
+                    <p className="text-[10px] text-amber-600 mt-1.5 font-bold">
+                      ⏳ {sentConfirm.pendingAction === 'send_email' ? 'El admin aprobará el envío por email' : sentConfirm.pendingAction === 'send_whatsapp' ? 'El admin aprobará el envío por WhatsApp' : 'El admin aprobará la generación del PDF'}
+                    </p>
+                  </div>
+                  <button onClick={() => setSentConfirm(null)} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
                 </div>
-                <div className="flex-1">
-                  <p className="font-black text-foreground text-sm">¡Cotización enviada!</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    <strong>{sentConfirm.quoteNumber}</strong> enviada a <strong>{sentConfirm.email}</strong>
-                  </p>
-                  <p className="text-[10px] text-emerald-600 mt-1.5 font-bold">📧 Recibirás notificación cuando el cliente la abra</p>
-                </div>
-                <button onClick={() => setSentConfirm(null)} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
               </div>
-            </div>
+            ) : (
+              <div className="pointer-events-auto bg-card border border-emerald-500/30 rounded-[2rem] shadow-2xl shadow-emerald-500/10 p-6 max-w-sm w-full animate-in slide-in-from-bottom-4 duration-500">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                    <CheckCircle className="w-5 h-5 text-emerald-500" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-black text-foreground text-sm">¡Cotización enviada!</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      <strong>{sentConfirm.quoteNumber}</strong> enviada a <strong>{sentConfirm.email}</strong>
+                    </p>
+                    <p className="text-[10px] text-emerald-600 mt-1.5 font-bold">📧 Recibirás notificación cuando el cliente la abra</p>
+                  </div>
+                  <button onClick={() => setSentConfirm(null)} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
         </>

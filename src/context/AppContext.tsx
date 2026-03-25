@@ -84,12 +84,16 @@ export interface Quote {
     notes?: string;
     sellerId?: string;
     sellerName?: string;
-    status: 'Draft' | 'Sent' | 'Approved' | 'Rejected';
+    status: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'PENDING_APPROVAL';
     taskId?: string;
     opens?: number;
     sentAt?: string;        // ISO timestamp del envío
     sentByName?: string;    // Nombre del usuario que lo envió
     sentById?: string;      // ID del usuario que lo envió
+    pendingAction?: 'send_email' | 'send_whatsapp' | 'generate_pdf';
+    requestedBy?: string;
+    requestedByName?: string;
+    requestedAt?: string;
 }
 
 export interface Seller {
@@ -113,6 +117,9 @@ export interface Notification {
     time: string;
     type: 'lead' | 'ai' | 'alert' | 'success' | 'task' | 'order';
     read: boolean;
+    forAdmin?: boolean;
+    quoteId?: string;
+    targetUserId?: string;
 }
 
 export interface AuditLog {
@@ -120,7 +127,7 @@ export interface AuditLog {
     userId: string;
     userName: string;
     userRole: string;
-    action: 'QUOTE_SENT' | 'SALE_REGISTERED' | 'CLIENT_CONTACTED' | 'LEAD_CREATED' | 'SYSTEM_LOGIN' | 'SYSTEM_LOGOUT' | 'TASK_DELETED' | 'SETTINGS_CHANGED' | 'WHATSAPP_SENT' | 'CALL_MADE' | 'LEAD_STATUS_CHANGE';
+    action: 'QUOTE_SENT' | 'SALE_REGISTERED' | 'CLIENT_CONTACTED' | 'LEAD_CREATED' | 'SYSTEM_LOGIN' | 'SYSTEM_LOGOUT' | 'TASK_DELETED' | 'SETTINGS_CHANGED' | 'WHATSAPP_SENT' | 'CALL_MADE' | 'LEAD_STATUS_CHANGE' | 'QUOTE_APPROVED' | 'QUOTE_REJECTED';
     targetId?: string;
     targetName?: string;
     timestamp: Date;
@@ -659,7 +666,7 @@ REGLAS DE ORO:
 
                 const stageMap: Record<string, string> = {
                     Draft: 'proposal', Sent: 'proposal', Viewed: 'contacted',
-                    Approved: 'won', Rejected: 'won',
+                    Approved: 'won', Rejected: 'won', PENDING_APPROVAL: 'proposal',
                 };
 
                 const newTasks: Task[] = orphanQuotes.map(q => ({
@@ -976,6 +983,7 @@ REGLAS DE ORO:
                 'Viewed': 'contacted', // Client opened/viewed the quote → move to Contactado
                 'Approved': 'won',
                 'Rejected': 'won', // stays in won column but card can be styled as lost
+                'PENDING_APPROVAL': 'proposal',
             };
             const newStage = stageMap[updates.status];
             if (newStage) {

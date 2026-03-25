@@ -82,13 +82,19 @@ export default function ClientsPage() {
     const handleCreateClient = () => {
         if (!newClientForm.name || !newClientForm.company) return;
 
+        const isAdminUser = ctxUser?.role === 'SuperAdmin' || ctxUser?.role === 'Admin';
+
         const clientData: Omit<Client, 'id'> = {
             ...newClientForm,
             value: '$0',
             ltv: 0,
             lastContact: 'Recién registrado',
             score: 75, // Default score
-            registrationDate: new Date().toISOString().split('T')[0]
+            registrationDate: new Date().toISOString().split('T')[0],
+            ...((!isAdminUser && ctxUser) ? {
+                assignedTo: ctxUser.id,
+                assignedToName: ctxUser.name,
+            } : {}),
         };
 
         const id = addClient(clientData);

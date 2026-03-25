@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   AlertTriangle,
   ArrowRight,
+  Clock,
   Eye,
   FileText,
   PlusCircle,
@@ -14,7 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { clsx } from "clsx";
-import { useApp } from "@/context/AppContext";
+import { useApp, Quote } from "@/context/AppContext";
 import { generatePDFReport } from "@/lib/pdf-generator";
 
 function formatCurrency(value: number) {
@@ -30,13 +31,93 @@ const QUOTE_STATUS_LABEL: Record<string, string> = {
   Sent: 'Enviado',
   Approved: 'Aprobado',
   Rejected: 'Rechazado',
+  PENDING_APPROVAL: 'Pend. Aprobación',
 };
 
 export default function Home() {
-  const { clients, tasks, quotes, settings, currentUser } = useApp();
+  const { clients, tasks, quotes, settings, currentUser, updateQuote, addNotification, addAuditLog } = useApp();
 
   const userIsSuperAdmin = currentUser?.role === "SuperAdmin" || currentUser?.role === "Admin";
+  const isAdmin = userIsSuperAdmin;
   const canExport = userIsSuperAdmin && settings.allowExports;
+
+  const pendingQuotes = useMemo(
+    () => quotes.filter((q) => q.status === "PENDING_APPROVAL"),
+    [quotes]
+  );
+
+  const handleApproveQuote = async (q: Quote) => {
+    if (q.pendingAction === 'send_email') {
+      // Actually send the email
+      try {
+        const res = await fetch('/api/quotes/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            quoteNumber: q.number,
+            clientName: q.client,
+            clientEmail: q.clientEmail,
+            clientCompany: q.clientCompany || '',
+            sellerName: q.sellerName || 'ArteConcreto',
+            sellerId: q.sellerId || '',
+            sentAt: new Date().toISOString(),
+            sentByName: currentUser?.name || '',
+            sentById: currentUser?.id || '',
+            items: q.items || [],
+            subtotal: q.subtotal || q.numericTotal,
+            tax: q.tax || 0,
+            total: q.numericTotal,
+          }),
+        });
+        if (res.ok) {
+          updateQuote(q.id, { status: 'Sent', pendingAction: undefined, requestedBy: undefined, requestedByName: undefined, requestedAt: undefined });
+        } else {
+          updateQuote(q.id, { status: 'Draft', pendingAction: undefined, requestedBy: undefined, requestedByName: undefined, requestedAt: undefined });
+        }
+      } catch {
+        updateQuote(q.id, { status: 'Draft', pendingAction: undefined, requestedBy: undefined, requestedByName: undefined, requestedAt: undefined });
+      }
+    } else {
+      // generate_pdf or send_whatsapp: revert to Draft so seller can proceed
+      updateQuote(q.id, { status: 'Draft', pendingAction: undefined, requestedBy: undefined, requestedByName: undefined, requestedAt: undefined });
+    }
+    addAuditLog({
+      userId: currentUser?.id || '',
+      userName: currentUser?.name || 'Admin',
+      userRole: currentUser?.role || 'Admin',
+      action: 'QUOTE_APPROVED',
+      targetId: q.id,
+      targetName: q.client,
+      details: `Admin ${currentUser?.name} aprobó cotización ${q.number} para ${q.client} solicitada por ${q.requestedByName}`,
+      verified: true,
+    });
+    addNotification({
+      title: `Cotización ${q.number} aprobada`,
+      description: `Aprobada por ${currentUser?.name}. ${q.pendingAction === 'generate_pdf' ? 'El vendedor puede descargar el PDF.' : 'El email fue enviado al cliente.'}`,
+      type: 'success',
+      targetUserId: q.requestedBy,
+    });
+  };
+
+  const handleRejectQuote = (q: Quote) => {
+    updateQuote(q.id, { status: 'Draft', pendingAction: undefined, requestedBy: undefined, requestedByName: undefined, requestedAt: undefined });
+    addAuditLog({
+      userId: currentUser?.id || '',
+      userName: currentUser?.name || 'Admin',
+      userRole: currentUser?.role || 'Admin',
+      action: 'QUOTE_REJECTED',
+      targetId: q.id,
+      targetName: q.client,
+      details: `Admin ${currentUser?.name} rechazó cotización ${q.number} para ${q.client} solicitada por ${q.requestedByName}`,
+      verified: true,
+    });
+    addNotification({
+      title: `Cotización ${q.number} rechazada`,
+      description: `Rechazada por el administrador. Contacta al admin para más detalles.`,
+      type: 'alert',
+      targetUserId: q.requestedBy,
+    });
+  };
 
   const totalForecast = useMemo(
     () => tasks.reduce((sum, task) => sum + task.numericValue, 0),
@@ -217,6 +298,47 @@ export default function Home() {
 
   return (
     <div className="space-y-4 lg:space-y-6 animate-in fade-in duration-700">
+
+      {/* ── PENDING APPROVALS PANEL (admins only) ── */}
+      {isAdmin && pendingQuotes.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-[2rem] p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/20 flex items-center justify-center">
+              <Clock className="w-4 h-4 text-amber-600" />
+            </div>
+            <h2 className="font-black text-amber-800 text-sm uppercase tracking-widest">
+              {pendingQuotes.length} Aprobación{pendingQuotes.length > 1 ? 'es' : ''} Pendiente{pendingQuotes.length > 1 ? 's' : ''}
+            </h2>
+          </div>
+          <div className="space-y-3">
+            {pendingQuotes.map(q => (
+              <div key={q.id} className="bg-white border border-amber-200 rounded-2xl p-4 flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-foreground">{q.number} — {q.client}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {q.requestedByName} solicita {q.pendingAction === 'send_email' ? 'enviar email' : q.pendingAction === 'send_whatsapp' ? 'enviar WhatsApp' : 'generar PDF'} · {q.total}
+                  </p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => handleApproveQuote(q)}
+                    className="px-4 py-2 bg-emerald-500 text-white text-[10px] font-black rounded-xl uppercase tracking-widest hover:bg-emerald-400 transition-all"
+                  >
+                    ✓ Aprobar
+                  </button>
+                  <button
+                    onClick={() => handleRejectQuote(q)}
+                    className="px-4 py-2 bg-rose-500/10 text-rose-600 text-[10px] font-black rounded-xl uppercase tracking-widest hover:bg-rose-500/20 transition-all border border-rose-200"
+                  >
+                    ✕ Rechazar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <section className="grid grid-cols-1 items-start gap-4 lg:gap-6 xl:grid-cols-12">
         <div className="xl:col-span-8 space-y-5">
           <div className="surface-panel rounded-[2rem] lg:rounded-[2.5rem] p-4 sm:p-5 lg:p-7 overflow-hidden relative">
