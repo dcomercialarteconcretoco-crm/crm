@@ -31,6 +31,7 @@ export interface Task {
     activities: Activity[];
     quoteId?: string;
     stageId?: string;
+    notes?: { text: string; date: string; author: string }[];
 }
 
 export interface ClientNote {

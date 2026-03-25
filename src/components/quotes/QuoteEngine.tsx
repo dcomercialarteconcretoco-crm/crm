@@ -25,7 +25,7 @@ interface QuoteEngineProps {
 }
 
 export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) {
-    const { products, clients, addClient, refreshProducts, addQuote, updateQuote, currentUser, settings, addNotification } = useApp();
+    const { products, clients, addClient, refreshProducts, addQuote, updateQuote, currentUser, settings, addNotification, addAuditLog } = useApp();
     const genId = () => `${Date.now().toString(36)}-${Math.round(Math.random() * 1e4)}`;
     const genQuoteNumber = () => `AC-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`;
 
@@ -136,6 +136,16 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
                 items: items.map(i => ({ ...i, total: i.price * i.quantity })),
                 subtotal, tax, total,
             });
+            addAuditLog({
+                userId: currentUser?.id || '',
+                userName: currentUser?.name || 'Sistema',
+                userRole: currentUser?.role || 'Vendedor',
+                action: 'QUOTE_SENT',
+                targetId: client.id,
+                targetName: client.company || client.name,
+                details: `Cotización ${quoteNumber} generada · Total: ${formatCurrency(total)}`,
+                verified: true
+            });
             addNotification({ title: `Cotización ${quoteNumber} lista`, description: 'Guardada y PDF descargado.', type: 'success' });
         } finally {
             setIsSaving(false);
@@ -164,6 +174,16 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
             `📍 Km 1+800, Anillo Vial, Floridablanca, Santander`,
         ].join('\n');
         window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+        addAuditLog({
+            userId: currentUser?.id || '',
+            userName: currentUser?.name || 'Sistema',
+            userRole: currentUser?.role || 'Vendedor',
+            action: 'WHATSAPP_SENT',
+            targetId: client.id,
+            targetName: client.company || client.name,
+            details: `WhatsApp enviado con cotización · Total: ${formatCurrency(total)} → ${client.phone}`,
+            verified: true
+        });
     };
 
     const handleSendEmail = async () => {
@@ -198,6 +218,16 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
             const data = await res.json();
             if (res.ok) {
                 updateQuote(quoteId, { status: 'Sent', sentAt: data.sentAt || sentAt, sentByName: data.sentByName || currentUser?.name || '', sentById: data.sentById || currentUser?.id || '' });
+                addAuditLog({
+                    userId: currentUser?.id || '',
+                    userName: currentUser?.name || 'Sistema',
+                    userRole: currentUser?.role || 'Vendedor',
+                    action: 'QUOTE_SENT',
+                    targetId: client.id,
+                    targetName: client.company || client.name,
+                    details: `Email enviado con cotización ${quoteNumber} → ${client.email}`,
+                    verified: true
+                });
                 addNotification({ title: `Cotización ${quoteNumber} enviada`, description: `Enviada a ${client.email}`, type: 'success' });
                 setSentConfirm({ quoteNumber, email: client.email });
             } else {

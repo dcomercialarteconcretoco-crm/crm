@@ -47,6 +47,64 @@ export default function Lead360Page() {
     const leadActivity = auditLogs.filter(log => log.targetId === leadId).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     const sentQuotes = leadQuotes.filter(q => q.status === 'Sent' || q.status === 'Approved');
 
+    // Unified timeline: merge audit logs + quotes + task notes + client notes
+    const unifiedTimeline = [
+        // Audit logs for this client
+        ...auditLogs
+            .filter(log => log.targetId === leadId || log.targetName === (lead?.company || lead?.name))
+            .map(log => ({
+                id: log.id,
+                type: log.action as string,
+                title: log.action === 'QUOTE_SENT' ? '📄 Cotización / Email enviado'
+                     : log.action === 'WHATSAPP_SENT' ? '💬 WhatsApp enviado'
+                     : log.action === 'CALL_MADE' ? '📞 Llamada registrada'
+                     : log.action === 'SYSTEM_LOGIN' ? '🔐 Acceso al sistema'
+                     : log.action === 'SALE_REGISTERED' ? '✅ Venta registrada'
+                     : log.action.replace(/_/g, ' '),
+                detail: log.details,
+                date: log.timestamp,
+                author: log.userName,
+                color: log.action === 'WHATSAPP_SENT' ? 'emerald'
+                     : log.action === 'CALL_MADE' ? 'blue'
+                     : log.action === 'SALE_REGISTERED' ? 'emerald'
+                     : 'primary',
+            })),
+        // Quotes created
+        ...leadQuotes.map(q => ({
+            id: `q-${q.id}`,
+            type: 'QUOTE_CREATED',
+            title: `📋 Cotización ${q.number} — ${q.status === 'Sent' ? 'Enviada' : q.status === 'Approved' ? 'Aprobada' : q.status === 'Draft' ? 'Borrador' : q.status}`,
+            detail: `Total: ${q.total}${q.sentByName ? ` · Por: ${q.sentByName}` : ''}`,
+            date: q.sentAt || q.date,
+            author: q.sellerName || '',
+            color: q.status === 'Approved' ? 'emerald' : q.status === 'Sent' ? 'blue' : 'muted',
+        })),
+        // Task notes (from pipeline)
+        ...leadTasks.flatMap(t => (t.notes || []).map((n: {text: string; date: string; author: string}) => ({
+            id: `tn-${t.id}-${n.date}`,
+            type: 'NOTE',
+            title: '📝 Nota del Pipeline',
+            detail: n.text,
+            date: n.date,
+            author: n.author || '',
+            color: 'amber',
+        }))),
+        // Client notes
+        ...(lead?.notes || []).map((n: {text: string; date: string; author: string}, i: number) => ({
+            id: `cn-${i}`,
+            type: 'NOTE',
+            title: '📝 Nota del cliente',
+            detail: n.text,
+            date: n.date,
+            author: n.author || '',
+            color: 'amber',
+        })),
+    ].sort((a, b) => {
+        const da = new Date(a.date).getTime();
+        const db = new Date(b.date).getTime();
+        return isNaN(db) || isNaN(da) ? 0 : db - da;
+    });
+
     const handleLogContact = (type: 'WHATSAPP_SENT' | 'CALL_MADE' | 'QUOTE_SENT', details: string) => {
         if (!lead || !currentUser) return;
         addAuditLog({
@@ -81,7 +139,7 @@ export default function Lead360Page() {
     if (!lead) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
-                <p className="text-white/40 font-black uppercase tracking-[0.3em]">Cliente no encontrado</p>
+                <p className="text-muted-foreground/50 font-black uppercase tracking-[0.3em]">Cliente no encontrado</p>
             </div>
         );
     }
@@ -253,7 +311,7 @@ export default function Lead360Page() {
                             {activeTab === 'Razonamiento IA' && (
                                 <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300">
                                     <div className="flex items-center justify-between mb-2">
-                                        <h3 className="text-sm font-black uppercase tracking-widest text-white">Log de Razonamiento (Engine Insights)</h3>
+                                        <h3 className="text-sm font-black uppercase tracking-widest text-foreground">Log de Razonamiento (Engine Insights)</h3>
                                         <div className="flex items-center gap-2">
                                             <span className="text-[9px] font-black uppercase text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded">Score {lead.score || 0}%</span>
                                         </div>
@@ -284,17 +342,17 @@ export default function Lead360Page() {
                                                     : 'Sin cotizaciones enviadas. Considerar enviar propuesta para activar el proceso de compra.'
                                             }
                                         ].map((log, i) => (
-                                            <div key={i} className="flex gap-5 p-6 bg-white/[0.02] border border-white/5 rounded-3xl hover:border-white/10 transition-all">
+                                            <div key={i} className="flex gap-5 p-6 bg-muted/10 border border-border/20 rounded-3xl hover:border-border/30 transition-all">
                                                 <div className={clsx(
                                                     "w-1 h-full rounded-full shrink-0",
                                                     log.status === 'Success' ? "bg-emerald-500" : log.status === 'Warning' ? "bg-amber-500" : "bg-sky-500"
                                                 )}></div>
                                                 <div className="space-y-2">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/40">{log.step}</span>
-                                                        <Clock className="w-3 h-3 text-white/20" />
+                                                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50">{log.step}</span>
+                                                        <Clock className="w-3 h-3 text-muted-foreground/30" />
                                                     </div>
-                                                    <p className="text-sm font-medium text-white/90 leading-relaxed">{log.content}</p>
+                                                    <p className="text-sm font-medium text-foreground/90 leading-relaxed">{log.content}</p>
                                                 </div>
                                             </div>
                                         ))}
@@ -356,24 +414,40 @@ export default function Lead360Page() {
                                     </div>
 
                                     {/* Timeline Items */}
-                                    <div className="relative pl-10 space-y-12 before:absolute before:left-[19px] before:top-2 before:bottom-2 before:w-[2px] before:bg-gradient-to-b before:from-primary/40 before:via-border/40 before:to-transparent">
-                                        {leadActivity.length > 0 ? leadActivity.map((log) => (
-                                            <div key={log.id} className="relative">
-                                                <div className="absolute -left-[35px] top-1.5 w-9 h-9 rounded-xl bg-card border-2 border-primary flex items-center justify-center shadow-lg shadow-primary/10 z-10">
-                                                    <Clock className="w-4 h-4 text-primary" />
+                                    <div className="relative pl-10 space-y-6 before:absolute before:left-[19px] before:top-2 before:bottom-2 before:w-[2px] before:bg-gradient-to-b before:from-primary/40 before:via-border/40 before:to-transparent">
+                                        {unifiedTimeline.length > 0 ? unifiedTimeline.map((event) => (
+                                            <div key={event.id} className="relative">
+                                                <div className={`absolute -left-[35px] top-1.5 w-9 h-9 rounded-xl border-2 flex items-center justify-center shadow-lg z-10 bg-card ${
+                                                    event.color === 'emerald' ? 'border-emerald-500 shadow-emerald-500/10' :
+                                                    event.color === 'blue' ? 'border-blue-500 shadow-blue-500/10' :
+                                                    event.color === 'amber' ? 'border-amber-500 shadow-amber-500/10' :
+                                                    'border-primary shadow-primary/10'
+                                                }`}>
+                                                    <span className="text-sm leading-none">{
+                                                        event.type === 'WHATSAPP_SENT' ? '💬' :
+                                                        event.type === 'CALL_MADE' ? '📞' :
+                                                        event.type === 'SALE_REGISTERED' ? '✅' :
+                                                        event.type === 'NOTE' ? '📝' :
+                                                        event.type === 'QUOTE_CREATED' ? '📋' : '📄'
+                                                    }</span>
                                                 </div>
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <h4 className="text-sm font-black uppercase tracking-tight">{log.action.replace(/_/g, ' ')}</h4>
-                                                        <p className="text-xs text-muted-foreground mt-1.5 font-medium leading-relaxed">{log.details}</p>
-                                                        <p className="text-[10px] text-muted-foreground/50 mt-1">por {log.userName}</p>
+                                                <div className="bg-card border border-border/40 rounded-2xl p-4 hover:border-primary/20 transition-colors">
+                                                    <div className="flex justify-between items-start gap-3">
+                                                        <div className="flex-1 min-w-0">
+                                                            <h4 className="text-sm font-black text-foreground">{event.title}</h4>
+                                                            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{event.detail}</p>
+                                                            {event.author && <p className="text-[10px] text-muted-foreground/50 mt-1">por {event.author}</p>}
+                                                        </div>
+                                                        <span className="text-[10px] font-black text-muted-foreground bg-muted/30 px-2 py-1 rounded-lg whitespace-nowrap shrink-0">
+                                                            {(() => { try { return new Date(event.date).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch { return String(event.date); } })()}
+                                                        </span>
                                                     </div>
-                                                    <span className="text-[10px] font-black text-muted-foreground uppercase bg-muted/30 px-2 py-1 rounded whitespace-nowrap ml-3">{new Date(log.timestamp).toLocaleDateString('es-CO')}</span>
                                                 </div>
                                             </div>
                                         )) : (
                                             <div className="text-center py-10">
-                                                <p className="text-xs font-black uppercase text-white/20 tracking-widest">Sin actividad registrada</p>
+                                                <p className="text-xs font-black uppercase text-muted-foreground/30 tracking-widest">Sin actividad registrada aún</p>
+                                                <p className="text-[10px] text-muted-foreground/20 mt-1">Las acciones aparecerán aquí automáticamente</p>
                                             </div>
                                         )}
                                     </div>
@@ -383,7 +457,7 @@ export default function Lead360Page() {
                             {activeTab === 'Cotizaciones' && (
                                 <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
                                     <div className="flex items-center justify-between mb-4">
-                                        <h3 className="text-sm font-black uppercase tracking-widest text-white">Propuestas Enviadas</h3>
+                                        <h3 className="text-sm font-black uppercase tracking-widest text-foreground">Propuestas Enviadas</h3>
                                         <div className="flex items-center gap-2">
                                             <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
                                             <span className="text-[9px] font-black uppercase text-emerald-500">{leadQuotes.length} cotización(es)</span>
@@ -392,27 +466,27 @@ export default function Lead360Page() {
 
                                     <div className="grid grid-cols-1 gap-4">
                                         {leadQuotes.length > 0 ? leadQuotes.map((quote) => (
-                                            <div key={quote.id} className="p-6 bg-white/[0.02] border border-white/5 rounded-3xl hover:border-primary/20 transition-all group relative overflow-hidden">
+                                            <div key={quote.id} className="p-6 bg-muted/10 border border-border/20 rounded-3xl hover:border-primary/20 transition-all group relative overflow-hidden">
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-5">
                                                         <div className="w-12 h-12 rounded-[1.25rem] bg-muted/20 flex items-center justify-center text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary transition-all">
                                                             <FileText className="w-6 h-6" />
                                                         </div>
                                                         <div>
-                                                            <p className="text-base font-black text-white">{quote.number}</p>
-                                                            <p className="text-[10px] font-black uppercase text-white/30 tracking-widest">{quote.date}</p>
+                                                            <p className="text-base font-black text-foreground">{quote.number}</p>
+                                                            <p className="text-[10px] font-black uppercase text-muted-foreground/50 tracking-widest">{quote.date}</p>
                                                             {quote.sentByName && (
-                                                                <p className="text-[10px] text-white/30 mt-0.5">Enviado por {quote.sentByName}</p>
+                                                                <p className="text-[10px] text-muted-foreground/50 mt-0.5">Enviado por {quote.sentByName}</p>
                                                             )}
                                                         </div>
                                                     </div>
                                                     <div className="text-right">
-                                                        <p className="text-lg font-black text-white">{quote.total}</p>
+                                                        <p className="text-lg font-black text-foreground">{quote.total}</p>
                                                         <span className={clsx(
                                                             "text-[9px] font-black px-2 py-0.5 rounded border uppercase tracking-widest",
                                                             quote.status === 'Approved' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" :
                                                             quote.status === 'Sent' ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
-                                                            "bg-white/5 text-white/40 border-white/10"
+                                                            "bg-muted/20 text-muted-foreground/50 border-border/30"
                                                         )}>
                                                             {quote.status === 'Sent' ? 'Enviado' : quote.status === 'Approved' ? 'Aprobado' : quote.status === 'Draft' ? 'Borrador' : quote.status}
                                                         </span>
@@ -420,15 +494,15 @@ export default function Lead360Page() {
                                                 </div>
                                             </div>
                                         )) : (
-                                            <div className="text-center py-20 bg-white/[0.01] rounded-[2rem] border border-dashed border-white/5">
-                                                <p className="text-xs font-black uppercase text-white/20 tracking-widest italic">No hay cotizaciones activas</p>
+                                            <div className="text-center py-20 bg-muted/10 rounded-[2rem] border border-dashed border-border/20">
+                                                <p className="text-xs font-black uppercase text-muted-foreground/30 tracking-widest italic">No hay cotizaciones activas</p>
                                             </div>
                                         )}
                                     </div>
 
                                     <button
                                         onClick={() => router.push(`/quotes/new?clientId=${lead.id}`)}
-                                        className="w-full py-5 border-2 border-dashed border-white/5 rounded-3xl text-[10px] font-black uppercase tracking-widest text-white/20 hover:text-primary hover:border-primary/20 hover:bg-primary/5 transition-all flex items-center justify-center gap-3"
+                                        className="w-full py-5 border-2 border-dashed border-border/20 rounded-3xl text-[10px] font-black uppercase tracking-widest text-muted-foreground/30 hover:text-primary hover:border-primary/20 hover:bg-primary/5 transition-all flex items-center justify-center gap-3"
                                     >
                                         <Plus className="w-4 h-4" />
                                         Generar Nueva Propuesta
@@ -466,7 +540,7 @@ export default function Lead360Page() {
                                     )) : (
                                         <div className="text-center py-16 bg-muted/5 border border-dashed border-border/40 rounded-[2rem]">
                                             <Mail className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-                                            <p className="text-xs font-black uppercase text-white/20 tracking-widest">Sin correos enviados aún</p>
+                                            <p className="text-xs font-black uppercase text-muted-foreground/30 tracking-widest">Sin correos enviados aún</p>
                                             <p className="text-[10px] text-muted-foreground/40 mt-2">Los correos de cotizaciones aparecerán aquí</p>
                                         </div>
                                     )}
@@ -493,20 +567,40 @@ export default function Lead360Page() {
                                     </div>
 
                                     <div className="space-y-4 pt-4">
-                                        {(lead.notes || []).length === 0 ? (
-                                            <div className="text-center py-8">
-                                                <StickyNote className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
-                                                <p className="text-xs font-black uppercase text-white/20 tracking-widest">Sin notas aún</p>
-                                            </div>
-                                        ) : (lead.notes || []).map((note, i) => (
-                                            <div key={i} className="p-5 bg-primary/5 border-l-4 border-primary rounded-r-2xl space-y-3">
-                                                <p className="text-sm font-medium leading-relaxed">{note.text}</p>
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-black text-primary">{note.author[0]}</div>
-                                                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{note.author} • {note.date}</span>
+                                        {/* All notes: client notes + pipeline task notes */}
+                                        {(() => {
+                                            const allNotes = [
+                                                ...(lead.notes || []).map((n: {text: string; date: string; author: string}) => ({ ...n, source: 'cliente' })),
+                                                ...leadTasks.flatMap(t => (t.notes || []).map((n: {text: string; date: string; author: string}) => ({ ...n, source: 'pipeline' }))),
+                                            ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+                                            if (allNotes.length === 0) return (
+                                                <div className="text-center py-8">
+                                                    <StickyNote className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
+                                                    <p className="text-xs font-black uppercase text-muted-foreground/30 tracking-widest">Sin notas aún</p>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+
+                                            return (
+                                                <div className="space-y-3">
+                                                    {allNotes.map((note, i) => (
+                                                        <div key={i} className="p-5 bg-primary/5 border-l-4 border-primary rounded-r-2xl space-y-2">
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${note.source === 'pipeline' ? 'bg-amber-500/10 text-amber-600' : 'bg-primary/10 text-primary'}`}>
+                                                                    {note.source === 'pipeline' ? 'Pipeline' : 'Cliente'}
+                                                                </span>
+                                                                <span className="text-[10px] text-muted-foreground/50">{note.date}</span>
+                                                            </div>
+                                                            <p className="text-sm font-medium leading-relaxed text-foreground">{note.text}</p>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-black text-primary">{(note.author || 'S')[0]}</div>
+                                                                <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{note.author || 'Sistema'}</span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             )}
