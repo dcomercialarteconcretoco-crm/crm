@@ -97,11 +97,19 @@ function ac_cotizacion_button() {
 
                 <!-- Formulario -->
                 <form id="ac-quote-form" autocomplete="on">
-                    <div style="margin-bottom:14px;">
-                        <label style="display:block; font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#777; margin-bottom:6px;">Nombre completo *</label>
-                        <input name="name" type="text" required placeholder="Ej: Juan Pérez"
-                               style="width:100%; padding:12px 14px; border:1.5px solid #ddd; border-radius:10px; font-size:14px; box-sizing:border-box; outline:none; font-family:inherit;"
-                               onfocus="this.style.borderColor='<?php echo AC_BUTTON_COLOR; ?>'" onblur="this.style.borderColor='#ddd'" />
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
+                        <div>
+                            <label style="display:block; font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#777; margin-bottom:6px;">Nombre completo *</label>
+                            <input name="name" type="text" required placeholder="Ej: Juan Pérez"
+                                   style="width:100%; padding:12px 14px; border:1.5px solid #ddd; border-radius:10px; font-size:14px; box-sizing:border-box; outline:none; font-family:inherit;"
+                                   onfocus="this.style.borderColor='<?php echo AC_BUTTON_COLOR; ?>'" onblur="this.style.borderColor='#ddd'" />
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#777; margin-bottom:6px;">Empresa / Proyecto</label>
+                            <input name="company" type="text" placeholder="Ej: Constructora XYZ"
+                                   style="width:100%; padding:12px 14px; border:1.5px solid #ddd; border-radius:10px; font-size:14px; box-sizing:border-box; outline:none; font-family:inherit;"
+                                   onfocus="this.style.borderColor='<?php echo AC_BUTTON_COLOR; ?>'" onblur="this.style.borderColor='#ddd'" />
+                        </div>
                     </div>
                     <div style="margin-bottom:14px;">
                         <label style="display:block; font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#777; margin-bottom:6px;">Correo electrónico *</label>
@@ -202,6 +210,7 @@ function ac_cotizacion_button() {
                 email:   form.email.value.trim(),
                 phone:   form.phone.value.trim(),
                 city:    form.city.value.trim(),
+                company: form.company.value.trim(),
                 source:  'WooCommerce',
                 product: {
                     name:  PROD_NAME,
