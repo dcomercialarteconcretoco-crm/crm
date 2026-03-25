@@ -269,11 +269,38 @@ export default function PipelinePage() {
     const [columnSearch, setColumnSearch] = useState<Record<string, string>>({});
 
     useEffect(() => {
+        // Deduplicate: one card per unique client per column (same email or same clientId)
+        function dedupTasks(colTasks: Task[]): Task[] {
+            const seen = new Map<string, Task>();
+            // Sort by numericValue desc so we keep the highest-value task as representative
+            const sorted = [...colTasks].sort((a, b) => (b.numericValue || 0) - (a.numericValue || 0));
+            for (const t of sorted) {
+                const key = (t as any).email?.toLowerCase().trim() || (t as any).clientId || t.id;
+                if (!seen.has(key)) {
+                    seen.set(key, { ...t });
+                } else {
+                    // Merge: accumulate value + merge activities
+                    const existing = seen.get(key)!;
+                    const combined = (existing.numericValue || 0) + (t.numericValue || 0);
+                    seen.set(key, {
+                        ...existing,
+                        numericValue: combined,
+                        value: `$ ${combined.toLocaleString('es-CO')}`,
+                        activities: [
+                            ...(existing.activities || []),
+                            ...(t.activities || []),
+                        ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
+                    });
+                }
+            }
+            return Array.from(seen.values());
+        }
+
         setColumns(
             STAGES.map(s => ({
                 id: s.id,
                 title: s.label,
-                tasks: tasks.filter((t: any) => migrateStageId(t.stageId) === s.id),
+                tasks: dedupTasks(tasks.filter((t: any) => migrateStageId(t.stageId) === s.id)),
             }))
         );
     }, [tasks]);

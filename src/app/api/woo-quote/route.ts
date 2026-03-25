@@ -106,12 +106,13 @@ export async function POST(req: NextRequest) {
         assignedTo: '',
         email,
         activities: [{
+            id: `sys-${Date.now()}`,
             type: 'system',
-            note: `Cotización solicitada desde WooCommerce · ${product.name} × ${qty}`,
-            date: dateStr,
+            content: `Cotización solicitada desde WooCommerce · ${product.name} × ${qty}`,
+            timestamp: now.toISOString(),
         }],
         quoteId,
-        stageId: 'proposal',
+        stageId: 'sent',
         openedAt: null,
         sentAt: dateStr,
     };
@@ -121,8 +122,8 @@ export async function POST(req: NextRequest) {
             await ensureCrmSchema();
             const pool = getPool();
 
-            // Upsert client
-            await pool.query(`
+            // Upsert client — get real ID (existing or new)
+            const { rows: upsertRows } = await pool.query(`
                 INSERT INTO crm_clients (id, name, company, email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date, updated_at)
                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
                 ON CONFLICT (email) DO UPDATE SET
@@ -133,7 +134,19 @@ export async function POST(req: NextRequest) {
                 newClient.status, newClient.value, newClient.ltv, newClient.lastContact,
                 newClient.city, newClient.score, newClient.category, newClient.registrationDate]);
 
-            // Append quote to crm_state quotes array
+            // Use the real existing client ID (avoids creating orphan quotes/tasks)
+            const realClientId: string = upsertRows[0]?.id || newClient.id;
+            newQuote.clientId = realClientId;
+            newTask.clientId = realClientId;
+
+            // Check if this client already has an active pipeline task
+            const { rows: tRows } = await pool.query(`SELECT value FROM crm_state WHERE key = 'tasks'`);
+            const existingTasks: any[] = tRows[0]?.value ?? [];
+            const existingClientTask = existingTasks.find((t: any) =>
+                t.clientId === realClientId && t.stageId !== 'won' && t.stageId !== 'lost'
+            );
+
+            // Append quote
             const { rows: qRows } = await pool.query(`SELECT value FROM crm_state WHERE key = 'quotes'`);
             const existingQuotes: unknown[] = qRows[0]?.value ?? [];
             await pool.query(`
@@ -141,13 +154,26 @@ export async function POST(req: NextRequest) {
                 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
             `, [JSON.stringify([...existingQuotes, newQuote])]);
 
-            // Append task to crm_state tasks array
-            const { rows: tRows } = await pool.query(`SELECT value FROM crm_state WHERE key = 'tasks'`);
-            const existingTasks: unknown[] = tRows[0]?.value ?? [];
-            await pool.query(`
-                INSERT INTO crm_state (key, value, updated_at) VALUES ('tasks', $1::jsonb, NOW())
-                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
-            `, [JSON.stringify([...existingTasks, newTask])]);
+            if (existingClientTask) {
+                // Merge: add a new activity to the existing task and accumulate value
+                const mergedActivities = [newTask.activities[0], ...(existingClientTask.activities || [])];
+                const mergedValue = (existingClientTask.numericValue || 0) + newTask.numericValue;
+                const updatedTasks = existingTasks.map((t: any) =>
+                    t.id === existingClientTask.id
+                        ? { ...t, numericValue: mergedValue, value: `$${mergedValue.toLocaleString('es-CO')}`, activities: mergedActivities }
+                        : t
+                );
+                await pool.query(`
+                    INSERT INTO crm_state (key, value, updated_at) VALUES ('tasks', $1::jsonb, NOW())
+                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+                `, [JSON.stringify(updatedTasks)]);
+            } else {
+                // New task for this client
+                await pool.query(`
+                    INSERT INTO crm_state (key, value, updated_at) VALUES ('tasks', $1::jsonb, NOW())
+                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+                `, [JSON.stringify([...existingTasks, newTask])]);
+            }
 
         } catch (err) {
             console.error('[woo-quote] DB error:', err);

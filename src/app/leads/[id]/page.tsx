@@ -45,11 +45,24 @@ export default function Lead360Page() {
     const leadId = params.id as string;
     const lead = clients.find(c => c.id === leadId);
 
-    const leadQuotesAll = quotes.filter(q => q.clientId === leadId);
-    const leadTasks = tasks.filter(t =>
-        t.clientId === leadId ||
+    // Also find quotes linked to duplicate clients (same email)
+    const sameEmailClients = lead ? clients.filter(c =>
+        c.id !== leadId &&
+        c.email && lead.email &&
+        c.email.toLowerCase().trim() === lead.email.toLowerCase().trim()
+    ) : [];
+    const sameEmailIds = new Set([leadId, ...sameEmailClients.map(c => c.id)]);
+    const leadQuotesAll = quotes.filter(q => sameEmailIds.has(q.clientId) || q.clientEmail?.toLowerCase().trim() === lead?.email?.toLowerCase().trim());
+
+    const normalize = (s?: string) => (s || '').toLowerCase().trim();
+    const leadTasks = tasks.filter((t: any) =>
+        sameEmailIds.has(t.clientId) ||
         leadQuotesAll.some(q => q.id === t.quoteId) ||
-        (lead && t.client && (t.client === lead.company || t.client === lead.name))
+        (lead?.email && t.email && normalize(t.email) === normalize(lead.email)) ||
+        (lead && t.client && (
+            normalize(t.client) === normalize(lead.company) ||
+            normalize(t.client) === normalize(lead.name)
+        ))
     );
     const leadQuotes = leadQuotesAll;
     const leadActivity = auditLogs.filter(log => log.targetId === leadId).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
