@@ -148,126 +148,120 @@ export default function Home() {
   }, [clients, quotes]);
   const recentQuotes = quotes.slice(0, 5);
   const liveTasks = tasks.slice(0, 4);
-  const insightCards = useMemo(() => {
+
+  // Returns up to 5 insight cards — all same importance, rotated in banner
+  const allInsightCards = useMemo(() => {
+    const cards: { label: string; title: string; body: string; href: string; cta: string }[] = [];
+
     if (clients.length === 0) {
-      return {
-        primary: {
-          label: "Alerta Prioritaria",
-          title: "Aún no tienes clientes cargados.",
-          body: "Sin clientes no hay seguimiento ni alertas comerciales. Registra el primero para activar el CRM.",
-          href: "/clients",
-          cta: "Crear cliente",
-        },
-        secondary: [
-          {
-            label: "Siguiente paso",
-            body: "Después del primer cliente, crea una cotización para que el sistema empiece a medir intención y avance comercial.",
-            href: "/quotes/new",
-          },
-        ],
-      };
+      cards.push({
+        label: "Alerta Prioritaria",
+        title: "Aún no tienes clientes cargados.",
+        body: "Sin clientes no hay seguimiento ni alertas comerciales. Registra el primero para activar el CRM.",
+        href: "/clients",
+        cta: "Crear cliente",
+      });
+      cards.push({
+        label: "Siguiente Paso",
+        title: "Crea tu primera cotización.",
+        body: "Después del primer cliente, una cotización activa el ciclo comercial completo del CRM.",
+        href: "/quotes/new",
+        cta: "Nueva cotización",
+      });
+      return cards;
     }
 
     if (quotes.length === 0) {
-      return {
-        primary: {
-          label: "Oportunidad Detectada",
-          title: "Ya hay clientes, pero no hay cotizaciones activas.",
-          body: "Sin propuestas no hay señales de interés. Lanza la primera para empezar a leer intención comercial.",
-          href: "/quotes/new",
-          cta: "Crear cotización",
-        },
-        secondary: [
-          {
-            label: "Cobertura",
-            body: `${clients.length} clientes ya están listos para entrar a pipeline.`,
-            href: "/clients",
-          },
-        ],
-      };
+      cards.push({
+        label: "Oportunidad Detectada",
+        title: "Hay clientes, pero no hay propuestas activas.",
+        body: "Sin cotizaciones no hay señal de interés. Lanza la primera para medir intención comercial.",
+        href: "/quotes/new",
+        cta: "Crear cotización",
+      });
+      cards.push({
+        label: "Cobertura",
+        title: `${clients.length} cliente${clients.length > 1 ? 's' : ''} listo${clients.length > 1 ? 's' : ''} para cotizar.`,
+        body: "Cada cliente registrado es una oportunidad de negocio. Activa el pipeline para no perder ninguna.",
+        href: "/clients",
+        cta: "Ver directorio",
+      });
+      return cards;
     }
 
-    if (tasks.length === 0) {
-      const hottestQuote = recentQuotes[0];
-      return {
-        primary: {
-          label: "Alerta Comercial",
-          title: hottestQuote
-            ? `La cotización ${hottestQuote.number}${hottestQuote.client ? ` · ${hottestQuote.client}` : ''} necesita seguimiento.`
-            : "Tus cotizaciones no están llegando a seguimiento.",
-          body: hottestQuote?.client
-            ? `${hottestQuote.client} tiene una propuesta activa sin cerrar. Mueve el negocio en el pipeline para no perder el cierre.`
-            : "No hay propuestas vivas en pipeline. Abre seguimiento para no perder trazabilidad del cierre.",
-          href: "/pipeline",
-          cta: "Abrir pipeline",
-        },
-        secondary: hottestQuote
-          ? [
-              {
-                label: "Cotización reciente",
-                body: `${hottestQuote.client} ya tiene una propuesta emitida. Conviene activar llamada o tarea de seguimiento.`,
-                href: "/quotes",
-              },
-            ]
-          : [],
-      };
+    // Live leads
+    liveTasks.slice(0, 2).forEach((t, i) => {
+      cards.push({
+        label: i === 0 ? "Seguimiento Vivo" : "Lead Activo",
+        title: `${t.contactName || t.client} sigue activo sin cierre.`,
+        body: "Define la siguiente acción concreta y mueve este negocio en el pipeline esta semana.",
+        href: t.clientId ? `/leads/${t.clientId}` : "/pipeline",
+        cta: "Ver lead",
+      });
+    });
+
+    // Conversion alert
+    if (approvedQuotes === 0 && quotes.length > 0) {
+      cards.push({
+        label: "Alerta de Conversión",
+        title: `${quotes.length} cotizaciones emitidas, ninguna cerrada.`,
+        body: "El embudo está activo pero sin cierres. Prioriza las propuestas de mayor valor para destrabar el pipeline.",
+        href: "/quotes",
+        cta: "Revisar cotizaciones",
+      });
     }
 
-    if (approvedQuotes === 0) {
-      const liveLead = liveTasks[0];
-      return {
-        primary: {
-          label: "Seguimiento Vivo",
-          title: liveLead
-            ? `${liveLead.contactName || liveLead.client} sigue activo sin cierre.`
-            : "Hay actividad, pero falta cerrar negocio.",
-          body: "Prioriza las cotizaciones abiertas con mayor valor y define una siguiente acción esta semana.",
-          href: liveLead ? `/leads/${liveLead.clientId}` : "/pipeline",
-          cta: liveLead ? "Ver lead" : "Revisar pipeline",
-        },
-        secondary: [
-          {
-            label: "Conversión",
-            body: `Tienes ${quotes.length} cotizaciones emitidas y 0 aprobadas. La prioridad es convertir interés en cierre.`,
-            href: "/quotes",
-          },
-        ],
-      };
+    // Hottest quote
+    const topQuote = recentQuotes.find(q => q.status === 'Sent' || q.status === 'Draft');
+    if (topQuote) {
+      cards.push({
+        label: "Propuesta Caliente",
+        title: `${topQuote.client || 'Un cliente'} tiene una propuesta sin respuesta.`,
+        body: `La cotización ${topQuote.number} lleva tiempo en espera. Un seguimiento ahora puede inclinar la decisión.`,
+        href: "/quotes",
+        cta: "Ver cotización",
+      });
     }
 
-    return {
-      primary: {
-        label: "Lectura AI del día",
-        title: "Tu embudo ya tiene señal suficiente para optimizar.",
-        body: `Llevas ${approvedQuotes} cierres aprobados sobre ${quotes.length} cotizaciones. Repite el patrón de los clientes que sí avanzaron.`,
+    // Top client
+    if (topClients[0] && cards.length < 5) {
+      cards.push({
+        label: "Cliente Prioritario",
+        title: `${topClients[0].name} es tu cliente de mayor valor.`,
+        body: "Mantener la relación activa con tus mejores clientes multiplica las posibilidades de recompra.",
+        href: `/leads/${topClients[0].id}`,
+        cta: "Ver ficha",
+      });
+    }
+
+    // Analytics nudge
+    if (approvedQuotes > 0 && cards.length < 5) {
+      cards.push({
+        label: "Lectura del Día",
+        title: `${approvedQuotes} cierre${approvedQuotes > 1 ? 's' : ''} aprobado${approvedQuotes > 1 ? 's' : ''}. Repite el patrón.`,
+        body: `Llevas ${approvedQuotes} de ${quotes.length} cotizaciones convertidas. Analiza qué tienen en común los cierres exitosos.`,
         href: "/analytics",
         cta: "Ver analíticas",
-      },
-      secondary: topClients.slice(0, 2).map((client) => ({
-        label: "Cliente caliente",
-        body: `${client.name} aparece entre los clientes de mayor valor. Conviene revisar su relación comercial y próximas acciones.`,
-        href: "/clients",
-      })),
-    };
-  }, [approvedQuotes, clients.length, liveTasks, quotes.length, recentQuotes, tasks.length, topClients]);
+      });
+    }
 
-  // Build flat carousel cards from primary + secondary insights
-  const allInsightCards = useMemo(() => [
-    { ...insightCards.primary, isPrimary: true },
-    ...(insightCards.secondary || []).map(s => ({ ...s, title: s.body, cta: 'Ver más', isPrimary: false })),
-  ], [insightCards]);
+    return cards.slice(0, 5);
+  }, [approvedQuotes, clients.length, clients, liveTasks, quotes.length, recentQuotes, tasks.length, topClients]);
 
-  // Auto-rotate every 5s
+  // Auto-rotate every 6s
   useEffect(() => {
     if (allInsightCards.length < 2) return;
     const timer = setInterval(() => {
       setCarouselDir('up');
       setCarouselIdx(i => (i + 1) % allInsightCards.length);
-    }, 5000);
+    }, 6000);
     return () => clearInterval(timer);
   }, [allInsightCards.length]);
 
-  const activeCard = allInsightCards[carouselIdx] || allInsightCards[0];
+  // Reset index when cards change (e.g. data loaded)
+  useEffect(() => { setCarouselIdx(0); }, [allInsightCards.length]);
+
+  const activeCard = allInsightCards[Math.min(carouselIdx, allInsightCards.length - 1)];
 
   const handleExport = () => {
     generatePDFReport({
@@ -365,50 +359,50 @@ export default function Home() {
           <div className="surface-panel rounded-[2rem] lg:rounded-[2.5rem] p-4 sm:p-5 lg:p-7 overflow-hidden relative">
             <div className="absolute inset-y-0 right-0 w-1/3 bg-[radial-gradient(circle_at_top_right,rgba(250,181,16,0.14),transparent_58%)] pointer-events-none" />
             <div className="relative space-y-4 lg:space-y-5">
-              {/* ── Rotating Insight Banner ── */}
-              <div className="relative overflow-hidden rounded-[1.6rem] lg:rounded-[2rem] border border-primary/15 bg-[linear-gradient(135deg,rgba(250,181,16,0.08),rgba(255,255,255,0.58))]">
+              {/* ── Rotating Insight Banner — fixed height so layout never jumps ── */}
+              <div className="relative overflow-hidden rounded-[1.6rem] lg:rounded-[2rem] border border-primary/15 bg-[linear-gradient(135deg,rgba(250,181,16,0.08),rgba(255,255,255,0.58))] h-[220px] sm:h-[210px] lg:h-[220px] flex flex-col">
+                {/* Card content — fills remaining space */}
                 <Link
                   key={carouselIdx}
-                  href={activeCard.href}
-                  className="group block p-5 sm:p-6 lg:p-7 animate-in slide-in-from-bottom-3 fade-in duration-500"
+                  href={activeCard?.href ?? '#'}
+                  className="group flex-1 block px-5 pt-5 sm:px-6 sm:pt-6 lg:px-7 lg:pt-7 animate-in slide-in-from-bottom-4 fade-in duration-400"
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start justify-between gap-4 h-full">
                     <div className="min-w-0 flex-1">
                       <p className="text-[10px] font-black uppercase tracking-[0.28em] text-muted-foreground">
-                        {activeCard.label}
+                        {activeCard?.label}
                       </p>
-                      <h1 className="mt-3 text-[1.6rem] leading-[1.05] font-black tracking-[-0.05em] text-foreground sm:text-[2rem] lg:text-[2.4rem]">
-                        {activeCard.title}
+                      <h1 className="mt-2 text-[1.45rem] leading-[1.1] font-black tracking-[-0.04em] text-foreground sm:text-[1.7rem] lg:text-[2rem] line-clamp-2">
+                        {activeCard?.title}
                       </h1>
-                      {'body' in activeCard && (activeCard as any).body !== activeCard.title && (
-                        <p className="mt-3 max-w-2xl text-[14px] font-semibold leading-6 text-muted-foreground">
-                          {(activeCard as any).body}
-                        </p>
-                      )}
-                      <div className="mt-4 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-primary">
-                        {activeCard.cta}
+                      <p className="mt-2 text-[13px] font-semibold leading-5 text-muted-foreground line-clamp-2">
+                        {activeCard?.body}
+                      </p>
+                      <div className="mt-3 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-primary">
+                        {activeCard?.cta}
                         <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
                       </div>
                     </div>
-                    <div className="hidden sm:flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] border border-primary/20 bg-primary/10 text-primary">
-                      <AlertTriangle className="h-5 w-5" />
+                    <div className="hidden sm:flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] border border-primary/20 bg-primary/10 text-primary">
+                      <AlertTriangle className="h-4.5 w-4.5" />
                     </div>
                   </div>
                 </Link>
-                {/* Dot indicators + manual nav */}
+
+                {/* Dot nav — pinned to bottom */}
                 {allInsightCards.length > 1 && (
-                  <div className="flex items-center gap-2 px-6 pb-4">
+                  <div className="flex items-center gap-2 px-5 sm:px-6 lg:px-7 pb-4 pt-2 shrink-0">
                     {allInsightCards.map((_, i) => (
                       <button
                         key={i}
                         onClick={() => { setCarouselDir('up'); setCarouselIdx(i); }}
                         className={clsx(
-                          "transition-all rounded-full",
-                          i === carouselIdx ? "w-5 h-1.5 bg-primary" : "w-1.5 h-1.5 bg-primary/25 hover:bg-primary/50"
+                          "transition-all duration-300 rounded-full",
+                          i === carouselIdx ? "w-6 h-1.5 bg-primary" : "w-1.5 h-1.5 bg-primary/25 hover:bg-primary/50"
                         )}
                       />
                     ))}
-                    <span className="ml-auto text-[9px] font-black uppercase tracking-widest text-muted-foreground/40">
+                    <span className="ml-auto text-[9px] font-black uppercase tracking-widest text-muted-foreground/35">
                       {carouselIdx + 1} / {allInsightCards.length}
                     </span>
                   </div>
