@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
         lastContact: dateStr,
         score: 65,
         category: 'WooCommerce Lead',
+        source: 'WooCommerce',
         registrationDate: dateStr,
     };
 

@@ -471,13 +471,22 @@ export default function ClientsPage() {
                                         </span>
                                     )}
                                 </div>
-                                {/* Status badge */}
-                                <div className="hidden lg:flex items-center gap-2 w-28 shrink-0">
+                                {/* Status + Source badges */}
+                                <div className="hidden lg:flex items-center gap-1.5 w-44 shrink-0 flex-wrap">
                                     <span className={clsx('text-[8px] font-black px-2 py-0.5 rounded-full border uppercase tracking-widest',
                                         client.status==='Active'?'bg-emerald-50 text-emerald-600 border-emerald-200':
                                         client.status==='Lead'?'bg-amber-50 text-amber-600 border-amber-200':
                                         'bg-gray-100 text-gray-500 border-gray-200'
                                     )}>{client.status}</span>
+                                    {client.source === 'WooCommerce' && (
+                                        <span className="text-[7px] font-black px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200 uppercase tracking-widest">🛒 Web</span>
+                                    )}
+                                    {client.source === 'ConcreBot' && (
+                                        <span className="text-[7px] font-black px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-200 uppercase tracking-widest">🤖 Bot</span>
+                                    )}
+                                    {(!client.source || client.source === 'Manual') && (
+                                        <span className="text-[7px] font-black px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-400 border border-gray-200 uppercase tracking-widest">✏️ Manual</span>
+                                    )}
                                     {openQuotes.length > 0 && <span className="text-[8px] font-black text-primary">●</span>}
                                 </div>
                                 {/* Score */}
