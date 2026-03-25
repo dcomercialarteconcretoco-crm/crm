@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
         phone = '',
         city = '',
         company = '',
+        message = '',
         product,       // { name, sku, price, qty, image, url }
         source = 'WooCommerce',
     } = body;
@@ -105,12 +106,20 @@ export async function POST(req: NextRequest) {
         source,
         assignedTo: '',
         email,
-        activities: [{
-            id: `sys-${Date.now()}`,
-            type: 'system',
-            content: `Cotización solicitada desde WooCommerce · ${product.name} × ${qty}`,
-            timestamp: now.toISOString(),
-        }],
+        activities: [
+            ...(message ? [{
+                id: `note-${Date.now()}`,
+                type: 'note',
+                content: `💬 Mensaje del cliente: "${message}"`,
+                timestamp: now.toISOString(),
+            }] : []),
+            {
+                id: `sys-${Date.now()}`,
+                type: 'system',
+                content: `Cotización solicitada desde WooCommerce · ${product.name} × ${qty}`,
+                timestamp: now.toISOString(),
+            },
+        ],
         quoteId,
         stageId: 'sent',
         openedAt: null,
@@ -193,11 +202,12 @@ export async function POST(req: NextRequest) {
                     subject: `🧾 Nueva solicitud de cotización — ${product.name}`,
                     html: `
                         <h2>Nueva cotización desde la tienda</h2>
-                        <p><b>Cliente:</b> ${name} · ${email} · ${phone}</p>
+                        <p><b>Cliente:</b> ${name}${company ? ` · ${company}` : ''} · ${email} · ${phone}</p>
                         <p><b>Ciudad:</b> ${city || 'N/A'}</p>
                         <hr/>
                         <p><b>Producto:</b> ${product.name} (SKU: ${product.sku || 'N/A'})</p>
                         <p><b>Cantidad:</b> ${qty} un · <b>Precio aprox.:</b> $${total.toLocaleString('es-CO')}</p>
+                        ${message ? `<hr/><p><b>💬 Mensaje del cliente:</b><br/><em style="color:#555;">"${message}"</em></p>` : ''}
                         <hr/>
                         <p>Cotización <b>${quoteNumber}</b> creada automáticamente en el CRM.</p>
                     `,

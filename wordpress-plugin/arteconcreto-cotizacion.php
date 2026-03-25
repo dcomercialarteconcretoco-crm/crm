@@ -132,6 +132,13 @@ function ac_cotizacion_button() {
                         </div>
                     </div>
 
+                    <div style="margin-bottom:20px;">
+                        <label style="display:block; font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#777; margin-bottom:6px;">¿Algo que quieras contarnos? <span style="font-weight:400;color:#bbb;">(opcional)</span></label>
+                        <textarea name="message" rows="3" placeholder="Ej: Necesito el pedido para una obra en Bogotá, presupuesto aproximado $5M..."
+                                  style="width:100%; padding:12px 14px; border:1.5px solid #ddd; border-radius:10px; font-size:14px; box-sizing:border-box; outline:none; font-family:inherit; resize:vertical; min-height:80px;"
+                                  onfocus="this.style.borderColor='<?php echo AC_BUTTON_COLOR; ?>'" onblur="this.style.borderColor='#ddd'"></textarea>
+                    </div>
+
                     <!-- Submit -->
                     <button type="submit" id="ac-submit-btn" style="
                         width:100%; padding:15px; background:<?php echo AC_BUTTON_COLOR; ?>; color:#000;
@@ -211,6 +218,7 @@ function ac_cotizacion_button() {
                 phone:   form.phone.value.trim(),
                 city:    form.city.value.trim(),
                 company: form.company.value.trim(),
+                message: form.message.value.trim(),
                 source:  'WooCommerce',
                 product: {
                     name:  PROD_NAME,
