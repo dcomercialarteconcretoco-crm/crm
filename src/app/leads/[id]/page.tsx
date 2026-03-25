@@ -22,7 +22,7 @@ import {
 
 import Link from 'next/link';
 import { clsx } from 'clsx';
-import { useApp } from '@/context/AppContext';
+import { useApp, Activity } from '@/context/AppContext';
 
 const STATUS_LABEL: Record<string, string> = {
     'Active': 'Activo',
@@ -45,8 +45,13 @@ export default function Lead360Page() {
     const leadId = params.id as string;
     const lead = clients.find(c => c.id === leadId);
 
-    const leadTasks = tasks.filter(t => t.clientId === leadId);
-    const leadQuotes = quotes.filter(q => q.clientId === leadId);
+    const leadQuotesAll = quotes.filter(q => q.clientId === leadId);
+    const leadTasks = tasks.filter(t =>
+        t.clientId === leadId ||
+        leadQuotesAll.some(q => q.id === t.quoteId) ||
+        (lead && t.client && (t.client === lead.company || t.client === lead.name))
+    );
+    const leadQuotes = leadQuotesAll;
     const leadActivity = auditLogs.filter(log => log.targetId === leadId).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     const sentQuotes = leadQuotes.filter(q => q.status === 'Sent' || q.status === 'Approved');
 
@@ -82,15 +87,25 @@ export default function Lead360Page() {
             author: q.sellerName || '',
             color: q.status === 'Approved' ? 'emerald' : q.status === 'Sent' ? 'blue' : 'muted',
         })),
-        // Task notes (from pipeline)
-        ...leadTasks.flatMap(t => (t.notes || []).map((n: {text: string; date: string; author: string}) => ({
-            id: `tn-${t.id}-${n.date}`,
-            type: 'NOTE',
-            title: '📝 Nota del Pipeline',
-            detail: n.text,
-            date: n.date,
-            author: n.author || '',
-            color: 'amber',
+        // Pipeline activities (calls, whatsapp, notes, system events)
+        ...leadTasks.flatMap(t => (t.activities || []).map((a: Activity) => ({
+            id: `ta-${t.id}-${a.id}`,
+            type: a.type === 'call' ? 'CALL_MADE'
+                : a.type === 'whatsapp' ? 'WHATSAPP_SENT'
+                : a.type === 'email' ? 'QUOTE_SENT'
+                : 'NOTE',
+            title: a.type === 'call' ? '📞 Llamada registrada'
+                 : a.type === 'whatsapp' ? '💬 WhatsApp enviado'
+                 : a.type === 'email' ? '📧 Email de seguimiento'
+                 : a.type === 'system' ? '⚙️ Evento del sistema'
+                 : '📝 Nota del Pipeline',
+            detail: a.content,
+            date: new Date(a.timestamp).toISOString(),
+            author: '',
+            color: a.type === 'call' ? 'blue'
+                 : a.type === 'whatsapp' ? 'emerald'
+                 : a.type === 'system' ? 'muted'
+                 : 'amber',
         }))),
         // Client notes
         ...(lead?.notes || []).map((n: {text: string; date: string; author: string}, i: number) => ({
@@ -620,8 +635,13 @@ export default function Lead360Page() {
                                         {/* All notes: client notes + pipeline task notes */}
                                         {(() => {
                                             const allNotes = [
-                                                ...(lead.notes || []).map((n: {text: string; date: string; author: string}) => ({ ...n, source: 'cliente' })),
-                                                ...leadTasks.flatMap(t => (t.notes || []).map((n: {text: string; date: string; author: string}) => ({ ...n, source: 'pipeline' }))),
+                                                ...(lead.notes || []).map((n: {text: string; date: string; author: string}) => ({ text: n.text, date: n.date, author: n.author, source: 'Cliente' })),
+                                                ...leadTasks.flatMap(t => (t.activities || []).map((a: Activity) => ({
+                                                    text: a.content,
+                                                    date: new Date(a.timestamp).toISOString(),
+                                                    author: '',
+                                                    source: a.type === 'call' ? '📞 Llamada' : a.type === 'whatsapp' ? '💬 WhatsApp' : a.type === 'email' ? '📧 Email' : a.type === 'system' ? '⚙️ Sistema' : '📝 Pipeline',
+                                                }))),
                                             ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
                                             if (allNotes.length === 0) return (
@@ -636,8 +656,8 @@ export default function Lead360Page() {
                                                     {allNotes.map((note, i) => (
                                                         <div key={i} className="p-5 bg-primary/5 border-l-4 border-primary rounded-r-2xl space-y-2">
                                                             <div className="flex items-center justify-between gap-2">
-                                                                <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${note.source === 'pipeline' ? 'bg-amber-500/10 text-amber-600' : 'bg-primary/10 text-primary'}`}>
-                                                                    {note.source === 'pipeline' ? 'Pipeline' : 'Cliente'}
+                                                                <span className={`text-[9px] font-black tracking-widest px-2 py-0.5 rounded-full ${note.source === 'Cliente' ? 'bg-primary/10 text-primary' : 'bg-amber-500/10 text-amber-600'}`}>
+                                                                    {note.source}
                                                                 </span>
                                                                 <span className="text-[10px] text-muted-foreground/50">{note.date}</span>
                                                             </div>

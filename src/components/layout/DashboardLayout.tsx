@@ -19,6 +19,7 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children }: DashboardLayoutProps) {
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [isMiWiOpen, setIsMiWiOpen] = useState(false);
+    const [miwiHasSuggestion, setMiwiHasSuggestion] = useState(false);
     const [layoutMode, setLayoutMode] = useState('classic');
     const [selectedNotification, setSelectedNotification] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -222,9 +223,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
                                 {/* MiWi Toggle Button */}
                                 <button
-                                    onClick={() => setIsMiWiOpen(v => !v)}
+                                    onClick={() => { setIsMiWiOpen(v => !v); setMiwiHasSuggestion(false); }}
                                     className={clsx(
-                                        "flex items-center gap-2 px-3 py-2 rounded-[1rem] transition-all border font-black text-[9px] uppercase tracking-widest",
+                                        "relative flex items-center gap-2 px-3 py-2 rounded-[1rem] transition-all border font-black text-[9px] uppercase tracking-widest",
                                         isMiWiOpen
                                             ? "bg-primary text-black border-primary shadow-lg shadow-primary/25"
                                             : "bg-white/40 text-muted-foreground border-border/50 hover:bg-primary/10 hover:text-primary hover:border-primary/30"
@@ -232,6 +233,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                                 >
                                     <BrainCircuit className="w-4 h-4" />
                                     <span className="hidden xl:inline">MiWi IA</span>
+                                    {miwiHasSuggestion && !isMiWiOpen && (
+                                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full border-2 border-background animate-pulse shadow-[0_0_8px_rgba(250,181,16,0.8)]" />
+                                    )}
                                 </button>
 
                                 <div className="relative">
@@ -302,7 +306,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     </main>
 
                     {/* MiWi Push Panel */}
-                    <MiWiAssistant isOpen={isMiWiOpen} onClose={() => setIsMiWiOpen(false)} />
+                    <MiWiAssistant isOpen={isMiWiOpen} onClose={() => setIsMiWiOpen(false)} onNewSuggestion={() => setMiwiHasSuggestion(true)} />
                 </div>
 
                 {/* Mobile Bottom Navigation */}

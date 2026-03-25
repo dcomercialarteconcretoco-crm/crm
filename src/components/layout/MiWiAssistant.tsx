@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import {
     X,
     Send,
@@ -14,7 +15,8 @@ import {
     Users,
     FileText,
     AlertTriangle,
-    Target
+    Target,
+    ArrowRight,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useApp, Client, Task, Quote } from '@/context/AppContext';
@@ -29,6 +31,7 @@ interface Message {
 interface MiWiAssistantProps {
     isOpen: boolean;
     onClose: () => void;
+    onNewSuggestion?: () => void;
 }
 
 const QUICK_ACTIONS = [
@@ -140,7 +143,61 @@ function buildCrmSnapshot(
     return lines.join('\n');
 }
 
-export function MiWiAssistant({ isOpen, onClose }: MiWiAssistantProps) {
+/** Extract CRM entity links mentioned in an AI response */
+function extractActionLinks(
+    text: string,
+    clients: Client[],
+    tasks: Task[],
+    quotes: Quote[]
+): { label: string; href: string; icon: string }[] {
+    const results: { label: string; href: string; icon: string }[] = [];
+    const seen = new Set<string>();
+
+    // Match clients / tasks by name or company
+    clients.forEach(c => {
+        const names = [c.name, c.company].filter(Boolean) as string[];
+        if (names.some(n => n.length > 2 && text.toLowerCase().includes(n.toLowerCase()))) {
+            if (!seen.has(c.id)) {
+                seen.add(c.id);
+                results.push({ label: `Ver ficha: ${c.company || c.name}`, href: `/leads/${c.id}`, icon: '👤' });
+            }
+        }
+    });
+
+    // Match tasks by title
+    tasks.forEach(t => {
+        if (t.title && t.title.length > 3 && text.toLowerCase().includes(t.title.toLowerCase())) {
+            const clientId = t.clientId || clients.find(c => c.name === t.client || c.company === t.client)?.id;
+            const key = `task-${t.id}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                if (clientId) {
+                    results.push({ label: `Ver pipeline: ${t.client}`, href: `/leads/${clientId}`, icon: '📌' });
+                } else {
+                    results.push({ label: `Ver en Pipeline`, href: `/pipeline`, icon: '📌' });
+                }
+            }
+        }
+    });
+
+    // Match quote numbers
+    quotes.forEach(q => {
+        if (q.number && text.includes(q.number)) {
+            const key = `quote-${q.id}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                const clientId = clients.find(c => c.name === q.client || c.company === q.client)?.id;
+                if (clientId) {
+                    results.push({ label: `Cotización ${q.number}`, href: `/leads/${clientId}`, icon: '📄' });
+                }
+            }
+        }
+    });
+
+    return results.slice(0, 4); // max 4 action buttons
+}
+
+export function MiWiAssistant({ isOpen, onClose, onNewSuggestion }: MiWiAssistantProps) {
     const { settings, currentUser, clients, tasks, quotes } = useApp();
     const firstName = currentUser?.name?.split(' ')[0] || '';
 
@@ -204,6 +261,7 @@ export function MiWiAssistant({ isOpen, onClose }: MiWiAssistantProps) {
                 content: res.ok ? data.text : `¡Hola${firstName ? ' ' + firstName : ''}! Soy MiWi, listo para ayudarte. Tengo acceso a **${clients.length} clientes**, **${tasks.length} leads** y **${quotes.length} cotizaciones**. ¿En qué te ayudo?`,
                 timestamp: new Date()
             }]);
+            if (!isOpen) onNewSuggestion?.();
         } catch {
             setMessages([{
                 id: 'auto-fallback',
@@ -245,6 +303,7 @@ export function MiWiAssistant({ isOpen, onClose }: MiWiAssistantProps) {
                 content: res.ok ? data.text : (data.error || 'Lo siento, hubo un error al conectar con MiWi.'),
                 timestamp: new Date()
             }]);
+            if (!isOpen) onNewSuggestion?.();
         } catch {
             setMessages(prev => [...prev, {
                 id: (Date.now() + 1).toString(),
@@ -268,12 +327,18 @@ export function MiWiAssistant({ isOpen, onClose }: MiWiAssistantProps) {
 
     const renderContent = (text: string) => {
         return text.split('\n').map((line, i) => {
-            // Bold: **text**
             const processed = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            // Headers: ## text
+            // H3: ### text
+            if (line.startsWith('### ')) {
+                return (
+                    <p key={i} className="font-black text-[10px] uppercase tracking-widest text-primary mt-3 mb-1"
+                        dangerouslySetInnerHTML={{ __html: processed.replace('### ', '') }} />
+                );
+            }
+            // H2: ## text
             if (line.startsWith('## ')) {
                 return (
-                    <p key={i} className={clsx("font-black text-[11px] uppercase tracking-widest text-primary mt-2 mb-1", i > 0 ? 'mt-3' : '')}
+                    <p key={i} className="font-black text-[11px] uppercase tracking-widest text-primary mt-3 mb-1"
                         dangerouslySetInnerHTML={{ __html: processed.replace('## ', '') }} />
                 );
             }
@@ -357,15 +422,37 @@ export function MiWiAssistant({ isOpen, onClose }: MiWiAssistantProps) {
                                     {msg.role === 'assistant' ? <Bot className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
                                 </div>
                                 <div className={clsx(
-                                    "px-4 py-3 rounded-2xl text-sm leading-relaxed max-w-[88%]",
+                                    "rounded-2xl text-sm leading-relaxed max-w-[88%]",
                                     msg.role === 'assistant'
                                         ? "bg-white/80 border border-border/60 text-foreground"
                                         : "bg-primary text-black font-semibold shadow-md shadow-primary/15"
                                 )}>
-                                    {renderContent(msg.content)}
-                                    <p className="text-[8px] opacity-40 mt-1.5 font-black uppercase tracking-wider">
-                                        {msg.timestamp.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
-                                    </p>
+                                    <div className="px-4 pt-3 pb-2">
+                                        {renderContent(msg.content)}
+                                        <p className="text-[8px] opacity-40 mt-1.5 font-black uppercase tracking-wider">
+                                            {msg.timestamp.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+                                    </div>
+                                    {msg.role === 'assistant' && (() => {
+                                        const links = extractActionLinks(msg.content, clients, tasks, quotes);
+                                        if (links.length === 0) return null;
+                                        return (
+                                            <div className="px-3 pb-3 flex flex-wrap gap-1.5 border-t border-border/30 pt-2.5">
+                                                {links.map((link, idx) => (
+                                                    <Link
+                                                        key={idx}
+                                                        href={link.href}
+                                                        onClick={onClose}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary hover:text-black text-primary border border-primary/20 hover:border-primary rounded-xl text-[9px] font-black uppercase tracking-wide transition-all group"
+                                                    >
+                                                        <span>{link.icon}</span>
+                                                        <span>{link.label}</span>
+                                                        <ArrowRight className="w-2.5 h-2.5 group-hover:translate-x-0.5 transition-transform" />
+                                                    </Link>
+                                                ))}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                         ))}

@@ -46,6 +46,7 @@ import {
     FileText,
     MessageCircle,
     Search,
+    Clock,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useApp, Task, Activity, Seller, Client } from '@/context/AppContext';
@@ -168,6 +169,21 @@ function SortableTask({ task, onClick, onNote }: { task: Task; onClick: (task: T
                 )}
             </div>
 
+            {/* Last action timestamp */}
+            {task.activities.length > 0 && (() => {
+                const last = task.activities[0];
+                const typeIcon = last.type === 'call' ? '📞' : last.type === 'whatsapp' ? '💬' : last.type === 'email' ? '📧' : last.type === 'system' ? '⚙️' : '📝';
+                let ts = '';
+                try { ts = new Date(last.timestamp).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch { ts = ''; }
+                return (
+                    <div className="px-3 pb-2 flex items-center gap-1.5">
+                        <span className="text-[8px] leading-none">{typeIcon}</span>
+                        <Clock className="w-2 h-2 text-muted-foreground/40" />
+                        <span className="text-[8px] text-muted-foreground/50 font-medium">{ts}</span>
+                    </div>
+                );
+            })()}
+
             {/* Action buttons */}
             <div className="border-t border-border/40 px-3 py-2 flex items-center gap-1.5 flex-wrap" onClick={e => e.stopPropagation()}>
                 <button onClick={handleWA} title="WhatsApp" className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white transition-all border border-emerald-200">
@@ -276,6 +292,8 @@ export default function PipelinePage() {
     const [showNewClientForm, setShowNewClientForm] = useState(false);
     const [noteTask, setNoteTask] = useState<Task | null>(null);
     const [noteText, setNoteText] = useState('');
+    const [showCallModal, setShowCallModal] = useState(false);
+    const [callNoteText, setCallNoteText] = useState('');
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -494,6 +512,24 @@ export default function PipelinePage() {
         updateTask(selectedTask.id, { activities: [newActivity, ...selectedTask.activities] });
     };
 
+    const handleSaveCall = () => {
+        if (!selectedTask || !callNoteText.trim()) return;
+        const newActivity: Activity = { id: Date.now().toString(), type: 'call', content: callNoteText.trim(), timestamp: new Date() };
+        updateTask(selectedTask.id, { activities: [newActivity, ...selectedTask.activities] });
+        addAuditLog({
+            userId: currentUser?.id || 'system',
+            userName: currentUser?.name || 'Sistema',
+            userRole: isSuperAdmin ? 'SuperAdmin' : 'Vendedor',
+            action: 'CALL_MADE',
+            targetId: selectedTask.clientId || selectedTask.id,
+            targetName: selectedTask.client,
+            details: callNoteText.trim(),
+            verified: true,
+        });
+        setCallNoteText('');
+        setShowCallModal(false);
+    };
+
     const onDragStart = (event: DragStartEvent) => {
         const { active } = event;
         const task = tasks.find(t => t.id === active.id);
@@ -515,8 +551,16 @@ export default function PipelinePage() {
         const destColId = column ? column.id : (otherTask ? migrateStageId((otherTask as any).stageId) : null);
 
         if (destColId && migrateStageId((movedTask as any).stageId) !== destColId) {
-            updateTask(activeId, { stageId: destColId } as any);
-            addAuditLog({ userId: currentUser.id, userName: currentUser.name, userRole: isSuperAdmin ? 'SuperAdmin' : 'Vendedor', action: 'LEAD_STATUS_CHANGE', targetId: activeId, targetName: movedTask.client, details: `Cambio de etapa: ${(movedTask as any).stageId || 'lead'} → ${destColId}`, verified: true });
+            const fromLabel = STAGE_LABEL[migrateStageId((movedTask as any).stageId)] || (movedTask as any).stageId || 'Lead';
+            const toLabel = STAGE_LABEL[destColId as StageId] || destColId;
+            const stageActivity: Activity = {
+                id: `sys-${Date.now()}`,
+                type: 'system',
+                content: `📌 Etapa cambiada: ${fromLabel} → ${toLabel}`,
+                timestamp: new Date(),
+            };
+            updateTask(activeId, { stageId: destColId, activities: [stageActivity, ...movedTask.activities] } as any);
+            addAuditLog({ userId: currentUser.id, userName: currentUser.name, userRole: isSuperAdmin ? 'SuperAdmin' : 'Vendedor', action: 'LEAD_STATUS_CHANGE', targetId: activeId, targetName: movedTask.client, details: `Cambio de etapa: ${fromLabel} → ${toLabel}`, verified: true });
             if (destColId === 'won') {
                 addNotification({ title: 'Venta Cerrada', description: `${movedTask.client} — $${movedTask.numericValue.toLocaleString()} COP. Enviando Orden de Producción...`, type: 'success' });
                 sendProductionOrder(movedTask, []);
@@ -699,6 +743,52 @@ export default function PipelinePage() {
                     </DragOverlay>
                 </DndContext>
             </div>
+
+            {/* Call Note Modal */}
+            {showCallModal && selectedTask && (
+                <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-card border border-border w-full max-w-md rounded-[2rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-border flex items-center justify-between">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+                                        <Phone className="w-4 h-4 text-primary" />
+                                    </div>
+                                    <h3 className="text-sm font-black text-foreground">Registrar Llamada</h3>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-1 ml-10">{selectedTask.title} · {selectedTask.client}</p>
+                            </div>
+                            <button onClick={() => setShowCallModal(false)} className="p-2 hover:bg-muted rounded-xl transition-all">
+                                <X className="w-4 h-4 text-muted-foreground" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">¿Qué se habló en la llamada?</p>
+                            <textarea
+                                value={callNoteText}
+                                onChange={e => setCallNoteText(e.target.value)}
+                                placeholder="Ej: Cliente interesado en producto X, solicitó cotización. Próximo seguimiento el lunes..."
+                                rows={5}
+                                autoFocus
+                                className="w-full bg-muted/30 border border-border rounded-2xl px-4 py-3 text-sm text-foreground resize-none outline-none focus:border-primary/60 transition-all font-medium placeholder:font-normal placeholder:text-muted-foreground/40"
+                            />
+                            <div className="flex gap-3">
+                                <button onClick={() => setShowCallModal(false)} className="px-5 py-2.5 border border-border rounded-xl text-[10px] font-black uppercase text-muted-foreground hover:bg-muted/30 transition-all">
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleSaveCall}
+                                    disabled={!callNoteText.trim()}
+                                    className="flex-1 bg-primary text-black font-black py-2.5 rounded-xl text-[10px] uppercase tracking-widest hover:bg-primary/90 transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+                                >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    Guardar Registro
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Quick Note Modal */}
             {noteTask && (
@@ -945,9 +1035,9 @@ export default function PipelinePage() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-8 flex-1 overflow-y-auto custom-scrollbar">
-                                <div className="space-y-6">
-                                    <div className="p-6 bg-white/60 rounded-[1.5rem] border border-border relative overflow-hidden">
+                            <div className="grid grid-cols-2 gap-8 flex-1 min-h-0">
+                                <div className="flex flex-col gap-5 overflow-y-auto custom-scrollbar">
+                                    <div className="flex-1 p-6 bg-white/60 rounded-[1.5rem] border border-border relative overflow-hidden">
                                         <div className="absolute top-0 right-0 p-6 opacity-5">
                                             <UserPlus className="w-14 h-14 text-primary" />
                                         </div>
@@ -971,38 +1061,76 @@ export default function PipelinePage() {
                                         </div>
                                     </div>
 
-                                    <div className="flex gap-4">
-                                        <button onClick={() => logAction('call', 'Intercambio comercial telefónico')} className="flex-1 bg-primary text-black p-5 rounded-[1.5rem] flex flex-col items-center gap-2 hover:scale-[1.03] shadow-lg shadow-primary/20 transition-all group">
-                                            <Phone className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => { setCallNoteText(''); setShowCallModal(true); }}
+                                            className="flex-1 bg-primary text-black p-4 rounded-[1.5rem] flex flex-col items-center gap-2 hover:scale-[1.03] shadow-lg shadow-primary/20 transition-all group"
+                                        >
+                                            <Phone className="w-5 h-5 group-hover:rotate-12 transition-transform" />
                                             <span className="text-[9px] font-black uppercase tracking-[0.15em]">Registrar Llamada</span>
                                         </button>
-                                        <button onClick={() => logAction('email', 'Seguimiento vía Email')} className="flex-1 bg-card border border-border text-foreground p-5 rounded-[1.5rem] flex flex-col items-center gap-2 hover:bg-muted/40 transition-all group">
-                                            <Mail className="w-6 h-6 group-hover:-translate-y-0.5 transition-transform" />
-                                            <span className="text-[9px] font-black uppercase tracking-[0.15em]">Enlace de Seguimiento</span>
+                                        <button
+                                            onClick={() => {
+                                                const email = selectedTask.email || clients.find(c => c.id === selectedTask.clientId)?.email || '';
+                                                if (email) {
+                                                    logAction('email', `Email enviado a ${email}`);
+                                                    window.open(`mailto:${email}`, '_blank');
+                                                }
+                                            }}
+                                            className="flex-1 bg-card border border-border text-foreground p-4 rounded-[1.5rem] flex flex-col items-center gap-2 hover:bg-blue-50 hover:border-blue-300 transition-all group"
+                                        >
+                                            <Mail className="w-5 h-5 text-blue-500 group-hover:-translate-y-0.5 transition-transform" />
+                                            <span className="text-[9px] font-black uppercase tracking-[0.15em]">Enviar Email</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const rawPhone = selectedTask.phone || clients.find(c => c.id === selectedTask.clientId)?.phone || '';
+                                                const phone = rawPhone.replace(/\D/g, '');
+                                                if (phone) {
+                                                    logAction('whatsapp', `WhatsApp enviado a ${selectedTask.contactName}`);
+                                                    window.open(`https://wa.me/${phone}`, '_blank');
+                                                }
+                                            }}
+                                            className="flex-1 bg-card border border-border text-foreground p-4 rounded-[1.5rem] flex flex-col items-center gap-2 hover:bg-emerald-50 hover:border-emerald-300 transition-all group"
+                                        >
+                                            <MessageCircle className="w-5 h-5 text-emerald-500 group-hover:scale-110 transition-transform" />
+                                            <span className="text-[9px] font-black uppercase tracking-[0.15em]">WhatsApp</span>
                                         </button>
                                     </div>
                                 </div>
 
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between px-1">
+                                <div className="flex flex-col gap-4 min-h-0">
+                                    <div className="flex items-center justify-between px-1 shrink-0">
                                         <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.25em]">Muro de Inteligencia</h3>
                                         <span className="text-[9px] font-black uppercase text-emerald-600 flex items-center gap-1.5 px-3 py-1 bg-emerald-50 rounded-full border border-emerald-200">
                                             <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                                             Synced
                                         </span>
                                     </div>
-                                    <div className="space-y-3 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar">
-                                        {selectedTask.activities.map(a => (
-                                            <div key={a.id} className="bg-white/70 p-4 rounded-2xl border-l-2 border-primary/40 border border-border/60 hover:bg-white/90 transition-all">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <div className={clsx("w-1.5 h-1.5 rounded-full", a.type === 'system' ? "bg-primary" : a.type === 'call' ? "bg-sky-500" : "bg-emerald-500")} />
-                                                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{a.type}</p>
+                                    <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3 min-h-0">
+                                        {selectedTask.activities.length === 0 ? (
+                                            <div className="h-full flex flex-col items-center justify-center py-12 text-center">
+                                                <div className="w-12 h-12 rounded-2xl bg-muted/30 flex items-center justify-center mb-3">
+                                                    <Clock className="w-5 h-5 text-muted-foreground/30" />
                                                 </div>
-                                                <p className="text-sm font-semibold text-foreground leading-relaxed mb-3">{a.content}</p>
-                                                <div className="flex items-center justify-between border-t border-border/40 pt-2">
-                                                    <p className="text-[9px] text-muted-foreground/60 font-bold">{new Date(a.timestamp).toLocaleDateString()} · {new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                                                    <Tag className="w-3 h-3 text-muted-foreground/40" />
+                                                <p className="text-[10px] font-black uppercase text-muted-foreground/30 tracking-widest">Sin actividad aún</p>
+                                                <p className="text-[9px] text-muted-foreground/20 mt-1">Las acciones quedan registradas aquí</p>
+                                            </div>
+                                        ) : selectedTask.activities.map(a => (
+                                            <div key={a.id} className="bg-white/70 p-4 rounded-2xl border-l-[3px] border border-border/60 hover:bg-white/90 transition-all"
+                                                style={{ borderLeftColor: a.type === 'call' ? '#0ea5e9' : a.type === 'whatsapp' ? '#10b981' : a.type === 'email' ? '#3b82f6' : a.type === 'system' ? '#fab510' : '#f59e0b' }}>
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-sm leading-none">
+                                                            {a.type === 'call' ? '📞' : a.type === 'whatsapp' ? '💬' : a.type === 'email' ? '📧' : a.type === 'system' ? '⚙️' : '📝'}
+                                                        </span>
+                                                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{a.type}</p>
+                                                    </div>
+                                                    <p className="text-[9px] text-muted-foreground/60 font-bold tabular-nums">
+                                                        {new Date(a.timestamp).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })} · {new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </p>
                                                 </div>
+                                                <p className="text-sm font-semibold text-foreground leading-relaxed">{a.content}</p>
                                             </div>
                                         ))}
                                     </div>
