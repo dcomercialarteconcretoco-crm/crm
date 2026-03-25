@@ -6,6 +6,7 @@ const CC_EMAIL = 'marketing@arteconcreto.co';
 
 // Logo con fondo claro — se muestra en píldora blanca dentro del header oscuro
 const LOGO_URL = 'https://cuantium.com/wp-content/uploads/2026/02/logo.png';
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://crm-sand-three.vercel.app';
 
 export async function POST(request: NextRequest) {
   const payload = await request.json();
@@ -164,7 +165,7 @@ export async function POST(request: NextRequest) {
           <p style="margin:5px 0 0;font-size:12px;color:#555;">
             <span style="color:#888;">cotizaciones&#64;arteconcreto&#46;co</span>
             &nbsp;&middot;&nbsp;
-            <span style="color:#666;">Medell&#237;n, Colombia</span>
+            <span style="color:#666;">Floridablanca, Santander &middot; Km 1+800, Anillo Vial</span>
           </p>
         </td>
         <td style="text-align:right;vertical-align:middle;">
@@ -187,6 +188,7 @@ export async function POST(request: NextRequest) {
 
 </div><!-- /card -->
 </div><!-- /wrapper -->
+<img src="${BASE_URL}/api/track-open?q=${quoteNumber}&e=${encodeURIComponent(clientEmail)}" width="1" height="1" style="display:block;width:1px;height:1px;opacity:0;" alt="" />
 </body>
 </html>`;
 

@@ -35,6 +35,7 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
     const [isSaving, setIsSaving] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [isSendingEmail, setIsSendingEmail] = useState(false);
+    const [sentConfirm, setSentConfirm] = useState<{ quoteNumber: string; email: string } | null>(null);
     const [showNewClientForm, setShowNewClientForm] = useState(false);
     const [productSearch, setProductSearch] = useState('');
     const [newClient, setNewClient] = useState({ name: '', company: '', email: '', phone: '', city: '' });
@@ -198,6 +199,7 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
             if (res.ok) {
                 updateQuote(quoteId, { status: 'Sent', sentAt: data.sentAt || sentAt, sentByName: data.sentByName || currentUser?.name || '', sentById: data.sentById || currentUser?.id || '' });
                 addNotification({ title: `Cotización ${quoteNumber} enviada`, description: `Enviada a ${client.email}`, type: 'success' });
+                setSentConfirm({ quoteNumber, email: client.email });
             } else {
                 addNotification({ title: 'Error al enviar', description: data.error || 'Verifica la clave Resend.', type: 'alert' });
             }
@@ -218,6 +220,7 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
     };
 
     return (
+        <>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
             {/* ── LEFT: Client + Catalog ── */}
@@ -536,5 +539,28 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
                 </div>
             </div>
         </div>
+
+        {sentConfirm && (
+          <div className="fixed inset-0 z-[300] flex items-end justify-center p-6 pointer-events-none">
+            <div className="pointer-events-auto bg-card border border-emerald-500/30 rounded-[2rem] shadow-2xl shadow-emerald-500/10 p-6 max-w-sm w-full animate-in slide-in-from-bottom-4 duration-500">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                  <CheckCircle className="w-5 h-5 text-emerald-500" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-black text-foreground text-sm">¡Cotización enviada!</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    <strong>{sentConfirm.quoteNumber}</strong> enviada a <strong>{sentConfirm.email}</strong>
+                  </p>
+                  <p className="text-[10px] text-emerald-600 mt-1.5 font-bold">📧 Recibirás notificación cuando el cliente la abra</p>
+                </div>
+                <button onClick={() => setSentConfirm(null)} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        </>
     );
 }
