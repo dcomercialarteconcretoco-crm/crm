@@ -195,11 +195,21 @@ export default function TeamPage() {
 
             {view === 'team' ? (
                 /* Team Card Grid */
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {filteredSellers.map((seller) => (
-                        <div key={seller.id} className="surface-card rounded-[2.5rem] p-8 relative overflow-hidden group hover:border-primary/20 transition-all flex flex-col">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {filteredSellers.map((seller) => {
+                        const isSelf = seller.id === currentUser?.id;
+                        const roleLC = (seller.role || '').toLowerCase();
+                        const isProtected = ['superadmin', 'admin', 'manager'].includes(roleLC);
+                        const canDelete = !isSelf && !isProtected;
+                        return (
+                        <div key={seller.id} className={`surface-card rounded-2xl p-5 relative overflow-hidden group hover:border-primary/20 transition-all flex flex-col ${isSelf ? 'ring-2 ring-primary/40' : ''}`}>
+                            {isSelf && (
+                                <div className="absolute top-3 right-3 bg-primary text-black text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full">
+                                    Tú
+                                </div>
+                            )}
                             <div className="flex flex-col items-center">
-                                <div className="w-24 h-24 rounded-[2.5rem] bg-primary border border-primary/20 flex items-center justify-center text-3xl font-black text-black mb-6 transform group-hover:scale-110 group-hover:-rotate-3 transition-all duration-500 overflow-hidden">
+                                <div className="w-16 h-16 rounded-2xl bg-primary border border-primary/20 flex items-center justify-center text-xl font-black text-black mb-3 transform group-hover:scale-105 transition-all duration-300 overflow-hidden">
                                     {seller.avatar ? (
                                         <img src={seller.avatar} alt={seller.name} className="w-full h-full object-cover" />
                                     ) : (
@@ -207,48 +217,50 @@ export default function TeamPage() {
                                     )}
                                 </div>
                                 <div className="text-center">
-                                    <h3 className="text-lg font-black text-foreground uppercase group-hover:text-primary transition-colors italic tracking-tighter">{seller.name}</h3>
-                                    <p className="text-[10px] font-black text-primary uppercase tracking-widest mt-1 opacity-60 italic">{seller.role}</p>
+                                    <h3 className="text-sm font-black text-foreground uppercase group-hover:text-primary transition-colors italic tracking-tighter">{seller.name}</h3>
+                                    <p className="text-[9px] font-black text-primary uppercase tracking-widest mt-0.5 opacity-70 italic">{seller.role}</p>
                                 </div>
                             </div>
 
-                            <div className="mt-8 pt-8 border-t border-white/55 space-y-4">
-                                <div className="flex items-center gap-4 text-muted-foreground group/item hover:text-foreground transition-colors">
-                                    <div className="w-10 h-10 rounded-xl bg-white/42 border border-white/70 flex items-center justify-center">
-                                        <Mail className="w-4.5 h-4.5 text-muted-foreground" />
+                            <div className="mt-4 pt-4 border-t border-white/55 space-y-2">
+                                <div className="flex items-center gap-3 text-muted-foreground">
+                                    <div className="w-7 h-7 rounded-lg bg-white/42 border border-white/70 flex items-center justify-center shrink-0">
+                                        <Mail className="w-3.5 h-3.5 text-muted-foreground" />
                                     </div>
-                                    <span className="text-[11px] font-bold tracking-tight lowercase truncate">{seller.email}</span>
+                                    <span className="text-[10px] font-bold tracking-tight lowercase truncate">{seller.email || '—'}</span>
                                 </div>
-                                <div className="flex items-center gap-4 text-muted-foreground group/item hover:text-foreground transition-colors">
-                                    <div className="w-10 h-10 rounded-xl bg-white/42 border border-white/70 flex items-center justify-center">
-                                        <Phone className="w-4.5 h-4.5 text-muted-foreground" />
+                                {seller.phone ? (
+                                    <div className="flex items-center gap-3 text-muted-foreground">
+                                        <div className="w-7 h-7 rounded-lg bg-white/42 border border-white/70 flex items-center justify-center shrink-0">
+                                            <Phone className="w-3.5 h-3.5 text-muted-foreground" />
+                                        </div>
+                                        <span className="text-[10px] font-bold tracking-tight">{seller.phone}</span>
                                     </div>
-                                    <span className="text-[11px] font-bold tracking-tight">{seller.phone}</span>
-                                </div>
+                                ) : null}
                             </div>
 
                             {/* Action Footer */}
-                            <div className="grid grid-cols-2 gap-3 mt-8">
+                            <div className={`grid gap-2 mt-4 ${canDelete ? 'grid-cols-2' : 'grid-cols-1'}`}>
                                 <button
                                     onClick={() => handleOpenModal(seller)}
-                                    className="flex items-center justify-center gap-2 py-4 rounded-2xl bg-primary/10 hover:bg-primary text-primary hover:text-black font-black uppercase text-[9px] tracking-widest transition-all border border-primary/10"
+                                    className="flex items-center justify-center gap-2 py-3 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-black font-black uppercase text-[9px] tracking-widest transition-all border border-primary/10"
                                 >
-                                    <Eye className="w-3.5 h-3.5" />
+                                    <Eye className="w-3 h-3" />
                                     Ver Perfil
                                 </button>
-                                {seller.id !== currentUser?.id &&
-                                 !['superadmin','admin','SuperAdmin'].includes(seller.role || '') && (
+                                {canDelete && (
                                     <button
                                         onClick={() => handleDelete(seller.id)}
-                                        className="flex items-center justify-center gap-2 py-4 rounded-2xl bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-black font-black uppercase text-[9px] tracking-widest transition-all border border-rose-500/10"
+                                        className="flex items-center justify-center gap-2 py-3 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-black font-black uppercase text-[9px] tracking-widest transition-all border border-rose-500/10"
                                     >
-                                        <Trash2 className="w-3.5 h-3.5" />
+                                        <Trash2 className="w-3 h-3" />
                                         Eliminar
                                     </button>
                                 )}
                             </div>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             ) : (
                 /* Stats View */
