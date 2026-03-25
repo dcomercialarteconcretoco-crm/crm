@@ -28,7 +28,7 @@ import { clsx } from 'clsx';
 import { useApp, FormDefinition } from '@/context/AppContext';
 
 export default function FormsPage() {
-    const { forms, addForm, deleteForm, updateForm, refreshProducts } = useApp();
+    const { forms, addForm, deleteForm, updateForm, refreshProducts, addNotification } = useApp();
     const [view, setView] = useState<'editor' | 'list'>('editor');
 
     // Form Creation State
@@ -83,7 +83,7 @@ export default function FormsPage() {
         });
         setSavedFormId(id);
         setPreviewTab('qr');
-        alert("Formulario guardado y motor de lead-capture activado.");
+        addNotification({ title: 'Formulario guardado', description: 'Motor de lead-capture activado. Comparte el enlace público.', type: 'success' });
     };
 
     const publicUrl = useMemo(() => {
@@ -578,8 +578,9 @@ export default function FormsPage() {
                                                 <code className="text-[10px] text-muted-foreground truncate flex-1 block text-left">{publicUrl}</code>
                                                 <button
                                                     onClick={() => {
-                                                        navigator.clipboard.writeText(publicUrl);
-                                                        alert("Enlace copiado");
+                                                        navigator.clipboard.writeText(publicUrl).then(() =>
+                                                            addNotification({ title: 'Enlace copiado', description: publicUrl, type: 'success' })
+                                                        );
                                                     }}
                                                     className="p-3 bg-white/5 rounded-xl hover:bg-primary hover:text-black transition-all"
                                                 >
@@ -612,8 +613,9 @@ export default function FormsPage() {
                                     </pre>
                                     <button
                                         onClick={() => {
-                                            navigator.clipboard.writeText(embeddedCode);
-                                            alert('Código copiado al portapapeles');
+                                            navigator.clipboard.writeText(embeddedCode).then(() =>
+                                                addNotification({ title: 'Código copiado', description: 'Pega el snippet en tu WordPress.', type: 'success' })
+                                            );
                                         }}
                                         className="absolute top-4 right-4 bg-primary text-black p-3 rounded-xl hover:scale-110 active:scale-95 transition-all opacity-0 group-hover/code:opacity-100 shadow-xl"
                                     >

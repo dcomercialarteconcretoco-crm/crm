@@ -247,7 +247,7 @@ export default function PipelinePage() {
             return;
         }
 
-        const orderNumber = `OP-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000) + 1000}`;
+        const orderNumber = `OP-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
         const payload = {
             orderNumber,
             clientName: task.contactName || task.client,
@@ -386,7 +386,7 @@ export default function PipelinePage() {
         const clientName = showNewClientForm ? inlineClient.name : clients.find(c => c.id === finalClientId)?.name || 'Contacto';
 
         const total = calculateNewDealTotal();
-        const quoteId = `QT-2026-${Math.floor(Math.random() * 900) + 100}`;
+        const quoteId = `QT-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`;
         const actualSeller = isSuperAdmin
             ? (sellers.find(s => s.id === newDeal.assignedTo) || currentUser)
             : currentUser;
@@ -400,7 +400,7 @@ export default function PipelinePage() {
             numericValue: total,
             priority: newDeal.priority,
             tags: ['Nuevo', 'Cotizado'],
-            aiScore: Math.floor(Math.random() * 20) + 75,
+            aiScore: 0,
             source: 'Web',
             assignedTo: actualSeller.name,
             quoteId,

@@ -106,11 +106,13 @@ export default function AuditPage() {
         },
         {
             label: 'Cumplimiento',
-            value: '98.2%',
+            value: auditLogs.length > 0
+                ? `${Math.round((auditLogs.filter((l: AuditLog) => l.verified).length / auditLogs.length) * 100)}%`
+                : '—',
             icon: CheckCircle2,
             color: 'text-purple-400',
             bg: 'bg-purple-400/10',
-            subText: 'Nivel Óptimo'
+            subText: anomalies.length === 0 ? 'Sin anomalías' : `${anomalies.length} anomalía(s)`
         }
     ];
 

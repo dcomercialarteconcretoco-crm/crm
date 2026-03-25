@@ -28,7 +28,7 @@ const QUOTE_STATUS_LABEL: Record<string, string> = {
 };
 
 export default function QuotesPage() {
-    const { quotes, sellers, tasks, addNotification } = useApp();
+    const { quotes, sellers, tasks, addNotification, deleteQuote, updateQuote } = useApp();
     const [searchTerm, setSearchTerm] = useState("");
     const [isGenerating, setIsGenerating] = useState<string | null>(null);
 
@@ -400,7 +400,11 @@ export default function QuotesPage() {
                                 >
                                     <Mail className="w-4.5 h-4.5" />
                                 </button>
-                                <button className="flex items-center justify-center rounded-xl border border-white/75 bg-white/55 px-3 py-3 text-muted-foreground transition-all hover:bg-white hover:text-foreground">
+                                <button
+                                    onClick={() => { if (confirm('¿Eliminar esta cotización?')) deleteQuote(quote.id); }}
+                                    className="flex items-center justify-center rounded-xl border border-white/75 bg-white/55 px-3 py-3 text-muted-foreground transition-all hover:bg-rose-500 hover:text-white hover:border-rose-500"
+                                    title="Eliminar cotización"
+                                >
                                     <MoreVertical className="w-4.5 h-4.5" />
                                 </button>
                             </div>

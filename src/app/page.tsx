@@ -155,10 +155,10 @@ export default function Home() {
     generatePDFReport({
       title: "Informe de Inteligencia Operacional",
       stats: [
-        { label: "Propuestas Activas", value: tasks.length.toString(), change: "+12%" },
-        { label: "Ingresos Proyectados", value: formatCurrency(totalForecast), change: "+5%" },
-        { label: "Tasa Conversión", value: `${conversionRate}%`, change: "Estable" },
-        { label: "Leads Activos", value: clients.length.toString(), change: "Nuevo" },
+        { label: "Propuestas Activas", value: tasks.length.toString(), change: "" },
+        { label: "Ingresos Proyectados", value: formatCurrency(totalForecast), change: "" },
+        { label: "Tasa Conversión", value: `${conversionRate}%`, change: "" },
+        { label: "Leads Activos", value: clients.length.toString(), change: "" },
       ],
       topLeads: topClients.map((client) => ({
         name: client.name,
