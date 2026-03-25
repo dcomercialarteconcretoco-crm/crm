@@ -70,10 +70,10 @@ export default function TeamPage() {
 
         const canonicalCurrentUser: Seller = {
             ...currentUser,
-            name: currentUser.name || 'Juan Sierra',
+            name: currentUser.name || 'Admin',
             role: currentUser.role || 'SuperAdmin',
             status: currentUser.status || 'Activo',
-            avatar: currentUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name || 'Juan Sierra')}&background=fab510&color=000`,
+            avatar: currentUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name || 'Admin')}&background=fab510&color=000`,
         };
 
         return [canonicalCurrentUser, ...withoutCurrent];
@@ -236,7 +236,8 @@ export default function TeamPage() {
                                     <Eye className="w-3.5 h-3.5" />
                                     Ver Perfil
                                 </button>
-                                {seller.role !== 'SuperAdmin' && (
+                                {seller.id !== currentUser?.id &&
+                                 !['superadmin','admin','SuperAdmin'].includes(seller.role || '') && (
                                     <button
                                         onClick={() => handleDelete(seller.id)}
                                         className="flex items-center justify-center gap-2 py-4 rounded-2xl bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-black font-black uppercase text-[9px] tracking-widest transition-all border border-rose-500/10"
@@ -261,9 +262,6 @@ export default function TeamPage() {
                                 <div>
                                     <h3 className="text-base font-black text-foreground uppercase italic tracking-tighter group-hover:text-primary transition-colors">{seller.name}</h3>
                                     <p className="text-[10px] font-black text-primary/70 uppercase tracking-widest mt-0.5 italic">{seller.role}</p>
-                                </div>
-                                <div className="ml-auto lg:hidden bg-primary/10 px-3 py-1 rounded-full">
-                                    <span className="text-[9px] font-black text-primary uppercase">KPI 100%</span>
                                 </div>
                             </div>
 

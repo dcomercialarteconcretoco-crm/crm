@@ -48,7 +48,7 @@ const categories = [
 ];
 
 export default function SettingsPage() {
-    const { settings, updateSettings } = useApp();
+    const { settings, updateSettings, currentUser } = useApp();
     const allowClientSecrets = process.env.NODE_ENV !== 'production';
     const [activeTab, setActiveTab] = useState('profile');
     const [showPassword, setShowPassword] = useState(false);
@@ -300,23 +300,25 @@ export default function SettingsPage() {
                                             <div>
                                                 <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-2">
                                                     <span>Uso de Tokens (Mensual)</span>
-                                                    <span className="text-primary">84%</span>
+                                                    <span className="text-muted-foreground">Gemini Flash</span>
                                                 </div>
                                                 <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                                                    <div className="h-full bg-primary w-[84%] rounded-full shadow-[0_0_10px_rgba(250,181,16,0.3)]"></div>
+                                                    <div className="h-full bg-primary rounded-full shadow-[0_0_10px_rgba(250,181,16,0.3)]" style={{ width: '0%' }}></div>
                                                 </div>
+                                                <p className="text-[9px] text-muted-foreground mt-1">El consumo real se gestiona desde la consola de Google AI Studio.</p>
                                             </div>
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div className="p-4 bg-muted/30 rounded-2xl border border-border">
                                                     <span className="text-[9px] font-black text-muted-foreground uppercase block mb-1">Cerebro Principal</span>
                                                     <span className="text-xs font-bold text-foreground uppercase flex items-center gap-2">
-                                                        <Zap className="w-3 h-3 text-primary" /> Gemini Pro 1.5
+                                                        <Zap className="w-3 h-3 text-primary" /> Gemini 1.5 Flash
                                                     </span>
                                                 </div>
                                                 <div className="p-4 bg-muted/30 rounded-2xl border border-border">
-                                                    <span className="text-[9px] font-black text-muted-foreground uppercase block mb-1">Costo Estimado</span>
-                                                    <span className="text-xs font-bold text-emerald-500 uppercase flex items-center gap-1">
-                                                        <Check className="w-3 h-3" /> $12.42
+                                                    <span className="text-[9px] font-black text-muted-foreground uppercase block mb-1">API Key</span>
+                                                    <span className="text-xs font-bold uppercase flex items-center gap-1">
+                                                        <Check className="w-3 h-3 text-emerald-500" />
+                                                        <span className="text-emerald-500">{settings.geminiKey ? 'Configurada' : 'Sin configurar'}</span>
                                                     </span>
                                                 </div>
                                             </div>
@@ -359,15 +361,15 @@ export default function SettingsPage() {
                                 <div className="flex items-center gap-8">
                                     <div className="relative group">
                                         <div className="w-28 h-28 rounded-[2rem] bg-primary flex items-center justify-center text-black font-black text-4xl shadow-[0_0_30px_rgba(250,181,16,0.2)] border-4 border-background overflow-hidden">
-                                            JS
+                                            {currentUser?.name?.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase() || 'AC'}
                                         </div>
                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-[2rem] cursor-pointer">
                                             <Save className="w-6 h-6 text-white" />
                                         </div>
                                     </div>
                                     <div className="space-y-1">
-                                        <h3 className="text-2xl font-black tracking-tight text-foreground">Juancho Sierra</h3>
-                                        <p className="text-sm font-bold text-primary uppercase tracking-widest">Super Administrador</p>
+                                        <h3 className="text-2xl font-black tracking-tight text-foreground">{currentUser?.name || 'Usuario'}</h3>
+                                        <p className="text-sm font-bold text-primary uppercase tracking-widest">{currentUser?.role || 'Administrador'}</p>
                                         <button className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40 hover:opacity-100 transition-colors mt-2">Cambiar Avatar</button>
                                     </div>
                                 </div>
@@ -377,7 +379,7 @@ export default function SettingsPage() {
                                         <label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] pl-1">Nombre Completo</label>
                                         <input
                                             type="text"
-                                            defaultValue="Juancho Sierra"
+                                            defaultValue={currentUser?.name || ''}
                                             className="w-full bg-muted/20 border border-border rounded-2xl px-6 py-4 text-sm focus:border-primary/50 outline-none transition-all font-bold text-foreground"
                                         />
                                     </div>
@@ -385,7 +387,7 @@ export default function SettingsPage() {
                                         <label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] pl-1">Correo Electrónico</label>
                                         <input
                                             type="email"
-                                            defaultValue="juancho@arteconcreto.co"
+                                            defaultValue={currentUser?.email || ''}
                                             className="w-full bg-muted/20 border border-border rounded-2xl px-6 py-4 text-sm focus:border-primary/50 outline-none transition-all font-bold text-foreground"
                                         />
                                     </div>

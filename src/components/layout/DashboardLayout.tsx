@@ -24,10 +24,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     const router = useRouter();
 
     const unreadCount = notifications.filter((n: any) => !n.read).length;
-    const displayName =
-        currentUser?.name === 'Administrador Principal' || currentUser?.name === 'Acceso Alternativo'
-            ? 'Juan Sierra'
-            : currentUser?.name || 'Usuario';
+    const displayName = currentUser?.name || 'Usuario';
     const displayRole = currentUser?.role || 'Usuario';
     const initials = displayName
         .split(' ')
@@ -189,8 +186,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
                                 <div className="flex items-center gap-4 pl-4 border-l border-border/50">
                                     <div className="flex flex-col items-end mr-1">
-                                        <span className="text-[10px] font-black text-foreground italic tracking-tighter uppercase">{displayName}</span>
-                                        <span className="text-[8px] font-black text-primary uppercase tracking-widest">{displayRole}</span>
+                                        <span className="text-xs font-black text-foreground tracking-tight uppercase leading-tight">{displayName}</span>
+                                        <span className="text-[10px] font-black text-primary uppercase tracking-widest leading-tight">{displayRole}</span>
                                     </div>
                                     <div className="relative group/user">
                                         <div className="w-10 h-10 border border-white/80 p-0.5 rounded-[1.2rem] overflow-hidden bg-white/56 backdrop-blur-xl flex items-center justify-center group-hover/user:border-primary/30 transition-all cursor-pointer outline-none">
@@ -201,7 +198,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                                         <div className="absolute right-0 mt-3 w-48 bg-white/95 border border-border/70 rounded-[1.5rem] shadow-[0_24px_60px_rgba(23,23,23,0.12)] opacity-0 invisible group-hover/user:opacity-100 group-hover/user:visible transition-all duration-300 z-50 p-2 overflow-hidden backdrop-blur-xl">
                                             <div className="p-3 border-b border-border/60 mb-1 bg-accent/30 rounded-[1rem]">
                                                 <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Cuenta Activa</p>
-                                                <p className="text-[10px] font-black text-foreground truncate">@{currentUser?.username || 'juan'}</p>
+                                                <p className="text-[10px] font-black text-foreground truncate">@{currentUser?.username || currentUser?.name || 'usuario'}</p>
                                             </div>
                                             <button
                                                 onClick={() => router.push('/settings')}

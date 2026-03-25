@@ -36,6 +36,8 @@ export default function Lead360Page() {
     const { clients, addAuditLog, sellers, tasks, quotes, auditLogs, currentUser, updateClient } = useApp();
     const [activeTab, setActiveTab] = useState('Actividad');
     const [noteText, setNoteText] = useState('');
+    const [isEditOpen, setIsEditOpen] = useState(false);
+    const [editForm, setEditForm] = useState({ name: '', company: '', email: '', phone: '', city: '', status: '' });
 
     const leadId = params.id as string;
     const lead = clients.find(c => c.id === leadId);
@@ -105,7 +107,10 @@ export default function Lead360Page() {
                         <Share2 className="w-4 h-4" />
                         <span>Exportar</span>
                     </button>
-                    <button className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-black rounded-xl text-[10px] lg:text-xs font-black uppercase tracking-widest hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
+                    <button
+                        onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', email: lead.email, phone: lead.phone || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
+                        className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-black rounded-xl text-[10px] lg:text-xs font-black uppercase tracking-widest hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+                    >
                         <Edit2 className="w-4 h-4" />
                         <span>Editar</span>
                     </button>
@@ -249,7 +254,7 @@ export default function Lead360Page() {
                                     <div className="flex items-center justify-between mb-2">
                                         <h3 className="text-sm font-black uppercase tracking-widest text-white">Log de Razonamiento (Engine Insights)</h3>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[9px] font-black uppercase text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded">Certeza 94%</span>
+                                            <span className="text-[9px] font-black uppercase text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded">Score {lead.score || 0}%</span>
                                         </div>
                                     </div>
 
@@ -340,7 +345,10 @@ export default function Lead360Page() {
                                                     >
                                                         Generar Cotización
                                                     </button>
-                                                    <button className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest bg-muted/40 text-muted-foreground px-6 py-2.5 rounded-xl hover:bg-muted/60 transition-all border border-border/40">Ignorar</button>
+                                                    <button
+                                                        onClick={() => updateClient(lead.id, { status: 'Inactive' })}
+                                                        className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest bg-muted/40 text-muted-foreground px-6 py-2.5 rounded-xl hover:bg-muted/60 transition-all border border-border/40"
+                                                    >Ignorar</button>
                                                 </div>
                                             </div>
                                         </div>
@@ -506,5 +514,54 @@ export default function Lead360Page() {
                 </div>
             </div>
         </div>
+
+        {/* Edit Modal */}
+        {isEditOpen && (
+            <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                <div className="bg-card border border-border rounded-[2rem] w-full max-w-lg shadow-2xl p-8 space-y-6 animate-in zoom-in-95 duration-200">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-lg font-black uppercase tracking-tight">Editar Cliente</h2>
+                        <button onClick={() => setIsEditOpen(false)} className="p-2 hover:bg-muted rounded-xl transition-all">✕</button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        {([
+                            { label: 'Nombre', key: 'name', type: 'text' },
+                            { label: 'Empresa', key: 'company', type: 'text' },
+                            { label: 'Email', key: 'email', type: 'email' },
+                            { label: 'Teléfono', key: 'phone', type: 'tel' },
+                            { label: 'Ciudad', key: 'city', type: 'text' },
+                        ] as { label: string; key: keyof typeof editForm; type: string }[]).map(f => (
+                            <div key={f.key} className="space-y-1">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{f.label}</label>
+                                <input
+                                    type={f.type}
+                                    value={editForm[f.key]}
+                                    onChange={e => setEditForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                                    className="w-full bg-muted/30 border border-border rounded-xl px-4 py-2.5 text-sm font-bold focus:border-primary/50 outline-none"
+                                />
+                            </div>
+                        ))}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Estado</label>
+                            <select
+                                value={editForm.status}
+                                onChange={e => setEditForm(prev => ({ ...prev, status: e.target.value }))}
+                                className="w-full bg-muted/30 border border-border rounded-xl px-4 py-2.5 text-sm font-bold focus:border-primary/50 outline-none"
+                            >
+                                <option value="Active">Activo</option>
+                                <option value="Lead">Lead</option>
+                                <option value="Inactive">Inactivo</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => { updateClient(lead.id, editForm); setIsEditOpen(false); }}
+                        className="w-full bg-primary text-black font-black py-3 rounded-xl uppercase tracking-widest hover:bg-primary/90 transition-all"
+                    >
+                        Guardar Cambios
+                    </button>
+                </div>
+            </div>
+        )}
     );
 }

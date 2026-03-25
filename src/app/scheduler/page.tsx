@@ -67,11 +67,17 @@ function getGoogleAuthStorageKey(userId?: string) {
     return userId ? `crm_google_calendar_auth_${userId}` : 'crm_google_calendar_auth';
 }
 
+const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
 export default function SchedulerPage() {
     const { clients, sellers, events, addEvent, addNotification, currentUser, updateEvent } = useApp();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const googleTokenClientRef = useRef<GoogleTokenClient | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [calendarDate, setCalendarDate] = useState(() => {
+        const now = new Date();
+        return new Date(now.getFullYear(), now.getMonth(), 1);
+    });
     const [isGeneratingLink, setIsGeneratingLink] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [isGoogleReady, setIsGoogleReady] = useState(false);
@@ -457,7 +463,7 @@ export default function SchedulerPage() {
             setIsModalOpen(false);
             setForm({
                 title: '',
-                date: '2026-02-25',
+                date: new Date().toISOString().split('T')[0],
                 time: '10:00',
                 type: 'meeting',
                 invitees: [],
@@ -643,49 +649,118 @@ export default function SchedulerPage() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
                 {/* Calendar View */}
                 <div className="lg:col-span-8">
-                    <div className="surface-panel rounded-[2.5rem] overflow-hidden">
-                        <div className="p-8 border-b border-white/60 flex items-center justify-between bg-white/18">
-                            <h2 className="text-xl font-black tracking-tight text-foreground flex items-center gap-3">
-                                <CalendarIcon className="text-primary" />
-                                Febrero 2026
-                            </h2>
-                            <div className="flex items-center gap-3">
-                                <button className="p-3 hover:bg-white/42 rounded-xl border border-white/70 transition-all text-muted-foreground hover:text-foreground">
-                                    <ChevronLeft className="w-5 h-5" />
-                                </button>
-                                <button className="p-3 bg-white/42 text-muted-foreground border border-white/75 rounded-xl font-black text-[10px] uppercase tracking-widest px-6">Hoy</button>
-                                <button className="p-3 hover:bg-white/42 rounded-xl border border-white/70 transition-all text-muted-foreground hover:text-foreground">
-                                    <ChevronRight className="w-5 h-5" />
-                                </button>
-                            </div>
-                        </div>
+                    {(() => {
+                        const year = calendarDate.getFullYear();
+                        const month = calendarDate.getMonth();
+                        const today = new Date();
+                        const isToday = (d: number) =>
+                            d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
 
-                        <div className="p-0">
-                            <div className="grid grid-cols-7 border-b border-white/60 text-foreground">
-                                {days.map(day => (
-                                    <div key={day} className="py-6 text-center text-[11px] font-black uppercase text-muted-foreground tracking-[0.2em]">
-                                        {day}
+                        // First weekday of the month (0=Sun)
+                        const firstWeekday = new Date(year, month, 1).getDay();
+                        const daysInMonth = new Date(year, month + 1, 0).getDate();
+                        // Total cells: fill up to multiple of 7
+                        const totalCells = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
+
+                        const openModalOnDay = (day: number) => {
+                            const dateStr = `${year}-${String(month + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                            setForm(prev => ({ ...prev, date: dateStr }));
+                            setIsModalOpen(true);
+                        };
+
+                        return (
+                            <div className="surface-panel rounded-[2.5rem] overflow-hidden">
+                                <div className="p-8 border-b border-white/60 flex items-center justify-between bg-white/18">
+                                    <h2 className="text-xl font-black tracking-tight text-foreground flex items-center gap-3">
+                                        <CalendarIcon className="text-primary" />
+                                        {MONTH_NAMES[month]} {year}
+                                    </h2>
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={() => setCalendarDate(new Date(year, month - 1, 1))}
+                                            className="p-3 hover:bg-white/42 rounded-xl border border-white/70 transition-all text-muted-foreground hover:text-foreground"
+                                        >
+                                            <ChevronLeft className="w-5 h-5" />
+                                        </button>
+                                        <button
+                                            onClick={() => setCalendarDate(new Date(today.getFullYear(), today.getMonth(), 1))}
+                                            className="p-3 bg-white/42 text-muted-foreground border border-white/75 rounded-xl font-black text-[10px] uppercase tracking-widest px-6"
+                                        >Hoy</button>
+                                        <button
+                                            onClick={() => setCalendarDate(new Date(year, month + 1, 1))}
+                                            className="p-3 hover:bg-white/42 rounded-xl border border-white/70 transition-all text-muted-foreground hover:text-foreground"
+                                        >
+                                            <ChevronRight className="w-5 h-5" />
+                                        </button>
                                     </div>
-                                ))}
-                            </div>
-                            <div className="grid grid-cols-7 grid-rows-5 h-[700px]">
-                                {Array.from({ length: 35 }).map((_, i) => (
-                                    <div key={i} className={clsx(
-                                        "p-4 border-r border-b border-white/55 last:border-r-0 relative group transition-all hover:bg-white/24 cursor-pointer",
-                                        i === 24 ? "bg-primary/[0.08]" : "bg-white/[0.10]"
-                                    )}>
-                                        <span className={clsx(
-                                            "text-xs font-black w-7 h-7 flex items-center justify-center rounded-xl mb-3 transition-all",
-                                            i === 24 ? "bg-primary text-black" : "text-muted-foreground group-hover:text-foreground"
-                                        )}>
-                                            {i - 4 < 1 || i - 4 > 28 ? "" : i - 4}
-                                        </span>
-                                        {/* No hardcoded events */}
+                                </div>
+
+                                <div className="p-0">
+                                    <div className="grid grid-cols-7 border-b border-white/60 text-foreground">
+                                        {days.map(day => (
+                                            <div key={day} className="py-6 text-center text-[11px] font-black uppercase text-muted-foreground tracking-[0.2em]">
+                                                {day}
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
+                                    <div className="grid grid-cols-7" style={{ minHeight: 560 }}>
+                                        {Array.from({ length: totalCells }).map((_, i) => {
+                                            const day = i - firstWeekday + 1;
+                                            const isValid = day >= 1 && day <= daysInMonth;
+                                            const dateStr = isValid
+                                                ? `${year}-${String(month + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+                                                : '';
+                                            const dayEvents = isValid
+                                                ? currentUserEvents.filter(e => e.date === dateStr)
+                                                : [];
+
+                                            return (
+                                                <div
+                                                    key={i}
+                                                    onClick={() => isValid && openModalOnDay(day)}
+                                                    className={clsx(
+                                                        "p-3 border-r border-b border-white/55 relative transition-all",
+                                                        isValid ? "cursor-pointer hover:bg-white/24 group" : "bg-white/[0.04]",
+                                                        isToday(day) ? "bg-primary/[0.08]" : isValid ? "bg-white/[0.10]" : ""
+                                                    )}
+                                                >
+                                                    {isValid && (
+                                                        <>
+                                                            <span className={clsx(
+                                                                "text-xs font-black w-7 h-7 flex items-center justify-center rounded-xl mb-2 transition-all",
+                                                                isToday(day)
+                                                                    ? "bg-primary text-black"
+                                                                    : "text-muted-foreground group-hover:text-foreground"
+                                                            )}>
+                                                                {day}
+                                                            </span>
+                                                            <div className="space-y-1">
+                                                                {dayEvents.slice(0, 2).map(ev => (
+                                                                    <div key={ev.id} className={clsx(
+                                                                        "text-[9px] font-black truncate px-2 py-0.5 rounded-md",
+                                                                        ev.type === 'visit' ? "bg-primary/20 text-primary" :
+                                                                        ev.type === 'meeting' ? "bg-emerald-500/20 text-emerald-700" :
+                                                                        "bg-sky-500/20 text-sky-700"
+                                                                    )}>
+                                                                        {ev.time} {ev.title}
+                                                                    </div>
+                                                                ))}
+                                                                {dayEvents.length > 2 && (
+                                                                    <div className="text-[9px] font-black text-muted-foreground px-2">
+                                                                        +{dayEvents.length - 2} más
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    </div>
+                        );
+                    })()}
                 </div>
 
                 {/* Agenda Sidebar */}

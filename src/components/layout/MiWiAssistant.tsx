@@ -28,12 +28,13 @@ interface MiWiAssistantProps {
 }
 
 export function MiWiAssistant({ isOpen, onClose }: MiWiAssistantProps) {
-    const { settings } = useApp();
+    const { settings, currentUser } = useApp();
+    const firstName = currentUser?.name?.split(' ')[0] || '';
     const [messages, setMessages] = useState<Message[]>([
         {
             id: '1',
             role: 'assistant',
-            content: '¡Hola Juan! Soy MiWi, tu asistente de inteligencia para Arte Concreto. ¿En qué puedo ayudarte hoy?',
+            content: `¡Hola${firstName ? ' ' + firstName : ''}! Soy MiWi, tu asistente de inteligencia para Arte Concreto. ¿En qué puedo ayudarte hoy?`,
             timestamp: new Date()
         }
     ]);
