@@ -311,7 +311,7 @@ export default function SettingsPage() {
                                                 <div className="p-4 bg-muted/30 rounded-2xl border border-border">
                                                     <span className="text-[9px] font-black text-muted-foreground uppercase block mb-1">Cerebro Principal</span>
                                                     <span className="text-xs font-bold text-foreground uppercase flex items-center gap-2">
-                                                        <Zap className="w-3 h-3 text-primary" /> Gemini 1.5 Flash
+                                                        <Zap className="w-3 h-3 text-primary" /> Gemini 2.0 Flash
                                                     </span>
                                                 </div>
                                                 <div className="p-4 bg-muted/30 rounded-2xl border border-border">

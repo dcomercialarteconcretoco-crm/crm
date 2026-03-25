@@ -132,7 +132,7 @@ export function MiWiAssistant({ isOpen, onClose }: MiWiAssistantProps) {
                                 </h2>
                                 <p className="text-[9px] text-muted-foreground font-black uppercase tracking-wider flex items-center gap-1">
                                     <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse inline-block" />
-                                    Gemini 1.5 Flash
+                                    Gemini 2.0 Flash
                                 </p>
                             </div>
                         </div>
