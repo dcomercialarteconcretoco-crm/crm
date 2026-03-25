@@ -474,7 +474,13 @@ export default function Home() {
                         <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground leading-tight">
                           {stat.label}
                         </p>
-                        <p className="mt-3 text-[1.8rem] sm:text-[2rem] leading-none font-black tracking-[-0.06em] text-foreground truncate">
+                        <p className={clsx(
+                          "mt-3 leading-none font-black tracking-[-0.05em] text-foreground break-all",
+                          stat.value.length <= 5  ? "text-[2rem] sm:text-[2.2rem]" :
+                          stat.value.length <= 8  ? "text-[1.5rem] sm:text-[1.7rem]" :
+                          stat.value.length <= 12 ? "text-[1.15rem] sm:text-[1.3rem]" :
+                                                    "text-[0.95rem] sm:text-[1.05rem]"
+                        )}>
                           {stat.value}
                         </p>
                         <p className="mt-2 text-[11px] font-semibold leading-4 text-muted-foreground">
