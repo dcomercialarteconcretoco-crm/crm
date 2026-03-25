@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
     X,
     Send,
@@ -10,7 +9,10 @@ import {
     Sparkles,
     RefreshCcw,
     BrainCircuit,
-    Zap
+    Zap,
+    TrendingUp,
+    Users,
+    FileText
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useApp } from '@/context/AppContext';
@@ -27,226 +29,199 @@ interface MiWiAssistantProps {
     onClose: () => void;
 }
 
+const QUICK_ACTIONS = [
+    { label: 'Analizar Pipeline', icon: TrendingUp, prompt: 'Analiza el estado actual de mi pipeline de ventas y dame recomendaciones.' },
+    { label: 'Resumen del Día', icon: Sparkles, prompt: 'Dame un resumen ejecutivo del estado del CRM hoy: leads, cotizaciones y tareas pendientes.' },
+    { label: 'Leads en Riesgo', icon: Users, prompt: '¿Cuáles leads llevan más tiempo sin contacto y están en riesgo de perderse?' },
+    { label: 'Próximo Paso', icon: Zap, prompt: '¿Cuál debería ser mi próxima acción prioritaria en ventas hoy?' },
+    { label: 'Redactar Cotización', icon: FileText, prompt: 'Ayúdame a redactar un mensaje de seguimiento para una cotización que envié hace 5 días.' },
+    { label: 'Actualizar Pipeline', icon: RefreshCcw, prompt: 'Analiza mis tareas actuales y sugiere cómo reorganizar el pipeline.' },
+];
+
 export function MiWiAssistant({ isOpen, onClose }: MiWiAssistantProps) {
-    const { settings, currentUser } = useApp();
+    const { settings, currentUser, clients, tasks, quotes } = useApp();
     const firstName = currentUser?.name?.split(' ')[0] || '';
     const [messages, setMessages] = useState<Message[]>([
         {
             id: '1',
             role: 'assistant',
-            content: `¡Hola${firstName ? ' ' + firstName : ''}! Soy MiWi, tu asistente de inteligencia para Arte Concreto. ¿En qué puedo ayudarte hoy?`,
+            content: `¡Hola${firstName ? ' ' + firstName : ''}! Soy **MiWi**, tu asistente de inteligencia para Arte Concreto.\n\nTengo acceso a tus **${clients.length} clientes**, **${tasks.length} tareas** y **${quotes.length} cotizaciones**. ¿En qué te ayudo hoy?`,
             timestamp: new Date()
         }
     ]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-
     const messagesEndRef = useRef<HTMLDivElement>(null);
-
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
-        scrollToBottom();
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    const handleSendMessage = async () => {
-        if (!input.trim() || isLoading) return;
+    useEffect(() => {
+        if (isOpen) textareaRef.current?.focus();
+    }, [isOpen]);
 
-        const userMessage: Message = {
-            id: Date.now().toString(),
-            role: 'user',
-            content: input,
-            timestamp: new Date()
-        };
+    const sendMessage = async (text: string) => {
+        if (!text.trim() || isLoading) return;
 
-        setMessages(prev => [...prev, userMessage]);
+        const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text, timestamp: new Date() };
+        setMessages(prev => [...prev, userMsg]);
         setInput('');
         setIsLoading(true);
 
         try {
-            const response = await fetch('/api/assistant', {
+            const res = await fetch('/api/assistant', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    input,
-                    messages: messages.map(msg => ({
-                        role: msg.role,
-                        content: msg.content
-                    })),
-                    apiKey: settings.geminiKey || ''
+                    input: text,
+                    messages: messages.map(m => ({ role: m.role, content: m.content })),
+                    apiKey: settings.geminiKey || '',
+                    context: {
+                        clientsCount: clients.length,
+                        tasksCount: tasks.length,
+                        quotesCount: quotes.length,
+                        user: currentUser?.name,
+                    }
                 })
             });
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                const assistantMessage: Message = {
-                    id: (Date.now() + 1).toString(),
-                    role: 'assistant',
-                    content: data.error || 'Lo siento, MiWi no está configurado todavía.',
-                    timestamp: new Date()
-                };
-                setMessages(prev => [...prev, assistantMessage]);
-                return;
-            }
-
-            const assistantMessage: Message = {
-                id: Date.now().toString(),
+            const data = await res.json();
+            setMessages(prev => [...prev, {
+                id: (Date.now() + 1).toString(),
                 role: 'assistant',
-                content: data.text,
+                content: res.ok ? data.text : (data.error || 'Lo siento, hubo un error al conectar con MiWi.'),
                 timestamp: new Date()
-            };
-            setMessages(prev => [...prev, assistantMessage]);
-        } catch (error) {
-            console.error("Error calling Gemini:", error);
-            const errorMessage: Message = {
-                id: Date.now().toString(),
+            }]);
+        } catch {
+            setMessages(prev => [...prev, {
+                id: (Date.now() + 1).toString(),
                 role: 'assistant',
-                content: 'Hubo un error al conectar con mi cerebro (Gemini). Por favor, verifica la conexión.',
+                content: 'Error de conexión. Verifica tu clave Gemini en Configuración.',
                 timestamp: new Date()
-            };
-            setMessages(prev => [...prev, errorMessage]);
+            }]);
         } finally {
             setIsLoading(false);
         }
     };
 
+    const renderContent = (text: string) => {
+        return text.split('\n').map((line, i) => {
+            const bold = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            return <p key={i} className={i > 0 ? 'mt-1' : ''} dangerouslySetInnerHTML={{ __html: bold }} />;
+        });
+    };
+
     return (
-        <AnimatePresence>
+        <div className={clsx(
+            "flex flex-col h-full bg-[linear-gradient(180deg,rgba(255,253,248,0.99),rgba(244,237,225,0.97))] border-l border-border/50 transition-all duration-300 overflow-hidden",
+            isOpen ? "w-[380px] min-w-[380px]" : "w-0 min-w-0"
+        )}>
             {isOpen && (
                 <>
-                    {/* Backdrop */}
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onClick={onClose}
-                        className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-[100]"
-                    />
+                    {/* Header */}
+                    <div className="shrink-0 px-5 py-4 border-b border-border/50 flex items-center justify-between bg-white/50">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-[0_0_16px_rgba(250,181,16,0.35)]">
+                                <BrainCircuit className="w-5 h-5 text-black" />
+                            </div>
+                            <div>
+                                <h2 className="text-sm font-black tracking-tight flex items-center gap-2">
+                                    MiWi <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-black uppercase">IA</span>
+                                </h2>
+                                <p className="text-[9px] text-muted-foreground font-black uppercase tracking-wider flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse inline-block" />
+                                    Gemini 1.5 Flash
+                                </p>
+                            </div>
+                        </div>
+                        <button onClick={onClose} className="p-2 hover:bg-accent/60 rounded-xl border border-border/60 transition-all">
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
 
-                    {/* Assistant Panel */}
-                    <motion.div
-                        initial={{ x: "100%" }}
-                        animate={{ x: 0 }}
-                        exit={{ x: "100%" }}
-                        transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                        className="fixed right-0 top-0 h-full w-full max-w-[450px] bg-[linear-gradient(180deg,rgba(255,253,248,0.98),rgba(244,237,225,0.96))] border-l border-border/70 z-[101] shadow-[-20px_0_50px_rgba(23,23,23,0.16)] flex flex-col"
-                    >
-                        {/* Header */}
-                        <div className="p-6 border-b border-border/60 flex items-center justify-between bg-white/40">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center shadow-[0_0_20px_rgba(250,181,16,0.3)]">
-                                    <BrainCircuit className="w-6 h-6 text-black" />
+                    {/* Quick Actions */}
+                    <div className="shrink-0 px-3 py-2.5 border-b border-border/40 bg-white/20 flex gap-2 overflow-x-auto scrollbar-hide">
+                        {QUICK_ACTIONS.map(({ label, icon: Icon, prompt }) => (
+                            <button
+                                key={label}
+                                onClick={() => sendMessage(prompt)}
+                                disabled={isLoading}
+                                className="shrink-0 flex items-center gap-1.5 bg-white/80 hover:bg-primary hover:text-black border border-border/50 hover:border-primary px-2.5 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wide transition-all disabled:opacity-50"
+                            >
+                                <Icon className="w-3 h-3 text-primary group-hover:text-black" />
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Messages */}
+                    <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 custom-scrollbar">
+                        {messages.map((msg) => (
+                            <div key={msg.id} className={clsx("flex gap-2.5", msg.role === 'user' ? "flex-row-reverse" : "")}>
+                                <div className={clsx(
+                                    "w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
+                                    msg.role === 'assistant' ? "bg-primary/20 text-primary border border-primary/20" : "bg-foreground text-background"
+                                )}>
+                                    {msg.role === 'assistant' ? <Bot className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
                                 </div>
-                                <div>
-                                    <h2 className="text-xl font-black tracking-tight flex items-center gap-2">
-                                        MiWi <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full uppercase">Intelligence</span>
-                                    </h2>
-                                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-wider flex items-center gap-1.5">
-                                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                                        Sincronizado con Gemini 1.5
+                                <div className={clsx(
+                                    "px-4 py-3 rounded-2xl text-sm leading-relaxed max-w-[85%]",
+                                    msg.role === 'assistant'
+                                        ? "bg-white/80 border border-border/60 text-foreground"
+                                        : "bg-primary text-black font-semibold shadow-md shadow-primary/15"
+                                )}>
+                                    {renderContent(msg.content)}
+                                    <p className="text-[8px] opacity-40 mt-1.5 font-black uppercase tracking-wider">
+                                        {msg.timestamp.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
                                     </p>
                                 </div>
                             </div>
-                            <button
-                                onClick={onClose}
-                                className="p-2 hover:bg-accent/60 rounded-full border border-border/70 transition-all"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        {/* Quick Insights / Suggestions */}
-                        <div className="p-4 border-b border-border/60 bg-white/20 flex gap-2 overflow-x-auto scrollbar-hide">
-                            <button className="flex-shrink-0 flex items-center gap-2 bg-white/80 hover:bg-white border border-border/60 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all">
-                                <Sparkles className="w-3 h-3 text-primary" />
-                                Analizar Pipeline
-                            </button>
-                            <button className="flex-shrink-0 flex items-center gap-2 bg-white/80 hover:bg-white border border-border/60 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all">
-                                <Zap className="w-3 h-3 text-primary" />
-                                Recomendación Lead
-                            </button>
-                            <button className="flex-shrink-0 flex items-center gap-2 bg-white/80 hover:bg-white border border-border/60 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all">
-                                <RefreshCcw className="w-3 h-3 text-primary" />
-                                Resumen del Día
-                            </button>
-                        </div>
-
-                        {/* Messages Area */}
-                        <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-                            {messages.map((msg) => (
-                                <div
-                                    key={msg.id}
-                                    className={clsx(
-                                        "flex gap-3 max-w-[85%]",
-                                        msg.role === 'user' ? "ml-auto flex-row-reverse" : "mr-auto"
-                                    )}
-                                >
-                                    <div className={clsx(
-                                        "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                                        msg.role === 'assistant' ? "bg-primary/20 text-primary border border-primary/20" : "bg-[#171717] text-[#fff4cc]"
-                                    )}>
-                                        {msg.role === 'assistant' ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
-                                    </div>
-                                    <div className={clsx(
-                                        "p-4 rounded-2xl text-sm leading-relaxed",
-                                        msg.role === 'assistant'
-                                            ? "bg-white/70 border border-border/70 text-foreground"
-                                            : "bg-primary text-black font-medium shadow-lg shadow-primary/10"
-                                    )}>
-                                        {msg.content}
-                                    </div>
+                        ))}
+                        {isLoading && (
+                            <div className="flex gap-2.5">
+                                <div className="w-7 h-7 rounded-lg bg-primary/20 border border-primary/20 flex items-center justify-center animate-pulse">
+                                    <Bot className="w-3.5 h-3.5 text-primary" />
                                 </div>
-                            ))}
-                            {isLoading && (
-                                <div className="flex gap-3 max-w-[85%]">
-                                    <div className="w-8 h-8 rounded-lg bg-primary/20 text-primary border border-primary/20 flex items-center justify-center animate-pulse">
-                                        <Bot className="w-4 h-4" />
-                                    </div>
-                                    <div className="bg-white/70 border border-border/70 p-4 rounded-2xl flex gap-1">
-                                        <span className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce"></span>
-                                        <span className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                                        <span className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce [animation-delay:0.4s]"></span>
-                                    </div>
+                                <div className="bg-white/80 border border-border/60 px-4 py-3 rounded-2xl flex gap-1.5 items-center">
+                                    <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" />
+                                    <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:0.15s]" />
+                                    <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:0.3s]" />
                                 </div>
-                            )}
-                            <div ref={messagesEndRef} />
-                        </div>
-
-                        {/* Footer / Input Area */}
-                        <div className="p-6 border-t border-border/60 bg-white/30">
-                            <div className="relative">
-                                <textarea
-                                    value={input}
-                                    onChange={(e) => setInput(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && !e.shiftKey) {
-                                            e.preventDefault();
-                                            handleSendMessage();
-                                        }
-                                    }}
-                                    placeholder="Pregúntame algo sobre tus ventas..."
-                                    className="w-full bg-white/80 border border-border/70 rounded-2xl px-5 py-4 pr-14 outline-none focus:border-primary/50 transition-all font-medium text-sm resize-none min-h-[60px] max-h-[150px]"
-                                />
-                                <button
-                                    onClick={handleSendMessage}
-                                    disabled={!input.trim() || isLoading}
-                                    className="absolute right-3 bottom-3 p-2.5 bg-primary text-black rounded-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 disabled:bg-white/50 disabled:text-muted-foreground"
-                                >
-                                    <Send className="w-5 h-5" />
-                                </button>
                             </div>
-                            <p className="text-[9px] text-center text-muted-foreground mt-3 font-bold uppercase tracking-widest opacity-40">
-                                MiWi puede cometer errores. Verifica la información importante.
-                            </p>
+                        )}
+                        <div ref={messagesEndRef} />
+                    </div>
+
+                    {/* Input */}
+                    <div className="shrink-0 p-4 border-t border-border/50 bg-white/30">
+                        <div className="relative">
+                            <textarea
+                                ref={textareaRef}
+                                value={input}
+                                onChange={e => setInput(e.target.value)}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
+                                }}
+                                placeholder="Pregúntame algo... (Enter para enviar)"
+                                rows={2}
+                                className="w-full bg-white/80 border border-border/60 rounded-2xl px-4 py-3 pr-12 outline-none focus:border-primary/50 transition-all text-sm resize-none custom-scrollbar"
+                            />
+                            <button
+                                onClick={() => sendMessage(input)}
+                                disabled={!input.trim() || isLoading}
+                                className="absolute right-3 bottom-3 p-2 bg-primary text-black rounded-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-40 disabled:scale-100"
+                            >
+                                <Send className="w-4 h-4" />
+                            </button>
                         </div>
-                    </motion.div>
+                        <p className="text-[8px] text-center text-muted-foreground/40 mt-2 font-black uppercase tracking-widest">
+                            MiWi puede cometer errores · Shift+Enter para salto de línea
+                        </p>
+                    </div>
                 </>
             )}
-        </AnimatePresence>
+        </div>
     );
 }

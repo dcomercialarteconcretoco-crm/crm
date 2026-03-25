@@ -37,10 +37,12 @@ interface QuoteEngineProps {
 }
 
 export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) {
-    const { products, clients, addClient, refreshProducts, addQuote, updateQuote, currentUser, settings } = useApp();
+    const { products, clients, addClient, refreshProducts, addQuote, updateQuote, currentUser, settings, addNotification } = useApp();
+    const genId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const genQuoteNumber = () => `AC-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`;
     const [selectedClientId, setSelectedClientId] = useState(defaultClientId);
     const [items, setItems] = useState<QuoteItem[]>([
-        { id: Math.random().toString(), name: '', price: 0, quantity: 1, unit: 'un' }
+        { id: genId(), name: '', price: 0, quantity: 1, unit: 'un' }
     ]);
 
     const [taxRate, setTaxRate] = useState(0.19); // IVA 19%
@@ -53,7 +55,7 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
     const [newClient, setNewClient] = useState({ name: '', company: '', email: '', phone: '' });
 
     const addItem = () => {
-        setItems([...items, { id: Math.random().toString(), name: '', price: 0, quantity: 1, unit: 'un' }]);
+        setItems([...items, { id: genId(), name: '', price: 0, quantity: 1, unit: 'un' }]);
     };
 
     const removeItem = (id: string) => {
@@ -94,12 +96,12 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
     const handleGeneratePDF = async () => {
         const client = clients.find(c => c.id === selectedClientId);
         if (!client) {
-            alert("Por favor selecciona un cliente para vincular la oferta.");
+            addNotification({ title: 'Cliente requerido', description: 'Selecciona un cliente para generar el PDF.', type: 'alert' });
             return;
         }
 
         await generateProposalPDF({
-            quoteNumber: `AC-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+            quoteNumber: genQuoteNumber(),
             date: new Date().toLocaleDateString(),
             leadName: client.name,
             leadCompany: client.company,
@@ -113,15 +115,15 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
     const handleSave = () => {
         const client = clients.find(c => c.id === selectedClientId);
         if (!client) {
-            alert("Por favor selecciona un cliente para vincular la cotización.");
+            addNotification({ title: 'Cliente requerido', description: 'Selecciona un cliente para vincular la cotización.', type: 'alert' });
             return;
         }
         if (items.length === 0 || items.every(i => !i.name)) {
-            alert("Por favor agrega al menos un ítem a la cotización.");
+            addNotification({ title: 'Ítems requeridos', description: 'Agrega al menos un ítem a la cotización.', type: 'alert' });
             return;
         }
         setIsSaving(true);
-        const quoteNumber = `AC-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000 + 1000)}`;
+        const quoteNumber = genQuoteNumber();
         addQuote({
             number: quoteNumber,
             client: client.name,
@@ -146,26 +148,24 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
             sellerName: currentUser?.name || '',
             status: 'Draft' as const,
         });
-        setTimeout(() => {
-            setIsSaving(false);
-            alert(`✅ Cotización ${quoteNumber} guardada exitosamente.`);
-        }, 600);
+        setIsSaving(false);
+        addNotification({ title: `Cotización ${quoteNumber} guardada`, description: 'La cotización quedó en estado Borrador.', type: 'success' });
     };
 
     const handleSendEmail = async () => {
         const client = clients.find(c => c.id === selectedClientId);
         if (!client || !client.email) {
-            alert("El cliente seleccionado no tiene email. Agrégalo primero.");
+            addNotification({ title: 'Email requerido', description: 'El cliente no tiene email registrado. Agrégalo primero.', type: 'alert' });
             return;
         }
         if (items.length === 0 || items.every(i => !i.name)) {
-            alert("Por favor agrega al menos un ítem a la cotización.");
+            addNotification({ title: 'Ítems requeridos', description: 'Agrega al menos un ítem a la cotización.', type: 'alert' });
             return;
         }
         setIsSendingEmail(true);
         try {
             const sentAt = new Date().toISOString();
-            const quoteNumber = `AC-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000 + 1000)}`;
+            const quoteNumber = genQuoteNumber();
 
             // 1️⃣ Guardar la cotización en el sistema primero
             const quoteId = addQuote({
@@ -225,13 +225,12 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
                     sentByName: data.sentByName || currentUser?.name || '',
                     sentById: data.sentById || currentUser?.id || '',
                 });
-                alert(`✅ Cotización ${quoteNumber} enviada a ${client.email}\n📋 Copia guardada en el sistema\n📧 Copia enviada a marketing@arteconcreto.co`);
+                addNotification({ title: `Cotización ${quoteNumber} enviada`, description: `Enviada a ${client.email} · Copia a marketing@arteconcreto.co`, type: 'success' });
             } else {
-                // Si falló el envío, eliminar la cotización guardada y notificar
-                alert(`❌ Error: ${data.error || 'No se pudo enviar. Verifica la clave Resend en Configuración.'}`);
+                addNotification({ title: 'Error al enviar', description: data.error || 'Verifica la clave Resend en Configuración.', type: 'alert' });
             }
         } catch {
-            alert("❌ Error de conexión al enviar la cotización.");
+            addNotification({ title: 'Error de conexión', description: 'No se pudo enviar la cotización. Revisa tu conexión.', type: 'alert' });
         } finally {
             setIsSendingEmail(false);
         }
@@ -308,7 +307,7 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
                                     </div>
                                     <div>
                                         <h3 className="text-sm font-black uppercase tracking-[0.16em] text-foreground">Nuevo Cliente</h3>
-                                        <p className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">CreaciOn rApida dentro de la cotizaciOn</p>
+                                        <p className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">Creación rápida dentro de la cotización</p>
                                     </div>
                                 </div>
 

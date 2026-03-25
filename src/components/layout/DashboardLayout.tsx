@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
-import { Search, Bell, User } from 'lucide-react';
+import { Search, Bell, User, BrainCircuit } from 'lucide-react';
 import { NotificationDropdown } from './NotificationDropdown';
+import { MiWiAssistant } from './MiWiAssistant';
 import { clsx } from 'clsx';
 import { usePathname } from 'next/navigation';
 import { MobileNav } from './MobileNav';
@@ -17,6 +18,7 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+    const [isMiWiOpen, setIsMiWiOpen] = useState(false);
     const [layoutMode, setLayoutMode] = useState('classic');
     const [selectedNotification, setSelectedNotification] = useState<any>(null);
     const { notifications, setNotifications, settings, currentUser, isHydrating, logout } = useApp() as any;
@@ -169,6 +171,20 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                                     </a>
                                 </div>
 
+                                {/* MiWi Toggle Button */}
+                                <button
+                                    onClick={() => setIsMiWiOpen(v => !v)}
+                                    className={clsx(
+                                        "flex items-center gap-2 px-3 py-2 rounded-[1rem] transition-all border font-black text-[9px] uppercase tracking-widest",
+                                        isMiWiOpen
+                                            ? "bg-primary text-black border-primary shadow-lg shadow-primary/25"
+                                            : "bg-white/40 text-muted-foreground border-border/50 hover:bg-primary/10 hover:text-primary hover:border-primary/30"
+                                    )}
+                                >
+                                    <BrainCircuit className="w-4 h-4" />
+                                    <span className="hidden xl:inline">MiWi IA</span>
+                                </button>
+
                                 <div className="relative">
                                     <button
                                         onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
@@ -230,10 +246,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     </div>
                 </header>
 
-                {/* Main Content Area */}
-                <main className="flex-1 overflow-y-auto bg-premium-gradient p-3 sm:p-4 lg:p-6 relative pb-[calc(7.5rem+env(safe-area-inset-bottom))] lg:pb-8 rounded-[1.8rem] m-3 mt-0 border border-white/45">
-                    {children}
-                </main>
+                {/* Main Content + MiWi Push Panel */}
+                <div className="flex-1 flex overflow-hidden min-h-0">
+                    <main className="flex-1 overflow-y-auto bg-premium-gradient p-3 sm:p-4 lg:p-6 relative pb-[calc(7.5rem+env(safe-area-inset-bottom))] lg:pb-8 rounded-[1.8rem] m-3 mt-0 border border-white/45 min-w-0">
+                        {children}
+                    </main>
+
+                    {/* MiWi Push Panel */}
+                    <MiWiAssistant isOpen={isMiWiOpen} onClose={() => setIsMiWiOpen(false)} />
+                </div>
 
                 {/* Mobile Bottom Navigation */}
                 <MobileNav />
