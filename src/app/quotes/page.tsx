@@ -33,8 +33,8 @@ export default function QuotesPage() {
     const [isGenerating, setIsGenerating] = useState<string | null>(null);
 
     const filteredQuotes = quotes.filter(q =>
-        q.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        q.client.toLowerCase().includes(searchTerm.toLowerCase())
+        (q.number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (q.client || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const stats = {
