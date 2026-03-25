@@ -57,6 +57,7 @@ export interface Client {
     notes?: ClientNote[];
     assignedTo?: string;
     assignedToName?: string;
+    source?: 'Manual' | 'WooCommerce' | 'ConcreBot' | 'Importación' | string;
 }
 
 export interface QuoteItem {

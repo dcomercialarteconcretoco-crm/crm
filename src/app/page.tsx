@@ -418,31 +418,31 @@ export default function Home() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4 sm:gap-5 lg:gap-6 lg:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 lg:gap-4 lg:grid-cols-4">
                 {stats.map((stat) => (
                   <div
                     key={stat.label}
-                    className="rounded-[2rem] border border-white/85 bg-white/58 p-6 sm:p-8 lg:p-9"
+                    className="rounded-[1.75rem] border border-white/85 bg-white/58 p-5 sm:p-6 overflow-hidden"
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground leading-tight">
                           {stat.label}
                         </p>
-                        <p className="mt-5 text-[2.2rem] sm:text-[2.6rem] lg:text-[3rem] leading-none font-black tracking-[-0.08em] text-foreground">
+                        <p className="mt-3 text-[1.8rem] sm:text-[2rem] leading-none font-black tracking-[-0.06em] text-foreground truncate">
                           {stat.value}
                         </p>
-                        <p className="mt-3 text-xs font-semibold leading-5 text-muted-foreground">
+                        <p className="mt-2 text-[11px] font-semibold leading-4 text-muted-foreground">
                           {stat.note}
                         </p>
                       </div>
                       <div
                         className={clsx(
-                          "mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-[1.2rem] border",
+                          "shrink-0 flex h-10 w-10 items-center justify-center rounded-[1rem] border",
                           stat.tone
                         )}
                       >
-                        <stat.icon className="h-5 w-5" />
+                        <stat.icon className="h-4 w-4" />
                       </div>
                     </div>
                   </div>

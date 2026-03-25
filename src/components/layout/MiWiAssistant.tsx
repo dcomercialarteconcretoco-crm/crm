@@ -152,11 +152,12 @@ function extractActionLinks(
 ): { label: string; href: string; icon: string }[] {
     const results: { label: string; href: string; icon: string }[] = [];
     const seen = new Set<string>();
+    const low = text.toLowerCase();
 
-    // Match clients / tasks by name or company
+    // Match clients by name or company (case-insensitive, partial)
     clients.forEach(c => {
-        const names = [c.name, c.company].filter(Boolean) as string[];
-        if (names.some(n => n.length > 2 && text.toLowerCase().includes(n.toLowerCase()))) {
+        const names = [c.name, c.company].filter(n => n && n.length > 2) as string[];
+        if (names.some(n => low.includes(n.toLowerCase()))) {
             if (!seen.has(c.id)) {
                 seen.add(c.id);
                 results.push({ label: `Ver ficha: ${c.company || c.name}`, href: `/leads/${c.id}`, icon: '👤' });
@@ -164,18 +165,22 @@ function extractActionLinks(
         }
     });
 
-    // Match tasks by title
+    // Match tasks → prefer linking to client profile
     tasks.forEach(t => {
-        if (t.title && t.title.length > 3 && text.toLowerCase().includes(t.title.toLowerCase())) {
-            const clientId = t.clientId || clients.find(c => c.name === t.client || c.company === t.client)?.id;
-            const key = `task-${t.id}`;
+        const tNames = [t.title, t.client, t.contactName].filter(n => n && n.length > 3) as string[];
+        if (tNames.some(n => low.includes(n.toLowerCase()))) {
+            const clientId = t.clientId ||
+                clients.find(c =>
+                    c.name?.toLowerCase() === t.client?.toLowerCase() ||
+                    c.company?.toLowerCase() === t.client?.toLowerCase()
+                )?.id;
+            const key = `task-${clientId || t.id}`;
             if (!seen.has(key)) {
                 seen.add(key);
-                if (clientId) {
-                    results.push({ label: `Ver pipeline: ${t.client}`, href: `/leads/${clientId}`, icon: '📌' });
-                } else {
-                    results.push({ label: `Ver en Pipeline`, href: `/pipeline`, icon: '📌' });
-                }
+                results.push(clientId
+                    ? { label: `Pipeline: ${t.client}`, href: `/leads/${clientId}`, icon: '📌' }
+                    : { label: 'Ver Pipeline', href: '/pipeline', icon: '📌' }
+                );
             }
         }
     });
@@ -186,13 +191,30 @@ function extractActionLinks(
             const key = `quote-${q.id}`;
             if (!seen.has(key)) {
                 seen.add(key);
-                const clientId = clients.find(c => c.name === q.client || c.company === q.client)?.id;
-                if (clientId) {
-                    results.push({ label: `Cotización ${q.number}`, href: `/leads/${clientId}`, icon: '📄' });
-                }
+                const clientId = clients.find(c =>
+                    c.name?.toLowerCase() === q.client?.toLowerCase() ||
+                    c.company?.toLowerCase() === q.client?.toLowerCase()
+                )?.id || (q.clientId ? q.clientId : undefined);
+                results.push(clientId
+                    ? { label: `Cotización ${q.number}`, href: `/leads/${clientId}`, icon: '📄' }
+                    : { label: `Cotización ${q.number}`, href: '/quotes', icon: '📄' }
+                );
             }
         }
     });
+
+    // Context-based fallback links if no entity found
+    if (results.length === 0) {
+        if (low.includes('pipeline') || low.includes('etapa') || low.includes('lead')) {
+            results.push({ label: 'Ir al Pipeline', href: '/pipeline', icon: '📌' });
+        }
+        if (low.includes('cotizaci')) {
+            results.push({ label: 'Ver Cotizaciones', href: '/quotes', icon: '📄' });
+        }
+        if (low.includes('cliente') || low.includes('directorio')) {
+            results.push({ label: 'Ver Clientes', href: '/clients', icon: '👥' });
+        }
+    }
 
     return results.slice(0, 4); // max 4 action buttons
 }
@@ -241,7 +263,7 @@ export function MiWiAssistant({ isOpen, onClose, onNewSuggestion }: MiWiAssistan
 
         const apiKey = settings.geminiKey || ''; // server uses GEMINI_API_KEY env var as fallback
 
-        const autoPrompt = `${snapshot}\n\n## ANÁLISIS AUTOMÁTICO DE APERTURA\nRevisa el snapshot del CRM y dame:\n1. Las 2-3 oportunidades más calientes (con nombre del cliente y acción concreta)\n2. Cualquier alerta urgente (leads fríos, cotizaciones abandonadas)\n3. La acción #1 que debo hacer HOY\nSé directo, usa emojis, máximo 200 palabras.`;
+        const autoPrompt = `${snapshot}\n\n## ANÁLISIS AUTOMÁTICO DE APERTURA\nRevisa el snapshot del CRM y dame un diagnóstico ejecutivo con EXACTAMENTE este formato:\n\n1. **Oportunidades Calientes:** lista máx 2-3 clientes con su nombre EXACTO del CRM, el valor en pesos y la acción concreta a hacer (ej: "llamar hoy", "enviar seguimiento", "cerrar propuesta")\n2. **Alertas:** leads o cotizaciones que necesitan atención urgente, con nombre exacto del cliente\n3. **Acción #1 para HOY:** una sola acción específica con el nombre del cliente y qué hacer\n\nReglas: usa negritas para nombres de clientes, usa bullets para listas, máximo 180 palabras, NO uses asteriscos sueltos como viñetas (usa guiones), sé directo y actionable.`;
 
         try {
             const res = await fetch('/api/assistant', {
@@ -326,25 +348,51 @@ export function MiWiAssistant({ isOpen, onClose, onNewSuggestion }: MiWiAssistan
     };
 
     const renderContent = (text: string) => {
+        const md = (s: string) => s
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*((?!\s)[^*]+)\*/g, '<em>$1</em>')
+            .replace(/`([^`]+)`/g, '<code class="bg-primary/10 text-primary px-1 rounded text-[10px] font-mono">$1</code>');
+
         return text.split('\n').map((line, i) => {
-            const processed = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            // H3: ### text
-            if (line.startsWith('### ')) {
-                return (
-                    <p key={i} className="font-black text-[10px] uppercase tracking-widest text-primary mt-3 mb-1"
-                        dangerouslySetInnerHTML={{ __html: processed.replace('### ', '') }} />
-                );
-            }
+            const trimmed = line.trim();
+
+            // Empty line → spacer
+            if (!trimmed) return <div key={i} className="h-1.5" />;
+
             // H2: ## text
-            if (line.startsWith('## ')) {
-                return (
-                    <p key={i} className="font-black text-[11px] uppercase tracking-widest text-primary mt-3 mb-1"
-                        dangerouslySetInnerHTML={{ __html: processed.replace('## ', '') }} />
-                );
-            }
+            if (trimmed.startsWith('## ')) return (
+                <p key={i} className="font-black text-[11px] uppercase tracking-widest text-primary mt-3 mb-0.5"
+                    dangerouslySetInnerHTML={{ __html: md(trimmed.slice(3)) }} />
+            );
+
+            // H3: ### text
+            if (trimmed.startsWith('### ')) return (
+                <p key={i} className="font-black text-[10px] uppercase tracking-widest text-primary/80 mt-2 mb-0.5"
+                    dangerouslySetInnerHTML={{ __html: md(trimmed.slice(4)) }} />
+            );
+
+            // Numbered list: "1. text" or "1) text"
+            const numMatch = trimmed.match(/^(\d+)[.)]\s+(.+)$/);
+            if (numMatch) return (
+                <div key={i} className="flex gap-2 mt-1.5">
+                    <span className="shrink-0 w-4 h-4 rounded-full bg-primary/20 text-primary text-[8px] font-black flex items-center justify-center mt-0.5">{numMatch[1]}</span>
+                    <p className="flex-1 text-sm leading-snug" dangerouslySetInnerHTML={{ __html: md(numMatch[2]) }} />
+                </div>
+            );
+
+            // Bullet: "* text" or "- text" or "• text"
+            const bulletMatch = trimmed.match(/^[*\-•]\s+(.+)$/);
+            if (bulletMatch) return (
+                <div key={i} className="flex gap-2 mt-1.5 items-start">
+                    <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-primary mt-1.5" />
+                    <p className="flex-1 text-sm leading-snug" dangerouslySetInnerHTML={{ __html: md(bulletMatch[1]) }} />
+                </div>
+            );
+
+            // Normal line
             return (
-                <p key={i} className={i > 0 && line ? 'mt-1.5' : line ? '' : 'mt-1'}
-                    dangerouslySetInnerHTML={{ __html: processed }} />
+                <p key={i} className="text-sm leading-snug mt-1"
+                    dangerouslySetInnerHTML={{ __html: md(trimmed) }} />
             );
         });
     };
