@@ -418,18 +418,18 @@ export default function Home() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-2 gap-4 sm:gap-5 lg:gap-6 lg:grid-cols-4">
                 {stats.map((stat) => (
                   <div
                     key={stat.label}
-                    className="rounded-[1.75rem] border border-white/85 bg-white/58 p-6 sm:p-7"
+                    className="rounded-[2rem] border border-white/85 bg-white/58 p-6 sm:p-8 lg:p-9"
                   >
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">
                           {stat.label}
                         </p>
-                        <p className="mt-4 text-[2rem] sm:text-[2.4rem] leading-none font-black tracking-[-0.08em] text-foreground">
+                        <p className="mt-5 text-[2.2rem] sm:text-[2.6rem] lg:text-[3rem] leading-none font-black tracking-[-0.08em] text-foreground">
                           {stat.value}
                         </p>
                         <p className="mt-3 text-xs font-semibold leading-5 text-muted-foreground">
@@ -438,7 +438,7 @@ export default function Home() {
                       </div>
                       <div
                         className={clsx(
-                          "mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-[1.1rem] border",
+                          "mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-[1.2rem] border",
                           stat.tone
                         )}
                       >

@@ -313,7 +313,7 @@ export default function Lead360Page() {
                                 className="flex flex-col items-center justify-center gap-2 bg-muted/20 hover:bg-emerald-500/10 p-4 lg:p-5 rounded-[2rem] border border-border/10 hover:border-emerald-500/40 transition-all group"
                             >
                                 <MessageSquare className="w-5 h-5 text-emerald-500 group-hover:scale-110 transition-transform" />
-                                <span className="font-black text-[8px] uppercase tracking-widest">Zap</span>
+                                <span className="font-black text-[8px] uppercase tracking-widest">WhatsApp</span>
                             </button>
                         </div>
                     </div>
