@@ -581,11 +581,10 @@ export default function SchedulerPage() {
                 </div>
                 <div className="flex flex-col sm:flex-row items-center gap-3">
                     <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                    <button
+                    {GOOGLE_CLIENT_ID && <button
                         onClick={handleGoogleConnect}
-                        disabled={isGoogleConnecting || !isGoogleReady || !GOOGLE_CLIENT_ID}
+                        disabled={isGoogleConnecting || !isGoogleReady}
                         className="bg-white/36 border border-white/75 text-foreground font-black px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-white/52 active:scale-[0.98] transition-all backdrop-blur-xl disabled:opacity-50 disabled:hover:bg-white/36"
-                        title={!GOOGLE_CLIENT_ID ? 'Falta NEXT_PUBLIC_GOOGLE_CLIENT_ID' : undefined}
                     >
                         <Cloud className="w-5 h-5 font-black" />
                         <span>
@@ -595,8 +594,8 @@ export default function SchedulerPage() {
                                     ? `Google: ${googleAccountEmail || 'Conectado'}`
                                     : 'Conectar Google'}
                         </span>
-                    </button>
-                    <button
+                    </button>}
+                    {GOOGLE_CLIENT_ID && <button
                         onClick={async () => {
                             try {
                                 setIsGoogleSyncing(true);
@@ -616,7 +615,7 @@ export default function SchedulerPage() {
                     >
                         <RefreshCw className={clsx("w-5 h-5 font-black", isGoogleSyncing && "animate-spin")} />
                         <span>{isGoogleSyncing ? 'Sincronizando...' : 'Sync Google'}</span>
-                    </button>
+                    </button>}
                     <button
                         onClick={handleImportClick}
                         className="bg-white/36 border border-white/75 text-foreground font-black px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-white/52 active:scale-[0.98] transition-all backdrop-blur-xl"

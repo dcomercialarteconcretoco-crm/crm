@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useApp, Seller } from '@/context/AppContext';
+import AvatarUpload from '@/components/ui/AvatarUpload';
 
 export default function TeamPage() {
     const { sellers, addSeller, deleteSeller, updateSeller, currentUser } = useApp();
@@ -318,35 +319,13 @@ export default function TeamPage() {
 
                         <div className="p-8 space-y-8 overflow-y-auto max-h-[70vh] custom-scrollbar bg-white/42">
                             {/* Avatar Section */}
-                            <div className="flex flex-col items-center gap-6">
-                                <div className="relative group">
-                                    <div className="w-28 h-28 rounded-[2.5rem] overflow-hidden border-4 border-primary/20 bg-white/80 shadow-xl transition-all group-hover:border-primary/50">
-                                        {form.avatar ? (
-                                            <img src={form.avatar} className="w-full h-full object-cover" alt="Profile" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center bg-primary/10">
-                                                <User className="w-10 h-10 text-primary" />
-                                            </div>
-                                        )}
-                                    </div>
-                                    <label className="absolute -right-2 -bottom-2 bg-primary text-black p-3 rounded-2xl cursor-pointer shadow-xl hover:scale-110 active:scale-95 transition-all">
-                                        <Camera className="w-5 h-5" />
-                                        <input
-                                            type="text"
-                                            placeholder="URL de imagen"
-                                            className="hidden"
-                                            onChange={(e) => setForm({ ...form, avatar: e.target.value })}
-                                        />
-                                        {/* Mocking upload with prompt for now as it's a frontend demo */}
-                                        <button
-                                            className="absolute inset-0 opacity-0"
-                                            onClick={() => {
-                                                const url = prompt('Ingresa la URL de la foto de perfil:');
-                                                if (url) setForm({ ...form, avatar: url });
-                                            }}
-                                        />
-                                    </label>
-                                </div>
+                            <div className="flex flex-col items-center gap-4">
+                                <AvatarUpload
+                                    value={form.avatar}
+                                    onChange={(base64) => setForm(f => ({ ...f, avatar: base64 }))}
+                                    name={form.name}
+                                    size="md"
+                                />
                                 <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">Configuración de Identidad</p>
                             </div>
 
