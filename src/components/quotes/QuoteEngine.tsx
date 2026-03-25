@@ -22,10 +22,12 @@ interface QuoteItem {
 
 interface QuoteEngineProps {
     defaultClientId?: string;
+    editQuoteId?: string;
 }
 
-export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) {
-    const { products, clients, addClient, refreshProducts, addQuote, updateQuote, currentUser, settings, addNotification, addAuditLog } = useApp();
+export default function QuoteEngine({ defaultClientId = '', editQuoteId }: QuoteEngineProps) {
+    const { products, clients, addClient, refreshProducts, addQuote, updateQuote, quotes, currentUser, settings, addNotification, addAuditLog } = useApp();
+    const isEditMode = !!editQuoteId;
     const genId = () => `${Date.now().toString(36)}-${Math.round(Math.random() * 1e4)}`;
     const genQuoteNumber = () => `AC-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`;
 
@@ -50,6 +52,25 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
         doSync();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    useEffect(() => {
+        if (!editQuoteId) return;
+        const existing = quotes.find(q => q.id === editQuoteId);
+        if (!existing) return;
+        if (existing.clientId) setSelectedClientId(existing.clientId);
+        if (existing.items && existing.items.length > 0) {
+            setItems(existing.items.map(i => ({
+                id: i.id || `${Date.now().toString(36)}-${Math.round(Math.random() * 1e4)}`,
+                name: i.name || '',
+                price: i.price || (i as any).unitPrice || 0,
+                quantity: i.quantity || 1,
+                unit: (i as any).unit || 'un',
+                productId: (i as any).productId,
+                image: (i as any).image,
+            })));
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [editQuoteId]);
 
     const filteredProducts = useMemo(() => {
         const q = productSearch.toLowerCase().trim();
@@ -147,16 +168,31 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
 
         setIsSaving(true);
         try {
-            const quoteNumber = genQuoteNumber();
-            addQuote({
-                number: quoteNumber, client: client.name, clientId: client.id,
-                clientEmail: client.email || '', clientCompany: client.company || '',
-                date: new Date().toLocaleDateString('es-CO'),
-                total: formatCurrency(total), numericTotal: total, subtotal, tax,
-                items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity })),
-                notes: '', sellerId: currentUser?.id || '', sellerName: currentUser?.name || '',
-                status: 'Draft' as const,
-            });
+            const mappedItems = items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity }));
+            let quoteNumber: string;
+
+            if (isEditMode && editQuoteId) {
+                const existing = quotes.find(q => q.id === editQuoteId);
+                quoteNumber = existing?.number || genQuoteNumber();
+                updateQuote(editQuoteId, {
+                    client: client.name, clientId: client.id,
+                    clientEmail: client.email || '', clientCompany: client.company || '',
+                    total: formatCurrency(total), numericTotal: total, subtotal, tax,
+                    items: mappedItems,
+                });
+            } else {
+                quoteNumber = genQuoteNumber();
+                addQuote({
+                    number: quoteNumber, client: client.name, clientId: client.id,
+                    clientEmail: client.email || '', clientCompany: client.company || '',
+                    date: new Date().toLocaleDateString('es-CO'),
+                    total: formatCurrency(total), numericTotal: total, subtotal, tax,
+                    items: mappedItems,
+                    notes: '', sellerId: currentUser?.id || '', sellerName: currentUser?.name || '',
+                    status: 'Draft' as const,
+                });
+            }
+
             await generateProposalPDF({
                 quoteNumber,
                 date: new Date().toLocaleDateString('es-CO'),
@@ -172,10 +208,10 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
                 action: 'QUOTE_SENT',
                 targetId: client.id,
                 targetName: client.company || client.name,
-                details: `Cotización ${quoteNumber} generada · Total: ${formatCurrency(total)}`,
+                details: `Cotización ${quoteNumber} ${isEditMode ? 'editada' : 'generada'} · Total: ${formatCurrency(total)}`,
                 verified: true
             });
-            addNotification({ title: `Cotización ${quoteNumber} lista`, description: 'Guardada y PDF descargado.', type: 'success' });
+            addNotification({ title: `Cotización ${quoteNumber} lista`, description: isEditMode ? 'Cambios guardados y PDF descargado.' : 'Guardada y PDF descargado.', type: 'success' });
         } finally {
             setIsSaving(false);
         }
@@ -338,6 +374,18 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
 
     return (
         <>
+        {isEditMode && editQuoteId && (() => {
+            const editingQuote = quotes.find(q => q.id === editQuoteId);
+            return editingQuote ? (
+                <div className="mb-4 flex items-center gap-3 px-5 py-3 rounded-2xl bg-amber-500/10 border border-amber-400/30">
+                    <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                    <p className="text-sm font-black text-amber-700">
+                        Editando cotización <span className="text-amber-900">{editingQuote.number}</span>
+                        {editingQuote.client && <span className="font-medium text-amber-600"> — {editingQuote.client}</span>}
+                    </p>
+                </div>
+            ) : null;
+        })()}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
             {/* ── LEFT: Client + Catalog ── */}
@@ -637,7 +685,7 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
                             {isSaving
                                 ? <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
                                 : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>}
-                            {isSaving ? 'Generando...' : 'Guardar y Generar PDF'}
+                            {isSaving ? (isEditMode ? 'Guardando...' : 'Generando...') : (isEditMode ? 'Guardar Cambios' : 'Guardar y Generar PDF')}
                         </button>
 
                         <div className="grid grid-cols-2 gap-2">

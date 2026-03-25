@@ -469,11 +469,12 @@ export default function Home() {
                           {stat.label}
                         </p>
                         <p className={clsx(
-                          "mt-3 leading-none font-black tracking-[-0.05em] text-foreground break-all",
-                          stat.value.length <= 5  ? "text-[2rem] sm:text-[2.2rem]" :
-                          stat.value.length <= 8  ? "text-[1.5rem] sm:text-[1.7rem]" :
-                          stat.value.length <= 12 ? "text-[1.15rem] sm:text-[1.3rem]" :
-                                                    "text-[0.95rem] sm:text-[1.05rem]"
+                          "mt-3 leading-none font-black tracking-tight text-foreground whitespace-nowrap overflow-hidden",
+                          stat.value.length <= 4  ? "text-[2rem]" :
+                          stat.value.length <= 7  ? "text-[1.6rem]" :
+                          stat.value.length <= 10 ? "text-[1.15rem]" :
+                          stat.value.length <= 13 ? "text-[0.9rem]" :
+                                                    "text-[0.78rem]"
                         )}>
                           {stat.value}
                         </p>

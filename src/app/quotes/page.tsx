@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import {
     FileText, Plus, Search, Download, Mail, ChevronRight,
     Clock, CheckCircle2, Send, MessageCircle, Trophy, TrendingUp,
-    Filter, ArrowDownToLine, Eye
+    Filter, ArrowDownToLine, Eye, Pencil
 } from 'lucide-react';
 import Link from 'next/link';
 import { clsx } from 'clsx';
@@ -312,6 +312,10 @@ export default function QuotesPage() {
 
                                 {/* Action buttons */}
                                 <div className="flex items-center gap-1.5 py-1 md:py-0 md:opacity-40 md:group-hover:opacity-100 transition-all justify-end">
+                                    <Link href={`/quotes/${quote.id}/edit`} title="Editar cotización"
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/60 border border-border/50 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-all">
+                                        <Pencil className="w-3.5 h-3.5" />
+                                    </Link>
                                     <Link href={`/quotes`} title="Ver detalle"
                                         className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/60 border border-border/50 text-muted-foreground hover:text-foreground hover:bg-white/90 transition-all">
                                         <ChevronRight className="w-3.5 h-3.5" />
