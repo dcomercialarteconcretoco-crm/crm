@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Cotización ${quoteNumber} — Arte Concreto</title>
+  <title>Cotización ${quoteNumber} — ArteConcreto</title>
 </head>
 <body style="margin:0;padding:0;background:#f2ede4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
 
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
           <div style="display:inline-block;background:#ffffff;border-radius:14px;padding:10px 18px;box-shadow:0 2px 12px rgba(0,0,0,0.25);">
             <img
               src="${LOGO_URL}"
-              alt="Arte Concreto Mobiliario"
+              alt="ArteConcreto Mobiliario"
               width="168"
               height="68"
               style="display:block;width:168px;height:68px;object-fit:contain;"
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
   <!-- CRÉDITO MIWIBI -->
   <div style="background:#111113;padding:11px 32px;text-align:center;border-top:1px solid #2a2a2d;">
     <p style="margin:0;font-size:10px;color:#3a3a3a;letter-spacing:0.3px;">
-      MiWibiCRM &nbsp;&middot;&nbsp; Desarrollado para Arte Concreto por&nbsp;
+      MiWibiCRM &nbsp;&middot;&nbsp; Desarrollado para ArteConcreto por&nbsp;
       <a href="https://miwibi.com" target="_blank"
          style="color:#fab510;text-decoration:none;font-weight:700;">MiWibi.com</a>
     </p>
@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
         <tr>
           <td style="padding:22px 0 22px 28px;vertical-align:middle;width:55%;">
             <div style="display:inline-block;background:#fff;border-radius:10px;padding:8px 14px;">
-              <img src="${LOGO_URL}" alt="Arte Concreto" width="130" height="53" style="display:block;width:130px;height:53px;object-fit:contain;" />
+              <img src="${LOGO_URL}" alt="ArteConcreto" width="130" height="53" style="display:block;width:130px;height:53px;object-fit:contain;" />
             </div>
             <div style="margin-top:7px;font-size:9px;color:#fab510;letter-spacing:3px;text-transform:uppercase;font-weight:900;">CRM &middot; Copia Interna</div>
           </td>
@@ -249,7 +249,7 @@ export async function POST(request: NextRequest) {
     </div>
     <div style="background:#111113;padding:10px 28px;text-align:center;border-top:1px solid #2a2a2d;">
       <p style="margin:0;font-size:10px;color:#3a3a3a;">
-        MiWibiCRM &middot; Desarrollado para Arte Concreto por&nbsp;
+        MiWibiCRM &middot; Desarrollado para ArteConcreto por&nbsp;
         <a href="https://miwibi.com" target="_blank" style="color:#fab510;text-decoration:none;font-weight:700;">MiWibi.com</a>
       </p>
     </div>
@@ -265,7 +265,7 @@ export async function POST(request: NextRequest) {
     body: JSON.stringify({
       from: FROM_EMAIL,
       to: [clientEmail],
-      subject: `Cotización ${quoteNumber} — Arte Concreto S.A.S`,
+      subject: `Cotización ${quoteNumber} — ArteConcreto S.A.S`,
       html: htmlCliente,
     }),
   });

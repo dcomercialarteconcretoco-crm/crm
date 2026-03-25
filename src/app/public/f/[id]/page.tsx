@@ -158,7 +158,7 @@ export default function PublicFormPage() {
                 className="text-primary font-black uppercase tracking-[0.4em] italic text-xs flex items-center gap-3"
             >
                 <div className="w-4 h-4 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
-                Iniciando Motor Arte Concreto...
+                Iniciando Motor ArteConcreto...
             </motion.div>
         </div>
     );
@@ -217,7 +217,7 @@ export default function PublicFormPage() {
                         <h1 className="text-4xl font-black text-white italic tracking-tighter uppercase mb-6 leading-none">Vínculo <br /><span className="text-primary NOT-italic">Confirmado</span></h1>
                         <p className="text-xs text-white/40 font-bold uppercase tracking-[0.2em] leading-relaxed italic">
                             Tu solicitud ha sido procesada por la IA de <br />
-                            <span className="text-white">Arte Concreto Intelligence</span>.
+                            <span className="text-white">ArteConcreto Intelligence</span>.
                             <br /><br />
                             Un asesor de proyectos especializados te contactará en breve para discutir tu propuesta.
                         </p>

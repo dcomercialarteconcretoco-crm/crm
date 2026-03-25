@@ -60,7 +60,7 @@ export default function LoginPage() {
                         <h1 className="text-4xl font-black text-foreground italic tracking-tighter uppercase leading-none">
                             Intelligence <span className="text-primary not-italic">Core</span>
                         </h1>
-                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mt-1">Acceso restringido • Arte Concreto</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mt-1">Acceso restringido • ArteConcreto</p>
                     </div>
                 </div>
 
@@ -144,7 +144,7 @@ export default function LoginPage() {
                     <div className="mt-8 pt-8 border-t border-border/50 flex flex-col items-center gap-4 text-center">
                         <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest leading-relaxed">
                             Al ingresar certificas que eres personal autorizado por <br />
-                            <span className="text-foreground/70">Industrias Arte Concreto S.A.S</span>
+                            <span className="text-foreground/70">Industrias ArteConcreto S.A.S</span>
                         </p>
                         <div className="flex items-center gap-2 opacity-60">
                             <CheckCircle2 className="w-3 h-3 text-emerald-500" />

@@ -32,7 +32,7 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
-      content: `Hola, soy ${botName}. Estoy listo para ayudarte con mobiliario, cotizaciones y tiempos de entrega de Arte Concreto.`,
+      content: `Hola, soy ${botName}. Estoy listo para ayudarte con mobiliario, cotizaciones y tiempos de entrega de ArteConcreto.`,
       timestamp: new Date().toISOString(),
     },
   ]);

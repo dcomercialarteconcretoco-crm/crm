@@ -51,7 +51,7 @@ function generateProductionEmailHTML(order: ProductionOrderPayload): string {
             
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px;">
                 <div>
-                    <div style="font-size: 10px; font-weight: 900; color: #fab510; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 8px;">Arte Concreto S.A.S</div>
+                    <div style="font-size: 10px; font-weight: 900; color: #fab510; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 8px;">ArteConcreto S.A.S</div>
                     <div style="font-size: 10px; color: #94a3b8; letter-spacing: 2px; text-transform: uppercase;">Sistema de Producción Industrial</div>
                 </div>
                 <div style="background: rgba(250,181,16,0.1); border: 1px solid rgba(250,181,16,0.3); border-radius: 12px; padding: 10px 16px; text-align: center;">
@@ -125,14 +125,14 @@ function generateProductionEmailHTML(order: ProductionOrderPayload): string {
         <div style="background: linear-gradient(135deg, rgba(16,185,129,0.08) 0%, transparent 100%); border: 1px solid rgba(16,185,129,0.2); border-radius: 20px; padding: 28px; margin-bottom: 24px;">
             <div style="font-size: 10px; font-weight: 900; color: #10b981; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 12px;">⚡ Acción Requerida</div>
             <div style="font-size: 14px; color: #94a3b8; line-height: 1.7;">
-                Esta orden fue generada automáticamente por el CRM Arte Concreto Intelligence al confirmar la venta. Por favor iniciar el proceso de producción para los ítems listados y confirmar la recepción de esta orden al vendedor asignado.
+                Esta orden fue generada automáticamente por el CRM ArteConcreto Intelligence al confirmar la venta. Por favor iniciar el proceso de producción para los ítems listados y confirmar la recepción de esta orden al vendedor asignado.
             </div>
         </div>
 
         <!-- Footer -->
         <div style="text-align: center; padding: 20px;">
             <div style="font-size: 9px; color: #374151; letter-spacing: 2px; text-transform: uppercase;">Generado automáticamente por</div>
-            <div style="font-size: 10px; font-weight: 900; color: #fab510; letter-spacing: 3px; text-transform: uppercase; margin-top: 4px;">Arte Concreto Intelligence Core — MiWibi CRM</div>
+            <div style="font-size: 10px; font-weight: 900; color: #fab510; letter-spacing: 3px; text-transform: uppercase; margin-top: 4px;">ArteConcreto Intelligence Core — MiWibi CRM</div>
             <div style="font-size: 9px; color: #374151; margin-top: 8px; letter-spacing: 1px;">${order.date} · Confidencial</div>
         </div>
     </div>
@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
         const htmlContent = generateProductionEmailHTML(body);
 
         const emailPayload = {
-            from: `Arte Concreto Producción <${FROM_EMAIL}>`,
+            from: `ArteConcreto Producción <${FROM_EMAIL}>`,
             to: body.recipientEmails,
             subject: `🔧 ORDEN DE PRODUCCIÓN ${body.orderNumber} — ${body.clientCompany} · ${body.dealTitle}`,
             html: htmlContent,

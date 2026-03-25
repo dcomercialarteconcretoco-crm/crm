@@ -86,7 +86,7 @@ const DEFAULT_BOT_SETTINGS = {
         '¿Fabrican diseños a medida?',
         '¿Tienen descuentos por volumen?',
     ],
-    systemPrompt: `Eres el Bot oficial de Arte Concreto.
+    systemPrompt: `Eres el Bot oficial de ArteConcreto.
 Tu misión es recibir al cliente, capturar sus datos y cotizar mobiliario urbano.
 
 REGLAS DE ORO:
@@ -186,7 +186,7 @@ export default function MiWiBotPage() {
             return;
         }
         const productNames = products.slice(0, 8).map(p => p.name).join(', ') || 'mobiliario urbano en concreto';
-        const prompt = `Eres ConcreBOT en MODO APRENDIZAJE. Eres el asistente oficial de Arte Concreto S.A.S, empresa colombiana de mobiliario urbano en concreto. Estás siendo entrenado por los administradores de la empresa. Tu misión es hacer preguntas inteligentes para aprender sobre los productos, precios, políticas y procesos. Conoces estos productos del catálogo: ${productNames}. Preséntate brevemente y haz tu PRIMERA pregunta concreta sobre los productos o la empresa para comenzar a aprender. Sé curioso, entusiasta y específico. Una sola pregunta.`;
+        const prompt = `Eres ConcreBOT en MODO APRENDIZAJE. Eres el asistente oficial de ArteConcreto S.A.S, empresa colombiana de mobiliario urbano en concreto. Estás siendo entrenado por los administradores de la empresa. Tu misión es hacer preguntas inteligentes para aprender sobre los productos, precios, políticas y procesos. Conoces estos productos del catálogo: ${productNames}. Preséntate brevemente y haz tu PRIMERA pregunta concreta sobre los productos o la empresa para comenzar a aprender. Sé curioso, entusiasta y específico. Una sola pregunta.`;
         try {
             const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
                 method: 'POST',
@@ -194,11 +194,11 @@ export default function MiWiBotPage() {
                 body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0.85, maxOutputTokens: 300 } })
             });
             const data = await res.json();
-            const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '¡Hola! Soy ConcreBOT. ¿Cuáles son los productos estrella de Arte Concreto y qué los hace únicos frente a la competencia?';
+            const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '¡Hola! Soy ConcreBOT. ¿Cuáles son los productos estrella de ArteConcreto y qué los hace únicos frente a la competencia?';
             const msg: LearningMsg = { id: `lm-${Date.now()}`, role: 'bot', content: text, ts: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) };
             setLearningMsgs(prev => { const next = [...prev, msg]; persistLearning(next); return next; });
         } catch {
-            const msg: LearningMsg = { id: `lm-${Date.now()}`, role: 'bot', content: '¡Hola! Soy ConcreBOT en modo aprendizaje. ¿Cuál es el producto más vendido de Arte Concreto y por qué los clientes lo prefieren?', ts: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) };
+            const msg: LearningMsg = { id: `lm-${Date.now()}`, role: 'bot', content: '¡Hola! Soy ConcreBOT en modo aprendizaje. ¿Cuál es el producto más vendido de ArteConcreto y por qué los clientes lo prefieren?', ts: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) };
             setLearningMsgs(prev => { const next = [...prev, msg]; persistLearning(next); return next; });
         } finally {
             setIsLearningTyping(false);
@@ -217,7 +217,7 @@ export default function MiWiBotPage() {
         if (!geminiKey) { setIsLearningTyping(false); return; }
         const productContext = products.slice(0, 8).map(p => `${p.name} ($${p.price?.toLocaleString('es-CO')})`).join(', ');
         const history = newMsgs.slice(-10).map(m => ({ role: m.role === 'admin' ? 'user' : 'model' as const, parts: [{ text: m.content }] }));
-        const systemCtx = { role: 'user' as const, parts: [{ text: `CONTEXTO: Eres ConcreBOT en modo aprendizaje de Arte Concreto S.A.S. Productos: ${productContext || 'mobiliario urbano'}. Aprende lo que te enseña el admin, confirma que entendiste con una frase breve, y haz UNA nueva pregunta específica para seguir aprendiendo. Máximo 150 palabras.` }] };
+        const systemCtx = { role: 'user' as const, parts: [{ text: `CONTEXTO: Eres ConcreBOT en modo aprendizaje de ArteConcreto S.A.S. Productos: ${productContext || 'mobiliario urbano'}. Aprende lo que te enseña el admin, confirma que entendiste con una frase breve, y haz UNA nueva pregunta específica para seguir aprendiendo. Máximo 150 palabras.` }] };
         try {
             const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
                 method: 'POST',
@@ -1539,7 +1539,7 @@ export default function MiWiBotPage() {
                                                 <span className="text-[10px] font-black uppercase tracking-widest">Sincronización Automática</span>
                                             </div>
                                             <p className="text-[10px] text-muted-foreground font-bold leading-relaxed italic">
-                                                Al generar esta cotización, el sistema creará automáticamente un Lead en "Arte Concreto Master CRM" y notificará al equipo comercial.
+                                                Al generar esta cotización, el sistema creará automáticamente un Lead en "ArteConcreto Master CRM" y notificará al equipo comercial.
                                             </p>
                                         </div>
                                     </div>
@@ -1679,7 +1679,7 @@ export default function MiWiBotPage() {
                             <div className="mx-6 mb-3 px-4 py-2.5 bg-emerald-500/5 border border-emerald-500/20 rounded-xl flex items-center gap-3">
                                 <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                                 <p className="text-[10px] font-bold text-emerald-700">
-                                    {Math.floor(learningMsgs.filter(m => m.role === 'admin').length)} respuestas guardadas · ConcreBOT está aprendiendo sobre Arte Concreto
+                                    {Math.floor(learningMsgs.filter(m => m.role === 'admin').length)} respuestas guardadas · ConcreBOT está aprendiendo sobre ArteConcreto
                                 </p>
                             </div>
                         )}

@@ -86,7 +86,7 @@ function SortableTask({ task, onClick, onNote }: { task: Task; onClick: (task: T
     });
 
     const handleEmail = stop(() => {
-        if (task.email) window.open(`mailto:${task.email}?subject=Cotización Arte Concreto`, '_blank');
+        if (task.email) window.open(`mailto:${task.email}?subject=Cotización ArteConcreto`, '_blank');
         updateTask(task.id, { aiScore: Math.min(100, (task.aiScore||50)+3) } as any);
     });
 

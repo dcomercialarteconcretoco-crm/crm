@@ -130,7 +130,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                                         />
                                     </div>
                                     <div className="min-w-0">
-                                        <span className="block text-[9px] font-black text-primary uppercase tracking-[0.22em]">Arte Concreto</span>
+                                        <span className="block text-[9px] font-black text-primary uppercase tracking-[0.22em]">ArteConcreto</span>
                                         <span className="block truncate text-lg font-black text-foreground tracking-tight">CRM privado</span>
                                     </div>
                                 </div>

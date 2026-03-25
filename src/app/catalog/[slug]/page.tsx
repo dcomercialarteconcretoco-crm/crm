@@ -61,7 +61,7 @@ export default function ProductLandingPage() {
                     <div className="h-10">
                         <img
                             src="https://cuantium.com/wp-content/uploads/2026/02/logo.png"
-                            alt="Arte Concreto"
+                            alt="ArteConcreto"
                             className="h-full object-contain filter invert opacity-90"
                         />
                     </div>
@@ -239,7 +239,7 @@ export default function ProductLandingPage() {
             </main>
 
             <footer className="py-20 text-center border-t border-white/5 bg-white/[0.01]">
-                <p className="text-[9px] font-black uppercase tracking-[0.6em] text-white/20">Arte Concreto Master Series © 2026</p>
+                <p className="text-[9px] font-black uppercase tracking-[0.6em] text-white/20">ArteConcreto Master Series © 2026</p>
             </footer>
         </div>
     );

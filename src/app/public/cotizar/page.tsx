@@ -80,7 +80,7 @@ function CotizadorContent() {
                     </div>
                     <h2 className="mb-3 text-2xl font-black text-gray-900">¡Cotización enviada!</h2>
                     <p className="mb-2 text-gray-600">Revisa tu correo. Te enviamos la cotización <strong>{quoteNumber}</strong> con todos los detalles.</p>
-                    <p className="mb-8 text-sm text-gray-400">Un asesor de Arte Concreto se pondrá en contacto contigo pronto.</p>
+                    <p className="mb-8 text-sm text-gray-400">Un asesor de ArteConcreto se pondrá en contacto contigo pronto.</p>
                     <div className="rounded-2xl bg-white border border-gray-100 p-5 text-left shadow-sm">
                         <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">Resumen de tu solicitud</p>
                         <p className="font-bold text-gray-900 text-sm">{productName}</p>
@@ -105,7 +105,7 @@ function CotizadorContent() {
             <div className="w-full max-w-md">
                 {/* Header */}
                 <div className="mb-4 flex items-center justify-between">
-                    <img src={LOGO_URL} alt="Arte Concreto" className="h-10 object-contain" />
+                    <img src={LOGO_URL} alt="ArteConcreto" className="h-10 object-contain" />
                     <div className="text-right">
                         <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Solicitar</p>
                         <p className="text-sm font-black text-gray-900">Cotización</p>

@@ -49,7 +49,7 @@ function buildEmail(data: {
   <!-- Header -->
   <div style="background:#0a0a0b;padding:28px 36px;display:flex;align-items:center;justify-content:space-between;">
     <div style="background:#ffffff;border-radius:14px;padding:10px 18px;box-shadow:0 2px 16px rgba(250,181,16,0.15);">
-      <img src="${LOGO_URL}" alt="Arte Concreto" style="height:48px;display:block;" />
+      <img src="${LOGO_URL}" alt="ArteConcreto" style="height:48px;display:block;" />
     </div>
     <div style="text-align:right;">
       <div style="background:#fab510;color:#000;font-size:10px;font-weight:900;letter-spacing:2px;text-transform:uppercase;padding:6px 14px;border-radius:8px;">${quoteNumber}</div>
@@ -60,7 +60,7 @@ function buildEmail(data: {
   <!-- Body -->
   <div style="padding:40px 36px;">
     <h2 style="margin:0 0 8px;font-size:22px;font-weight:900;color:#0a0a0b;">Hola, ${clientName} 👋</h2>
-    <p style="margin:0 0 28px;color:#555;font-size:15px;line-height:1.6;">Gracias por tu interés en <strong>Arte Concreto</strong>. Aquí tienes tu cotización oficial para el producto seleccionado.</p>
+    <p style="margin:0 0 28px;color:#555;font-size:15px;line-height:1.6;">Gracias por tu interés en <strong>ArteConcreto</strong>. Aquí tienes tu cotización oficial para el producto seleccionado.</p>
 
     <!-- Product Card -->
     <div style="border:1.5px solid #e8e4da;border-radius:16px;overflow:hidden;margin-bottom:28px;">
@@ -110,9 +110,9 @@ function buildEmail(data: {
 
   <!-- Footer -->
   <div style="background:#f4f0e8;padding:24px 36px;border-top:1px solid #e8e4da;text-align:center;">
-    <p style="margin:0 0 6px;font-size:12px;color:#888;">Arte Concreto S.A.S · Bogotá · Medellín · Cartagena</p>
+    <p style="margin:0 0 6px;font-size:12px;color:#888;">ArteConcreto S.A.S · Bogotá · Medellín · Cartagena</p>
     <p style="margin:0 0 6px;font-size:11px;color:#aaa;">cotizaciones&#64;arteconcreto&#46;co</p>
-    <p style="margin:0;font-size:10px;color:#bbb;">MiWibiCRM · Desarrollado para Arte Concreto por <a href="https://miwibi.com" style="color:#fab510;text-decoration:none;">MiWibi.com</a></p>
+    <p style="margin:0;font-size:10px;color:#bbb;">MiWibiCRM · Desarrollado para ArteConcreto por <a href="https://miwibi.com" style="color:#fab510;text-decoration:none;">MiWibi.com</a></p>
   </div>
 </div>
 </body>
@@ -242,7 +242,7 @@ export async function POST(req: NextRequest) {
                     from: FROM_EMAIL,
                     to: [email],
                     cc: [CC_EMAIL],
-                    subject: `📋 Tu Cotización ${quoteNumber} — Arte Concreto`,
+                    subject: `📋 Tu Cotización ${quoteNumber} — ArteConcreto`,
                     html,
                 }),
             });

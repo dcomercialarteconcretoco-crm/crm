@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    from: 'CRM Arte Concreto <noreply@arteconcreto.co>',
+                    from: 'CRM ArteConcreto <noreply@arteconcreto.co>',
                     to: ['ventas@arteconcreto.co'],
                     subject: `🧾 Nueva solicitud de cotización — ${product.name}`,
                     html: `

@@ -459,7 +459,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 '¿Fabrican diseños a medida?',
                 '¿Tienen descuentos por volumen?',
             ],
-            systemPrompt: `Eres el Bot oficial de Arte Concreto.
+            systemPrompt: `Eres el Bot oficial de ArteConcreto.
 Tu misión es recibir al cliente, capturar sus datos y cotizar mobiliario urbano.
 
 REGLAS DE ORO:

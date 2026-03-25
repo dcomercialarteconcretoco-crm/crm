@@ -284,7 +284,7 @@ export default function SettingsPage() {
                                             <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">System Prompt (Personalidad de la IA)</label>
                                             <textarea
                                                 className="w-full h-40 bg-muted/20 border border-border rounded-2xl p-6 text-sm focus:border-primary/50 outline-none transition-all font-medium leading-relaxed text-foreground shadow-inner"
-                                                defaultValue="Eres el asistente experto de Arte Concreto. Tu objetivo es calificar prospectos basados en su interés por mobiliario urbano, cubiertas de mármol y soluciones de diseño en concreto. Prioriza contratos de suministro masivo para constructoras y entidades públicas (parques, plazas). Usa un tono profesional y ejecutivo."
+                                                defaultValue="Eres el asistente experto de ArteConcreto. Tu objetivo es calificar prospectos basados en su interés por mobiliario urbano, cubiertas de mármol y soluciones de diseño en concreto. Prioriza contratos de suministro masivo para constructoras y entidades públicas (parques, plazas). Usa un tono profesional y ejecutivo."
                                             />
                                             <div className="flex items-center justify-between">
                                                 <p className="text-[10px] text-muted-foreground font-medium italic">Actualización instantánea aplicada a todos los nuevos leads.</p>
@@ -1268,7 +1268,7 @@ export default function SettingsPage() {
                                         </div>
                                         <div className="space-y-2">
                                             <h5 className="text-[11px] font-black uppercase text-emerald-500 tracking-[0.5em]">Producto Original</h5>
-                                            <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">Registrado para Arte Concreto S.A.S</p>
+                                            <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest">Registrado para ArteConcreto S.A.S</p>
                                             <div className="pt-4">
                                                 <span className="text-[8px] font-bold opacity-30 bg-muted/30 px-3 py-1 rounded-full border border-border italic">Expira en: 312 días</span>
                                             </div>

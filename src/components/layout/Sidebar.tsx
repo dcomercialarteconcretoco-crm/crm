@@ -77,7 +77,7 @@ export function Sidebar({ isCompact }: SidebarProps) {
         <div className={cn("flex items-center justify-center transition-all", isCompact ? "w-8 h-8" : "w-full h-16")}>
           <img
             src="https://cuantium.com/wp-content/uploads/2026/02/logo.png"
-            alt="Arte Concreto"
+            alt="ArteConcreto"
             className="w-full h-full object-contain filter brightness-110 opacity-100 transition-all duration-500 hover:scale-105"
           />
         </div>

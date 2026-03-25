@@ -4,8 +4,8 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { AppProvider } from "@/context/AppContext";
 
 export const metadata: Metadata = {
-  title: "Arte Concreto Intelligence Core",
-  description: "Sistema de gestión empresarial a medida para Arte Concreto",
+  title: "ArteConcreto Intelligence Core",
+  description: "Sistema de gestión empresarial a medida para ArteConcreto",
   icons: {
     icon: "/logo.png",
     shortcut: "/logo.png",

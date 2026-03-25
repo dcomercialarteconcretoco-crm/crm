@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-// Proxy the Arte Concreto logo to avoid CORS issues when generating PDFs client-side
+// Proxy the ArteConcreto logo to avoid CORS issues when generating PDFs client-side
 export async function GET() {
     try {
         const response = await fetch(

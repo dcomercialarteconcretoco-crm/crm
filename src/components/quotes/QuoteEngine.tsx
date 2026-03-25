@@ -151,7 +151,7 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
         const msg = [
             `Hola ${client.name.split(' ')[0]} 👋`,
             ``,
-            `Te comparto tu cotización de *Arte Concreto S.A.S*:`,
+            `Te comparto tu cotización de *ArteConcreto S.A.S*:`,
             ``,
             itemsList,
             ``,
@@ -187,7 +187,7 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     quoteNumber, clientName: client.name, clientEmail: client.email,
-                    clientCompany: client.company || '', sellerName: currentUser?.name || 'Arte Concreto',
+                    clientCompany: client.company || '', sellerName: currentUser?.name || 'ArteConcreto',
                     sellerId: currentUser?.id || '', sentAt, sentByName: currentUser?.name || '',
                     sentById: currentUser?.id || '',
                     items: items.map(i => ({ name: i.name, price: i.price, quantity: i.quantity, unit: i.unit })),

@@ -100,7 +100,7 @@ export default function QuotesPage() {
     const handleSendWhatsApp = (quote: Quote) => {
         const client = clients.find(c => c.id === quote.clientId);
         const phone = client?.phone?.replace(/\D/g, '') || '';
-        const msg = encodeURIComponent(`Hola ${quote.client}, te enviamos la cotización ${quote.number} por valor de ${quote.total}. Quedamos atentos. Arte Concreto.`);
+        const msg = encodeURIComponent(`Hola ${quote.client}, te enviamos la cotización ${quote.number} por valor de ${quote.total}. Quedamos atentos. ArteConcreto.`);
         if (phone) {
             window.open(`https://wa.me/57${phone}?text=${msg}`, '_blank');
         } else {
@@ -122,7 +122,7 @@ export default function QuotesPage() {
                     clientName: quote.client,
                     clientEmail: quote.clientEmail,
                     clientCompany: quote.clientCompany || '',
-                    sellerName: currentUser?.name || 'Arte Concreto',
+                    sellerName: currentUser?.name || 'ArteConcreto',
                     items: quote.items || [],
                     subtotal: quote.subtotal || 0,
                     tax: quote.tax || 0,
