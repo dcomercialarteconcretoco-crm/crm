@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -40,6 +40,9 @@ export default function Home() {
   const userIsSuperAdmin = currentUser?.role === "SuperAdmin" || currentUser?.role === "Admin";
   const isAdmin = userIsSuperAdmin;
   const canExport = userIsSuperAdmin && settings.allowExports;
+
+  const [carouselIdx, setCarouselIdx] = useState(0);
+  const [carouselDir, setCarouselDir] = useState<'up' | 'down'>('up');
 
   const pendingQuotes = useMemo(
     () => quotes.filter((q) => q.status === "PENDING_APPROVAL"),
@@ -248,6 +251,24 @@ export default function Home() {
     };
   }, [approvedQuotes, clients.length, liveTasks, quotes.length, recentQuotes, tasks.length, topClients]);
 
+  // Build flat carousel cards from primary + secondary insights
+  const allInsightCards = useMemo(() => [
+    { ...insightCards.primary, isPrimary: true },
+    ...(insightCards.secondary || []).map(s => ({ ...s, title: s.body, cta: 'Ver más', isPrimary: false })),
+  ], [insightCards]);
+
+  // Auto-rotate every 5s
+  useEffect(() => {
+    if (allInsightCards.length < 2) return;
+    const timer = setInterval(() => {
+      setCarouselDir('up');
+      setCarouselIdx(i => (i + 1) % allInsightCards.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [allInsightCards.length]);
+
+  const activeCard = allInsightCards[carouselIdx] || allInsightCards[0];
+
   const handleExport = () => {
     generatePDFReport({
       title: "Informe de Inteligencia Operacional",
@@ -344,31 +365,55 @@ export default function Home() {
           <div className="surface-panel rounded-[2rem] lg:rounded-[2.5rem] p-4 sm:p-5 lg:p-7 overflow-hidden relative">
             <div className="absolute inset-y-0 right-0 w-1/3 bg-[radial-gradient(circle_at_top_right,rgba(250,181,16,0.14),transparent_58%)] pointer-events-none" />
             <div className="relative space-y-4 lg:space-y-5">
-              <Link
-                href={insightCards.primary.href}
-                className="group block rounded-[1.6rem] lg:rounded-[2rem] border border-primary/15 bg-[linear-gradient(135deg,rgba(250,181,16,0.08),rgba(255,255,255,0.58))] p-5 sm:p-6 lg:p-7 transition hover:-translate-y-0.5"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 max-w-3xl">
-                    <p className="text-[10px] font-black uppercase tracking-[0.28em] text-muted-foreground">
-                      {insightCards.primary.label}
-                    </p>
-                    <h1 className="mt-3 text-[1.8rem] leading-[1.02] font-black tracking-[-0.06em] text-foreground sm:text-[2.25rem] lg:text-[2.75rem]">
-                      {insightCards.primary.title}
-                    </h1>
-                    <p className="mt-4 max-w-2xl text-[15px] font-semibold leading-7 text-muted-foreground">
-                      {insightCards.primary.body}
-                    </p>
-                    <div className="mt-5 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-primary">
-                      {insightCards.primary.cta}
-                      <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+              {/* ── Rotating Insight Banner ── */}
+              <div className="relative overflow-hidden rounded-[1.6rem] lg:rounded-[2rem] border border-primary/15 bg-[linear-gradient(135deg,rgba(250,181,16,0.08),rgba(255,255,255,0.58))]">
+                <Link
+                  key={carouselIdx}
+                  href={activeCard.href}
+                  className="group block p-5 sm:p-6 lg:p-7 animate-in slide-in-from-bottom-3 fade-in duration-500"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-black uppercase tracking-[0.28em] text-muted-foreground">
+                        {activeCard.label}
+                      </p>
+                      <h1 className="mt-3 text-[1.6rem] leading-[1.05] font-black tracking-[-0.05em] text-foreground sm:text-[2rem] lg:text-[2.4rem]">
+                        {activeCard.title}
+                      </h1>
+                      {'body' in activeCard && (activeCard as any).body !== activeCard.title && (
+                        <p className="mt-3 max-w-2xl text-[14px] font-semibold leading-6 text-muted-foreground">
+                          {(activeCard as any).body}
+                        </p>
+                      )}
+                      <div className="mt-4 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-primary">
+                        {activeCard.cta}
+                        <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                      </div>
+                    </div>
+                    <div className="hidden sm:flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] border border-primary/20 bg-primary/10 text-primary">
+                      <AlertTriangle className="h-5 w-5" />
                     </div>
                   </div>
-                  <div className="hidden sm:flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] border border-primary/20 bg-primary/10 text-primary">
-                    <AlertTriangle className="h-4.5 w-4.5" />
+                </Link>
+                {/* Dot indicators + manual nav */}
+                {allInsightCards.length > 1 && (
+                  <div className="flex items-center gap-2 px-6 pb-4">
+                    {allInsightCards.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => { setCarouselDir('up'); setCarouselIdx(i); }}
+                        className={clsx(
+                          "transition-all rounded-full",
+                          i === carouselIdx ? "w-5 h-1.5 bg-primary" : "w-1.5 h-1.5 bg-primary/25 hover:bg-primary/50"
+                        )}
+                      />
+                    ))}
+                    <span className="ml-auto text-[9px] font-black uppercase tracking-widest text-muted-foreground/40">
+                      {carouselIdx + 1} / {allInsightCards.length}
+                    </span>
                   </div>
-                </div>
-              </Link>
+                )}
+              </div>
 
               <div className="grid gap-3 md:grid-cols-3">
                 <Link
