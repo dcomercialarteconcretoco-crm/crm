@@ -2,9 +2,9 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-    Plus, Minus, Trash2, Mail, Printer, Search, Save,
+    Plus, Minus, Trash2, Search,
     CheckCircle, UserPlus, Box, RefreshCw, ShoppingCart,
-    User, Building2, Package
+    Building2, Package
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { generateProposalPDF } from '@/lib/pdf-generator';
@@ -38,6 +38,8 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
     const [showNewClientForm, setShowNewClientForm] = useState(false);
     const [productSearch, setProductSearch] = useState('');
     const [newClient, setNewClient] = useState({ name: '', company: '', email: '', phone: '', city: '' });
+    const [clientSearch, setClientSearch] = useState('');
+    const [showClientDropdown, setShowClientDropdown] = useState(false);
 
     useEffect(() => {
         const doSync = async () => {
@@ -57,6 +59,16 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
             (p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q))
         );
     }, [products, productSearch]);
+
+    const filteredClients = useMemo(() => {
+        const q = clientSearch.toLowerCase().trim();
+        if (!q) return clients.slice(0, 20);
+        return clients.filter(c =>
+            c.name.toLowerCase().includes(q) ||
+            (c.company || '').toLowerCase().includes(q) ||
+            (c.email || '').toLowerCase().includes(q)
+        ).slice(0, 15);
+    }, [clients, clientSearch]);
 
     const addProductToQuote = (product: Product) => {
         setItems(prev => {
@@ -99,23 +111,34 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
     const formatCurrency = (v: number) =>
         new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v);
 
-    const handleSave = () => {
+    const handleSaveAndGenerate = async () => {
         const client = clients.find(c => c.id === selectedClientId);
         if (!client) { addNotification({ title: 'Cliente requerido', description: 'Selecciona un cliente.', type: 'alert' }); return; }
         if (items.length === 0) { addNotification({ title: 'Sin productos', description: 'Agrega al menos un producto.', type: 'alert' }); return; }
         setIsSaving(true);
-        const quoteNumber = genQuoteNumber();
-        addQuote({
-            number: quoteNumber, client: client.name, clientId: client.id,
-            clientEmail: client.email || '', clientCompany: client.company || '',
-            date: new Date().toLocaleDateString('es-CO'),
-            total: formatCurrency(total), numericTotal: total, subtotal, tax,
-            items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity })),
-            notes: '', sellerId: currentUser?.id || '', sellerName: currentUser?.name || '',
-            status: 'Draft' as const,
-        });
-        setIsSaving(false);
-        addNotification({ title: `Cotización ${quoteNumber} guardada`, description: 'Guardada como Borrador.', type: 'success' });
+        try {
+            const quoteNumber = genQuoteNumber();
+            addQuote({
+                number: quoteNumber, client: client.name, clientId: client.id,
+                clientEmail: client.email || '', clientCompany: client.company || '',
+                date: new Date().toLocaleDateString('es-CO'),
+                total: formatCurrency(total), numericTotal: total, subtotal, tax,
+                items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity })),
+                notes: '', sellerId: currentUser?.id || '', sellerName: currentUser?.name || '',
+                status: 'Draft' as const,
+            });
+            await generateProposalPDF({
+                quoteNumber,
+                date: new Date().toLocaleDateString('es-CO'),
+                leadName: client.name, leadCompany: client.company,
+                leadEmail: client.email, leadCity: client.city,
+                items: items.map(i => ({ ...i, total: i.price * i.quantity })),
+                subtotal, tax, total,
+            });
+            addNotification({ title: `Cotización ${quoteNumber} lista`, description: 'Guardada y PDF descargado.', type: 'success' });
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleSendEmail = async () => {
@@ -161,17 +184,6 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
         }
     };
 
-    const handleGeneratePDF = async () => {
-        const client = clients.find(c => c.id === selectedClientId);
-        if (!client) { addNotification({ title: 'Cliente requerido', description: 'Selecciona un cliente para el PDF.', type: 'alert' }); return; }
-        await generateProposalPDF({
-            quoteNumber: genQuoteNumber(), date: new Date().toLocaleDateString(),
-            leadName: client.name, leadCompany: client.company,
-            items: items.map(i => ({ ...i, total: i.price * i.quantity })),
-            subtotal, tax, total,
-        });
-    };
-
     const handleCreateClient = (e: React.FormEvent) => {
         e.preventDefault();
         const id = addClient({ ...newClient, status: 'Active', value: '$0', ltv: 0, lastContact: 'Ahora', city: newClient.city || '', score: 10, category: 'Construcción', registrationDate: new Date().toISOString() });
@@ -201,11 +213,64 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
                                 {showNewClientForm ? 'Cerrar' : 'Crear nuevo cliente'}
                             </button>
                         </div>
-                        <select value={selectedClientId} onChange={e => setSelectedClientId(e.target.value)}
-                            className="w-full bg-white/75 border border-border/70 rounded-2xl px-5 py-4 text-sm focus:border-primary focus:bg-white outline-none transition-all font-black appearance-none cursor-pointer text-foreground italic">
-                            <option value="">Selecciona el prospecto o cliente...</option>
-                            {clients.map(c => <option key={c.id} value={c.id}>{c.name}{c.company ? ` — ${c.company}` : ''}</option>)}
-                        </select>
+                        <div className="relative">
+                            <div className="relative">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar cliente por nombre, empresa o email..."
+                                    value={selectedClientId
+                                        ? (() => { const c = clients.find(x => x.id === selectedClientId); return c ? `${c.name}${c.company ? ` — ${c.company}` : ''}` : clientSearch; })()
+                                        : clientSearch}
+                                    onChange={e => {
+                                        setClientSearch(e.target.value);
+                                        setSelectedClientId('');
+                                        setShowClientDropdown(true);
+                                    }}
+                                    onFocus={() => setShowClientDropdown(true)}
+                                    onBlur={() => setTimeout(() => setShowClientDropdown(false), 200)}
+                                    className="w-full bg-white/75 border border-border/70 rounded-2xl pl-11 pr-10 py-4 text-sm focus:border-primary focus:bg-white outline-none transition-all font-black text-foreground italic"
+                                />
+                                {selectedClientId && (
+                                    <button
+                                        type="button"
+                                        onClick={() => { setSelectedClientId(''); setClientSearch(''); }}
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-rose-500 transition-colors"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                    </button>
+                                )}
+                            </div>
+                            {showClientDropdown && filteredClients.length > 0 && (
+                                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-border/60 rounded-2xl shadow-xl z-50 overflow-hidden max-h-[220px] overflow-y-auto">
+                                    {filteredClients.map(c => (
+                                        <button
+                                            key={c.id}
+                                            type="button"
+                                            onMouseDown={() => {
+                                                setSelectedClientId(c.id);
+                                                setClientSearch('');
+                                                setShowClientDropdown(false);
+                                            }}
+                                            className="w-full text-left px-5 py-3 hover:bg-primary/5 transition-colors flex items-center gap-3 border-b border-border/20 last:border-0"
+                                        >
+                                            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary shrink-0">
+                                                {c.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-black text-foreground truncate">{c.name}</p>
+                                                {c.company && <p className="text-[10px] text-muted-foreground truncate">{c.company}</p>}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                            {showClientDropdown && clientSearch && filteredClients.length === 0 && (
+                                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-border/60 rounded-2xl shadow-xl z-50 px-5 py-4">
+                                    <p className="text-sm text-muted-foreground font-bold">No se encontraron clientes</p>
+                                </div>
+                            )}
+                        </div>
 
                         {showNewClientForm && (
                             <div className="rounded-2xl border border-primary/20 bg-white/80 p-5 space-y-4">
@@ -423,18 +488,12 @@ export default function QuoteEngine({ defaultClientId = '' }: QuoteEngineProps) 
 
                     {/* Actions */}
                     <div className="px-5 pb-5 space-y-2.5">
-                        <button onClick={handleGeneratePDF}
-                            className="w-full bg-primary text-black font-black py-4 rounded-2xl flex items-center justify-center gap-3 hover:scale-[1.02] transition-all shadow-lg shadow-primary/20 text-[10px] uppercase tracking-widest">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                            Generar PDF
-                        </button>
-
-                        <button onClick={handleSave} disabled={isSaving}
-                            className="w-full bg-emerald-500 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/15 text-[10px] uppercase tracking-widest disabled:opacity-60">
+                        <button onClick={handleSaveAndGenerate} disabled={isSaving}
+                            className="w-full bg-primary text-black font-black py-4 rounded-2xl flex items-center justify-center gap-3 hover:scale-[1.02] transition-all shadow-lg shadow-primary/20 text-[10px] uppercase tracking-widest disabled:opacity-60">
                             {isSaving
-                                ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                : <Save className="w-4 h-4" />}
-                            Guardar Cotización
+                                ? <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                                : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>}
+                            {isSaving ? 'Generando...' : 'Guardar y Generar PDF'}
                         </button>
 
                         <button onClick={handleSendEmail} disabled={isSendingEmail}

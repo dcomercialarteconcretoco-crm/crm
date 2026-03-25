@@ -124,22 +124,6 @@ export const generatePDFReport = (data: ReportData): void => {
     doc.save(`Reporte_ArteConcreto_${Date.now()}.pdf`);
 };
 
-async function loadLogoBase64(): Promise<string | null> {
-    try {
-        const res = await fetch('/api/logo');
-        if (!res.ok) return null;
-        const blob = await res.blob();
-        return await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
-    } catch {
-        return null;
-    }
-}
-
 export const generateProposalPDF = async (data: ProposalData): Promise<void> => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
@@ -148,9 +132,6 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
     const email   = data.leadEmail   || '';
     const city    = data.leadCity    || '';
 
-    // Try to load logo
-    const logoBase64 = await loadLogoBase64();
-
     // ── Header ──────────────────────────────────────────────────────────────
     doc.setFillColor(...DARK);
     doc.rect(0, 0, 210, 46, 'F');
@@ -158,28 +139,18 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
     doc.setFillColor(...PRIMARY);
     doc.rect(0, 42, 210, 4, 'F');
 
-    // Logo or Brand text
-    if (logoBase64) {
-        try {
-            doc.addImage(logoBase64, 'PNG', 12, 9, 52, 22);
-        } catch {
-            // fallback to text
-            doc.setTextColor(...WHITE);
-            doc.setFontSize(22);
-            doc.setFont('helvetica', 'bold');
-            doc.text('ARTE CONCRETO', 15, 20);
-        }
-    } else {
-        doc.setTextColor(...WHITE);
-        doc.setFontSize(22);
-        doc.setFont('helvetica', 'bold');
-        doc.text('ARTE CONCRETO', 15, 20);
-    }
-
+    // Brand name — always reliable, no external dependency
+    doc.setTextColor(...WHITE);
+    doc.setFontSize(26);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ARTE', 15, 22);
+    doc.setTextColor(...PRIMARY);
+    doc.text('CONCRETO', 15 + doc.getTextWidth('ARTE '), 22);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(180, 180, 180);
-    doc.text('PROPUESTA COMERCIAL', 15, 34);
+    doc.text('S.A.S', 15, 29);
+    doc.text('PROPUESTA COMERCIAL', 15, 36);
 
     // Quote badge (right side)
     doc.setTextColor(...PRIMARY);
