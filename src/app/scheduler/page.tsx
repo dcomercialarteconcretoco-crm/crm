@@ -22,7 +22,9 @@ import {
     Search,
     Upload,
     Cloud,
-    RefreshCw
+    RefreshCw,
+    Pencil,
+    Trash2,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -72,7 +74,7 @@ function getGoogleAuthStorageKey(userId?: string) {
 const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 export default function SchedulerPage() {
-    const { clients, sellers, events, addEvent, addNotification, currentUser, updateEvent, settings } = useApp();
+    const { clients, sellers, events, addEvent, addNotification, currentUser, updateEvent, deleteEvent, settings } = useApp();
     const GOOGLE_CLIENT_ID = settings.googleClientId?.trim() || GOOGLE_CLIENT_ID_ENV || '';
     const fileInputRef = useRef<HTMLInputElement>(null);
     const googleTokenClientRef = useRef<GoogleTokenClient | null>(null);
@@ -101,10 +103,39 @@ export default function SchedulerPage() {
     });
 
     const [externalEmail, setExternalEmail] = useState('');
+    const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editForm, setEditForm] = useState({ title: '', date: '', time: '', type: 'meeting' as CalendarEvent['type'] });
+
+    const isSuperAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
+
+    // SuperAdmin sees ALL events; other users see only their own
     const currentUserEvents = useMemo(
-        () => events.filter((event) => event.ownerUserId === currentUser?.id),
-        [events, currentUser?.id]
+        () => isSuperAdmin ? [...events].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
+            : events.filter((event) => event.ownerUserId === currentUser?.id),
+        [events, currentUser?.id, isSuperAdmin]
     );
+
+    const handleEditEvent = (event: CalendarEvent) => {
+        setEditingEvent(event);
+        setEditForm({ title: event.title, date: event.date, time: event.time, type: event.type });
+        setIsEditModalOpen(true);
+    };
+
+    const handleSaveEdit = () => {
+        if (!editingEvent) return;
+        updateEvent(editingEvent.id, { title: editForm.title, date: editForm.date, time: editForm.time, type: editForm.type });
+        setIsEditModalOpen(false);
+        setEditingEvent(null);
+        addNotification({ title: 'Evento actualizado', description: 'Los cambios quedaron guardados.', type: 'success' });
+    };
+
+    const handleDeleteEvent = (eventId: string) => {
+        deleteEvent(eventId);
+        setIsEditModalOpen(false);
+        setEditingEvent(null);
+        addNotification({ title: 'Evento eliminado', description: 'La cita fue eliminada de la agenda.', type: 'success' });
+    };
 
     useEffect(() => {
         if (!currentUser) return;
@@ -701,7 +732,7 @@ export default function SchedulerPage() {
                                                 ? `${year}-${String(month + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
                                                 : '';
                                             const dayEvents = isValid
-                                                ? currentUserEvents.filter(e => e.date === dateStr)
+                                                ? events.filter(e => e.date === dateStr)
                                                 : [];
 
                                             return (
@@ -726,13 +757,18 @@ export default function SchedulerPage() {
                                                             </span>
                                                             <div className="space-y-1">
                                                                 {dayEvents.slice(0, 2).map(ev => (
-                                                                    <div key={ev.id} className={clsx(
-                                                                        "text-[9px] font-black truncate px-2 py-0.5 rounded-md",
-                                                                        ev.type === 'visit' ? "bg-primary/20 text-primary" :
-                                                                        ev.type === 'meeting' ? "bg-emerald-500/20 text-emerald-700" :
-                                                                        "bg-sky-500/20 text-sky-700"
-                                                                    )}>
+                                                                    <div key={ev.id}
+                                                                        onClick={e => { e.stopPropagation(); handleEditEvent(ev); }}
+                                                                        className={clsx(
+                                                                            "text-[9px] font-black truncate px-2 py-0.5 rounded-md cursor-pointer hover:opacity-80 transition-opacity",
+                                                                            ev.type === 'visit' ? "bg-primary/20 text-primary" :
+                                                                            ev.type === 'meeting' ? "bg-emerald-500/20 text-emerald-700" :
+                                                                            "bg-sky-500/20 text-sky-700"
+                                                                        )}>
                                                                         {ev.time} {ev.title}
+                                                                        {ev.ownerName && ev.ownerName !== currentUser?.name && (
+                                                                            <span className="opacity-60 ml-1">· {ev.ownerName.split(' ')[0]}</span>
+                                                                        )}
                                                                     </div>
                                                                 ))}
                                                                 {dayEvents.length > 2 && (
@@ -767,16 +803,33 @@ export default function SchedulerPage() {
                                         <div className="flex items-center gap-3">
                                             <div className={clsx(
                                                 "p-2 rounded-xl border",
-                                                event.type === 'visit' ? "bg-primary/10 text-primary" :
+                                                event.type === 'visit' ? "bg-primary/10 text-primary border-primary/20" :
                                                     event.type === 'meeting' ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-sky-500/10 text-sky-600 border-sky-500/20"
                                             )}>
                                                 {event.type === 'visit' ? <Truck className="w-4 h-4" /> :
                                                     event.type === 'meeting' ? <Video className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
                                             </div>
                                             <div className="flex flex-col">
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{event.time}</span>
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{event.time} · {event.date}</span>
                                                 <h4 className="text-sm font-black text-foreground group-hover:text-primary transition-colors">{event.title}</h4>
+                                                {event.ownerName && <span className="text-[9px] text-muted-foreground/60 font-bold">{event.ownerName}</span>}
                                             </div>
+                                        </div>
+                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleEditEvent(event); }}
+                                                className="p-1.5 rounded-lg hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground"
+                                                title="Editar evento"
+                                            >
+                                                <Pencil className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleDeleteEvent(event.id); }}
+                                                className="p-1.5 rounded-lg hover:bg-rose-500/10 hover:text-rose-500 transition-colors text-muted-foreground"
+                                                title="Eliminar evento"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
                                         </div>
                                     </div>
 
@@ -1002,6 +1055,93 @@ export default function SchedulerPage() {
                                 <Send className="w-4 h-4" />
                                 <span>Guardar Evento</span>
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Edit Event Modal ─────────────────────────────────────────── */}
+            {isEditModalOpen && editingEvent && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-card border border-border w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-[0_32px_80px_rgba(0,0,0,0.18)] animate-in zoom-in-95 duration-300">
+                        <div className="p-8 space-y-6">
+                            {/* Header */}
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-xl font-black text-foreground tracking-tighter">Editar Evento</h2>
+                                <button onClick={() => { setIsEditModalOpen(false); setEditingEvent(null); }} className="p-2 hover:bg-muted rounded-2xl transition-all">
+                                    <X className="w-5 h-5 text-muted-foreground" />
+                                </button>
+                            </div>
+
+                            {/* Title */}
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] pl-1">Título</label>
+                                <input
+                                    type="text"
+                                    value={editForm.title}
+                                    onChange={(e) => setEditForm(f => ({ ...f, title: e.target.value }))}
+                                    className="w-full bg-muted/30 border border-border rounded-2xl px-5 py-3 text-sm text-foreground focus:border-primary/60 outline-none transition-all font-bold"
+                                />
+                            </div>
+
+                            {/* Date + Time */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] pl-1">Fecha</label>
+                                    <input
+                                        type="date"
+                                        value={editForm.date}
+                                        onChange={(e) => setEditForm(f => ({ ...f, date: e.target.value }))}
+                                        className="w-full bg-muted/30 border border-border rounded-2xl px-4 py-3 text-sm text-foreground focus:border-primary/60 outline-none transition-all font-bold"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] pl-1">Hora</label>
+                                    <input
+                                        type="time"
+                                        value={editForm.time}
+                                        onChange={(e) => setEditForm(f => ({ ...f, time: e.target.value }))}
+                                        className="w-full bg-muted/30 border border-border rounded-2xl px-4 py-3 text-sm text-foreground focus:border-primary/60 outline-none transition-all font-bold"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Type */}
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] pl-1">Tipo</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {(['meeting', 'visit', 'task'] as const).map(t => (
+                                        <button key={t} onClick={() => setEditForm(f => ({ ...f, type: t }))}
+                                            className={clsx(
+                                                'py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all',
+                                                editForm.type === t
+                                                    ? 'bg-primary text-black border-primary'
+                                                    : 'bg-muted/30 border-border text-muted-foreground hover:border-primary/40'
+                                            )}>
+                                            {t === 'meeting' ? 'Reunión' : t === 'visit' ? 'Visita' : 'Tarea'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    onClick={() => handleDeleteEvent(editingEvent.id)}
+                                    className="flex items-center gap-2 px-5 py-3 rounded-2xl border border-rose-200 bg-rose-50 text-rose-600 font-black text-sm hover:bg-rose-100 transition-all"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                    Eliminar
+                                </button>
+                                <button
+                                    onClick={handleSaveEdit}
+                                    disabled={!editForm.title}
+                                    className="flex-1 bg-primary text-black font-black py-3 rounded-2xl flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-40"
+                                >
+                                    <CheckCircle2 className="w-4 h-4" />
+                                    Guardar Cambios
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

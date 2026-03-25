@@ -47,7 +47,21 @@ export default function Home() {
   const conversionRate =
     quotes.length > 0 ? ((approvedQuotes / quotes.length) * 100).toFixed(1) : "0.0";
 
-  const topClients = [...clients].sort((a, b) => b.ltv - a.ltv).slice(0, 4);
+  // Top buyers: only clients with at least one Approved quote, sorted by their total approved revenue
+  const topClients = useMemo(() => {
+    const approvedByClient = new Map<string, number>();
+    quotes
+      .filter(q => q.status === 'Approved' && q.clientId)
+      .forEach(q => {
+        const prev = approvedByClient.get(q.clientId!) || 0;
+        approvedByClient.set(q.clientId!, prev + (q.numericTotal || 0));
+      });
+    return clients
+      .filter(c => (approvedByClient.get(c.id) || 0) > 0)
+      .map(c => ({ ...c, ltv: approvedByClient.get(c.id) || c.ltv }))
+      .sort((a, b) => b.ltv - a.ltv)
+      .slice(0, 4);
+  }, [clients, quotes]);
   const recentQuotes = quotes.slice(0, 5);
   const liveTasks = tasks.slice(0, 4);
   const insightCards = useMemo(() => {
@@ -95,9 +109,11 @@ export default function Home() {
         primary: {
           label: "Alerta Comercial",
           title: hottestQuote
-            ? `La cotización ${hottestQuote.number} necesita seguimiento.`
+            ? `La cotización ${hottestQuote.number}${hottestQuote.client ? ` · ${hottestQuote.client}` : ''} necesita seguimiento.`
             : "Tus cotizaciones no están llegando a seguimiento.",
-          body: "No hay propuestas vivas en pipeline. Abre seguimiento para no perder trazabilidad del cierre.",
+          body: hottestQuote?.client
+            ? `${hottestQuote.client} tiene una propuesta activa sin cerrar. Mueve el negocio en el pipeline para no perder el cierre.`
+            : "No hay propuestas vivas en pipeline. Abre seguimiento para no perder trazabilidad del cierre.",
           href: "/pipeline",
           cta: "Abrir pipeline",
         },
@@ -523,16 +539,17 @@ export default function Home() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-black text-foreground">{formatCurrency(client.ltv)}</p>
-                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">
-                        alta prioridad
+                      <p className="text-sm font-black text-emerald-600">{formatCurrency(client.ltv)}</p>
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500">
+                        compra confirmada
                       </p>
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="surface-card rounded-[1.8rem] p-5 text-sm font-semibold text-muted-foreground">
-                  No hay clientes destacados todavía.
+                <div className="surface-card rounded-[1.8rem] p-5 space-y-1">
+                  <p className="text-sm font-black text-muted-foreground">Sin compras cerradas aún.</p>
+                  <p className="text-[10px] text-muted-foreground/60 font-medium">Los clientes con cotizaciones <span className="font-black text-emerald-600">Aprobadas</span> aparecerán aquí con su revenue real.</p>
                 </div>
               )}
             </div>

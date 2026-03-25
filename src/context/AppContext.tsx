@@ -751,14 +751,47 @@ REGLAS DE ORO:
     };
 
     const addQuote = (quote: Omit<Quote, 'id'>) => {
-        const id = `q-${Date.now()}`;
-        const newQuote = { ...quote, id };
+        const quoteId = `q-${Date.now()}`;
+        const taskId = `t-qt-${quoteId}`;
+
+        // Auto-create a pipeline task in "Propuesta Enviada" stage
+        const autoTask: Task = {
+            id: taskId,
+            title: quote.client || 'Lead',
+            client: quote.clientCompany || quote.client || '',
+            clientId: quote.clientId || '',
+            contactName: quote.client || '',
+            value: quote.total || '$0',
+            numericValue: quote.numericTotal || 0,
+            priority: 'Medium',
+            tags: ['cotización'],
+            aiScore: 50,
+            source: 'Cotización CRM',
+            assignedTo: quote.sellerName || '',
+            email: quote.clientEmail || '',
+            activities: [{
+                id: `act-${Date.now()}`,
+                type: 'system',
+                content: `Cotización ${quote.number || quoteId} generada en el CRM.`,
+                timestamp: new Date(),
+            }],
+            quoteId: quoteId,
+            stageId: 'proposal',
+        };
+
+        setTasks(prev => {
+            const next = [...prev, autoTask];
+            persistSharedState({ tasks: next });
+            return next;
+        });
+
         setQuotes(prev => {
-            const next = [...prev, newQuote];
+            const next = [...prev, { ...quote, id: quoteId, taskId }];
             persistSharedState({ quotes: next });
             return next;
         });
-        return id;
+
+        return quoteId;
     };
 
     const addSeller = (sellerData: Omit<Seller, 'id'>) => {
@@ -884,6 +917,28 @@ REGLAS DE ORO:
             persistSharedState({ quotes: next });
             return next;
         });
+
+        // Sync pipeline stage when quote status changes
+        if (updates.status) {
+            const stageMap: Record<string, string> = {
+                'Draft': 'proposal',
+                'Sent': 'proposal',
+                'Approved': 'won',
+                'Rejected': 'won', // stays in won column but card can be styled as lost
+            };
+            const newStage = stageMap[updates.status];
+            if (newStage) {
+                setTasks(prev => {
+                    const linked = prev.find(t => (t as any).quoteId === quoteId);
+                    if (!linked) return prev;
+                    const next = prev.map(t =>
+                        (t as any).quoteId === quoteId ? { ...t, stageId: newStage } : t
+                    );
+                    persistSharedState({ tasks: next });
+                    return next;
+                });
+            }
+        }
     };
 
     const deleteQuote = (quoteId: string) => {

@@ -51,7 +51,7 @@ function addFooter(doc: jsPDF): void {
         doc.setFontSize(7);
         doc.setTextColor(...GRAY);
         const h = doc.internal.pageSize.getHeight();
-        doc.text('ARTE CONCRETO S.A.S — Medellín, Colombia', 105, h - 12, { align: 'center' });
+        doc.text('ARTE CONCRETO S.A.S · Km 1 +800, Anillo Víal, Floridablanca, Santander', 105, h - 12, { align: 'center' });
         doc.text('Documento generado por MiWibi CRM Intelligence', 105, h - 7, { align: 'center' });
     }
 }
@@ -124,6 +124,22 @@ export const generatePDFReport = (data: ReportData): void => {
     doc.save(`Reporte_ArteConcreto_${Date.now()}.pdf`);
 };
 
+async function loadLogoBase64(): Promise<string | null> {
+    try {
+        const res = await fetch('/api/logo');
+        if (!res.ok) return null;
+        const blob = await res.blob();
+        return await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    } catch {
+        return null;
+    }
+}
+
 export const generateProposalPDF = async (data: ProposalData): Promise<void> => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
@@ -132,6 +148,9 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
     const email   = data.leadEmail   || '';
     const city    = data.leadCity    || '';
 
+    // Try to load logo
+    const logoBase64 = await loadLogoBase64();
+
     // ── Header ──────────────────────────────────────────────────────────────
     doc.setFillColor(...DARK);
     doc.rect(0, 0, 210, 46, 'F');
@@ -139,16 +158,28 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
     doc.setFillColor(...PRIMARY);
     doc.rect(0, 42, 210, 4, 'F');
 
-    // Brand text
-    doc.setTextColor(...WHITE);
-    doc.setFontSize(22);
-    doc.setFont('helvetica', 'bold');
-    doc.text('ARTE CONCRETO', 15, 20);
+    // Logo or Brand text
+    if (logoBase64) {
+        try {
+            doc.addImage(logoBase64, 'PNG', 12, 9, 52, 22);
+        } catch {
+            // fallback to text
+            doc.setTextColor(...WHITE);
+            doc.setFontSize(22);
+            doc.setFont('helvetica', 'bold');
+            doc.text('ARTE CONCRETO', 15, 20);
+        }
+    } else {
+        doc.setTextColor(...WHITE);
+        doc.setFontSize(22);
+        doc.setFont('helvetica', 'bold');
+        doc.text('ARTE CONCRETO', 15, 20);
+    }
 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(180, 180, 180);
-    doc.text('PROPUESTA COMERCIAL', 15, 28);
+    doc.text('PROPUESTA COMERCIAL', 15, 34);
 
     // Quote badge (right side)
     doc.setTextColor(...PRIMARY);
