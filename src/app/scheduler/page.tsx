@@ -1110,7 +1110,7 @@ export default function SchedulerPage() {
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] pl-1">Tipo</label>
                                 <div className="grid grid-cols-3 gap-2">
-                                    {(['meeting', 'visit', 'task'] as const).map(t => (
+                                    {(['meeting', 'visit', 'call'] as const).map(t => (
                                         <button key={t} onClick={() => setEditForm(f => ({ ...f, type: t }))}
                                             className={clsx(
                                                 'py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all',
@@ -1118,7 +1118,7 @@ export default function SchedulerPage() {
                                                     ? 'bg-primary text-black border-primary'
                                                     : 'bg-muted/30 border-border text-muted-foreground hover:border-primary/40'
                                             )}>
-                                            {t === 'meeting' ? 'Reunión' : t === 'visit' ? 'Visita' : 'Tarea'}
+                                            {t === 'meeting' ? 'Reunión' : t === 'visit' ? 'Visita' : 'Llamada'}
                                         </button>
                                     ))}
                                 </div>

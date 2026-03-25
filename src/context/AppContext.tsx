@@ -645,6 +645,53 @@ REGLAS DE ORO:
         syncSharedData();
     }, [isProduction]);
 
+    // ── Migration: auto-create pipeline tasks for quotes that don't have one ──
+    useEffect(() => {
+        if (isInitialLoad) return; // wait for data to fully load
+        setQuotes(prevQuotes => {
+            setTasks(prevTasks => {
+                const quoteIdsWithTask = new Set(prevTasks.map(t => (t as any).quoteId).filter(Boolean));
+                const orphanQuotes = prevQuotes.filter(q => q.id && !quoteIdsWithTask.has(q.id));
+                if (orphanQuotes.length === 0) return prevTasks;
+
+                const stageMap: Record<string, string> = {
+                    Draft: 'proposal', Sent: 'proposal', Viewed: 'contacted',
+                    Approved: 'won', Rejected: 'won',
+                };
+
+                const newTasks: Task[] = orphanQuotes.map(q => ({
+                    id: `t-mig-${q.id}`,
+                    title: q.client || 'Lead',
+                    client: q.clientCompany || q.client || '',
+                    clientId: q.clientId || '',
+                    contactName: q.client || '',
+                    value: q.total || '$0',
+                    numericValue: q.numericTotal || 0,
+                    priority: 'Medium' as const,
+                    tags: ['cotización'],
+                    aiScore: (q as any).score || 50,
+                    source: 'Cotización CRM',
+                    assignedTo: (q as any).sellerName || '',
+                    email: q.clientEmail || '',
+                    activities: [{
+                        id: `act-mig-${q.id}`,
+                        type: 'system' as const,
+                        content: `Cotización ${q.number || q.id} (migrada al pipeline automáticamente).`,
+                        timestamp: new Date(),
+                    }],
+                    quoteId: q.id,
+                    stageId: stageMap[q.status || 'Draft'] || 'proposal',
+                }));
+
+                const nextTasks = [...prevTasks, ...newTasks];
+                persistSharedState({ tasks: nextTasks });
+                return nextTasks;
+            });
+            return prevQuotes;
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isInitialLoad]);
+
     const login = async (username: string, password: string): Promise<boolean> => {
         const normalizedUsername = username.trim().toLowerCase();
         const normalizedPassword = password.trim();
@@ -923,6 +970,7 @@ REGLAS DE ORO:
             const stageMap: Record<string, string> = {
                 'Draft': 'proposal',
                 'Sent': 'proposal',
+                'Viewed': 'contacted', // Client opened/viewed the quote → move to Contactado
                 'Approved': 'won',
                 'Rejected': 'won', // stays in won column but card can be styled as lost
             };

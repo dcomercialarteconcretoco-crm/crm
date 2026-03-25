@@ -119,7 +119,7 @@ REGLAS DE ORO:
 
 export default function MiWiBotPage() {
     const { products, quotes, settings, updateSettings, addNotification } = useApp();
-    const [activeTab, setActiveTab] = useState<'monitor' | 'programming' | 'capture' | 'widget'>('monitor');
+    const [activeTab, setActiveTab] = useState<'monitor' | 'programming' | 'capture' | 'widget' | 'learning'>('monitor');
     const [selectedChat, setSelectedChat] = useState<Message | null>(null);
     const [liveConversations, setLiveConversations] = useState<WidgetConversation[]>([]);
     const [selectedConversation, setSelectedConversation] = useState<WidgetConversation | null>(null);
@@ -154,6 +154,87 @@ export default function MiWiBotPage() {
 
     const [isGeneratingQuote, setIsGeneratingQuote] = useState(false);
     const [quoteSuccess, setQuoteSuccess] = useState(false);
+
+    // ── ConcreBOT Learning Mode ──────────────────────────────────────────────
+    interface LearningMsg { id: string; role: 'admin' | 'bot'; content: string; ts: string; }
+    const LEARNING_KEY = 'concrebot_training_v1';
+    const [learningMsgs, setLearningMsgs] = useState<LearningMsg[]>(() => {
+        try { return JSON.parse(localStorage.getItem(LEARNING_KEY) || '[]'); } catch { return []; }
+    });
+    const [learningInput, setLearningInput] = useState('');
+    const [isLearningTyping, setIsLearningTyping] = useState(false);
+    const [learningStarted, setLearningStarted] = useState(false);
+    const learningEndRef = React.useRef<HTMLDivElement>(null);
+
+    React.useEffect(() => {
+        learningEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [learningMsgs]);
+
+    const persistLearning = (msgs: LearningMsg[]) => {
+        try { localStorage.setItem(LEARNING_KEY, JSON.stringify(msgs)); } catch {}
+    };
+
+    const startLearningSession = async () => {
+        if (learningStarted || isLearningTyping) return;
+        setLearningStarted(true);
+        setIsLearningTyping(true);
+        const geminiKey = settings.geminiKey || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
+        if (!geminiKey) {
+            const msg: LearningMsg = { id: `lm-${Date.now()}`, role: 'bot', content: '⚠️ Necesito una clave Gemini en Configuración para activar el modo aprendizaje.', ts: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) };
+            setLearningMsgs(prev => { const next = [...prev, msg]; persistLearning(next); return next; });
+            setIsLearningTyping(false);
+            return;
+        }
+        const productNames = products.slice(0, 8).map(p => p.name).join(', ') || 'mobiliario urbano en concreto';
+        const prompt = `Eres ConcreBOT en MODO APRENDIZAJE. Eres el asistente oficial de Arte Concreto S.A.S, empresa colombiana de mobiliario urbano en concreto. Estás siendo entrenado por los administradores de la empresa. Tu misión es hacer preguntas inteligentes para aprender sobre los productos, precios, políticas y procesos. Conoces estos productos del catálogo: ${productNames}. Preséntate brevemente y haz tu PRIMERA pregunta concreta sobre los productos o la empresa para comenzar a aprender. Sé curioso, entusiasta y específico. Una sola pregunta.`;
+        try {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0.85, maxOutputTokens: 300 } })
+            });
+            const data = await res.json();
+            const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '¡Hola! Soy ConcreBOT. ¿Cuáles son los productos estrella de Arte Concreto y qué los hace únicos frente a la competencia?';
+            const msg: LearningMsg = { id: `lm-${Date.now()}`, role: 'bot', content: text, ts: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) };
+            setLearningMsgs(prev => { const next = [...prev, msg]; persistLearning(next); return next; });
+        } catch {
+            const msg: LearningMsg = { id: `lm-${Date.now()}`, role: 'bot', content: '¡Hola! Soy ConcreBOT en modo aprendizaje. ¿Cuál es el producto más vendido de Arte Concreto y por qué los clientes lo prefieren?', ts: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) };
+            setLearningMsgs(prev => { const next = [...prev, msg]; persistLearning(next); return next; });
+        } finally {
+            setIsLearningTyping(false);
+        }
+    };
+
+    const sendLearningMessage = async () => {
+        if (!learningInput.trim() || isLearningTyping) return;
+        const adminMsg: LearningMsg = { id: `lm-${Date.now()}`, role: 'admin', content: learningInput.trim(), ts: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) };
+        const newMsgs = [...learningMsgs, adminMsg];
+        setLearningMsgs(newMsgs);
+        persistLearning(newMsgs);
+        setLearningInput('');
+        setIsLearningTyping(true);
+        const geminiKey = settings.geminiKey || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
+        if (!geminiKey) { setIsLearningTyping(false); return; }
+        const productContext = products.slice(0, 8).map(p => `${p.name} ($${p.price?.toLocaleString('es-CO')})`).join(', ');
+        const history = newMsgs.slice(-10).map(m => ({ role: m.role === 'admin' ? 'user' : 'model' as const, parts: [{ text: m.content }] }));
+        const systemCtx = { role: 'user' as const, parts: [{ text: `CONTEXTO: Eres ConcreBOT en modo aprendizaje de Arte Concreto S.A.S. Productos: ${productContext || 'mobiliario urbano'}. Aprende lo que te enseña el admin, confirma que entendiste con una frase breve, y haz UNA nueva pregunta específica para seguir aprendiendo. Máximo 150 palabras.` }] };
+        try {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [systemCtx, ...history], generationConfig: { temperature: 0.8, maxOutputTokens: 250 } })
+            });
+            const data = await res.json();
+            const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '¡Entendido! ¿Puedes contarme más sobre cómo se maneja la cotización para proyectos grandes?';
+            const botMsg: LearningMsg = { id: `lm-${Date.now()}`, role: 'bot', content: text, ts: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) };
+            setLearningMsgs(prev => { const next = [...prev, botMsg]; persistLearning(next); return next; });
+        } catch {
+            const botMsg: LearningMsg = { id: `lm-${Date.now()}`, role: 'bot', content: '¡Aprendido! Voy guardando esa información. ¿Qué más debo saber sobre los procesos de venta?', ts: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) };
+            setLearningMsgs(prev => { const next = [...prev, botMsg]; persistLearning(next); return next; });
+        } finally {
+            setIsLearningTyping(false);
+        }
+    };
 
     const toggleProductSelection = (id: string) => {
         setSelectedProducts(prev =>
@@ -367,6 +448,7 @@ export default function MiWiBotPage() {
                         { id: 'programming', label: 'Programación', icon: Cpu },
                         { id: 'capture', label: 'Pre-captura', icon: Shield },
                         { id: 'widget', label: 'Widget', icon: Code },
+                        { id: 'learning', label: 'Aprendizaje', icon: BrainCircuit },
                     ].map((tab) => (
                         <button
                             key={tab.id}
@@ -1501,6 +1583,139 @@ export default function MiWiBotPage() {
                                 </div>
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {/* ── LEARNING MODE TAB ─────────────────────────────────── */}
+                {activeTab === 'learning' && (
+                    <div className="flex flex-col w-full h-full">
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-8 py-5 border-b border-border/40 bg-gradient-to-r from-primary/5 to-transparent">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                                    <BrainCircuit className="w-5 h-5 text-primary" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black text-foreground">ConcreBOT · Modo Aprendizaje</h3>
+                                    <p className="text-[10px] text-muted-foreground font-medium">Entrena al bot sobre productos, precios y procesos de venta</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-xl px-4 py-2">
+                                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                                    <span className="text-[10px] font-black text-primary uppercase tracking-widest">Modo Aprendizaje</span>
+                                </div>
+                                {learningMsgs.length > 0 && (
+                                    <button
+                                        onClick={() => { setLearningMsgs([]); setLearningStarted(false); persistLearning([]); }}
+                                        className="text-[9px] font-black uppercase tracking-widest text-muted-foreground hover:text-rose-500 transition-colors px-3 py-2 rounded-lg hover:bg-rose-500/5 border border-transparent hover:border-rose-200"
+                                    >
+                                        Borrar historial
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Info banner */}
+                        <div className="mx-6 mt-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
+                            <Wand2 className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                            <div>
+                                <p className="text-[11px] font-black text-amber-800">¿Cómo funciona?</p>
+                                <p className="text-[10px] text-amber-700 mt-0.5">ConcreBOT te hace preguntas para aprender sobre tus productos, precios y políticas. Lo que le enseñes aquí se usará como contexto cuando chatee con clientes en el widget.</p>
+                            </div>
+                        </div>
+
+                        {/* Chat area */}
+                        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 custom-scrollbar">
+                            {learningMsgs.length === 0 && !learningStarted && (
+                                <div className="flex flex-col items-center justify-center h-full space-y-6 pb-12">
+                                    <div className="w-20 h-20 rounded-[2rem] bg-primary/10 border border-primary/20 flex items-center justify-center">
+                                        <BrainCircuit className="w-10 h-10 text-primary" />
+                                    </div>
+                                    <div className="text-center space-y-2 max-w-xs">
+                                        <h4 className="text-base font-black text-foreground">ConcreBOT quiere aprender</h4>
+                                        <p className="text-[12px] text-muted-foreground">Inicia una sesión y ConcreBOT comenzará a hacerte preguntas sobre tus productos y procesos de venta.</p>
+                                    </div>
+                                    <button
+                                        onClick={startLearningSession}
+                                        className="flex items-center gap-3 bg-primary text-black font-black px-8 py-4 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-primary/20"
+                                    >
+                                        <BrainCircuit className="w-5 h-5" />
+                                        Iniciar Sesión de Aprendizaje
+                                    </button>
+                                </div>
+                            )}
+
+                            {learningMsgs.map(msg => (
+                                <div key={msg.id} className={clsx('flex gap-3', msg.role === 'admin' ? 'flex-row-reverse' : 'flex-row')}>
+                                    {/* Avatar */}
+                                    <div className={clsx(
+                                        'w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-[10px] font-black',
+                                        msg.role === 'bot' ? 'bg-primary/10 border border-primary/20 text-primary' : 'bg-foreground/10 border border-foreground/10 text-foreground'
+                                    )}>
+                                        {msg.role === 'bot' ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                                    </div>
+                                    {/* Bubble */}
+                                    <div className={clsx(
+                                        'max-w-[75%] px-4 py-3 rounded-2xl text-[12px] leading-relaxed',
+                                        msg.role === 'bot'
+                                            ? 'bg-muted/60 border border-border/40 text-foreground rounded-tl-sm'
+                                            : 'bg-primary text-black font-semibold rounded-tr-sm'
+                                    )}>
+                                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                                        <p className={clsx('text-[9px] mt-1.5', msg.role === 'bot' ? 'text-muted-foreground' : 'text-black/60')}>{msg.ts}</p>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {isLearningTyping && (
+                                <div className="flex gap-3">
+                                    <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                                        <Bot className="w-4 h-4 text-primary" />
+                                    </div>
+                                    <div className="px-4 py-3 bg-muted/60 border border-border/40 rounded-2xl rounded-tl-sm flex items-center gap-1.5">
+                                        <div className="w-2 h-2 rounded-full bg-primary/60 animate-bounce [animation-delay:0ms]" />
+                                        <div className="w-2 h-2 rounded-full bg-primary/60 animate-bounce [animation-delay:150ms]" />
+                                        <div className="w-2 h-2 rounded-full bg-primary/60 animate-bounce [animation-delay:300ms]" />
+                                    </div>
+                                </div>
+                            )}
+                            <div ref={learningEndRef} />
+                        </div>
+
+                        {/* Knowledge stats */}
+                        {learningMsgs.length > 0 && (
+                            <div className="mx-6 mb-3 px-4 py-2.5 bg-emerald-500/5 border border-emerald-500/20 rounded-xl flex items-center gap-3">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                                <p className="text-[10px] font-bold text-emerald-700">
+                                    {Math.floor(learningMsgs.filter(m => m.role === 'admin').length)} respuestas guardadas · ConcreBOT está aprendiendo sobre Arte Concreto
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Input */}
+                        {(learningStarted || learningMsgs.length > 0) && (
+                            <div className="px-6 pb-6">
+                                <div className="flex items-end gap-3 bg-muted/30 border border-border/60 rounded-2xl p-3">
+                                    <textarea
+                                        value={learningInput}
+                                        onChange={e => setLearningInput(e.target.value)}
+                                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendLearningMessage(); } }}
+                                        placeholder="Responde a ConcreBOT para enseñarle..."
+                                        rows={2}
+                                        className="flex-1 bg-transparent text-sm text-foreground resize-none outline-none placeholder:text-muted-foreground font-medium"
+                                    />
+                                    <button
+                                        onClick={sendLearningMessage}
+                                        disabled={!learningInput.trim() || isLearningTyping}
+                                        className="bg-primary text-black p-2.5 rounded-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-40 disabled:hover:scale-100 shrink-0"
+                                    >
+                                        <Send className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                <p className="text-[9px] text-muted-foreground mt-2 text-center">Enter para enviar · Shift+Enter nueva línea</p>
+                            </div>
+                        )}
                     </div>
                 )}
         </div>
