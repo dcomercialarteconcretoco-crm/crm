@@ -38,6 +38,9 @@ export default function Lead360Page() {
     const [noteText, setNoteText] = useState('');
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [editForm, setEditForm] = useState({ name: '', company: '', email: '', phone: '', city: '', status: '' });
+    const isSuperAdmin = currentUser?.role?.toLowerCase().includes('superadmin') || currentUser?.role?.toLowerCase() === 'admin';
+    const [showAssignModal, setShowAssignModal] = useState(false);
+    const [assignSellerId, setAssignSellerId] = useState('');
 
     const leadId = params.id as string;
     const lead = clients.find(c => c.id === leadId);
@@ -136,6 +139,27 @@ export default function Lead360Page() {
         window.location.href = `mailto:${lead.email}`;
     };
 
+    const handleAssignSeller = () => {
+        if (!lead || !currentUser) return;
+        const seller = sellers.find(s => s.id === assignSellerId);
+        if (!seller) return;
+        updateClient(lead.id, {
+            assignedTo: seller.id,
+            assignedToName: seller.name
+        });
+        addAuditLog({
+            userId: currentUser.id,
+            userName: currentUser.name,
+            userRole: currentUser.role,
+            action: 'LEAD_CREATED',
+            targetId: lead.id,
+            targetName: lead.company || lead.name,
+            details: `Cliente asignado a vendedor: ${seller.name} (antes: ${lead.assignedToName || 'Sin asignar'})`,
+            verified: true
+        });
+        setShowAssignModal(false);
+    };
+
     if (!lead) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
@@ -217,6 +241,32 @@ export default function Lead360Page() {
                                     </div>
                                 </div>
                             ))}
+
+                            {/* Assigned Seller — SuperAdmin only */}
+                            {isSuperAdmin && (
+                                <div className="pt-4 border-t border-border/20">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <p className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Vendedor Asignado</p>
+                                        <button
+                                            onClick={() => { setAssignSellerId(lead.assignedTo || ''); setShowAssignModal(true); }}
+                                            className="text-[9px] font-black uppercase text-primary hover:text-foreground transition-colors flex items-center gap-1"
+                                        >
+                                            <Edit2 className="w-3 h-3" />
+                                            Asignar
+                                        </button>
+                                    </div>
+                                    {lead.assignedToName ? (
+                                        <div className="flex items-center gap-2 p-2 bg-primary/5 rounded-xl border border-primary/10">
+                                            <div className="w-6 h-6 rounded-lg bg-primary/20 flex items-center justify-center text-[9px] font-black text-primary">
+                                                {lead.assignedToName[0]}
+                                            </div>
+                                            <span className="text-xs font-black text-foreground">{lead.assignedToName}</span>
+                                        </div>
+                                    ) : (
+                                        <p className="text-[10px] text-muted-foreground/50 italic">Sin asignar</p>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-3 gap-3 pt-4 border-t border-border/20">
@@ -655,6 +705,37 @@ export default function Lead360Page() {
                     >
                         Guardar Cambios
                     </button>
+                </div>
+            </div>
+        )}
+
+        {showAssignModal && (
+            <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                <div className="bg-card border border-border rounded-[2rem] p-8 max-w-sm w-full shadow-2xl">
+                    <h3 className="text-base font-black text-foreground mb-1">Asignar Vendedor</h3>
+                    <p className="text-xs text-muted-foreground mb-6">Cliente: <strong>{lead.company || lead.name}</strong></p>
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto mb-6">
+                        {sellers.filter(s => s.status === 'Activo' || !s.status).map(s => (
+                            <button
+                                key={s.id}
+                                onClick={() => setAssignSellerId(s.id)}
+                                className={`w-full text-left flex items-center gap-3 p-3 rounded-xl border transition-all ${assignSellerId === s.id ? 'bg-primary/10 border-primary/40 text-foreground' : 'border-border/40 hover:bg-muted/30 text-foreground'}`}
+                            >
+                                <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary shrink-0">
+                                    {s.name[0]}
+                                </div>
+                                <div>
+                                    <p className="text-sm font-black">{s.name}</p>
+                                    <p className="text-[10px] text-muted-foreground">{s.role}</p>
+                                </div>
+                                {assignSellerId === s.id && <div className="ml-auto w-4 h-4 rounded-full bg-primary flex items-center justify-center"><svg className="w-2.5 h-2.5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg></div>}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="flex gap-3">
+                        <button onClick={() => setShowAssignModal(false)} className="flex-1 py-3 border border-border/40 rounded-xl text-sm font-black text-muted-foreground hover:bg-muted/20 transition-all">Cancelar</button>
+                        <button onClick={handleAssignSeller} disabled={!assignSellerId} className="flex-1 py-3 bg-primary text-black rounded-xl text-sm font-black disabled:opacity-50 hover:bg-primary/90 transition-all">Confirmar</button>
+                    </div>
                 </div>
             </div>
         )}

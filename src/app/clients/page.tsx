@@ -459,6 +459,11 @@ export default function ClientsPage() {
                                 <div className="hidden md:block w-32 shrink-0">
                                     <p className="text-[10px] font-bold text-muted-foreground truncate">{client.company}</p>
                                     <p className="text-[9px] text-muted-foreground/60">{client.city}</p>
+                                    {client.assignedToName && (
+                                        <span className="text-[9px] font-black bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/10 mt-0.5 inline-block">
+                                            {client.assignedToName}
+                                        </span>
+                                    )}
                                 </div>
                                 {/* Status badge */}
                                 <div className="hidden lg:flex items-center gap-2 w-28 shrink-0">

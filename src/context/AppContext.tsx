@@ -55,6 +55,8 @@ export interface Client {
     category: string;
     registrationDate: string;
     notes?: ClientNote[];
+    assignedTo?: string;
+    assignedToName?: string;
 }
 
 export interface QuoteItem {
