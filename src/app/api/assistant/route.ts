@@ -58,10 +58,11 @@ export async function POST(req: NextRequest) {
     const response = await result.response;
 
     return NextResponse.json({ text: response.text() });
-  } catch (error) {
-    console.error("Assistant route error:", error);
+  } catch (error: any) {
+    const msg = error?.message || error?.toString() || 'unknown';
+    console.error("Assistant route error:", msg);
     return NextResponse.json(
-      { error: "No fue posible consultar a MiWi." },
+      { error: `MiWi error: ${msg}` },
       { status: 500 }
     );
   }
