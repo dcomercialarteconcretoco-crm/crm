@@ -109,7 +109,7 @@ REGLAS DE ORO:
 };
 
 export default function MiWiBotPage() {
-    const { products, settings, updateSettings, addNotification } = useApp();
+    const { products, quotes, settings, updateSettings, addNotification } = useApp();
     const [activeTab, setActiveTab] = useState<'monitor' | 'programming' | 'capture' | 'widget'>('monitor');
     const [selectedChat, setSelectedChat] = useState<Message | null>(null);
     const [isHumanInControl, setIsHumanInControl] = useState(false);
@@ -187,32 +187,7 @@ export default function MiWiBotPage() {
         setWidgetConfig(merged.widget);
     }, [settings.botSettings]);
 
-    useEffect(() => {
-        // Simulate a "Needs Help" alert
-        const helpTimer = setTimeout(() => setActiveAlert({ type: 'help', visible: true }), 5000);
-        // Simulate a "Big Sale" alert
-        const saleTimer = setTimeout(() => setActiveAlert({ type: 'sale', visible: true }), 15000);
-
-        return () => {
-            clearTimeout(helpTimer);
-            clearTimeout(saleTimer);
-        };
-    }, []);
-
-    useEffect(() => {
-        if (activeAlert.visible) {
-            const playSound = () => {
-                const sounds = {
-                    help: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3', // Subtle message ping
-                    sale: 'https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3'  // Success/Coin sound
-                };
-                const audio = new Audio(sounds[activeAlert.type as 'help' | 'sale']);
-                audio.volume = activeAlert.type === 'sale' ? 0.5 : 0.3;
-                audio.play().catch(err => console.log("Audio interaction required", err));
-            };
-            playSound();
-        }
-    }, [activeAlert.visible, activeAlert.type]);
+    // Alerts are triggered only by real WhatsApp/chat events, never simulated
 
     const toggleField = (field: keyof typeof captureFields) => {
         setCaptureFields(prev => ({ ...prev, [field]: !prev[field] }));
@@ -399,9 +374,9 @@ export default function MiWiBotPage() {
                                 {activeAlert.type === 'sale' ? 'Oportunidad:' : 'Atención:'}
                             </span>
                             {activeAlert.type === 'sale' ? (
-                                <>MiWi ha detectado una intención de <span className="text-emerald-500 font-black italic">Venta de Alto Valor</span> en Constructora Alpha</>
+                                <>MiWi ha detectado una intención de <span className="text-emerald-500 font-black italic">Venta de Alto Valor</span> en el chat activo</>
                             ) : (
-                                <>MiWi requiere intervención humana en el chat de <span className="text-foreground font-black underline decoration-rose-500/30 underline-offset-4">Adriana Torres</span></>
+                                <>MiWi requiere <span className="text-foreground font-black">intervención humana</span> en el chat activo</>
                             )}
                         </p>
                     </div>
@@ -1256,29 +1231,35 @@ export default function MiWiBotPage() {
                                             </div>
                                         ))}
                                     </div>
+                                ) : quotes.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center py-20 text-center">
+                                        <FileText className="w-12 h-12 text-muted-foreground/30 mb-4" />
+                                        <p className="text-sm font-black text-muted-foreground uppercase tracking-widest">Sin cotizaciones</p>
+                                        <p className="text-xs text-muted-foreground/50 mt-1">Crea cotizaciones desde el módulo de Cotizaciones</p>
+                                    </div>
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {[1, 2, 3, 4, 5].map(i => (
-                                            <div key={i} className="group p-8 bg-white/[0.02] border border-white/10 rounded-[2.5rem] hover:border-primary/50 transition-all flex flex-col gap-6">
+                                        {quotes.map(q => (
+                                            <div key={q.id} className="group p-6 bg-white/[0.02] border border-white/10 rounded-2xl hover:border-primary/50 transition-all flex flex-col gap-4">
                                                 <div className="flex items-center justify-between">
-                                                    <div className="w-12 h-12 bg-rose-500/10 rounded-2xl flex items-center justify-center border border-rose-500/20">
-                                                        <FileText className="w-6 h-6 text-rose-500" />
+                                                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20">
+                                                        <FileText className="w-5 h-5 text-primary" />
                                                     </div>
-                                                    <span className="text-[10px] font-black text-white/20 uppercase tracking-widest group-hover:text-primary transition-colors">Válido por 15 días</span>
+                                                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${q.status === 'Approved' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-muted/20 text-muted-foreground'}`}>{q.status}</span>
                                                 </div>
                                                 <div>
-                                                    <h4 className="text-lg font-black text-foreground italic">Cotización #AC-2026-00{i}</h4>
-                                                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest mt-1">Cliente: {['Robert J.', 'Constructora Alpha', 'Alcaldía Bogotá', 'Adriana T.', 'Parques S.A'][i - 1]}</p>
+                                                    <h4 className="text-sm font-black text-foreground italic">Cot. #{q.id.slice(-6).toUpperCase()}</h4>
+                                                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest mt-0.5">Cliente: {q.client || '—'}</p>
                                                 </div>
-                                                <div className="flex items-center justify-between pt-4 border-t border-border">
-                                                    <span className="text-xl font-black text-foreground">$ {i * 125}.500.000</span>
+                                                <div className="flex items-center justify-between pt-3 border-t border-border">
+                                                    <span className="text-base font-black text-foreground">{q.total || '$0'}</span>
                                                     <button
                                                         onClick={() => {
-                                                            alert(`Enviando Cotización PDF #00${i} al chat...`);
+                                                            addNotification({ title: 'Cotización enviada al chat', description: `Cot. #${q.id.slice(-6).toUpperCase()} enviada a ${selectedChat?.sender || 'cliente'}`, type: 'success' });
                                                             setIsProductModalOpen(false);
                                                             setIsAttachmentMenuOpen(false);
                                                         }}
-                                                        className="bg-muted/10 border border-border px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-primary hover:text-black transition-all"
+                                                        className="bg-muted/10 border border-border px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-primary hover:text-black transition-all"
                                                     >
                                                         Enviar PDF
                                                     </button>
