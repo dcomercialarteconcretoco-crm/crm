@@ -321,7 +321,7 @@ export default function TeamPage() {
                             {/* Avatar Section */}
                             <div className="flex flex-col items-center gap-4">
                                 <AvatarUpload
-                                    value={form.avatar}
+                                    value={form.avatar || ''}
                                     onChange={(base64) => setForm(f => ({ ...f, avatar: base64 }))}
                                     name={form.name}
                                     size="md"
