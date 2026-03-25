@@ -155,6 +155,22 @@ export default function MiWiBotPage() {
     const [isGeneratingQuote, setIsGeneratingQuote] = useState(false);
     const [quoteSuccess, setQuoteSuccess] = useState(false);
 
+    // Human reply state
+    const [replyText, setReplyText] = useState('');
+    const [isSendingReply, setIsSendingReply] = useState(false);
+    const chatEndRef = React.useRef<HTMLDivElement>(null);
+    const selectedConvRef = React.useRef<WidgetConversation | null>(null);
+
+    // Keep ref in sync so polling closure can access latest value
+    React.useEffect(() => {
+        selectedConvRef.current = selectedConversation;
+    }, [selectedConversation]);
+
+    // Auto-scroll chat to bottom on new messages
+    React.useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [selectedConversation?.messages?.length]);
+
     // ── ConcreBOT Learning Mode ──────────────────────────────────────────────
     interface LearningMsg { id: string; role: 'admin' | 'bot'; content: string; ts: string; }
     const LEARNING_KEY = 'concrebot_training_v1';
@@ -279,27 +295,53 @@ export default function MiWiBotPage() {
         setWidgetConfig(merged.widget);
     }, [settings.botSettings]);
 
-    // Poll live widget conversations every 6 seconds
+    // Poll live widget conversations every 5 seconds
     useEffect(() => {
         const fetchConversations = async () => {
             try {
-                const res = await fetch('/api/conversations');
+                const res = await fetch('/api/conversations', { cache: 'no-store' });
                 if (res.ok) {
                     const data = await res.json();
-                    setLiveConversations(data.conversations || []);
-                    // Update selected conversation if still open
-                    if (selectedConversation) {
-                        const updated = (data.conversations || []).find((c: WidgetConversation) => c.id === selectedConversation.id);
+                    const convs: WidgetConversation[] = data.conversations || [];
+                    setLiveConversations(convs);
+                    // Update selected conversation using ref (avoids stale closure)
+                    const current = selectedConvRef.current;
+                    if (current) {
+                        const updated = convs.find(c => c.id === current.id);
                         if (updated) setSelectedConversation(updated);
                     }
                 }
             } catch { /* silent */ }
         };
         fetchConversations();
-        const interval = setInterval(fetchConversations, 6000);
+        const interval = setInterval(fetchConversations, 5000);
         return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    const sendHumanReply = async () => {
+        if (!replyText.trim() || !selectedConversation || isSendingReply) return;
+        const text = replyText.trim();
+        setReplyText('');
+        setIsSendingReply(true);
+        const updatedConv: WidgetConversation = {
+            ...selectedConversation,
+            messages: [
+                ...selectedConversation.messages,
+                { role: 'assistant', content: text, timestamp: new Date().toISOString() },
+            ],
+            updatedAt: new Date().toISOString(),
+        };
+        setSelectedConversation(updatedConv);
+        setLiveConversations(prev => prev.map(c => c.id === updatedConv.id ? updatedConv : c));
+        try {
+            await fetch('/api/conversations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ conversation: updatedConv }),
+            });
+        } catch { /* silent */ }
+        setIsSendingReply(false);
+    };
 
     // Alerts are triggered only by real WhatsApp/chat events, never simulated
 
@@ -403,7 +445,7 @@ export default function MiWiBotPage() {
     const scoreStroke = 100 - trainingScore;
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-700">
+        <div className="flex flex-col gap-3 animate-in fade-in duration-700" style={{ height: 'calc(100vh - 7rem)' }}>
             {/* Header / Tabs */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 px-2 lg:px-0">
                 <div>
@@ -515,8 +557,8 @@ export default function MiWiBotPage() {
                 </div>
             )}
 
-            {/* Main Area */}
-            <div className="bg-card border border-border/40 lg:rounded-[3rem] overflow-hidden shadow-2xl h-[calc(100vh-12rem)] lg:h-[700px] flex relative">
+            {/* Main Area — fills remaining height after header/tabs */}
+            <div className="bg-card border border-border/40 lg:rounded-[3rem] overflow-hidden shadow-2xl flex-1 min-h-0 flex relative">
 
                 {activeTab === 'monitor' && (
                     <React.Fragment>
@@ -691,9 +733,10 @@ export default function MiWiBotPage() {
                                                 </div>
                                             </div>
                                         ))}
+                                        <div ref={chatEndRef} />
                                     </div>
 
-                                    <div className="p-6 lg:p-8 bg-card border-t border-border/40 relative shrink-0">
+                                    <div className="p-4 lg:p-5 bg-card border-t border-border/40 relative shrink-0">
                                         {/* Attachment Menu Overlay */}
                                         {isAttachmentMenuOpen && (
                                             <div className="absolute bottom-full mb-4 left-6 lg:left-8 bg-card border border-border/40 rounded-[2rem] p-4 shadow-2xl animate-in slide-in-from-bottom-4 duration-300 z-50 w-[calc(100%-3rem)] lg:w-64">
@@ -744,13 +787,17 @@ export default function MiWiBotPage() {
                                             </button>
                                             <input
                                                 type="text"
-                                                placeholder={isHumanInControl ? "Modo Humano..." : "Escribe al bot..."}
+                                                value={replyText}
+                                                onChange={e => setReplyText(e.target.value)}
+                                                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendHumanReply(); } }}
+                                                placeholder={isHumanInControl ? "Escribe como agente humano..." : "Responde al cliente..."}
                                                 className="flex-1 bg-transparent border-none outline-none text-xs lg:text-sm px-1 lg:px-2 font-bold text-foreground placeholder:text-muted-foreground/30"
                                             />
-                                            <button className="hidden lg:block p-3 hover:bg-muted rounded-xl transition-colors text-muted-foreground/30">
-                                                <Smile className="w-5 h-5" />
-                                            </button>
-                                            <button className="bg-primary text-black p-3.5 lg:p-4 rounded-xl hover:scale-105 transition-all shadow-lg shadow-primary/10">
+                                            <button
+                                                onClick={sendHumanReply}
+                                                disabled={!replyText.trim() || isSendingReply}
+                                                className="bg-primary text-black p-3.5 lg:p-4 rounded-xl hover:scale-105 transition-all shadow-lg shadow-primary/10 disabled:opacity-40 disabled:hover:scale-100"
+                                            >
                                                 <Send className="w-5 h-5" />
                                             </button>
                                         </div>

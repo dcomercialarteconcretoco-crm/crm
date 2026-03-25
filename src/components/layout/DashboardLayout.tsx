@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Sidebar } from './Sidebar';
-import { Search, Bell, User, BrainCircuit } from 'lucide-react';
+import { Search, Bell, User, BrainCircuit, X } from 'lucide-react';
 import { NotificationDropdown } from './NotificationDropdown';
 import { MiWiAssistant } from './MiWiAssistant';
 import { clsx } from 'clsx';
@@ -16,6 +16,35 @@ interface DashboardLayoutProps {
     children: React.ReactNode;
 }
 
+interface LiveToast {
+    id: string;
+    title: string;
+    body: string;
+    href?: string;
+    icon: string;
+}
+
+/** Plays a pleasant two-tone "ding" using the Web Audio API — no file needed */
+function playNotificationSound() {
+    try {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const play = (freq: number, start: number, duration: number, gain = 0.18) => {
+            const osc = ctx.createOscillator();
+            const g = ctx.createGain();
+            osc.connect(g); g.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
+            g.gain.setValueAtTime(0, ctx.currentTime + start);
+            g.gain.linearRampToValueAtTime(gain, ctx.currentTime + start + 0.01);
+            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + duration);
+            osc.start(ctx.currentTime + start);
+            osc.stop(ctx.currentTime + start + duration);
+        };
+        play(880, 0,    0.18);
+        play(1100, 0.14, 0.22);
+    } catch { /* silently fail if browser blocks audio */ }
+}
+
 export function DashboardLayout({ children }: DashboardLayoutProps) {
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [isMiWiOpen, setIsMiWiOpen] = useState(false);
@@ -24,9 +53,78 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     const [selectedNotification, setSelectedNotification] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [showSearchResults, setShowSearchResults] = useState(false);
+    const [liveToasts, setLiveToasts] = useState<LiveToast[]>([]);
     const { notifications, setNotifications, settings, currentUser, isHydrating, logout, clients, tasks, quotes, products } = useApp() as any;
     const pathname = usePathname();
     const router = useRouter();
+
+    // Track known IDs to detect NEW arrivals after initial load
+    const knownClientIds = useRef<Set<string>>(new Set());
+    const knownTaskIds   = useRef<Set<string>>(new Set());
+    const isFirstSync    = useRef(true);
+
+    const dismissToast = useCallback((id: string) => {
+        setLiveToasts(t => t.filter(x => x.id !== id));
+    }, []);
+
+    const pushToast = useCallback((toast: LiveToast) => {
+        setLiveToasts(t => [...t.slice(-3), toast]); // max 4 toasts stacked
+        playNotificationSound();
+        setTimeout(() => dismissToast(toast.id), 8000);
+    }, [dismissToast]);
+
+    // Seed known IDs once data loads
+    useEffect(() => {
+        if (!isFirstSync.current) return;
+        if (clients.length > 0 || tasks.length > 0) {
+            clients.forEach((c: any) => knownClientIds.current.add(c.id));
+            tasks.forEach((t: any) => knownTaskIds.current.add(t.id));
+            isFirstSync.current = false;
+        }
+    }, [clients, tasks]);
+
+    // Poll /api/state every 30s and detect new leads
+    useEffect(() => {
+        const poll = async () => {
+            if (isFirstSync.current) return; // not initialized yet
+            try {
+                const [stateRes, clientsRes] = await Promise.all([
+                    fetch('/api/state', { cache: 'no-store' }),
+                    fetch('/api/clients', { cache: 'no-store' }),
+                ]);
+                if (clientsRes.ok) {
+                    const { clients: fresh } = await clientsRes.json();
+                    if (Array.isArray(fresh)) {
+                        fresh.forEach((c: any) => {
+                            if (!knownClientIds.current.has(c.id)) {
+                                knownClientIds.current.add(c.id);
+                                pushToast({
+                                    id: `lead-${c.id}`,
+                                    icon: c.source === 'WooCommerce' ? '🛒' : c.source === 'ConcreBot' ? '🤖' : '👤',
+                                    title: 'Nuevo lead llegó',
+                                    body: `${c.name}${c.company && c.company !== c.name ? ` · ${c.company}` : ''}`,
+                                    href: `/leads/${c.id}`,
+                                });
+                            }
+                        });
+                    }
+                }
+                if (stateRes.ok) {
+                    const state = await stateRes.json();
+                    if (Array.isArray(state.tasks)) {
+                        state.tasks.forEach((t: any) => {
+                            if (!knownTaskIds.current.has(t.id)) {
+                                knownTaskIds.current.add(t.id);
+                            }
+                        });
+                    }
+                }
+            } catch { /* ignore poll errors */ }
+        };
+
+        const timer = setInterval(poll, 30_000);
+        return () => clearInterval(timer);
+    }, [pushToast]);
 
     const searchResults = React.useMemo(() => {
         const q = searchQuery.toLowerCase().trim();
@@ -301,7 +399,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
                 {/* Main Content + MiWi Push Panel */}
                 <div className="flex-1 flex overflow-hidden min-h-0">
-                    <main className="flex-1 overflow-y-auto bg-premium-gradient p-3 sm:p-4 lg:p-6 relative pb-[calc(7.5rem+env(safe-area-inset-bottom))] lg:pb-8 rounded-[1.8rem] m-3 mt-0 border border-white/45 min-w-0">
+                    <main className={clsx(
+                        "flex-1 bg-premium-gradient p-3 sm:p-4 lg:p-6 relative rounded-[1.8rem] m-3 mt-0 border border-white/45 min-w-0",
+                        pathname === '/bot'
+                            ? "overflow-hidden flex flex-col pb-3 lg:pb-4"
+                            : "overflow-y-auto pb-[calc(7.5rem+env(safe-area-inset-bottom))] lg:pb-8"
+                    )}>
                         {children}
                     </main>
 
@@ -312,6 +415,39 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 {/* Mobile Bottom Navigation */}
                 <MobileNav />
             </div>
+
+            {/* ── Live Lead Toast Stack ── */}
+            {liveToasts.length > 0 && (
+                <div className="fixed bottom-6 right-6 z-[500] flex flex-col gap-2 items-end">
+                    {liveToasts.map(toast => (
+                        <div
+                            key={toast.id}
+                            className="flex items-start gap-3 bg-white border border-primary/20 shadow-2xl shadow-primary/10 rounded-2xl px-4 py-3 w-72 animate-in slide-in-from-right-4 fade-in duration-300"
+                        >
+                            <span className="text-2xl shrink-0 mt-0.5">{toast.icon}</span>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-primary">{toast.title}</p>
+                                <p className="text-sm font-bold text-foreground truncate">{toast.body}</p>
+                                {toast.href && (
+                                    <a
+                                        href={toast.href}
+                                        className="text-[9px] font-black uppercase tracking-widest text-primary/70 hover:text-primary mt-1 inline-flex items-center gap-1"
+                                        onClick={() => dismissToast(toast.id)}
+                                    >
+                                        Ver ficha →
+                                    </a>
+                                )}
+                            </div>
+                            <button
+                                onClick={() => dismissToast(toast.id)}
+                                className="shrink-0 p-1 hover:bg-muted rounded-lg transition-colors text-muted-foreground"
+                            >
+                                <X className="w-3 h-3" />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* Notification Detail Modal - Global Level */}
             {selectedNotification && (
