@@ -703,6 +703,38 @@ export default function SettingsPage() {
                                             </div>
                                         </div>
 
+                                        {/* Google Calendar */}
+                                        <div className="p-8 bg-muted/5 border border-border rounded-[2.5rem] space-y-6">
+                                            <div className="flex items-center gap-4">
+                                                <div className="p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20">
+                                                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+                                                        <path d="M19.5 3h-15A1.5 1.5 0 003 4.5v15A1.5 1.5 0 004.5 21h15a1.5 1.5 0 001.5-1.5v-15A1.5 1.5 0 0019.5 3z" fill="#4285F4"/>
+                                                        <path d="M12 8.25a3.75 3.75 0 100 7.5 3.75 3.75 0 000-7.5z" fill="white"/>
+                                                        <path d="M12 3v2.25M12 18.75V21M3 12H.75M23.25 12H21" stroke="white" strokeWidth="1.5"/>
+                                                    </svg>
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-black tracking-tight text-lg text-foreground">Google Calendar</h4>
+                                                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em]">
+                                                        {settings.googleClientId ? '✅ Configurado' : 'Sin configurar'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-3">
+                                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">OAuth Client ID</label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.googleClientId || ''}
+                                                    onChange={(e) => updateSettings({ googleClientId: e.target.value.trim() })}
+                                                    placeholder="XXXXXXXXXX-xxxx.apps.googleusercontent.com"
+                                                    className="w-full bg-muted/20 border border-border rounded-2xl px-6 py-4 text-sm focus:border-primary/50 outline-none transition-all font-bold text-foreground"
+                                                />
+                                            </div>
+                                            <p className="text-[10px] text-muted-foreground/60 font-bold leading-relaxed">
+                                                <span className="text-blue-500 font-black">¿Cómo obtenerlo?</span> Ve a <strong>console.cloud.google.com</strong> → APIs y Servicios → Credenciales → Crear credencial → ID de cliente OAuth 2.0 → Aplicación web. Agrega <strong>crm-sand-three.vercel.app</strong> como origen autorizado.
+                                            </p>
+                                        </div>
+
                                         {/* Resend */}
                                         <div className="p-8 bg-muted/5 border border-border rounded-[2.5rem] space-y-6">
                                             <div className="flex items-center gap-4">

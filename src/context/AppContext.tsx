@@ -201,6 +201,7 @@ export interface AppSettings {
     wooUrl?: string;
     wooKey?: string;
     wooSecret?: string;
+    googleClientId?: string;
     whatsapp: WhatsAppConfig;
     botSettings?: BotSettings;
 }

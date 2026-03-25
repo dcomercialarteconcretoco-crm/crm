@@ -57,7 +57,9 @@ declare global {
     }
 }
 
-const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+// GOOGLE_CLIENT_ID is set dynamically from settings (Configuración → Google Calendar)
+// Falls back to env var if available
+let GOOGLE_CLIENT_ID_ENV = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 const GOOGLE_SCOPE = [
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/userinfo.email',
@@ -70,7 +72,8 @@ function getGoogleAuthStorageKey(userId?: string) {
 const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 export default function SchedulerPage() {
-    const { clients, sellers, events, addEvent, addNotification, currentUser, updateEvent } = useApp();
+    const { clients, sellers, events, addEvent, addNotification, currentUser, updateEvent, settings } = useApp();
+    const GOOGLE_CLIENT_ID = settings.googleClientId?.trim() || GOOGLE_CLIENT_ID_ENV || '';
     const fileInputRef = useRef<HTMLInputElement>(null);
     const googleTokenClientRef = useRef<GoogleTokenClient | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
