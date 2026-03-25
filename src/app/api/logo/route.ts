@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
-// Proxy the ArteConcreto logo to avoid CORS issues when generating PDFs client-side
+// Serve the ArteConcreto logo from the local public folder — no external dependency
 export async function GET() {
     try {
-        const response = await fetch(
-            'https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png',
-            { next: { revalidate: 86400 } }
-        );
-        if (!response.ok) throw new Error('Logo fetch failed');
-        const buffer = await response.arrayBuffer();
-        return new NextResponse(Buffer.from(buffer), {
+        const filePath = join(process.cwd(), 'public', 'logo-arteconcreto.png');
+        const buffer = readFileSync(filePath);
+        return new NextResponse(buffer, {
             status: 200,
             headers: {
                 'Content-Type': 'image/png',
