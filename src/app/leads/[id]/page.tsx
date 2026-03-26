@@ -544,33 +544,39 @@ export default function Lead360Page() {
 
                                     <div className="grid grid-cols-1 gap-4">
                                         {leadQuotes.length > 0 ? leadQuotes.map((quote) => (
-                                            <div key={quote.id} className="p-6 bg-muted/10 border border-border/20 rounded-3xl hover:border-primary/20 transition-all group relative overflow-hidden">
+                                            <Link key={quote.id} href={`/quotes/${quote.id}/edit`}
+                                                className="p-6 bg-muted/10 border border-border/20 rounded-3xl hover:border-primary/30 hover:bg-primary/[0.03] transition-all group relative overflow-hidden block">
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-5">
                                                         <div className="w-12 h-12 rounded-[1.25rem] bg-muted/20 flex items-center justify-center text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary transition-all">
                                                             <FileText className="w-6 h-6" />
                                                         </div>
                                                         <div>
-                                                            <p className="text-base font-black text-foreground">{quote.number}</p>
+                                                            <p className="text-base font-black text-foreground group-hover:text-primary transition-colors">{quote.number}</p>
                                                             <p className="text-[10px] font-black uppercase text-muted-foreground/50 tracking-widest">{quote.date}</p>
                                                             {quote.sentByName && (
                                                                 <p className="text-[10px] text-muted-foreground/50 mt-0.5">Enviado por {quote.sentByName}</p>
                                                             )}
                                                         </div>
                                                     </div>
-                                                    <div className="text-right">
+                                                    <div className="text-right flex flex-col items-end gap-2">
                                                         <p className="text-lg font-black text-foreground">{quote.total}</p>
-                                                        <span className={clsx(
-                                                            "text-[9px] font-black px-2 py-0.5 rounded border uppercase tracking-widest",
-                                                            quote.status === 'Approved' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" :
-                                                            quote.status === 'Sent' ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
-                                                            "bg-muted/20 text-muted-foreground/50 border-border/30"
-                                                        )}>
-                                                            {quote.status === 'Sent' ? 'Enviado' : quote.status === 'Approved' ? 'Aprobado' : quote.status === 'Draft' ? 'Borrador' : quote.status}
-                                                        </span>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className={clsx(
+                                                                "text-[9px] font-black px-2 py-0.5 rounded border uppercase tracking-widest",
+                                                                quote.status === 'Approved' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" :
+                                                                quote.status === 'Sent' ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+                                                                "bg-muted/20 text-muted-foreground/50 border-border/30"
+                                                            )}>
+                                                                {quote.status === 'Sent' ? 'Enviado' : quote.status === 'Approved' ? 'Aprobado' : quote.status === 'Draft' ? 'Borrador' : quote.status}
+                                                            </span>
+                                                            <span className="text-[9px] font-black text-primary/60 group-hover:text-primary transition-colors uppercase tracking-wider">
+                                                                Editar →
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
+                                            </Link>
                                         )) : (
                                             <div className="text-center py-20 bg-muted/10 rounded-[2rem] border border-dashed border-border/20">
                                                 <p className="text-xs font-black uppercase text-muted-foreground/30 tracking-widest italic">No hay cotizaciones activas</p>

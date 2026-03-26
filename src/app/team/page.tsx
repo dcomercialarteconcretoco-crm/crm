@@ -74,7 +74,7 @@ export default function TeamPage() {
             name: currentUser.name || 'Admin',
             role: currentUser.role || 'SuperAdmin',
             status: currentUser.status || 'Activo',
-            avatar: currentUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name || 'Admin')}&background=fab510&color=000`,
+            avatar: currentUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name || 'Admin')}&background=ffffff&color=1a1a1a`,
         };
 
         return [canonicalCurrentUser, ...withoutCurrent];
@@ -113,7 +113,7 @@ export default function TeamPage() {
 
         const finalForm = {
             ...form,
-            avatar: form.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(form.name)}&background=random&color=fff`
+            avatar: form.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(form.name)}&background=f5f0e8&color=1a1a1a`
         };
 
         if (editingSeller) {

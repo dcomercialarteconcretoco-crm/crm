@@ -1143,7 +1143,11 @@ export default function PipelinePage() {
                                                 <p className="text-[10px] font-black uppercase text-muted-foreground/30 tracking-widest">Sin actividad aún</p>
                                                 <p className="text-[9px] text-muted-foreground/20 mt-1">Las acciones quedan registradas aquí</p>
                                             </div>
-                                        ) : selectedTask.activities.map(a => (
+                                        ) : selectedTask.activities.map(a => {
+                                            // Detect quote number like AC-2026-XXXXX in activity content
+                                            const qNumMatch = a.content?.match(/AC-\d{4}-\d+/);
+                                            const linkedQ = qNumMatch ? quotes.find(q => q.number === qNumMatch[0]) : null;
+                                            return (
                                             <div key={a.id} className="bg-white/70 p-4 rounded-2xl border-l-[3px] border border-border/60 hover:bg-white/90 transition-all"
                                                 style={{ borderLeftColor: a.type === 'call' ? '#0ea5e9' : a.type === 'whatsapp' ? '#10b981' : a.type === 'email' ? '#3b82f6' : a.type === 'system' ? '#fab510' : '#f59e0b' }}>
                                                 <div className="flex items-center justify-between mb-2">
@@ -1158,8 +1162,15 @@ export default function PipelinePage() {
                                                     </p>
                                                 </div>
                                                 <p className="text-sm font-semibold text-foreground leading-relaxed">{a.content}</p>
+                                                {linkedQ && (
+                                                    <a href={`/quotes/${linkedQ.id}/edit`}
+                                                        className="mt-2 inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-primary hover:text-primary/70 transition-colors bg-primary/8 hover:bg-primary/15 px-3 py-1.5 rounded-lg border border-primary/20">
+                                                        ✏️ Ver / Editar {linkedQ.number}
+                                                    </a>
+                                                )}
                                             </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </div>
