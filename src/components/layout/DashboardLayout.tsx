@@ -147,7 +147,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
     const unreadCount = notifications.filter((n: any) => !n.read).length;
     const displayName = currentUser?.name || 'Usuario';
-    const displayRole = currentUser?.role || 'Usuario';
+    const displayRole = currentUser?.role === 'SuperAdmin' ? 'Administrador Principal' : currentUser?.role === 'Admin' ? 'Administrador' : currentUser?.role || 'Usuario';
     const initials = displayName
         .split(' ')
         .slice(0, 2)

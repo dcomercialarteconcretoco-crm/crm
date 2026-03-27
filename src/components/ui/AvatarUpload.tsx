@@ -27,11 +27,23 @@ export default function AvatarUpload({ value, onChange, name = '', size = 'md' }
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const result = ev.target?.result as string;
-      if (result) onChange(result);
+      const raw = ev.target?.result as string;
+      if (!raw) return;
+      // Resize to max 280x280 JPEG at 0.82 quality to keep localStorage under control
+      const img = new Image();
+      img.onload = () => {
+        const maxSide = 280;
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width  = Math.round(img.width  * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        onChange(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = raw;
     };
     reader.readAsDataURL(file);
-    // Reset so same file can be re-selected
     e.target.value = '';
   };
 

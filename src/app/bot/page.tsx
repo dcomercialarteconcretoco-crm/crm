@@ -110,8 +110,8 @@ REGLAS DE ORO:
     widget: {
         apiKey: 'AC-5882-XT90',
         primaryColor: '#FAB510',
-        botName: 'MiWi AI',
-        position: 'right-bottom' as const,
+        botName: 'ConcreBOT',
+        position: 'left-bottom' as const,
         authorizedDomain: 'arteconcreto.co',
         whatsappSync: true,
     },
@@ -135,6 +135,22 @@ export default function MiWiBotPage() {
     const [escalationRules, setEscalationRules] = useState(botSettings.escalationRules);
     const [widgetConfig, setWidgetConfig] = useState(botSettings.widget);
     const [isSavingConfig, setIsSavingConfig] = useState(false);
+
+    const DEFAULT_SCHEDULE = {
+        enabled: false,
+        timezone: 'America/Bogota',
+        days: {
+            mon: { enabled: true,  start: '08:00', end: '18:00' },
+            tue: { enabled: true,  start: '08:00', end: '18:00' },
+            wed: { enabled: true,  start: '08:00', end: '18:00' },
+            thu: { enabled: true,  start: '08:00', end: '18:00' },
+            fri: { enabled: true,  start: '08:00', end: '18:00' },
+            sat: { enabled: false, start: '09:00', end: '13:00' },
+            sun: { enabled: false, start: '09:00', end: '13:00' },
+        },
+        offlineMessage: 'Nuestro asistente no está disponible ahora. Te responderemos en nuestro próximo horario de atención.',
+    };
+    const [botSchedule, setBotSchedule] = useState(botSettings.schedule ?? DEFAULT_SCHEDULE);
 
     // Attachment & Product States
     const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false);
@@ -370,14 +386,15 @@ export default function MiWiBotPage() {
 
         updateSettings({
             botSettings: {
-            deliveryTimes: deliveryTimes.trim(),
-            shippingCost: shippingCost.trim(),
-            coverageArea: coverageArea.trim(),
-            faqs: faqs.map((faq) => faq.trim()).filter(Boolean),
-            systemPrompt: systemPrompt.trim(),
-            escalationRules,
-            captureFields,
+                deliveryTimes: deliveryTimes.trim(),
+                shippingCost: shippingCost.trim(),
+                coverageArea: coverageArea.trim(),
+                faqs: faqs.map((faq) => faq.trim()).filter(Boolean),
+                systemPrompt: systemPrompt.trim(),
+                escalationRules,
+                captureFields,
                 widget: widgetConfig,
+                schedule: botSchedule,
             },
         });
 
@@ -1080,6 +1097,130 @@ export default function MiWiBotPage() {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+
+                        {/* ── HORARIO DE ATENCIÓN ── */}
+                        <div className="p-10 bg-muted/10 border border-border rounded-[2.5rem] space-y-8">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20">
+                                        <Clock className="w-6 h-6 text-primary" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-foreground">Horario de Atención del Bot</h3>
+                                        <p className="text-[10px] font-black text-muted-foreground/50 uppercase tracking-widest mt-1">
+                                            Fuera de este horario el bot responde con el mensaje offline
+                                        </p>
+                                    </div>
+                                </div>
+                                <label className="flex items-center gap-3 cursor-pointer select-none">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                                        {botSchedule.enabled ? 'Activo' : 'Desactivado'}
+                                    </span>
+                                    <div
+                                        onClick={() => setBotSchedule(s => ({ ...s, enabled: !s.enabled }))}
+                                        className={clsx(
+                                            "relative w-12 h-6 rounded-full transition-colors cursor-pointer border-2",
+                                            botSchedule.enabled ? "bg-primary border-primary" : "bg-muted/30 border-border"
+                                        )}
+                                    >
+                                        <div className={clsx(
+                                            "absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all",
+                                            botSchedule.enabled ? "left-6" : "left-0.5"
+                                        )} />
+                                    </div>
+                                </label>
+                            </div>
+
+                            {botSchedule.enabled && (
+                                <div className="space-y-6">
+                                    {/* Day rows */}
+                                    <div className="space-y-3">
+                                        {([
+                                            { key: 'mon', label: 'Lunes' },
+                                            { key: 'tue', label: 'Martes' },
+                                            { key: 'wed', label: 'Miércoles' },
+                                            { key: 'thu', label: 'Jueves' },
+                                            { key: 'fri', label: 'Viernes' },
+                                            { key: 'sat', label: 'Sábado' },
+                                            { key: 'sun', label: 'Domingo' },
+                                        ] as const).map(({ key, label }) => {
+                                            const day = botSchedule.days[key];
+                                            return (
+                                                <div key={key} className={clsx(
+                                                    "flex items-center gap-4 p-4 rounded-2xl border transition-all",
+                                                    day.enabled ? "bg-white/30 border-primary/20" : "bg-muted/5 border-border/30 opacity-60"
+                                                )}>
+                                                    {/* Enable toggle */}
+                                                    <button
+                                                        onClick={() => setBotSchedule(s => ({
+                                                            ...s,
+                                                            days: { ...s.days, [key]: { ...s.days[key], enabled: !day.enabled } }
+                                                        }))}
+                                                        className={clsx(
+                                                            "w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all",
+                                                            day.enabled ? "bg-primary border-primary text-black" : "border-border bg-transparent"
+                                                        )}
+                                                    >
+                                                        {day.enabled && <Check className="w-3 h-3" />}
+                                                    </button>
+                                                    <span className="w-24 text-[11px] font-black uppercase tracking-widest text-foreground shrink-0">{label}</span>
+                                                    <div className="flex items-center gap-2 flex-1">
+                                                        <input
+                                                            type="time"
+                                                            value={day.start}
+                                                            disabled={!day.enabled}
+                                                            onChange={e => setBotSchedule(s => ({
+                                                                ...s,
+                                                                days: { ...s.days, [key]: { ...s.days[key], start: e.target.value } }
+                                                            }))}
+                                                            className="flex-1 bg-muted/10 border border-border/40 rounded-xl px-3 py-2 text-sm font-bold text-foreground outline-none focus:border-primary/50 transition-all disabled:opacity-40"
+                                                        />
+                                                        <span className="text-muted-foreground font-black text-sm">—</span>
+                                                        <input
+                                                            type="time"
+                                                            value={day.end}
+                                                            disabled={!day.enabled}
+                                                            onChange={e => setBotSchedule(s => ({
+                                                                ...s,
+                                                                days: { ...s.days, [key]: { ...s.days[key], end: e.target.value } }
+                                                            }))}
+                                                            className="flex-1 bg-muted/10 border border-border/40 rounded-xl px-3 py-2 text-sm font-bold text-foreground outline-none focus:border-primary/50 transition-all disabled:opacity-40"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Timezone */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Zona Horaria</label>
+                                            <select
+                                                value={botSchedule.timezone}
+                                                onChange={e => setBotSchedule(s => ({ ...s, timezone: e.target.value }))}
+                                                className="w-full bg-muted/10 border border-border/40 rounded-2xl p-4 text-sm font-bold text-foreground outline-none focus:border-primary/50 transition-all"
+                                            >
+                                                <option value="America/Bogota">América/Bogotá (UTC-5)</option>
+                                                <option value="America/New_York">América/New York (UTC-5/-4)</option>
+                                                <option value="America/Mexico_City">América/Ciudad de México (UTC-6/-5)</option>
+                                                <option value="Europe/Madrid">Europa/Madrid (UTC+1/+2)</option>
+                                            </select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Mensaje Offline</label>
+                                            <input
+                                                type="text"
+                                                value={botSchedule.offlineMessage}
+                                                onChange={e => setBotSchedule(s => ({ ...s, offlineMessage: e.target.value }))}
+                                                className="w-full bg-muted/10 border border-border/40 rounded-2xl p-4 text-sm font-bold text-foreground outline-none focus:border-primary/50 transition-all"
+                                                placeholder="Mensaje cuando el bot está fuera de horario..."
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

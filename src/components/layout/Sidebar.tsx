@@ -27,21 +27,35 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-const navItems = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'MiWi Bot', href: '/bot', icon: Bot },
-  { name: 'Cotizaciones', href: '/quotes', icon: FileText },
-  { name: 'Pipeline', href: '/pipeline', icon: Workflow },
-  { name: 'Clientes', href: '/clients', icon: Users },
-  { name: 'Inventario', href: '/inventory', icon: Archive },
-  { name: 'Agenda', href: '/scheduler', icon: Calendar },
-  { name: 'Analíticas', href: '/analytics', icon: BarChart3 },
-  { name: 'Equipo', href: '/team', icon: Users },
-  { name: 'Formbuilder IA', href: '/forms', icon: FilePlus2 },
-  { name: 'Documentos', href: '/documents', icon: FolderOpen },
-  { name: 'Tarjetas Digitales', href: '/biolinks', icon: CreditCard },
+const navGroups = [
+  {
+    label: 'Comercial',
+    items: [
+      { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+      { name: 'ConcreBOT', href: '/bot', icon: Bot },
+      { name: 'Cotizaciones', href: '/quotes', icon: FileText },
+      { name: 'Pipeline', href: '/pipeline', icon: Workflow },
+      { name: 'Clientes', href: '/clients', icon: Users },
+    ],
+  },
+  {
+    label: 'Operaciones',
+    items: [
+      { name: 'Inventario', href: '/inventory', icon: Archive },
+      { name: 'Agenda', href: '/scheduler', icon: Calendar },
+      { name: 'Analíticas', href: '/analytics', icon: BarChart3 },
+      { name: 'Equipo', href: '/team', icon: Users },
+    ],
+  },
+  {
+    label: 'Herramientas',
+    items: [
+      { name: 'Formbuilder IA', href: '/forms', icon: FilePlus2 },
+      { name: 'Documentos', href: '/documents', icon: FolderOpen },
+      { name: 'Tarjetas Digitales', href: '/biolinks', icon: CreditCard },
+    ],
+  },
 ];
-
 
 const systemItems = [
   { name: 'Auditoría', href: '/audit', icon: Shield },
@@ -61,7 +75,7 @@ export function Sidebar({ isCompact }: SidebarProps) {
       ? 'Juan Sierra'
       : currentUser?.name || 'Usuario';
   const displayRole =
-    currentUser?.role === 'SuperAdmin' ? 'Dios Mode' : currentUser?.role === 'Admin' ? 'Administrador' : currentUser?.role || 'Usuario';
+    currentUser?.role === 'SuperAdmin' ? 'Administrador Principal' : currentUser?.role === 'Admin' ? 'Administrador' : currentUser?.role || 'Usuario';
   const initials = displayName
     .split(' ')
     .slice(0, 2)
@@ -98,51 +112,54 @@ export function Sidebar({ isCompact }: SidebarProps) {
       </div>
 
       <nav className="flex-1 px-3 space-y-1 overflow-y-auto custom-scrollbar">
-        {!isCompact && <div className="mb-2 px-4 text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] opacity-50">Menú Principal</div>}
-        {navItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => {
-                if (pathname !== item.href) {
-                  setPendingHref(item.href);
-                }
-              }}
-              className={cn(
-                "flex items-center rounded-xl text-sm font-bold transition-all duration-300 group relative truncate",
-                isCompact ? "justify-center p-2.5" : "gap-3 px-4 py-2.5",
-                isActive
-                  ? "bg-white/58 text-foreground border border-white/85 backdrop-blur-xl"
-                  : pendingHref === item.href
-                    ? "bg-white/52 text-foreground border border-white/75"
-                    : "text-muted-foreground hover:bg-white/42 hover:text-foreground"
-              )}
-            >
-              {pendingHref === item.href ? (
-                <Loader2 className="w-4 h-4 shrink-0 text-primary animate-spin" />
-              ) : (
-                <item.icon className={cn(
-                  "w-4 h-4 transition-transform group-hover:scale-110 shrink-0",
-                  isActive ? "text-primary" : "text-primary/70 group-hover:text-primary"
-                )} />
-              )}
-              {!isCompact && <span className="tracking-tight truncate">{item.name}</span>}
+        {navGroups.map((group) => (
+          <div key={group.label} className="mb-1">
+            {!isCompact && (
+              <div className="mb-1 mt-3 first:mt-0 px-4 text-[9px] font-black text-muted-foreground uppercase tracking-[0.22em] opacity-45">
+                {group.label}
+              </div>
+            )}
+            {group.items.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => {
+                    if (pathname !== item.href) {
+                      setPendingHref(item.href);
+                    }
+                  }}
+                  className={cn(
+                    "flex items-center rounded-xl text-sm font-bold transition-all duration-300 group relative truncate",
+                    isCompact ? "justify-center p-2.5" : "gap-3 px-4 py-2.5",
+                    isActive
+                      ? "bg-white/58 text-foreground border border-white/85 backdrop-blur-xl"
+                      : pendingHref === item.href
+                        ? "bg-white/52 text-foreground border border-white/75"
+                        : "text-muted-foreground hover:bg-white/42 hover:text-foreground"
+                  )}
+                >
+                  {pendingHref === item.href ? (
+                    <Loader2 className="w-4 h-4 shrink-0 text-primary animate-spin" />
+                  ) : (
+                    <item.icon className={cn(
+                      "w-4 h-4 transition-transform group-hover:scale-110 shrink-0",
+                      isActive ? "text-primary" : "text-primary/70 group-hover:text-primary"
+                    )} />
+                  )}
+                  {!isCompact && <span className="tracking-tight truncate">{item.name}</span>}
 
-              {/* Notification Badge for Bot */}
-              {item.name === 'MiWi Bot' && !isActive && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 w-2 h-2 bg-rose-500 rounded-full shadow-[0_0_8px_rgba(244,63,94,0.6)] animate-pulse"></span>
-              )}
+                  {isActive && !isCompact && (
+                    <div className="absolute right-3 w-1.5 h-1.5 bg-primary rounded-full" />
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
 
-              {isActive && !isCompact && (
-                <div className="absolute right-3 w-1.5 h-1.5 bg-primary rounded-full" />
-              )}
-            </Link>
-          );
-        })}
-
-        {!isCompact && <div className="mt-4 mb-2 px-4 text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] opacity-50">Sistema</div>}
+        {!isCompact && <div className="mt-3 mb-1 px-4 text-[9px] font-black text-muted-foreground uppercase tracking-[0.22em] opacity-45">Sistema</div>}
         {systemItems.map((item) => {
           const isActive = pathname === item.href;
           return (

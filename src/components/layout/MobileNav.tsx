@@ -14,9 +14,9 @@ import { cn } from '../../lib/utils';
 
 const mobileItems = [
     { name: 'Inicio', href: '/', icon: LayoutDashboard },
-    { name: 'Pipeline', href: '/pipeline', icon: Workflow },
-    { name: 'Nuevo', href: '/quotes/new', icon: Plus, isAction: true },
     { name: 'Bot', href: '/bot', icon: Bot },
+    { name: 'Nuevo', href: '/quotes/new', icon: Plus, isAction: true },
+    { name: 'Pipeline', href: '/pipeline', icon: Workflow },
     { name: 'Config', href: '/settings', icon: Settings },
 ];
 

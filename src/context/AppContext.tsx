@@ -223,6 +223,12 @@ export interface AppSettings {
     botSettings?: BotSettings;
 }
 
+export interface BotScheduleDay {
+    enabled: boolean;
+    start: string; // "HH:MM"
+    end: string;   // "HH:MM"
+}
+
 export interface BotSettings {
     deliveryTimes: string;
     shippingCost: string;
@@ -249,6 +255,20 @@ export interface BotSettings {
         position: 'right-bottom' | 'left-bottom';
         authorizedDomain: string;
         whatsappSync: boolean;
+    };
+    schedule?: {
+        enabled: boolean;
+        timezone: string;
+        days: {
+            mon: BotScheduleDay;
+            tue: BotScheduleDay;
+            wed: BotScheduleDay;
+            thu: BotScheduleDay;
+            fri: BotScheduleDay;
+            sat: BotScheduleDay;
+            sun: BotScheduleDay;
+        };
+        offlineMessage: string;
     };
 }
 

@@ -210,7 +210,7 @@ export default function TeamPage() {
                                 </div>
                             )}
                             <div className="flex flex-col items-center">
-                                <div className="w-16 h-16 rounded-2xl bg-primary border border-primary/20 flex items-center justify-center text-xl font-black text-black mb-3 transform group-hover:scale-105 transition-all duration-300 overflow-hidden">
+                                <div className="w-16 h-16 rounded-2xl bg-white border border-primary/20 flex items-center justify-center text-xl font-black text-primary mb-3 transform group-hover:scale-105 transition-all duration-300 overflow-hidden shadow-sm">
                                     {seller.avatar ? (
                                         <img src={seller.avatar} alt={seller.name} className="w-full h-full object-cover" />
                                     ) : (
@@ -399,9 +399,10 @@ export default function TeamPage() {
                                         onChange={(e) => setForm({ ...form, role: e.target.value as any })}
                                         className="w-full bg-white/74 border border-white/90 rounded-2xl px-6 py-4 text-foreground font-bold outline-none focus:border-primary/50 appearance-none shadow-inner"
                                     >
-                                        <option value="Vendedor">Vendedor Senior</option>
+                                        <option value="SuperAdmin">Administrador Principal</option>
                                         <option value="Admin">Administrador</option>
                                         <option value="Manager">Manager Operativo</option>
+                                        <option value="Vendedor">Vendedor Senior</option>
                                     </select>
                                 </div>
                                 <div className="space-y-2">

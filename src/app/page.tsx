@@ -412,18 +412,18 @@ export default function Home() {
               <div className="grid gap-3 md:grid-cols-3">
                 <Link
                   href="/quotes/new"
-                  className="inline-flex min-h-[76px] items-center justify-between rounded-[1.35rem] border border-primary/25 bg-[linear-gradient(135deg,rgba(250,181,16,0.24),rgba(255,255,255,0.56))] px-4 sm:px-5 py-4 text-[10px] font-black uppercase tracking-[0.22em] text-foreground backdrop-blur-xl transition hover:-translate-y-0.5"
+                  className="inline-flex min-h-[76px] items-center justify-between rounded-[1.35rem] border border-primary/40 bg-[linear-gradient(135deg,#fab510,rgba(250,181,16,0.72))] px-4 sm:px-5 py-4 text-[10px] font-black uppercase tracking-[0.22em] text-black shadow-[0_4px_18px_rgba(250,181,16,0.35)] transition hover:-translate-y-1 hover:shadow-[0_8px_28px_rgba(250,181,16,0.45)] active:scale-95"
                 >
                   <span className="inline-flex items-center gap-3">
-                    <Plus className="h-4 w-4 text-primary" />
+                    <Plus className="h-4 w-4" />
                     Nueva cotización
                   </span>
-                  <ArrowRight className="h-4 w-4 text-primary" />
+                  <ArrowRight className="h-4 w-4" />
                 </Link>
 
                 <Link
                   href="/clients"
-                  className="inline-flex min-h-[76px] items-center justify-between rounded-[1.35rem] border border-white/85 bg-white/56 px-4 sm:px-5 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-foreground backdrop-blur-xl transition hover:-translate-y-0.5"
+                  className="inline-flex min-h-[76px] items-center justify-between rounded-[1.35rem] border border-white/85 bg-white/56 px-4 sm:px-5 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-foreground backdrop-blur-xl transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)]"
                 >
                   <span className="inline-flex items-center gap-3">
                     <Users className="h-4 w-4 text-primary" />
@@ -461,7 +461,7 @@ export default function Home() {
                 {stats.map((stat) => (
                   <div
                     key={stat.label}
-                    className="rounded-[1.75rem] border border-white/85 bg-white/58 p-5 sm:p-6 overflow-hidden"
+                    className="rounded-[1.75rem] border border-white/85 bg-white/58 p-5 sm:p-6 overflow-hidden card-interactive shadow-[var(--shadow-card)]"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
