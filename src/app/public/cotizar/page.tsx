@@ -152,11 +152,11 @@ function CotizadorContent() {
     }
 
     return (
-        <div className="min-h-screen bg-[#faf7f0] p-3 flex items-start justify-center">
-            <div className="w-full max-w-md">
+        <div className={embedMode ? "bg-[#faf7f0] p-2 overflow-y-auto" : "min-h-screen bg-[#faf7f0] p-3 flex items-start justify-center"}>
+            <div className="w-full max-w-md mx-auto">
                 {/* Header */}
-                <div className="mb-4 flex items-center justify-between">
-                    <img src={LOGO_URL} alt="ArteConcreto" className="h-8 object-contain" />
+                <div className="mb-3 flex items-center justify-between">
+                    <img src={LOGO_URL} alt="ArteConcreto" className="h-7 object-contain" />
                     <div className="text-right">
                         <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Solicitar</p>
                         <p className="text-sm font-black text-gray-900">Cotización</p>

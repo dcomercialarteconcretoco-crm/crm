@@ -1092,11 +1092,19 @@ REGLAS DE ORO:
             } as Seller;
         });
 
-        if (mergedSeller) {
+        // If the seller isn't in the sellers list (e.g. SuperAdmin injected via currentUser),
+        // fall back to currentUser as the base for the API call
+        const payload = mergedSeller ?? (
+            currentUser && currentUser.id === id
+                ? { ...currentUser, ...updates } as Seller
+                : null
+        );
+
+        if (payload) {
             fetch(`/api/team/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(mergedSeller),
+                body: JSON.stringify(payload),
             }).catch((error) => console.warn('Failed to update seller:', error));
         }
     };

@@ -13,20 +13,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   await pool.query(
     `
-      UPDATE crm_users
-      SET
-        name = $2,
-        avatar = $3,
-        role = $4,
-        email = $5,
-        phone = $6,
-        username = $7,
-        status = $8,
-        sales = $9,
-        commission = $10,
-        password = $11,
+      INSERT INTO crm_users (id, name, avatar, role, email, phone, username, status, sales, commission, password, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+      ON CONFLICT (id) DO UPDATE SET
+        name = EXCLUDED.name,
+        avatar = EXCLUDED.avatar,
+        role = EXCLUDED.role,
+        email = EXCLUDED.email,
+        phone = EXCLUDED.phone,
+        username = EXCLUDED.username,
+        status = EXCLUDED.status,
+        sales = EXCLUDED.sales,
+        commission = EXCLUDED.commission,
+        password = EXCLUDED.password,
         updated_at = NOW()
-      WHERE id = $1
     `,
     [
       id,
