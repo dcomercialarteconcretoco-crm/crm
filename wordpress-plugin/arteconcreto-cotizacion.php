@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Arte Concreto – Botón Pedir Cotización
  * Description: Agrega un botón "Pedir Cotización" en las páginas de producto WooCommerce. Envía la solicitud al CRM MiWibi y la crea automáticamente en el pipeline.
- * Version: 1.0.0
+ * Version: 2.0.0
  * Author: Arte Concreto / MiWibi
  * Text Domain: ac-cotizacion
  */
@@ -10,8 +10,7 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 // ── Configuración ────────────────────────────────────────────────────────────
-// Cambia esta URL por la URL de producción de tu CRM
-define( 'AC_CRM_ENDPOINT', 'https://crm-sand-three.vercel.app/api/woo-quote' );
+define( 'AC_CRM_ENDPOINT', 'https://crm-sand-three.vercel.app/api/public/quote-request' );
 // Color primario del botón (dorado Arte Concreto)
 define( 'AC_BUTTON_COLOR', '#fab510' );
 
@@ -220,14 +219,14 @@ function ac_cotizacion_button() {
                 company: form.company.value.trim(),
                 message: form.message.value.trim(),
                 source:  'WooCommerce',
-                product: {
-                    name:  PROD_NAME,
-                    sku:   PROD_SKU,
-                    price: PROD_PRICE,
-                    qty:   qty,
-                    image: PROD_IMG,
-                    url:   PROD_URL,
-                }
+                items: [{
+                    name:     PROD_NAME,
+                    sku:      PROD_SKU,
+                    price:    PROD_PRICE,
+                    quantity: qty,
+                    image:    PROD_IMG,
+                    url:      PROD_URL,
+                }]
             };
 
             el('ac-quote-form').style.display = 'none';
@@ -236,7 +235,10 @@ function ac_cotizacion_button() {
 
             fetch(CRM_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Origin': window.location.origin
+                },
                 body: JSON.stringify(data)
             })
             .then(function(r) { return r.json(); })
