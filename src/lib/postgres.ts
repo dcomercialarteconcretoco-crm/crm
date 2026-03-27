@@ -95,4 +95,40 @@ export async function ensureCrmSchema() {
       uploaded_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_biolinks (
+      id TEXT PRIMARY KEY,
+      seller_id TEXT,
+      slug TEXT UNIQUE NOT NULL,
+      photo TEXT,
+      name TEXT NOT NULL,
+      title TEXT,
+      phone TEXT,
+      email TEXT,
+      instagram TEXT,
+      facebook TEXT,
+      linkedin TEXT,
+      whatsapp TEXT,
+      website TEXT,
+      youtube_url TEXT,
+      maps_url TEXT,
+      active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_biolink_settings (
+      id TEXT PRIMARY KEY DEFAULT 'global',
+      form_fields JSONB NOT NULL DEFAULT '{"name":true,"email":true,"phone":true,"city":true}'::jsonb,
+      theme TEXT NOT NULL DEFAULT 'dark',
+      primary_color TEXT NOT NULL DEFAULT '#fab510',
+      show_youtube BOOLEAN NOT NULL DEFAULT false,
+      show_map BOOLEAN NOT NULL DEFAULT false,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    INSERT INTO crm_biolink_settings (id) VALUES ('global') ON CONFLICT (id) DO NOTHING;
+  `);
 }

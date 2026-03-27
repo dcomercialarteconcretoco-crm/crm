@@ -158,7 +158,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         pathname.toLowerCase().includes('login') ||
         pathname.toLowerCase().includes('register') ||
         pathname.startsWith('/public') ||
-        pathname.startsWith('/widget');
+        pathname.startsWith('/widget') ||
+        pathname.startsWith('/b/') ||
+        pathname === '/reset-password';
 
     useEffect(() => {
         if (!currentUser && !isPublicPage && !isHydrating) {

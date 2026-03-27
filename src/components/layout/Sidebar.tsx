@@ -16,7 +16,8 @@ import {
   Shield,
   FilePlus2,
   Loader2,
-  FolderOpen
+  FolderOpen,
+  CreditCard
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -38,6 +39,7 @@ const navItems = [
   { name: 'Equipo', href: '/team', icon: Users },
   { name: 'Formbuilder IA', href: '/forms', icon: FilePlus2 },
   { name: 'Documentos', href: '/documents', icon: FolderOpen },
+  { name: 'Tarjetas Digitales', href: '/biolinks', icon: CreditCard },
 ];
 
 
