@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Arte Concreto – Botón Pedir Cotización
  * Description: Agrega un botón "Pedir Cotización" en las páginas de producto WooCommerce. Envía la solicitud al CRM MiWibi y la crea automáticamente en el pipeline.
- * Version: 2.3.0
+ * Version: 2.4.0
  * Author: Arte Concreto / MiWibi
  * Text Domain: ac-cotizacion
  */
@@ -10,8 +10,9 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 // ── Configuración ────────────────────────────────────────────────────────────
-define( 'AC_CRM_ENDPOINT', 'https://crm-sand-three.vercel.app/api/public/quote-request' );
+define( 'AC_CRM_ENDPOINT',  'https://crm-sand-three.vercel.app/api/public/quote-request' );
 define( 'AC_BUTTON_COLOR', '#fab510' );
+define( 'AC_WHATSAPP_NUM', '573150231956' );
 
 // ── AJAX: búsqueda de productos ──────────────────────────────────────────────
 add_action( 'wp_ajax_nopriv_ac_search_products', 'ac_search_products_handler' );
@@ -208,15 +209,26 @@ function ac_cotizacion_button() {
                                   onfocus="this.style.borderColor='<?php echo AC_BUTTON_COLOR; ?>'" onblur="this.style.borderColor='#ddd'"></textarea>
                     </div>
 
-                    <!-- Submit -->
+                    <!-- Botones de acción -->
                     <button type="submit" id="ac-submit-btn" style="
                         width:100%; padding:15px; background:<?php echo AC_BUTTON_COLOR; ?>; color:#000;
                         font-weight:900; font-size:14px; letter-spacing:.1em; text-transform:uppercase;
                         border:none; border-radius:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px;
-                        font-family:inherit; transition:opacity .2s;
+                        font-family:inherit; transition:opacity .2s; margin-bottom:10px;
                     " onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
                         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                        Enviar Solicitud
+                        Enviar Solicitud por Correo
+                    </button>
+
+                    <!-- WhatsApp -->
+                    <button type="button" id="ac-whatsapp-btn" style="
+                        width:100%; padding:15px; background:#25d366; color:#fff;
+                        font-weight:900; font-size:14px; letter-spacing:.1em; text-transform:uppercase;
+                        border:none; border-radius:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px;
+                        font-family:inherit; transition:opacity .2s;
+                    " onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.118 1.528 5.852L0 24l6.318-1.508A11.954 11.954 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 0 1-5.007-1.369l-.359-.213-3.728.89.923-3.628-.234-.373A9.818 9.818 0 1 1 12 21.818z"/></svg>
+                        Hablar por WhatsApp
                     </button>
 
                     <p style="margin:12px 0 0; font-size:11px; color:#aaa; text-align:center;">🔒 Tus datos son confidenciales y no serán compartidos.</p>
@@ -255,6 +267,7 @@ function ac_cotizacion_button() {
         var CRM_URL    = '<?php echo esc_js( AC_CRM_ENDPOINT ); ?>';
         var AJAX_URL   = '<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>';
         var GOLD       = '<?php echo AC_BUTTON_COLOR; ?>';
+        var WA_NUM     = '<?php echo AC_WHATSAPP_NUM; ?>';
 
         var PROD_NAME  = <?php echo json_encode( $product->get_name() ); ?>;
         var PROD_SKU   = <?php echo json_encode( $product->get_sku() ); ?>;
@@ -481,6 +494,79 @@ function ac_cotizacion_button() {
                 el('ac-sending').style.display = 'none';
                 el('ac-quote-form').style.display = 'block';
                 el('ac-error').style.display = 'block';
+            });
+        });
+
+        // ── WhatsApp ────────────────────────────────────────────────────
+        el('ac-whatsapp-btn').addEventListener('click', function() {
+            var form = el('ac-quote-form');
+
+            // Validación mínima: nombre + email
+            var nameVal  = form.name.value.trim();
+            var emailVal = form.email.value.trim();
+            if (!nameVal) { form.name.focus(); form.name.style.borderColor = '#e53e3e'; return; }
+            if (!emailVal || !emailVal.includes('@')) { form.email.focus(); form.email.style.borderColor = '#e53e3e'; return; }
+
+            var phoneVal   = form.phone.value.trim();
+            var cityVal    = form.city.value.trim();
+            var companyVal = form.company.value.trim();
+            var msgVal     = form.message.value.trim();
+
+            // Construir items
+            var items = [{
+                name: PROD_NAME, sku: PROD_SKU, price: PROD_PRICE,
+                quantity: mainQty, image: PROD_IMG, url: PROD_URL,
+            }];
+            Object.values(extraItems).forEach(function(item) {
+                items.push({
+                    name: item.product.name, sku: item.product.sku,
+                    price: item.product.price, quantity: item.qty,
+                    image: item.product.image, url: item.product.url,
+                });
+            });
+
+            var data = {
+                name: nameVal, email: emailVal, phone: phoneVal,
+                city: cityVal, company: companyVal, message: msgVal,
+                source: 'WhatsApp', items: items,
+            };
+
+            // Cambiar botón mientras se envía
+            var btn = el('ac-whatsapp-btn');
+            btn.disabled = true;
+            btn.style.opacity = '.6';
+            btn.textContent = 'Registrando...';
+
+            // 1. Enviar al CRM silenciosamente
+            fetch(CRM_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Origin': window.location.origin },
+                body: JSON.stringify(data),
+            })
+            .catch(function() { /* fallo silencioso, igual abrimos WA */ })
+            .finally(function() {
+                // 2. Construir mensaje pre-llenado para WhatsApp
+                var productLines = items.map(function(it) {
+                    var line = '• ' + it.name + ' x' + it.quantity;
+                    if (it.sku) line += ' (SKU: ' + it.sku + ')';
+                    return line;
+                }).join('\n');
+
+                var waMsg = '¡Hola Arte Concreto! 👋\n\n'
+                    + 'Mi nombre es *' + nameVal + '*'
+                    + (companyVal ? ' de *' + companyVal + '*' : '') + '.\n\n'
+                    + 'Quisiera una cotización para:\n' + productLines + '\n\n'
+                    + (cityVal ? '📍 Ciudad: ' + cityVal + '\n' : '')
+                    + (msgVal  ? '💬 ' + msgVal + '\n' : '')
+                    + '\n📧 ' + emailVal
+                    + (phoneVal ? '\n📱 ' + phoneVal : '');
+
+                var waURL = 'https://wa.me/' + WA_NUM + '?text=' + encodeURIComponent(waMsg);
+                window.open(waURL, '_blank');
+
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.118 1.528 5.852L0 24l6.318-1.508A11.954 11.954 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 0 1-5.007-1.369l-.359-.213-3.728.89.923-3.628-.234-.373A9.818 9.818 0 1 1 12 21.818z"/></svg> Hablar por WhatsApp';
             });
         });
 
