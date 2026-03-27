@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Arte Concreto – Botón Pedir Cotización
  * Description: Agrega un botón "Pedir Cotización" en las páginas de producto WooCommerce. Envía la solicitud al CRM MiWibi y la crea automáticamente en el pipeline.
- * Version: 2.4.0
+ * Version: 2.5.0
  * Author: Arte Concreto / MiWibi
  * Text Domain: ac-cotizacion
  */
@@ -294,6 +294,11 @@ function ac_cotizacion_button() {
             document.body.style.overflow = '';
             el('ac-search-input').value = '';
             el('ac-search-results').style.display = 'none';
+            // Resetear estado para próxima apertura
+            mainQty = 1;
+            el('ac-qty-display').textContent = '1';
+            extraItems = {};
+            renderExtraList();
         }
 
         // ── Cantidad producto principal ──────────────────────────────────
@@ -460,12 +465,12 @@ function ac_cotizacion_button() {
             });
 
             var data = {
-                name:    form.name.value.trim(),
-                email:   form.email.value.trim(),
-                phone:   form.phone.value.trim(),
-                city:    form.city.value.trim(),
-                company: form.company.value.trim(),
-                message: form.message.value.trim(),
+                name:    form.elements['name'].value.trim(),
+                email:   form.elements['email'].value.trim(),
+                phone:   form.elements['phone'].value.trim(),
+                city:    form.elements['city'].value.trim(),
+                company: form.elements['company'].value.trim(),
+                message: form.elements['message'].value.trim(),
                 source:  'WooCommerce',
                 items:   items,
             };
@@ -500,17 +505,23 @@ function ac_cotizacion_button() {
         // ── WhatsApp ────────────────────────────────────────────────────
         el('ac-whatsapp-btn').addEventListener('click', function() {
             var form = el('ac-quote-form');
+            var nameInput  = form.elements['name'];
+            var emailInput = form.elements['email'];
+
+            // Limpiar bordes de validación anteriores
+            nameInput.style.borderColor  = '#ddd';
+            emailInput.style.borderColor = '#ddd';
 
             // Validación mínima: nombre + email
-            var nameVal  = form.name.value.trim();
-            var emailVal = form.email.value.trim();
-            if (!nameVal) { form.name.focus(); form.name.style.borderColor = '#e53e3e'; return; }
-            if (!emailVal || !emailVal.includes('@')) { form.email.focus(); form.email.style.borderColor = '#e53e3e'; return; }
+            var nameVal  = nameInput.value.trim();
+            var emailVal = emailInput.value.trim();
+            if (!nameVal) { nameInput.focus(); nameInput.style.borderColor = '#e53e3e'; return; }
+            if (!emailVal || !emailVal.includes('@')) { emailInput.focus(); emailInput.style.borderColor = '#e53e3e'; return; }
 
-            var phoneVal   = form.phone.value.trim();
-            var cityVal    = form.city.value.trim();
-            var companyVal = form.company.value.trim();
-            var msgVal     = form.message.value.trim();
+            var phoneVal   = form.elements['phone'].value.trim();
+            var cityVal    = form.elements['city'].value.trim();
+            var companyVal = form.elements['company'].value.trim();
+            var msgVal     = form.elements['message'].value.trim();
 
             // Construir items
             var items = [{
@@ -525,49 +536,37 @@ function ac_cotizacion_button() {
                 });
             });
 
-            var data = {
-                name: nameVal, email: emailVal, phone: phoneVal,
-                city: cityVal, company: companyVal, message: msgVal,
-                source: 'WhatsApp', items: items,
-            };
+            // Construir mensaje WhatsApp ANTES del fetch (contexto de gesto de usuario)
+            var productLines = items.map(function(it) {
+                var line = '• ' + it.name + ' x' + it.quantity;
+                if (it.sku) line += ' (SKU: ' + it.sku + ')';
+                return line;
+            }).join('\n');
 
-            // Cambiar botón mientras se envía
-            var btn = el('ac-whatsapp-btn');
-            btn.disabled = true;
-            btn.style.opacity = '.6';
-            btn.textContent = 'Registrando...';
+            var waMsg = '¡Hola Arte Concreto! 👋\n\n'
+                + 'Mi nombre es *' + nameVal + '*'
+                + (companyVal ? ' de *' + companyVal + '*' : '') + '.\n\n'
+                + 'Quisiera una cotización para:\n' + productLines + '\n\n'
+                + (cityVal ? '📍 Ciudad: ' + cityVal + '\n' : '')
+                + (msgVal  ? '💬 ' + msgVal + '\n' : '')
+                + '\n📧 ' + emailVal
+                + (phoneVal ? '\n📱 ' + phoneVal : '');
 
-            // 1. Enviar al CRM silenciosamente
+            var waURL = 'https://wa.me/' + WA_NUM + '?text=' + encodeURIComponent(waMsg);
+
+            // 1. Abrir WhatsApp INMEDIATAMENTE (dentro del gesto del usuario, evita popup blocker)
+            window.open(waURL, '_blank');
+
+            // 2. Enviar al CRM en segundo plano (silencioso)
             fetch(CRM_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Origin': window.location.origin },
-                body: JSON.stringify(data),
-            })
-            .catch(function() { /* fallo silencioso, igual abrimos WA */ })
-            .finally(function() {
-                // 2. Construir mensaje pre-llenado para WhatsApp
-                var productLines = items.map(function(it) {
-                    var line = '• ' + it.name + ' x' + it.quantity;
-                    if (it.sku) line += ' (SKU: ' + it.sku + ')';
-                    return line;
-                }).join('\n');
-
-                var waMsg = '¡Hola Arte Concreto! 👋\n\n'
-                    + 'Mi nombre es *' + nameVal + '*'
-                    + (companyVal ? ' de *' + companyVal + '*' : '') + '.\n\n'
-                    + 'Quisiera una cotización para:\n' + productLines + '\n\n'
-                    + (cityVal ? '📍 Ciudad: ' + cityVal + '\n' : '')
-                    + (msgVal  ? '💬 ' + msgVal + '\n' : '')
-                    + '\n📧 ' + emailVal
-                    + (phoneVal ? '\n📱 ' + phoneVal : '');
-
-                var waURL = 'https://wa.me/' + WA_NUM + '?text=' + encodeURIComponent(waMsg);
-                window.open(waURL, '_blank');
-
-                btn.disabled = false;
-                btn.style.opacity = '1';
-                btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.118 1.528 5.852L0 24l6.318-1.508A11.954 11.954 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 0 1-5.007-1.369l-.359-.213-3.728.89.923-3.628-.234-.373A9.818 9.818 0 1 1 12 21.818z"/></svg> Hablar por WhatsApp';
-            });
+                body: JSON.stringify({
+                    name: nameVal, email: emailVal, phone: phoneVal,
+                    city: cityVal, company: companyVal, message: msgVal,
+                    source: 'WhatsApp', items: items,
+                }),
+            }).catch(function() { /* fallo silencioso */ });
         });
 
         function escHtml(str) {
