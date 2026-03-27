@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import Link from 'next/link';
 import {
     BarChart3,
     TrendingUp,
@@ -11,7 +12,11 @@ import {
     Download,
     Activity,
     Zap,
-    Target
+    Target,
+    ExternalLink,
+    CheckCircle2,
+    Clock,
+    AlertCircle
 } from 'lucide-react';
 import {
     BarChart,
@@ -186,6 +191,71 @@ export default function AnalyticsPage() {
                         </p>
                     </div>
                 </div>
+            </div>
+
+            {/* Cotizaciones Recientes — clickable rows */}
+            <div className="bg-card border border-border/40 rounded-3xl p-8">
+                <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-black uppercase tracking-tighter">Cotizaciones Recientes</h3>
+                    <Link href="/quotes" className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline flex items-center gap-1">
+                        Ver todas <ExternalLink className="w-3 h-3" />
+                    </Link>
+                </div>
+                {quotes.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center gap-3 text-muted-foreground">
+                        <BarChart3 className="w-10 h-10 opacity-20" />
+                        <p className="text-xs font-bold uppercase tracking-widest opacity-40">Sin cotizaciones aún</p>
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto -mx-2">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="border-b border-border/40">
+                                    {['#', 'Cliente', 'Fecha', 'Total', 'Estado'].map(h => (
+                                        <th key={h} className="text-left text-[9px] font-black uppercase tracking-widest text-muted-foreground/50 pb-3 px-2">{h}</th>
+                                    ))}
+                                    <th className="pb-3 px-2"></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border/20">
+                                {quotes.slice(0, 10).map(q => {
+                                    const statusMap: Record<string, { label: string; icon: React.ElementType; cls: string }> = {
+                                        'Sent':     { label: 'Enviada',   icon: Clock,         cls: 'text-sky-500 bg-sky-500/10 border-sky-500/20' },
+                                        'Approved': { label: 'Aprobada', icon: CheckCircle2,   cls: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20' },
+                                        'Draft':    { label: 'Borrador', icon: AlertCircle,    cls: 'text-amber-500 bg-amber-500/10 border-amber-500/20' },
+                                        'Rejected': { label: 'Rechazada',icon: AlertCircle,    cls: 'text-rose-500 bg-rose-500/10 border-rose-500/20' },
+                                    };
+                                    const st = statusMap[q.status] || statusMap['Draft'];
+                                    const StIcon = st.icon;
+                                    return (
+                                        <tr
+                                            key={q.id}
+                                            onClick={() => window.location.href = `/quotes/${q.id}/edit`}
+                                            className="cursor-pointer hover:bg-muted/30 transition-colors group"
+                                        >
+                                            <td className="px-2 py-3.5 text-[10px] font-black text-primary uppercase">{q.number || q.id.slice(0,8)}</td>
+                                            <td className="px-2 py-3.5">
+                                                <p className="font-bold text-xs text-foreground truncate max-w-[140px]">{q.client || q.clientEmail || '—'}</p>
+                                                {q.clientCompany && q.clientCompany !== q.client && <p className="text-[9px] text-muted-foreground truncate max-w-[140px]">{q.clientCompany}</p>}
+                                            </td>
+                                            <td className="px-2 py-3.5 text-[10px] text-muted-foreground whitespace-nowrap">{q.date || '—'}</td>
+                                            <td className="px-2 py-3.5 text-sm font-black text-foreground whitespace-nowrap">{q.total || '—'}</td>
+                                            <td className="px-2 py-3.5">
+                                                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-black uppercase border ${st.cls}`}>
+                                                    <StIcon className="w-2.5 h-2.5" />
+                                                    {st.label}
+                                                </span>
+                                            </td>
+                                            <td className="px-2 py-3.5 text-right">
+                                                <ExternalLink className="w-3 h-3 text-muted-foreground/30 group-hover:text-primary transition-colors" />
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
         </div>
     );

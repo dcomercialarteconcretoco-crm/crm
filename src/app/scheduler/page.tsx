@@ -484,6 +484,25 @@ export default function SchedulerPage() {
             const { id: _localOnlyId, ...eventPayload } = eventToPersist;
             addEvent(eventPayload);
 
+            // Send email invitations to attendees with email addresses
+            const inviteesWithEmail = form.invitees.filter(inv => inv.email?.includes('@'));
+            if (inviteesWithEmail.length > 0) {
+                fetch('/api/agenda/notify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: form.title,
+                        date: form.date,
+                        time: form.time,
+                        type: form.type,
+                        meetingLink: eventToPersist.meetingLink || '',
+                        description: form.description || '',
+                        invitees: inviteesWithEmail,
+                        organizer: currentUser?.name || 'Arte Concreto',
+                    }),
+                }).catch(console.error);
+            }
+
             setIsModalOpen(false);
             setForm({
                 title: '',
@@ -1001,7 +1020,7 @@ export default function SchedulerPage() {
                                 <div className="space-y-3">
                                     <h4 className="text-[9px] font-black uppercase text-muted-foreground tracking-widest pl-1">Equipo Comercial</h4>
                                     <div className="space-y-1.5">
-                                        {sellers.filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase())).map(seller => (
+                                        {sellers.filter(s => [s.name, s.email || ''].some(v => v.toLowerCase().includes(searchQuery.toLowerCase()))).map(seller => (
                                             <button key={seller.id} onClick={() => toggleInvitee(seller, 'vendedor')}
                                                 className={clsx("w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left",
                                                     form.invitees.find(i => i.id === seller.id) ? "bg-primary/10 border-primary/30" : "bg-card border-border hover:border-primary/30"
@@ -1025,7 +1044,7 @@ export default function SchedulerPage() {
                                 <div className="space-y-3 pb-6">
                                     <h4 className="text-[9px] font-black uppercase text-muted-foreground tracking-widest pl-1">Prospectos / Clientes</h4>
                                     <div className="space-y-1.5">
-                                        {clients.filter(l => l.name.toLowerCase().includes(searchQuery.toLowerCase())).map(lead => (
+                                        {clients.filter(l => [l.name, l.company || '', l.email || ''].some(v => v.toLowerCase().includes(searchQuery.toLowerCase()))).map(lead => (
                                             <button key={lead.id} onClick={() => toggleInvitee(lead, 'lead')}
                                                 className={clsx("w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left",
                                                     form.invitees.find(i => i.id === lead.id) ? "bg-primary/10 border-primary/30" : "bg-card border-border hover:border-primary/30"

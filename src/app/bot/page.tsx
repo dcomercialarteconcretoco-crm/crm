@@ -805,6 +805,70 @@ export default function MiWiBotPage() {
                                 </React.Fragment>
                             )}
                         </div>
+
+                        {/* Product Catalog Panel — right column (desktop only) */}
+                        <div className="hidden xl:flex w-64 border-l border-border/40 flex-col bg-muted/5 shrink-0">
+                            <div className="p-4 border-b border-border/40 space-y-3">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">Catálogo de Productos</p>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/30" />
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar..."
+                                        value={searchProduct}
+                                        onChange={e => setSearchProduct(e.target.value)}
+                                        className="w-full bg-card border border-border/40 rounded-xl pl-9 pr-3 py-2 text-[11px] outline-none focus:border-primary/50 text-foreground transition-all"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2">
+                                {products
+                                    .filter(p => !searchProduct || p.name.toLowerCase().includes(searchProduct.toLowerCase()))
+                                    .slice(0, 30)
+                                    .map(p => {
+                                        const price = typeof p.price === 'number' ? p.price : Number(String(p.price).replace(/[^0-9.]/g, '')) || 0;
+                                        const fmtPrice = price > 0
+                                            ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(price)
+                                            : 'Consultar';
+                                        const copyText = `*${p.name}*\nPrecio: ${fmtPrice}\nSKU: ${p.sku || 'N/A'}`;
+                                        return (
+                                            <div key={p.id} className="bg-card border border-border/40 rounded-xl p-3 hover:border-primary/30 transition-colors group">
+                                                <div className="flex items-start gap-2">
+                                                    {p.image ? (
+                                                        <img src={p.image} alt={p.name} className="w-10 h-10 rounded-lg object-cover bg-muted shrink-0 border border-border/30" />
+                                                    ) : (
+                                                        <div className="w-10 h-10 rounded-lg bg-muted/50 border border-border/30 flex items-center justify-center shrink-0">
+                                                            <Package className="w-4 h-4 text-muted-foreground/30" />
+                                                        </div>
+                                                    )}
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[11px] font-black text-foreground leading-tight line-clamp-2">{p.name}</p>
+                                                        <p className="text-[10px] text-primary font-black mt-0.5">{fmtPrice}</p>
+                                                        {p.sku && <p className="text-[8px] text-muted-foreground uppercase tracking-wider">{p.sku}</p>}
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={async () => {
+                                                        try { await navigator.clipboard.writeText(copyText); } catch { /* ignore */ }
+                                                        setReplyText(prev => prev ? `${prev}\n${copyText}` : copyText);
+                                                        addNotification({ title: 'Producto copiado', description: p.name, type: 'success' });
+                                                    }}
+                                                    className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-muted/50 hover:bg-primary/10 hover:text-primary border border-border/30 hover:border-primary/30 transition-all text-[9px] font-black uppercase tracking-wider text-muted-foreground"
+                                                >
+                                                    <Copy className="w-3 h-3" />
+                                                    Copiar al chat
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                {products.length === 0 && (
+                                    <div className="flex flex-col items-center justify-center py-8 text-center gap-2">
+                                        <Package className="w-8 h-8 text-muted-foreground/20" />
+                                        <p className="text-[9px] text-muted-foreground/40 font-bold uppercase tracking-wider">Sin productos sincronizados</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </React.Fragment>
                 )}
 
