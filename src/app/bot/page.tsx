@@ -483,21 +483,18 @@ export default function MiWiBotPage() {
                                 className="h-3.5 object-contain brightness-0 opacity-75"
                             />
                         </div>
-                        <div className={clsx(
-                            "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[8px] font-black uppercase tracking-widest w-fit",
-                            settings.whatsapp.status === 'connected'
-                                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-500"
-                                : settings.whatsapp.status === 'error'
-                                    ? "border-rose-500/20 bg-rose-500/10 text-rose-500"
-                                    : "border-amber-500/20 bg-amber-500/10 text-amber-500"
-                        )}>
-                            <MessageCircle className="w-3 h-3" />
-                            {settings.whatsapp.status === 'connected'
-                                ? `WhatsApp listo${settings.whatsapp.displayPhoneNumber ? ` · ${settings.whatsapp.displayPhoneNumber}` : ''}`
-                                : settings.whatsapp.status === 'error'
-                                    ? 'WhatsApp con error'
-                                    : 'WhatsApp pendiente'}
-                        </div>
+                        {settings.whatsapp.status === 'connected' && (
+                            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[8px] font-black uppercase tracking-widest w-fit border-emerald-500/20 bg-emerald-500/10 text-emerald-500">
+                                <MessageCircle className="w-3 h-3" />
+                                {`WhatsApp listo${settings.whatsapp.displayPhoneNumber ? ` · ${settings.whatsapp.displayPhoneNumber}` : ''}`}
+                            </div>
+                        )}
+                        {settings.whatsapp.status === 'error' && (
+                            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[8px] font-black uppercase tracking-widest w-fit border-rose-500/20 bg-rose-500/10 text-rose-500">
+                                <MessageCircle className="w-3 h-3" />
+                                WhatsApp con error
+                            </div>
+                        )}
                     </div>
                 </div>
 

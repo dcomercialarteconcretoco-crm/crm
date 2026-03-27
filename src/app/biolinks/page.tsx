@@ -540,8 +540,16 @@ function BiolinkPreview({ form, settings }: { form: Partial<Biolink>; settings: 
     const txt = isDark ? '#fff' : '#111';
     const sub = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)';
     return (
-        <div style={{ background: bg, minHeight: 480, padding: '32px 20px 24px', fontFamily: 'system-ui,sans-serif' }}>
+        <div style={{ background: bg, minHeight: 480, padding: '28px 20px 24px', fontFamily: 'system-ui,sans-serif' }}>
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                {/* Logo arriba */}
+                <div style={{ marginBottom: 18, display: 'flex', justifyContent: 'center' }}>
+                    <img
+                        src="https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png"
+                        alt="Arte Concreto"
+                        style={{ height: 34, objectFit: 'contain', filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? 0.95 : 0.85 }}
+                    />
+                </div>
                 {form.photo ? (
                     <img src={form.photo} style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', border: `3px solid ${pc}`, margin: '0 auto 10px', display: 'block' }} />
                 ) : (
@@ -551,14 +559,6 @@ function BiolinkPreview({ form, settings }: { form: Partial<Biolink>; settings: 
                 )}
                 <p style={{ margin: 0, fontWeight: 900, fontSize: 16, color: txt }}>{form.name || 'Nombre del empleado'}</p>
                 {form.title && <p style={{ margin: '4px 0 0', fontSize: 11, color: sub }}>{form.title}</p>}
-                {/* Company logo — white in dark mode */}
-                <div style={{ marginTop: 10, display: 'flex', justifyContent: 'center' }}>
-                    <img
-                        src="https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png"
-                        alt="Arte Concreto"
-                        style={{ height: 22, objectFit: 'contain', filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? 0.9 : 0.8 }}
-                    />
-                </div>
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
                 {form.instagram && <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(225,48,108,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>📸</div>}

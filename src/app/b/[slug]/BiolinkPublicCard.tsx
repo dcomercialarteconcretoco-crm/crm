@@ -101,11 +101,11 @@ export default function BiolinkPublicCard({ card, settings }: { card: Biolink; s
                 {/* Hero */}
                 <div style={{ textAlign: 'center', padding: '28px 0 24px' }}>
                     {/* Logo — top of card */}
-                    <div style={{ marginBottom: 24 }}>
+                    <div style={{ marginBottom: 28 }}>
                         <img
                             src="https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png"
                             alt="Arte Concreto"
-                            style={{ height: 48, objectFit: 'contain', display: 'block', margin: '0 auto', filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? 0.95 : 0.9 }}
+                            style={{ height: 80, objectFit: 'contain', display: 'block', margin: '0 auto', filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? 0.95 : 0.9 }}
                         />
                     </div>
 

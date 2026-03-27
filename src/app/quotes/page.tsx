@@ -12,10 +12,10 @@ import { useApp, Quote } from '@/context/AppContext';
 import { generateProposalPDF } from '@/lib/pdf-generator';
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
-    'Draft':    { label: 'Borrador',  className: 'bg-muted/40 text-muted-foreground border-border/60' },
-    'Sent':     { label: 'Visto',     className: 'bg-sky-500/10 text-sky-600 border-sky-500/20' },
-    'Approved': { label: 'Ganado',    className: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' },
-    'Rejected': { label: 'Perdido',   className: 'bg-rose-500/10 text-rose-500 border-rose-500/20' },
+    'Draft':    { label: 'Borrador',  className: 'bg-muted/40 text-muted-foreground' },
+    'Sent':     { label: 'Visto',     className: 'bg-sky-500/10 text-sky-600' },
+    'Approved': { label: 'Ganado',    className: 'bg-emerald-500/10 text-emerald-600' },
+    'Rejected': { label: 'Perdido',   className: 'bg-rose-500/10 text-rose-500' },
 };
 
 function ScoreBar({ score }: { score: number }) {
@@ -159,24 +159,28 @@ export default function QuotesPage() {
     };
 
     return (
-        <div className="space-y-5 animate-in fade-in duration-500 pb-24 lg:pb-10">
+        <div className="space-y-6 animate-in fade-in duration-500 pb-24 lg:pb-10">
 
-            {/* Header */}
+            {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl lg:text-3xl font-black tracking-tight text-foreground italic uppercase">Historial de Cotizaciones</h1>
-                    <p className="text-sm text-muted-foreground font-medium mt-1">
+                    <h1 className="page-title">Historial de Cotizaciones</h1>
+                    <p className="page-subtitle">
                         {validQuotes.length} cotizaciones · {quotes.filter(q => q.status === 'Draft').length} solicitudes pendientes
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <button onClick={exportCSV}
-                        className="flex items-center gap-2 px-4 py-3 bg-white/60 border border-border/60 rounded-xl text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground hover:bg-white/90 transition-all">
+                    <button
+                        onClick={exportCSV}
+                        className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted transition-colors flex items-center gap-2 text-sm"
+                    >
                         <ArrowDownToLine className="w-3.5 h-3.5" />
                         Exportar CSV ({filtered.length})
                     </button>
-                    <Link href="/quotes/new"
-                        className="bg-primary text-black font-black px-5 py-3 rounded-xl flex items-center gap-2 hover:scale-105 transition-all shadow-lg shadow-primary/20 text-[10px] uppercase tracking-widest">
+                    <Link
+                        href="/quotes/new"
+                        className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 transition-all shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2 text-sm"
+                    >
                         <Plus className="w-4 h-4" />
                         Nueva Cotización
                     </Link>
@@ -185,72 +189,77 @@ export default function QuotesPage() {
 
             {/* Stats bar */}
             <div className="grid grid-cols-3 gap-4">
-                <div className="surface-panel rounded-[1.5rem] p-5">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-2">Total Cotizado</p>
+                <div className="surface-card rounded-xl p-5">
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Total Cotizado</p>
                     <p className="text-xl lg:text-2xl font-black text-foreground tracking-tight">{fmt(stats.total)}</p>
                 </div>
-                <div className="surface-panel rounded-[1.5rem] p-5">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600 mb-2 flex items-center gap-1">
+                <div className="surface-card rounded-xl p-5">
+                    <p className="text-xs font-bold uppercase tracking-widest text-emerald-600 mb-2 flex items-center gap-1">
                         <Trophy className="w-3 h-3" /> Ganado
                     </p>
                     <p className="text-xl lg:text-2xl font-black text-emerald-600 tracking-tight">{fmt(stats.ganado)}</p>
                 </div>
-                <div className="surface-panel rounded-[1.5rem] p-5">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-primary mb-2 flex items-center gap-1">
+                <div className="surface-card rounded-xl p-5">
+                    <p className="text-xs font-bold uppercase tracking-widest text-primary mb-2 flex items-center gap-1">
                         <TrendingUp className="w-3 h-3" /> Tasa Apertura
                     </p>
                     <p className="text-xl lg:text-2xl font-black text-primary tracking-tight">{stats.apertura}%</p>
                 </div>
             </div>
 
-            {/* Filters */}
-            <div className="surface-panel rounded-[1.5rem] overflow-hidden">
-                <div className="p-4 border-b border-border/40 flex flex-col sm:flex-row sm:items-center gap-3">
+            {/* Filters + Table */}
+            <div className="surface-card rounded-2xl overflow-hidden">
+
+                {/* Filter bar */}
+                <div className="p-4 border-b border-border flex flex-col sm:flex-row sm:items-center gap-3">
                     <div className="relative flex-1 max-w-sm">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <input
                             type="text"
                             placeholder="Buscar cliente, cotización o email..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full bg-white/60 border border-border/60 rounded-xl pl-11 pr-4 py-2.5 text-sm font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/60"
+                            className="w-full bg-muted border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all placeholder:text-muted-foreground/60"
                         />
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                         {[
-                            { value: 'all', label: 'Todas las etapas' },
+                            { value: 'all', label: 'Todas' },
                             { value: 'Draft', label: 'Borrador' },
                             { value: 'Sent', label: 'Visto' },
                             { value: 'Approved', label: 'Ganado' },
                             { value: 'Rejected', label: 'Perdido' },
                         ].map(opt => (
-                            <button key={opt.value} onClick={() => setFilterStatus(opt.value)}
+                            <button
+                                key={opt.value}
+                                onClick={() => setFilterStatus(opt.value)}
                                 className={clsx(
-                                    'px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border',
+                                    'px-3 py-1.5 rounded-xl text-xs font-bold transition-all border',
                                     filterStatus === opt.value
                                         ? 'bg-primary text-black border-primary'
-                                        : 'bg-white/40 text-muted-foreground border-border/50 hover:bg-white/70'
-                                )}>
+                                        : 'bg-white border-border text-muted-foreground hover:bg-muted'
+                                )}
+                            >
                                 {opt.label}
                             </button>
                         ))}
                     </div>
-                    <span className="text-[10px] font-bold text-muted-foreground ml-auto shrink-0">{filtered.length} resultados</span>
+                    <span className="text-xs font-bold text-muted-foreground ml-auto shrink-0">{filtered.length} resultados</span>
                 </div>
 
                 {/* Table header — desktop */}
-                <div className="hidden md:grid grid-cols-[1fr_1.4fr_0.8fr_0.7fr_0.6fr_0.9fr_auto] gap-0 border-b border-border/30 bg-muted/10 px-5 py-3">
+                <div className="hidden md:grid grid-cols-[1fr_1.4fr_0.8fr_0.7fr_0.6fr_0.9fr_auto] border-b border-border bg-muted/30 px-5 py-3 gap-4">
                     {['Cotización', 'Cliente', 'Monto', 'Etapa', 'Score', 'Vendedor', ''].map(h => (
-                        <span key={h} className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">{h}</span>
+                        <span key={h} className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{h}</span>
                     ))}
                 </div>
 
                 {/* Rows */}
-                <div className="divide-y divide-border/30">
+                <div className="divide-y divide-border">
                     {filtered.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-16 gap-3">
                             <FileText className="w-10 h-10 text-muted-foreground/20" />
-                            <p className="text-sm font-black uppercase tracking-widest text-muted-foreground/40">Sin cotizaciones</p>
+                            <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground/40">Sin cotizaciones</p>
                         </div>
                     ) : filtered.map(quote => {
                         const statusCfg = STATUS_CONFIG[quote.status] || STATUS_CONFIG['Draft'];
@@ -258,35 +267,38 @@ export default function QuotesPage() {
                         const isGen = isGenerating === quote.id;
 
                         return (
-                            <div key={quote.id}
-                                className="grid grid-cols-1 md:grid-cols-[1fr_1.4fr_0.8fr_0.7fr_0.6fr_0.9fr_auto] gap-0 items-center px-5 py-3 hover:bg-white/30 transition-all group">
-
+                            <div
+                                key={quote.id}
+                                className="grid grid-cols-1 md:grid-cols-[1fr_1.4fr_0.8fr_0.7fr_0.6fr_0.9fr_auto] gap-4 items-center px-5 py-3.5 hover:bg-muted/20 transition-all group"
+                            >
                                 {/* Quote number + date */}
-                                <div className="flex items-center gap-3 py-2 md:py-0">
-                                    {/* Eye icon if sent */}
+                                <div className="flex items-center gap-2.5 py-1 md:py-0">
                                     {(quote.status === 'Sent' || quote.status === 'Approved') && (
                                         <Eye className="w-3.5 h-3.5 text-sky-500 shrink-0" />
                                     )}
                                     <div className="min-w-0">
-                                        <p className="text-sm font-black text-foreground">{quote.number || '—'}</p>
-                                        <p className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-wider">{quote.date || '—'}</p>
+                                        <p className="text-sm font-bold text-foreground">{quote.number || '—'}</p>
+                                        <p className="text-xs text-muted-foreground">{quote.date || '—'}</p>
                                     </div>
                                 </div>
 
                                 {/* Client */}
                                 <div className="min-w-0 py-1 md:py-0">
-                                    <p className="text-sm font-black text-foreground truncate">{quote.client || '—'}</p>
+                                    <p className="text-sm font-bold text-foreground truncate">{quote.client || '—'}</p>
                                     {quote.clientEmail && (
-                                        <p className="text-[9px] font-medium text-muted-foreground/60 truncate">{quote.clientEmail}</p>
+                                        <p className="text-xs text-muted-foreground truncate">{quote.clientEmail}</p>
                                     )}
                                 </div>
 
                                 {/* Amount */}
-                                <p className="text-sm font-black text-foreground tabular-nums py-1 md:py-0">{quote.total || '—'}</p>
+                                <p className="text-sm font-bold text-foreground tabular-nums py-1 md:py-0">{quote.total || '—'}</p>
 
                                 {/* Status badge */}
                                 <div className="py-1 md:py-0">
-                                    <span className={clsx('text-[9px] font-black px-2.5 py-1 rounded-lg border uppercase tracking-widest', statusCfg.className)}>
+                                    <span className={clsx(
+                                        'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold',
+                                        statusCfg.className
+                                    )}>
                                         {statusCfg.label}
                                     </span>
                                 </div>
@@ -301,7 +313,7 @@ export default function QuotesPage() {
                                     <select
                                         value={quote.sellerName || ''}
                                         onChange={e => handleAssignSeller(quote.id, e.target.value)}
-                                        className="w-full max-w-[140px] bg-white/60 border border-border/50 rounded-lg px-2 py-1.5 text-[10px] font-bold text-foreground outline-none focus:border-primary transition-all appearance-none cursor-pointer"
+                                        className="w-full max-w-[140px] bg-muted border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary focus:bg-white transition-all appearance-none cursor-pointer"
                                     >
                                         <option value="">Sin asignar</option>
                                         {sellers.map(s => (
@@ -312,24 +324,40 @@ export default function QuotesPage() {
 
                                 {/* Action buttons */}
                                 <div className="flex items-center gap-1.5 py-1 md:py-0 md:opacity-40 md:group-hover:opacity-100 transition-all justify-end">
-                                    <Link href={`/quotes/${quote.id}/edit`} title="Editar cotización"
-                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/60 border border-border/50 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-all">
+                                    <Link
+                                        href={`/quotes/${quote.id}/edit`}
+                                        title="Editar cotización"
+                                        className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-border text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-all"
+                                    >
                                         <Pencil className="w-3.5 h-3.5" />
                                     </Link>
-                                    <Link href={`/quotes`} title="Ver detalle"
-                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/60 border border-border/50 text-muted-foreground hover:text-foreground hover:bg-white/90 transition-all">
+                                    <Link
+                                        href={`/quotes`}
+                                        title="Ver detalle"
+                                        className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                                    >
                                         <ChevronRight className="w-3.5 h-3.5" />
                                     </Link>
-                                    <button onClick={() => handleSendEmail(quote)} title="Enviar por email"
-                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/60 border border-border/50 text-muted-foreground hover:text-sky-500 hover:bg-sky-500/10 transition-all">
+                                    <button
+                                        onClick={() => handleSendEmail(quote)}
+                                        title="Enviar por email"
+                                        className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-border text-muted-foreground hover:text-sky-500 hover:bg-sky-500/10 transition-all"
+                                    >
                                         <Send className="w-3.5 h-3.5" />
                                     </button>
-                                    <button onClick={() => handleSendWhatsApp(quote)} title="Enviar por WhatsApp"
-                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/60 border border-border/50 text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 transition-all">
+                                    <button
+                                        onClick={() => handleSendWhatsApp(quote)}
+                                        title="Enviar por WhatsApp"
+                                        className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-border text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 transition-all"
+                                    >
                                         <MessageCircle className="w-3.5 h-3.5" />
                                     </button>
-                                    <button onClick={() => handleDownloadPDF(quote)} disabled={isGen} title="Descargar PDF"
-                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/60 border border-border/50 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all disabled:opacity-40">
+                                    <button
+                                        onClick={() => handleDownloadPDF(quote)}
+                                        disabled={isGen}
+                                        title="Descargar PDF"
+                                        className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-border text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all disabled:opacity-40"
+                                    >
                                         {isGen
                                             ? <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                                             : <Download className="w-3.5 h-3.5" />

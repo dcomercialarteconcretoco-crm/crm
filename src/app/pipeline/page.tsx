@@ -143,7 +143,7 @@ function SortableTask({ task, onClick, onNote }: { task: Task; onClick: (task: T
     const stage = STAGES.find(s => s.id === currentStage) || STAGES[0];
 
     return (
-        <div ref={setNodeRef} style={style} {...attributes} className="bg-white border border-border rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all">
+        <div ref={setNodeRef} style={style} {...attributes} className="bg-white border border-border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
             {/* Drag handle */}
             <div {...listeners} className="h-5 bg-muted/20 border-b border-border/30 flex items-center justify-center cursor-grab active:cursor-grabbing hover:bg-muted/40 transition-colors">
                 <div className="flex gap-0.5">{[...Array(6)].map((_, i) => <div key={i} className="w-1 h-1 rounded-full bg-muted-foreground/25" />)}</div>
@@ -212,7 +212,7 @@ function SortableTask({ task, onClick, onNote }: { task: Task; onClick: (task: T
 
 function VirtualLeadCard({ client, onStart }: { client: Client; onStart: (client: Client) => void }) {
     return (
-        <div className="bg-white/80 border border-dashed border-gray-300 rounded-xl overflow-hidden hover:border-primary/40 hover:bg-white transition-all">
+        <div className="bg-white border border-dashed border-gray-300 rounded-xl overflow-hidden hover:border-primary/40 transition-all">
             <div className="px-3 pt-2.5 pb-2 space-y-1.5">
                 <h4 className="text-xs font-black text-foreground leading-tight truncate">{client.company || client.name}</h4>
                 <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-1 truncate">
@@ -241,7 +241,7 @@ function Droppable({ id, children }: { id: string; children: React.ReactNode }) 
     return (
         <div
             ref={setNodeRef}
-            className="flex-1 min-h-0 h-full bg-white/18 rounded-3xl p-3 space-y-2.5 border border-white/60 backdrop-blur-xl overflow-y-auto overflow-x-hidden custom-scrollbar"
+            className="flex-1 min-h-0 h-full bg-muted/30 rounded-b-2xl p-3 space-y-2.5 border border-t-0 border-border overflow-y-auto overflow-x-hidden custom-scrollbar"
         >
             {children}
         </div>
@@ -659,17 +659,17 @@ export default function PipelinePage() {
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 px-2 lg:px-0">
                 <div>
                     <div className="flex items-center gap-3">
-                        <h1 className="page-hero-title page-hero-title--accent text-2xl lg:text-3xl font-black tracking-tighter uppercase italic">Sales Pipeline</h1>
-                        <span className="text-[10px] bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20 font-black tracking-widest uppercase">Motor V4</span>
+                        <h1 className="page-title">Sales Pipeline</h1>
+                        <span className="text-xs font-bold bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20 uppercase tracking-widest">Motor V4</span>
                     </div>
-                    <p className="text-muted-foreground text-xs font-medium mt-1">Gestión integral de leads y sincronización operativa en tiempo real.</p>
+                    <p className="page-subtitle">Gestión integral de leads y sincronización operativa en tiempo real.</p>
                 </div>
                 <div className="flex flex-col lg:flex-row items-center gap-3 w-full lg:w-auto">
                     <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                    <button onClick={handleImportClick} className="flex-1 lg:flex-none border border-border/40 bg-card text-foreground font-black px-5 py-3 rounded-2xl flex items-center justify-center gap-2 hover:scale-[1.02] hover:bg-muted/30 active:scale-[0.98] transition-all text-[10px] uppercase tracking-[0.2em]">
+                    <button onClick={handleImportClick} className="flex-1 lg:flex-none bg-muted text-muted-foreground border border-border rounded-xl px-4 py-2 hover:bg-muted/80 font-medium flex items-center justify-center gap-2 text-[10px] uppercase tracking-[0.2em]">
                         <Upload className="w-4 h-4" /><span>Importar CSV</span>
                     </button>
-                    <button onClick={() => setIsNewModalOpen(true)} className="flex-1 lg:flex-none bg-primary text-black font-black px-6 py-3 rounded-2xl flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all text-[10px] uppercase tracking-[0.2em]">
+                    <button onClick={() => setIsNewModalOpen(true)} className="flex-1 lg:flex-none bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 transition-all flex items-center justify-center gap-2 text-[10px] uppercase tracking-[0.2em]">
                         <Plus className="w-4 h-4" /><span>Abrir Negocio</span>
                     </button>
                 </div>
@@ -712,9 +712,9 @@ export default function PipelinePage() {
                             return (
                                 <div key={stage.id} className="w-64 h-full flex flex-col shrink-0">
                                     {/* Column header */}
-                                    <div className={clsx('rounded-t-2xl border border-b-0 px-3 pt-2.5 pb-0', stage.bg, stage.border)}>
+                                    <div className={clsx('rounded-t-2xl border px-3 pt-2.5 pb-0', stage.bg, stage.border)}>
                                         <div className="flex items-center justify-between mb-1">
-                                            <span className={clsx('text-[9px] font-black uppercase tracking-[0.18em]', stage.color)}>{stage.label}</span>
+                                            <span className={clsx('text-xs font-bold uppercase tracking-widest', stage.color)}>{stage.label}</span>
                                             <div className={clsx('w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black border', stage.bg, stage.border, stage.color)}>{totalCount}</div>
                                         </div>
                                         {pipelineValue > 0 && (
@@ -729,7 +729,7 @@ export default function PipelinePage() {
                                                     placeholder="Buscar..."
                                                     value={columnSearch[stage.id] || ''}
                                                     onChange={e => setColumnSearch(prev => ({ ...prev, [stage.id]: e.target.value }))}
-                                                    className="w-full pl-7 pr-2 py-1.5 text-[10px] bg-white border border-border/40 rounded-lg outline-none focus:border-primary/40 transition-colors"
+                                                    className="w-full pl-7 pr-2 py-1.5 text-[10px] bg-white border border-border rounded-lg outline-none focus:border-primary transition-colors"
                                                 />
                                             </div>
                                         </div>
@@ -747,9 +747,9 @@ export default function PipelinePage() {
                                                         <VirtualLeadCard key={`virtual-${client.id}`} client={client} onStart={handleStartVirtualLead} />
                                                     ))}
                                                     {totalCount === 0 && (
-                                                        <div className="min-h-[200px] border-2 border-dashed border-border/40 rounded-2xl flex flex-col items-center justify-center text-muted-foreground gap-2 opacity-50">
+                                                        <div className="min-h-[200px] border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center text-muted-foreground gap-2 opacity-50">
                                                             <AlertCircle className="w-5 h-5" />
-                                                            <span className="text-[9px] font-black uppercase tracking-widest">Sin actividad</span>
+                                                            <span className="text-xs font-bold uppercase tracking-widest">Sin actividad</span>
                                                         </div>
                                                     )}
                                                 </div>
@@ -773,8 +773,8 @@ export default function PipelinePage() {
 
             {/* Call Note Modal */}
             {showCallModal && selectedTask && (
-                <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-card border border-border w-full max-w-md rounded-[2rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 animate-in fade-in duration-200" style={{ background: 'rgba(10,12,20,0.55)', backdropFilter: 'blur(6px)' }}>
+                    <div className="bg-white border border-border w-full max-w-md rounded-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
                         <div className="p-6 border-b border-border flex items-center justify-between">
                             <div>
                                 <div className="flex items-center gap-2">
@@ -790,23 +790,23 @@ export default function PipelinePage() {
                             </button>
                         </div>
                         <div className="p-6 space-y-4">
-                            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">¿Qué se habló en la llamada?</p>
+                            <p className="text-xs font-bold uppercase text-muted-foreground tracking-widest">¿Qué se habló en la llamada?</p>
                             <textarea
                                 value={callNoteText}
                                 onChange={e => setCallNoteText(e.target.value)}
                                 placeholder="Ej: Cliente interesado en producto X, solicitó cotización. Próximo seguimiento el lunes..."
                                 rows={5}
                                 autoFocus
-                                className="w-full bg-muted/30 border border-border rounded-2xl px-4 py-3 text-sm text-foreground resize-none outline-none focus:border-primary/60 transition-all font-medium placeholder:font-normal placeholder:text-muted-foreground/40"
+                                className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-sm text-foreground resize-none outline-none focus:border-primary focus:bg-white transition-all font-medium placeholder:font-normal placeholder:text-muted-foreground/40"
                             />
                             <div className="flex gap-3">
-                                <button onClick={() => setShowCallModal(false)} className="px-5 py-2.5 border border-border rounded-xl text-[10px] font-black uppercase text-muted-foreground hover:bg-muted/30 transition-all">
+                                <button onClick={() => setShowCallModal(false)} className="bg-muted text-muted-foreground border border-border rounded-xl px-4 py-2 hover:bg-muted/80 font-medium text-[10px] uppercase">
                                     Cancelar
                                 </button>
                                 <button
                                     onClick={handleSaveCall}
                                     disabled={!callNoteText.trim()}
-                                    className="flex-1 bg-primary text-black font-black py-2.5 rounded-xl text-[10px] uppercase tracking-widest hover:bg-primary/90 transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+                                    className="flex-1 bg-primary text-black font-bold py-2 rounded-xl text-[10px] uppercase tracking-widest hover:brightness-105 transition-all disabled:opacity-40 flex items-center justify-center gap-2"
                                 >
                                     <CheckCircle2 className="w-3.5 h-3.5" />
                                     Guardar Registro
@@ -819,8 +819,8 @@ export default function PipelinePage() {
 
             {/* Quick Note Modal */}
             {noteTask && (
-                <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-card border border-border w-full max-w-md rounded-[2rem] overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+                <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-4 animate-in fade-in duration-200" style={{ background: 'rgba(10,12,20,0.55)', backdropFilter: 'blur(6px)' }}>
+                    <div className="bg-white border border-border w-full max-w-md rounded-2xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
                         <div className="p-6 border-b border-border flex items-center justify-between">
                             <div>
                                 <h3 className="text-sm font-black text-foreground">Dejar Nota</h3>
@@ -837,13 +837,13 @@ export default function PipelinePage() {
                                 placeholder="¿Qué pasó en la llamada o contacto? Escribe aquí..."
                                 rows={4}
                                 autoFocus
-                                className="w-full bg-muted/30 border border-border rounded-2xl px-4 py-3 text-sm text-foreground resize-none outline-none focus:border-primary/60 transition-all font-medium placeholder:font-normal"
+                                className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-sm text-foreground resize-none outline-none focus:border-primary focus:bg-white transition-all font-medium placeholder:font-normal"
                             />
                             <div className="flex gap-3">
-                                <a href={`/leads/${noteTask.clientId}`} target="_blank" className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border text-[10px] font-black uppercase text-muted-foreground hover:text-foreground hover:bg-muted transition-all">
+                                <a href={`/leads/${noteTask.clientId}`} target="_blank" className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border text-[10px] font-black uppercase text-muted-foreground hover:text-foreground hover:bg-muted transition-all">
                                     <User className="w-3.5 h-3.5" /> Ver Ficha
                                 </a>
-                                <button onClick={saveNote} disabled={!noteText.trim()} className="flex-1 bg-primary text-black font-black py-2.5 rounded-xl text-[10px] uppercase tracking-widest hover:scale-[1.02] transition-all disabled:opacity-40 flex items-center justify-center gap-2">
+                                <button onClick={saveNote} disabled={!noteText.trim()} className="flex-1 bg-primary text-black font-bold py-2 rounded-xl text-[10px] uppercase tracking-widest hover:brightness-105 transition-all disabled:opacity-40 flex items-center justify-center gap-2">
                                     <CheckCircle2 className="w-3.5 h-3.5" /> Guardar Nota (+8 score)
                                 </button>
                             </div>
@@ -854,54 +854,56 @@ export default function PipelinePage() {
 
             {/* New Deal Modal */}
             {isNewModalOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-3xl animate-in fade-in duration-500">
-                    <div className="bg-[#0a0a0b] border border-white/10 w-full max-w-5xl rounded-[3.5rem] overflow-hidden shadow-[0_0_100px_rgba(250,181,16,0.1)] flex flex-col h-[90vh] animate-in zoom-in-95 duration-500">
-                        <div className="p-10 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300" style={{ background: 'rgba(10,12,20,0.55)', backdropFilter: 'blur(6px)' }}>
+                    <div className="bg-white border border-border w-full max-w-5xl rounded-3xl overflow-hidden shadow-2xl flex flex-col h-[90vh] animate-in zoom-in-95 duration-300">
+                        <div className="p-8 border-b border-border flex items-center justify-between bg-muted/30">
                             <div>
-                                <h2 className="text-3xl font-black tracking-tighter text-white italic uppercase">Configuración de Oferta</h2>
-                                <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest mt-1">Sincronización operativa directa</p>
+                                <h2 className="text-2xl font-black tracking-tight text-foreground uppercase">Configuración de Oferta</h2>
+                                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">Sincronización operativa directa</p>
                             </div>
-                            <X className="w-8 h-8 text-white/20 cursor-pointer hover:text-white transition-colors" onClick={() => setIsNewModalOpen(false)} />
+                            <button onClick={() => setIsNewModalOpen(false)} className="p-2 hover:bg-muted rounded-xl transition-all">
+                                <X className="w-6 h-6 text-muted-foreground" />
+                            </button>
                         </div>
 
-                        <div className="p-10 overflow-y-auto flex-1 custom-scrollbar">
-                            <div className="grid grid-cols-2 gap-12">
-                                <div className="space-y-8">
+                        <div className="p-8 overflow-y-auto flex-1 custom-scrollbar">
+                            <div className="grid grid-cols-2 gap-10">
+                                <div className="space-y-6">
                                     {/* Deal Title */}
-                                    <div className="space-y-3">
-                                        <label className="text-[10px] font-black text-primary uppercase ml-2 tracking-widest">Identificador del Negocio</label>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-primary uppercase tracking-widest">Identificador del Negocio</label>
                                         <div className="relative">
-                                            <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
-                                            <input type="text" placeholder="Ej: Suministro Boscán - Fase 1" value={newDeal.title} onChange={e => setNewDeal({ ...newDeal, title: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 outline-none focus:border-primary text-white font-bold transition-all" />
+                                            <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                            <input type="text" placeholder="Ej: Suministro Boscán - Fase 1" value={newDeal.title} onChange={e => setNewDeal({ ...newDeal, title: e.target.value })} className="w-full bg-muted border border-border rounded-xl pl-12 pr-4 py-3 outline-none focus:border-primary focus:bg-white text-foreground font-bold transition-all" />
                                         </div>
                                     </div>
 
                                     {/* Client */}
-                                    <div className="space-y-4">
-                                        <div className="flex items-center justify-between px-2">
-                                            <label className="text-[10px] font-black text-primary uppercase tracking-widest">Socio Industrial</label>
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-xs font-bold text-primary uppercase tracking-widest">Socio Industrial</label>
                                             <button onClick={() => setShowNewClientForm(!showNewClientForm)} className="text-[9px] font-black text-sky-500 uppercase flex items-center gap-1.5 hover:text-sky-400 transition-colors">
                                                 {showNewClientForm ? <><X className="w-3 h-3" /> Cancelar Nuevo</> : <><UserPlus className="w-3 h-3" /> Registrar Nuevo</>}
                                             </button>
                                         </div>
                                         {!showNewClientForm ? (
                                             <div className="relative">
-                                                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
-                                                <select value={newDeal.clientId} onChange={e => setNewDeal({ ...newDeal, clientId: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-white font-bold outline-none focus:border-primary appearance-none">
-                                                    <option value="" className="bg-[#0a0a0b]">Vincular Cliente existente...</option>
-                                                    {clients.map(c => <option key={c.id} value={c.id} className="bg-[#0a0a0b]">{c.company} • {c.name}</option>)}
+                                                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                                <select value={newDeal.clientId} onChange={e => setNewDeal({ ...newDeal, clientId: e.target.value })} className="w-full bg-muted border border-border rounded-xl pl-12 pr-4 py-3 text-foreground font-bold outline-none focus:border-primary focus:bg-white appearance-none">
+                                                    <option value="">Vincular Cliente existente...</option>
+                                                    {clients.map(c => <option key={c.id} value={c.id}>{c.company} • {c.name}</option>)}
                                                 </select>
                                             </div>
                                         ) : (
-                                            <div className="space-y-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl animate-in slide-in-from-top-2 duration-300">
+                                            <div className="space-y-3 p-5 bg-muted border border-border rounded-2xl animate-in slide-in-from-top-2 duration-300">
                                                 <div className="space-y-3">
-                                                    <input type="text" placeholder="Nombre de la Empresa" value={inlineClient.company} onChange={e => setInlineClient({ ...inlineClient, company: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-bold outline-none" />
-                                                    <input type="text" placeholder="Nombre del Contacto" value={inlineClient.name} onChange={e => setInlineClient({ ...inlineClient, name: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-bold outline-none" />
-                                                    <input type="email" placeholder="Email Corporativo" value={inlineClient.email} onChange={e => setInlineClient({ ...inlineClient, email: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-bold outline-none" />
-                                                    <div className="grid grid-cols-2 gap-4">
+                                                    <input type="text" placeholder="Nombre de la Empresa" value={inlineClient.company} onChange={e => setInlineClient({ ...inlineClient, company: e.target.value })} className="w-full bg-white border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-bold outline-none focus:border-primary" />
+                                                    <input type="text" placeholder="Nombre del Contacto" value={inlineClient.name} onChange={e => setInlineClient({ ...inlineClient, name: e.target.value })} className="w-full bg-white border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-bold outline-none focus:border-primary" />
+                                                    <input type="email" placeholder="Email Corporativo" value={inlineClient.email} onChange={e => setInlineClient({ ...inlineClient, email: e.target.value })} className="w-full bg-white border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-bold outline-none focus:border-primary" />
+                                                    <div className="grid grid-cols-2 gap-3">
                                                         <SearchableSelect options={settings.cities} value={inlineClient.city} onChange={val => setInlineClient({ ...inlineClient, city: val })} placeholder="Ciudad" />
-                                                        <select value={inlineClient.category} onChange={e => setInlineClient({ ...inlineClient, category: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white font-bold outline-none appearance-none">
-                                                            {settings.sectors.map(sector => <option key={sector} value={sector} className="bg-[#0a0a0b]">{sector}</option>)}
+                                                        <select value={inlineClient.category} onChange={e => setInlineClient({ ...inlineClient, category: e.target.value })} className="w-full bg-white border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-bold outline-none focus:border-primary appearance-none">
+                                                            {settings.sectors.map(sector => <option key={sector} value={sector}>{sector}</option>)}
                                                         </select>
                                                     </div>
                                                 </div>
@@ -910,73 +912,72 @@ export default function PipelinePage() {
                                     </div>
 
                                     {/* Seller */}
-                                    <div className="space-y-3 p-6 bg-primary/[0.02] border border-primary/20 rounded-3xl relative overflow-hidden group">
-                                        <div className="flex items-center justify-between mb-4">
+                                    <div className="space-y-3 p-5 bg-primary/5 border border-primary/20 rounded-2xl relative overflow-hidden">
+                                        <div className="flex items-center justify-between mb-3">
                                             <div className="flex flex-col">
-                                                <label className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-2">
+                                                <label className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-2">
                                                     Asignación de Equipo
-                                                    {isSuperAdmin ? <ShieldCheck className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5 text-white/20" />}
+                                                    {isSuperAdmin ? <ShieldCheck className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
                                                 </label>
-                                                {!isSuperAdmin && <p className="text-[8px] font-bold text-white/40 uppercase mt-1">Solo SuperAdmin puede cambiar la asignación</p>}
+                                                {!isSuperAdmin && <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">Solo SuperAdmin puede cambiar la asignación</p>}
                                             </div>
                                             {isSuperAdmin && <div className="text-[8px] font-black bg-primary text-black px-2 py-0.5 rounded-full uppercase tracking-tighter">Acceso Total</div>}
                                         </div>
                                         <div className="relative">
-                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full border border-primary/30 bg-primary/20 flex items-center justify-center overflow-hidden">
+                                            <div className="absolute left-4 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full border border-primary/30 bg-primary/10 flex items-center justify-center overflow-hidden">
                                                 {isSuperAdmin ? (
                                                     sellers.find(s => s.id === newDeal.assignedTo)?.avatar ? <img src={sellers.find(s => s.id === newDeal.assignedTo)?.avatar} className="w-full h-full object-cover" alt="" /> : <User className="w-4 h-4 text-primary" />
                                                 ) : currentUser?.avatar ? <img src={currentUser.avatar} className="w-full h-full object-cover" alt="" /> : <User className="w-4 h-4 text-primary" />}
                                             </div>
-                                            <select value={isSuperAdmin ? newDeal.assignedTo : currentUser.id} disabled={!isSuperAdmin} onChange={e => setNewDeal({ ...newDeal, assignedTo: e.target.value })} className={clsx("w-full bg-white/5 border border-white/10 rounded-2xl pl-16 pr-4 py-5 text-sm font-black text-white outline-none transition-all appearance-none", isSuperAdmin ? "focus:border-primary cursor-pointer" : "opacity-60 cursor-not-allowed")}>
-                                                <option value="" className="bg-[#0a0a0b]">Asignar responsable...</option>
-                                                {sellers.map(s => <option key={s.id} value={s.id} className="bg-[#0a0a0b]">{s.name} ({s.role})</option>)}
+                                            <select value={isSuperAdmin ? newDeal.assignedTo : currentUser.id} disabled={!isSuperAdmin} onChange={e => setNewDeal({ ...newDeal, assignedTo: e.target.value })} className={clsx("w-full bg-white border border-border rounded-xl pl-16 pr-4 py-4 text-sm font-black text-foreground outline-none transition-all appearance-none focus:border-primary", !isSuperAdmin && "opacity-60 cursor-not-allowed")}>
+                                                <option value="">Asignar responsable...</option>
+                                                {sellers.map(s => <option key={s.id} value={s.id}>{s.name} ({s.role})</option>)}
                                             </select>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="space-y-8">
+                                <div className="space-y-6">
                                     {/* Products */}
-                                    <div className="space-y-4">
-                                        <label className="text-[10px] font-black text-primary uppercase ml-2 tracking-widest">Configuración de Producto</label>
-                                        <select onChange={e => { addProductToNewDeal(e.target.value); e.target.value = ''; }} className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold outline-none focus:border-primary appearance-none">
-                                            <option value="" className="bg-[#0a0a0b]">Inyectar Ítems del Inventario...</option>
-                                            {products.map(p => <option key={p.id} value={p.id} className="bg-[#0a0a0b]">{p.name} • ${p.price.toLocaleString()}</option>)}
+                                    <div className="space-y-3">
+                                        <label className="text-xs font-bold text-primary uppercase tracking-widest">Configuración de Producto</label>
+                                        <select onChange={e => { addProductToNewDeal(e.target.value); e.target.value = ''; }} className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground font-bold outline-none focus:border-primary focus:bg-white appearance-none">
+                                            <option value="">Inyectar Ítems del Inventario...</option>
+                                            {products.map(p => <option key={p.id} value={p.id}>{p.name} • ${p.price.toLocaleString()}</option>)}
                                         </select>
-                                        <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+                                        <div className="space-y-2.5 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
                                             {newDeal.products.map((p, i) => (
-                                                <div key={i} className="flex items-center justify-between bg-white/[0.04] p-5 rounded-2xl border border-white/5 animate-in zoom-in-95">
+                                                <div key={i} className="flex items-center justify-between bg-muted p-4 rounded-xl border border-border animate-in zoom-in-95">
                                                     <div className="flex flex-col">
-                                                        <span className="text-xs font-black text-white">{p.name}</span>
-                                                        <span className="text-[10px] font-bold text-white/30 tracking-tight mt-0.5">${p.price.toLocaleString()} / Und.</span>
+                                                        <span className="text-xs font-black text-foreground">{p.name}</span>
+                                                        <span className="text-[10px] font-bold text-muted-foreground mt-0.5">${p.price.toLocaleString()} / Und.</span>
                                                     </div>
-                                                    <button onClick={() => setNewDeal({ ...newDeal, products: newDeal.products.filter((_, idx) => idx !== i) })} className="p-2 hover:bg-rose-500/20 hover:text-rose-500 rounded-lg text-white/20 transition-all">
-                                                        <X className="w-5 h-5" />
+                                                    <button onClick={() => setNewDeal({ ...newDeal, products: newDeal.products.filter((_, idx) => idx !== i) })} className="p-2 hover:bg-rose-50 hover:text-rose-500 rounded-lg text-muted-foreground transition-all">
+                                                        <X className="w-4 h-4" />
                                                     </button>
                                                 </div>
                                             ))}
                                             {newDeal.products.length === 0 && (
-                                                <div className="py-10 text-center border-2 border-dashed border-white/5 rounded-3xl opacity-20">
-                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em]">Ningún ítem cargado</p>
+                                                <div className="py-10 text-center border-2 border-dashed border-border rounded-2xl opacity-40">
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Ningún ítem cargado</p>
                                                 </div>
                                             )}
                                         </div>
                                     </div>
 
                                     {/* Total */}
-                                    <div className="p-10 bg-white/[0.02] border border-white/5 rounded-[2.5rem] mt-auto relative overflow-hidden flex flex-col items-center justify-center text-center group">
-                                        <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                        <p className="text-[10px] font-black uppercase text-primary mb-3 tracking-[0.3em]">VALOR TOTAL DE OFERTA</p>
+                                    <div className="p-8 bg-muted border border-border rounded-2xl mt-auto flex flex-col items-center justify-center text-center">
+                                        <p className="text-xs font-bold uppercase text-primary mb-3 tracking-widest">VALOR TOTAL DE OFERTA</p>
                                         <div className="flex items-baseline gap-2">
-                                            <span className="text-xl font-black text-primary/40">$</span>
-                                            <span className="text-5xl font-black text-white tracking-tighter leading-none">{calculateNewDealTotal().toLocaleString()}</span>
+                                            <span className="text-xl font-black text-muted-foreground">$</span>
+                                            <span className="text-5xl font-black text-foreground tracking-tighter leading-none">{calculateNewDealTotal().toLocaleString()}</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="p-10 border-t border-white/5 flex items-center justify-between bg-white/[0.03]">
+                        <div className="p-8 border-t border-border flex items-center justify-between bg-muted/20">
                             <div className="flex items-center gap-4">
                                 {isProcessing && (
                                     <div className="flex items-center gap-3 animate-pulse">
@@ -985,10 +986,10 @@ export default function PipelinePage() {
                                     </div>
                                 )}
                             </div>
-                            <div className="flex gap-4">
-                                <button onClick={() => setIsNewModalOpen(false)} className="px-10 py-5 rounded-2xl border border-white/10 text-white font-black uppercase text-[10px] tracking-widest hover:bg-white/5 transition-all">Cancelar</button>
-                                <button onClick={handleCreateDeal} disabled={isProcessing || (!newDeal.clientId && !showNewClientForm) || !newDeal.title || newDeal.products.length === 0} className="bg-primary text-black font-black px-12 py-5 rounded-2xl shadow-2xl shadow-primary/20 disabled:opacity-20 uppercase text-[10px] tracking-widest hover:scale-[1.05] active:scale-[0.95] transition-all flex items-center gap-3">
-                                    {isProcessing ? <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" /> : <><ShieldCheck className="w-5 h-5" /> Confirmar Lanzamiento</>}
+                            <div className="flex gap-3">
+                                <button onClick={() => setIsNewModalOpen(false)} className="bg-muted text-muted-foreground border border-border rounded-xl px-6 py-2.5 font-medium uppercase text-[10px] tracking-widest hover:bg-muted/80 transition-all">Cancelar</button>
+                                <button onClick={handleCreateDeal} disabled={isProcessing || (!newDeal.clientId && !showNewClientForm) || !newDeal.title || newDeal.products.length === 0} className="bg-primary text-black font-bold px-8 py-2.5 rounded-xl shadow-lg disabled:opacity-20 uppercase text-[10px] tracking-widest hover:brightness-105 active:scale-[0.98] transition-all flex items-center gap-2">
+                                    {isProcessing ? <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" /> : <><ShieldCheck className="w-4 h-4" /> Confirmar Lanzamiento</>}
                                 </button>
                             </div>
                         </div>
@@ -998,24 +999,24 @@ export default function PipelinePage() {
 
             {/* Edit Modal */}
             {isEditModalOpen && selectedTask && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
-                    <div className="bg-card border border-border w-full max-w-6xl rounded-[2.5rem] overflow-hidden flex h-[90vh] shadow-[0_32px_80px_rgba(0,0,0,0.15)] animate-in zoom-in-95 duration-300">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300" style={{ background: 'rgba(10,12,20,0.55)', backdropFilter: 'blur(6px)' }}>
+                    <div className="bg-white border border-border w-full max-w-6xl rounded-3xl overflow-hidden flex h-[90vh] shadow-2xl animate-in zoom-in-95 duration-300">
 
                         {/* Sidebar */}
-                        <div className="w-80 border-r border-border bg-muted/20 p-8 flex flex-col space-y-8">
+                        <div className="w-80 border-r border-border bg-muted/30 p-8 flex flex-col space-y-8">
                             <div className="space-y-4">
-                                <div className="w-16 h-16 rounded-[1.5rem] bg-primary/10 border-2 border-primary/20 flex items-center justify-center">
+                                <div className="w-16 h-16 rounded-2xl bg-primary/10 border-2 border-primary/20 flex items-center justify-center">
                                     <Building2 className="w-8 h-8 text-primary" />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-black text-foreground leading-none tracking-tighter uppercase">{selectedTask.client}</h2>
-                                    <p className="text-[10px] font-black text-primary uppercase tracking-[0.18em] mt-1.5">NEGOCIO: {selectedTask.id.slice(0, 18)}</p>
+                                    <h2 className="text-xl font-black text-foreground leading-none tracking-tight uppercase">{selectedTask.client}</h2>
+                                    <p className="text-xs font-bold text-primary uppercase tracking-widest mt-1.5">NEGOCIO: {selectedTask.id.slice(0, 18)}</p>
                                 </div>
                             </div>
 
                             <div className="flex-1 space-y-4">
-                                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.25em] pl-1">Asignación Operativa</p>
-                                <div className={clsx("p-5 rounded-2xl border transition-all", isSuperAdmin ? "bg-primary/5 border-primary/20" : "bg-muted/30 border-border opacity-80")}>
+                                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest pl-1">Asignación Operativa</p>
+                                <div className={clsx("p-4 rounded-xl border transition-all", isSuperAdmin ? "bg-primary/5 border-primary/20" : "bg-muted border-border opacity-80")}>
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-full border-2 border-primary/30 bg-primary/10 flex items-center justify-center overflow-hidden">
                                             {sellers.find(s => s.name === selectedTask.assignedTo)?.avatar ? <img src={sellers.find(s => s.name === selectedTask.assignedTo)?.avatar} className="w-full h-full object-cover" alt="" /> : <User className="w-4 h-4 text-primary" />}
@@ -1031,7 +1032,7 @@ export default function PipelinePage() {
                                 </div>
                             </div>
 
-                            <button onClick={handleDelete} className="flex items-center gap-3 text-rose-400 hover:text-rose-600 transition-all group p-3 rounded-2xl hover:bg-rose-50 border border-transparent hover:border-rose-200">
+                            <button onClick={handleDelete} className="flex items-center gap-3 text-rose-400 hover:text-rose-600 transition-all group p-3 rounded-xl hover:bg-rose-50 border border-transparent hover:border-rose-200">
                                 <Trash className="w-4 h-4 group-hover:scale-110 transition-transform" />
                                 <span className="text-[10px] font-black uppercase tracking-[0.15em]">Cerrar/Eliminar Lead</span>
                             </button>
@@ -1042,8 +1043,8 @@ export default function PipelinePage() {
                             <div className="flex items-start justify-between mb-8">
                                 <div className="space-y-1.5">
                                     <div className="flex items-center gap-3 flex-wrap">
-                                        <h3 className="text-2xl font-black text-foreground tracking-tighter uppercase">{selectedTask.title}</h3>
-                                        <span className="px-3 py-1 rounded-full bg-muted border border-border text-[9px] font-black text-muted-foreground uppercase tracking-widest">{selectedTask.aiScore} AI Score</span>
+                                        <h3 className="text-2xl font-black text-foreground tracking-tight uppercase">{selectedTask.title}</h3>
+                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-muted border border-border text-muted-foreground uppercase">{selectedTask.aiScore} AI Score</span>
                                     </div>
                                     {selectedTask.quoteId && (
                                         <p className="text-xs font-bold text-primary flex items-center gap-2">
@@ -1052,7 +1053,7 @@ export default function PipelinePage() {
                                     )}
                                 </div>
                                 <div className="flex items-center gap-4">
-                                    <div className="px-5 py-3 bg-primary/5 border border-primary/20 rounded-2xl flex items-center gap-3">
+                                    <div className="px-4 py-2.5 bg-primary/5 border border-primary/20 rounded-xl flex items-center gap-3">
                                         <DollarSign className="w-5 h-5 text-primary" />
                                         <span className="text-xl font-black text-foreground tabular-nums">{selectedTask.value}</span>
                                     </div>
@@ -1064,19 +1065,19 @@ export default function PipelinePage() {
 
                             <div className="grid grid-cols-2 gap-8 flex-1 min-h-0">
                                 <div className="flex flex-col gap-5 overflow-y-auto custom-scrollbar">
-                                    <div className="flex-1 p-6 bg-white/60 rounded-[1.5rem] border border-border relative overflow-hidden">
+                                    <div className="flex-1 p-6 bg-muted/50 rounded-2xl border border-border relative overflow-hidden">
                                         <div className="absolute top-0 right-0 p-6 opacity-5">
                                             <UserPlus className="w-14 h-14 text-primary" />
                                         </div>
-                                        <p className="text-[10px] font-black text-primary uppercase tracking-[0.22em] mb-6">Ficha del Cliente</p>
-                                        <div className="space-y-5">
+                                        <p className="text-xs font-bold text-primary uppercase tracking-widest mb-5">Ficha del Cliente</p>
+                                        <div className="space-y-4">
                                             {[
                                                 { icon: User, label: 'Contacto', value: selectedTask.contactName },
                                                 { icon: Mail, label: 'Email', value: selectedTask.email || '—' },
                                                 { icon: MapPin, label: 'Ciudad', value: selectedTask.city || 'Colombia' },
                                             ].map(({ icon: Icon, label, value }) => (
                                                 <div key={label} className="flex items-center gap-4 group">
-                                                    <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center border border-border group-hover:border-primary/30 group-hover:bg-primary/5 transition-all">
+                                                    <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center border border-border group-hover:border-primary/30 group-hover:bg-primary/5 transition-all">
                                                         <Icon className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
                                                     </div>
                                                     <div>
@@ -1091,7 +1092,7 @@ export default function PipelinePage() {
                                     <div className="flex gap-3">
                                         <button
                                             onClick={() => { setCallNoteText(''); setShowCallModal(true); }}
-                                            className="flex-1 bg-primary text-black p-4 rounded-[1.5rem] flex flex-col items-center gap-2 hover:scale-[1.03] shadow-lg shadow-primary/20 transition-all group"
+                                            className="flex-1 bg-primary text-black font-bold p-4 rounded-2xl flex flex-col items-center gap-2 hover:brightness-105 transition-all group"
                                         >
                                             <Phone className="w-5 h-5 group-hover:rotate-12 transition-transform" />
                                             <span className="text-[9px] font-black uppercase tracking-[0.15em]">Registrar Llamada</span>
@@ -1104,7 +1105,7 @@ export default function PipelinePage() {
                                                     window.open(`mailto:${email}`, '_blank');
                                                 }
                                             }}
-                                            className="flex-1 bg-card border border-border text-foreground p-4 rounded-[1.5rem] flex flex-col items-center gap-2 hover:bg-blue-50 hover:border-blue-300 transition-all group"
+                                            className="flex-1 bg-white border border-border text-foreground p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-blue-50 hover:border-blue-300 transition-all group"
                                         >
                                             <Mail className="w-5 h-5 text-blue-500 group-hover:-translate-y-0.5 transition-transform" />
                                             <span className="text-[9px] font-black uppercase tracking-[0.15em]">Enviar Email</span>
@@ -1118,7 +1119,7 @@ export default function PipelinePage() {
                                                     window.open(`https://wa.me/${phone}`, '_blank');
                                                 }
                                             }}
-                                            className="flex-1 bg-card border border-border text-foreground p-4 rounded-[1.5rem] flex flex-col items-center gap-2 hover:bg-emerald-50 hover:border-emerald-300 transition-all group"
+                                            className="flex-1 bg-white border border-border text-foreground p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-emerald-50 hover:border-emerald-300 transition-all group"
                                         >
                                             <MessageCircle className="w-5 h-5 text-emerald-500 group-hover:scale-110 transition-transform" />
                                             <span className="text-[9px] font-black uppercase tracking-[0.15em]">WhatsApp</span>
@@ -1128,7 +1129,7 @@ export default function PipelinePage() {
 
                                 <div className="flex flex-col gap-4 min-h-0">
                                     <div className="flex items-center justify-between px-1 shrink-0">
-                                        <h3 className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.25em]">Muro de Inteligencia</h3>
+                                        <h3 className="text-xs font-bold uppercase text-muted-foreground tracking-widest">Muro de Inteligencia</h3>
                                         <span className="text-[9px] font-black uppercase text-emerald-600 flex items-center gap-1.5 px-3 py-1 bg-emerald-50 rounded-full border border-emerald-200">
                                             <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                                             Synced
@@ -1137,10 +1138,10 @@ export default function PipelinePage() {
                                     <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3 min-h-0">
                                         {selectedTask.activities.length === 0 ? (
                                             <div className="h-full flex flex-col items-center justify-center py-12 text-center">
-                                                <div className="w-12 h-12 rounded-2xl bg-muted/30 flex items-center justify-center mb-3">
+                                                <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mb-3">
                                                     <Clock className="w-5 h-5 text-muted-foreground/30" />
                                                 </div>
-                                                <p className="text-[10px] font-black uppercase text-muted-foreground/30 tracking-widest">Sin actividad aún</p>
+                                                <p className="text-xs font-bold uppercase text-muted-foreground/30 tracking-widest">Sin actividad aún</p>
                                                 <p className="text-[9px] text-muted-foreground/20 mt-1">Las acciones quedan registradas aquí</p>
                                             </div>
                                         ) : selectedTask.activities.map(a => {
@@ -1148,7 +1149,7 @@ export default function PipelinePage() {
                                             const qNumMatch = a.content?.match(/AC-\d{4}-\d+/);
                                             const linkedQ = qNumMatch ? quotes.find(q => q.number === qNumMatch[0]) : null;
                                             return (
-                                            <div key={a.id} className="bg-white/70 p-4 rounded-2xl border-l-[3px] border border-border/60 hover:bg-white/90 transition-all"
+                                            <div key={a.id} className="bg-white p-4 rounded-xl border-l-[3px] border border-border hover:bg-muted/50 transition-all"
                                                 style={{ borderLeftColor: a.type === 'call' ? '#0ea5e9' : a.type === 'whatsapp' ? '#10b981' : a.type === 'email' ? '#3b82f6' : a.type === 'system' ? '#fab510' : '#f59e0b' }}>
                                                 <div className="flex items-center justify-between mb-2">
                                                     <div className="flex items-center gap-2">
@@ -1164,7 +1165,7 @@ export default function PipelinePage() {
                                                 <p className="text-sm font-semibold text-foreground leading-relaxed">{a.content}</p>
                                                 {linkedQ && (
                                                     <a href={`/quotes/${linkedQ.id}/edit`}
-                                                        className="mt-2 inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-primary hover:text-primary/70 transition-colors bg-primary/8 hover:bg-primary/15 px-3 py-1.5 rounded-lg border border-primary/20">
+                                                        className="mt-2 inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-primary hover:text-primary/70 transition-colors bg-primary/5 hover:bg-primary/10 px-3 py-1.5 rounded-lg border border-primary/20">
                                                         ✏️ Ver / Editar {linkedQ.number}
                                                     </a>
                                                 )}

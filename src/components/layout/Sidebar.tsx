@@ -88,34 +88,33 @@ export function Sidebar({ isCompact }: SidebarProps) {
 
   return (
     <div className={cn(
-      "hidden lg:flex flex-col h-full bg-[linear-gradient(180deg,rgba(255,255,255,0.44),rgba(243,247,253,0.34))] border border-white/70 text-foreground overflow-hidden transition-all duration-500 backdrop-blur-[28px] rounded-[2.25rem]",
+      "hidden lg:flex flex-col h-full bg-white border border-border rounded-[1.75rem] text-foreground overflow-hidden transition-all duration-300",
       isCompact ? "w-20" : "w-64"
-    )}>
-      <div className={cn("flex flex-col items-center shrink-0", isCompact ? "p-3" : "px-5 pt-2 pb-1 gap-1")}>
-        <div className={cn("flex items-center justify-center transition-all", isCompact ? "w-8 h-8" : "w-full h-16")}>
+    )}
+    style={{ boxShadow: 'var(--shadow-sm)' }}>
+
+      {/* Logo */}
+      <div className={cn("flex flex-col items-center shrink-0 border-b border-border", isCompact ? "p-4" : "px-5 pt-5 pb-4")}>
+        <div className={cn("flex items-center justify-center", isCompact ? "w-9 h-9" : "w-full h-14")}>
           <img
             src="https://cuantium.com/wp-content/uploads/2026/02/logo.png"
             alt="ArteConcreto"
-            className="w-full h-full object-contain filter brightness-110 opacity-100 transition-all duration-500 hover:scale-105"
+            className="w-full h-full object-contain"
           />
         </div>
         {!isCompact && (
-          <div className="px-4 py-1 bg-white/42 border border-white/75 rounded-full backdrop-blur-xl -mt-1">
-            <p className="text-[9px] text-foreground font-black tracking-[0.3em] uppercase">Power CRM</p>
+          <div className="mt-2 px-3 py-1 bg-primary/8 border border-primary/15 rounded-full">
+            <p className="text-[9px] text-primary font-black tracking-[0.3em] uppercase">Power CRM</p>
           </div>
         )}
       </div>
 
-
-      <div className="px-5 mb-2">
-        <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
-      </div>
-
-      <nav className="flex-1 px-3 space-y-1 overflow-y-auto custom-scrollbar">
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto custom-scrollbar">
         {navGroups.map((group) => (
-          <div key={group.label} className="mb-1">
+          <div key={group.label} className="mb-2">
             {!isCompact && (
-              <div className="mb-1 mt-3 first:mt-0 px-4 text-[9px] font-black text-muted-foreground uppercase tracking-[0.22em] opacity-45">
+              <div className="mb-1 mt-3 first:mt-1 px-3 text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">
                 {group.label}
               </div>
             )}
@@ -126,29 +125,27 @@ export function Sidebar({ isCompact }: SidebarProps) {
                   key={item.href}
                   href={item.href}
                   onClick={() => {
-                    if (pathname !== item.href) {
-                      setPendingHref(item.href);
-                    }
+                    if (pathname !== item.href) setPendingHref(item.href);
                   }}
                   className={cn(
-                    "flex items-center rounded-xl text-sm font-bold transition-all duration-300 group relative truncate",
-                    isCompact ? "justify-center p-2.5" : "gap-3 px-4 py-2.5",
+                    "flex items-center rounded-xl text-sm font-semibold transition-all duration-200 group relative",
+                    isCompact ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
                     isActive
-                      ? "bg-white/58 text-foreground border border-white/85 backdrop-blur-xl"
+                      ? "bg-primary/10 text-primary"
                       : pendingHref === item.href
-                        ? "bg-white/52 text-foreground border border-white/75"
-                        : "text-muted-foreground hover:bg-white/42 hover:text-foreground"
+                        ? "bg-muted text-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
                   {pendingHref === item.href ? (
                     <Loader2 className="w-4 h-4 shrink-0 text-primary animate-spin" />
                   ) : (
                     <item.icon className={cn(
-                      "w-4 h-4 transition-transform group-hover:scale-110 shrink-0",
-                      isActive ? "text-primary" : "text-primary/70 group-hover:text-primary"
+                      "w-4 h-4 shrink-0",
+                      isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
                     )} />
                   )}
-                  {!isCompact && <span className="tracking-tight truncate">{item.name}</span>}
+                  {!isCompact && <span className="truncate">{item.name}</span>}
 
                   {isActive && !isCompact && (
                     <div className="absolute right-3 w-1.5 h-1.5 bg-primary rounded-full" />
@@ -159,7 +156,10 @@ export function Sidebar({ isCompact }: SidebarProps) {
           </div>
         ))}
 
-        {!isCompact && <div className="mt-3 mb-1 px-4 text-[9px] font-black text-muted-foreground uppercase tracking-[0.22em] opacity-45">Sistema</div>}
+        {/* System */}
+        {!isCompact && (
+          <div className="mt-2 mb-1 px-3 text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">Sistema</div>
+        )}
         {systemItems.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -167,17 +167,16 @@ export function Sidebar({ isCompact }: SidebarProps) {
               key={item.href}
               href={item.href}
               onClick={() => {
-                if (pathname !== item.href) {
-                  setPendingHref(item.href);
-                }
+                if (pathname !== item.href) setPendingHref(item.href);
               }}
               className={cn(
-                "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 group truncate",
+                "flex items-center rounded-xl text-sm font-semibold transition-all duration-200 group",
+                isCompact ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
                 isActive
-                  ? "bg-white/58 text-foreground border border-white/85 backdrop-blur-xl"
+                  ? "bg-primary/10 text-primary"
                   : pendingHref === item.href
-                    ? "bg-white/52 text-foreground border border-white/75"
-                    : "text-muted-foreground hover:bg-white/42 hover:text-foreground"
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
               {pendingHref === item.href ? (
@@ -185,15 +184,29 @@ export function Sidebar({ isCompact }: SidebarProps) {
               ) : (
                 <item.icon className={cn(
                   "w-4 h-4 shrink-0",
-                  isActive ? "text-primary" : "text-primary/70 group-hover:text-primary"
+                  isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
                 )} />
               )}
-              <span className="truncate">{item.name}</span>
+              {!isCompact && <span className="truncate">{item.name}</span>}
             </Link>
           );
         })}
       </nav>
 
+      {/* User footer */}
+      {!isCompact && (
+        <div className="px-4 py-4 border-t border-border shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
+              <span className="text-xs font-black text-primary">{initials}</span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-foreground truncate">{displayName}</p>
+              <p className="text-[10px] text-muted-foreground font-medium truncate">{displayRole}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
