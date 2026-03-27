@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { useRouter } from 'next/navigation';
-import { Lock, User, Eye, EyeOff, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
+import { Lock, User, Eye, EyeOff, CheckCircle2, AlertCircle, ArrowRight, Mail } from 'lucide-react';
 import { clsx } from 'clsx';
 
 export default function LoginPage() {
@@ -15,6 +15,31 @@ export default function LoginPage() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [showPasswordHint, setShowPasswordHint] = useState(false);
+
+    // Forgot password state
+    const [forgotUsername, setForgotUsername] = useState('');
+    const [forgotLoading, setForgotLoading] = useState(false);
+    const [forgotSent, setForgotSent] = useState(false);
+    const [forgotError, setForgotError] = useState('');
+
+    const handleForgotPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!forgotUsername.trim()) return;
+        setForgotLoading(true);
+        setForgotError('');
+        try {
+            await fetch('/api/auth/forgot-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: forgotUsername.trim() }),
+            });
+            setForgotSent(true);
+        } catch {
+            setForgotError('Error de conexión. Intenta de nuevo.');
+        } finally {
+            setForgotLoading(false);
+        }
+    };
 
     useEffect(() => {
         if (currentUser) {
@@ -109,9 +134,40 @@ export default function LoginPage() {
                         </div>
 
                         {showPasswordHint && (
-                            <div className="px-4 py-3 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                                <AlertCircle className="w-4 h-4 text-sky-500 shrink-0" />
-                                <p className="text-[10px] font-bold text-sky-500 uppercase tracking-tight">Contacta al administrador del sistema para recuperar tu acceso.</p>
+                            <div className="rounded-2xl bg-sky-500/8 border border-sky-500/20 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+                                {!forgotSent ? (
+                                    <form onSubmit={handleForgotPassword} className="p-4 space-y-3">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Mail className="w-3.5 h-3.5 text-sky-500" />
+                                            <p className="text-[10px] font-black text-sky-500 uppercase tracking-wider">Recuperar contraseña</p>
+                                        </div>
+                                        <p className="text-[9px] text-muted-foreground leading-relaxed">Ingresa tu usuario o correo. Te enviaremos un enlace para restablecer tu contraseña.</p>
+                                        <input
+                                            type="text"
+                                            placeholder="Usuario o correo electrónico"
+                                            value={forgotUsername}
+                                            onChange={e => setForgotUsername(e.target.value)}
+                                            className="w-full bg-white/70 border border-sky-500/30 rounded-xl px-3 py-2.5 text-[11px] font-bold text-foreground outline-none focus:border-sky-500/60 transition-all placeholder:text-muted-foreground/50"
+                                            required
+                                        />
+                                        {forgotError && <p className="text-[9px] text-rose-500 font-bold">{forgotError}</p>}
+                                        <button
+                                            type="submit"
+                                            disabled={forgotLoading}
+                                            className="w-full py-2.5 rounded-xl bg-sky-500 text-white font-black text-[9px] uppercase tracking-widest hover:bg-sky-600 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                                        >
+                                            {forgotLoading ? <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : 'Enviar enlace'}
+                                        </button>
+                                    </form>
+                                ) : (
+                                    <div className="p-4 flex items-start gap-3">
+                                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-tight">Correo enviado</p>
+                                            <p className="text-[9px] text-muted-foreground mt-0.5 leading-relaxed">Si el usuario existe, recibirás un enlace para restablecer tu contraseña. Revisa tu bandeja de entrada.</p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 
