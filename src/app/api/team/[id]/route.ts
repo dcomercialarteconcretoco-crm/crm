@@ -13,8 +13,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   await pool.query(
     `
-      INSERT INTO crm_users (id, name, avatar, role, email, phone, username, status, sales, commission, password, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+      INSERT INTO crm_users (id, name, avatar, role, email, phone, username, status, sales, commission, password, permissions, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         avatar = EXCLUDED.avatar,
@@ -26,6 +26,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         sales = EXCLUDED.sales,
         commission = EXCLUDED.commission,
         password = EXCLUDED.password,
+        permissions = EXCLUDED.permissions,
         updated_at = NOW()
     `,
     [
@@ -40,6 +41,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       payload.sales || "$0",
       payload.commission || "10%",
       payload.password || null,
+      payload.permissions ? JSON.stringify(payload.permissions) : null,
     ]
   );
 

@@ -60,13 +60,13 @@ export async function POST(req: NextRequest) {
     <tr><td align="center">
       <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
         <tr><td style="background:#111;padding:32px 40px;text-align:center;">
-          <img src="https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png" alt="Arte Concreto" height="48" style="height:48px;object-fit:contain;" />
+          <img src="https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png" alt="ArteConcreto" height="48" style="height:48px;object-fit:contain;" />
         </td></tr>
         <tr><td style="background:#fab510;height:4px;"></td></tr>
         <tr><td style="padding:40px;">
           <h2 style="margin:0 0 8px;font-size:22px;color:#111;font-weight:800;">Hola, ${user.name}</h2>
           <p style="margin:0 0 24px;font-size:14px;color:#555;line-height:1.6;">
-            Recibimos una solicitud para restablecer la contraseña de tu cuenta en el CRM Intelligence de Arte Concreto.
+            Recibimos una solicitud para restablecer la contraseña de tu cuenta en el CRM Intelligence de ArteConcreto.
           </p>
           <p style="margin:0 0 32px;font-size:14px;color:#555;line-height:1.6;">
             Haz clic en el botón a continuación para crear una nueva contraseña. Este enlace es válido durante <strong>1 hora</strong>.
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
         </td></tr>
         <tr><td style="background:#111;padding:20px 40px;text-align:center;">
           <p style="margin:0;font-size:10px;color:#666;text-transform:uppercase;letter-spacing:0.2em;">
-            Arte Concreto S.A.S • CRM Intelligence
+            ArteConcreto S.A.S • CRM Intelligence
           </p>
         </td></tr>
       </table>

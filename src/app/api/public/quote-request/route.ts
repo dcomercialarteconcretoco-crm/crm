@@ -62,7 +62,7 @@ function buildEmail(data: {
     <div style="display:inline-block;background:#fab510;color:#000;font-size:10px;font-weight:900;letter-spacing:2px;text-transform:uppercase;padding:6px 14px;border-radius:8px;margin-bottom:20px;">${quoteNumber}</div>
     <p style="margin:0 0 4px;font-size:12px;color:#999;">${dateStr}</p>
     <h2 style="margin:0 0 24px;font-size:22px;font-weight:900;color:#111;">Hola, ${clientName} 👋</h2>
-    <p style="margin:0 0 28px;color:#555;font-size:15px;line-height:1.6;">Gracias por tu interés en <strong>Arte Concreto</strong>. Aquí tienes tu cotización oficial.</p>
+    <p style="margin:0 0 28px;color:#555;font-size:15px;line-height:1.6;">Gracias por tu interés en <strong>ArteConcreto</strong>. Aquí tienes tu cotización oficial.</p>
 
     <!-- Items table -->
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
@@ -113,7 +113,7 @@ function buildEmail(data: {
 
   <!-- Footer -->
   <div style="background:#111;padding:24px 36px;text-align:center;">
-    <p style="margin:0 0 4px;font-size:11px;color:#666;text-transform:uppercase;letter-spacing:2px;">Arte Concreto S.A.S · Bogotá · Medellín · Cartagena</p>
+    <p style="margin:0 0 4px;font-size:11px;color:#666;text-transform:uppercase;letter-spacing:2px;">ArteConcreto S.A.S · Bogotá · Medellín · Cartagena</p>
     <p style="margin:0;font-size:10px;color:#444;">cotizaciones&#64;arteconcreto&#46;co · arteconcreto.co</p>
   </div>
 </div>
@@ -235,7 +235,7 @@ export async function POST(req: NextRequest) {
                     from: FROM_EMAIL,
                     to: [email],
                     cc: [CC_EMAIL],
-                    subject: `📋 Cotización ${quoteNumber} — Arte Concreto`,
+                    subject: `📋 Cotización ${quoteNumber} — ArteConcreto`,
                     html,
                 }),
             });

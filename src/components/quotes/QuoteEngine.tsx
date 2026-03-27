@@ -233,7 +233,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         const msg = [
             `Hola ${client.name.split(' ')[0]} 👋`,
             ``,
-            `Adjunto encontrará la cotización *${quoteNumber}* de *Arte Concreto S.A.S*:`,
+            `Adjunto encontrará la cotización *${quoteNumber}* de *ArteConcreto S.A.S*:`,
             referencia ? `📋 ${referencia}` : '',
             ``,
             itemsList,

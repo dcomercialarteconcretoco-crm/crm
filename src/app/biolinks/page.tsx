@@ -67,9 +67,14 @@ export default function BiolinksPage() {
             fetch('/api/biolinks').then(r => r.json()).catch(() => []),
             fetch('/api/biolinks/settings').then(r => r.json()).catch(() => DEFAULT_SETTINGS),
         ]).then(([bl, st]) => {
-            setCards(Array.isArray(bl) ? bl : []);
-            setSettings(st || DEFAULT_SETTINGS);
-            setSettingsDraft(st || DEFAULT_SETTINGS);
+            if (!Array.isArray(bl) && bl?.error) {
+                setError('Sin acceso a tarjetas digitales. Por favor cierra sesión e inicia sesión nuevamente.');
+                setCards([]);
+            } else {
+                setCards(Array.isArray(bl) ? bl : []);
+            }
+            setSettings((!st || st?.error) ? DEFAULT_SETTINGS : st);
+            setSettingsDraft((!st || st?.error) ? DEFAULT_SETTINGS : st);
         }).catch(e => setError(e.message))
           .finally(() => setLoading(false));
     }, []);
@@ -188,6 +193,9 @@ export default function BiolinksPage() {
                 <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 border border-red-200">
                     <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
                     <p className="text-xs text-red-600 font-bold">{error}</p>
+                    {(error.includes('sesión') || error.includes('autorizado')) && (
+                        <a href="/login" className="ml-2 text-xs font-bold text-blue-600 underline">Ir a login →</a>
+                    )}
                     <button onClick={() => setError('')} className="ml-auto"><X className="w-3.5 h-3.5 text-red-400" /></button>
                 </div>
             )}

@@ -219,7 +219,7 @@ export default function LoginPage() {
                             className="h-3.5 object-contain brightness-0"
                         />
                     </div>
-                    <p className="text-[9px] text-muted-foreground">V 2.0.4 · © 2026 Arte Concreto Intelligence</p>
+                    <p className="text-[9px] text-muted-foreground">V 2.0.4 · © 2026 ArteConcreto Intelligence</p>
                 </div>
             </div>
         </div>

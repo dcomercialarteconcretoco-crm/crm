@@ -29,7 +29,7 @@ function downloadVCard(card: Biolink) {
         'BEGIN:VCARD', 'VERSION:3.0',
         `FN:${card.name}`,
         card.title ? `TITLE:${card.title}` : '',
-        'ORG:Arte Concreto S.A.S',
+        'ORG:ArteConcreto S.A.S',
         card.phone  ? `TEL;TYPE=WORK,VOICE:${card.phone}` : '',
         card.email  ? `EMAIL;TYPE=WORK:${card.email}` : '',
         card.website ? `URL:${card.website}` : '',

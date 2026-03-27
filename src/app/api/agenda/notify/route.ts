@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   <tr><td align="center">
     <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
       <tr><td style="background:#111;padding:28px 36px;text-align:center;">
-        <img src="https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png" alt="Arte Concreto" height="44" style="height:44px;object-fit:contain;" />
+        <img src="https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png" alt="ArteConcreto" height="44" style="height:44px;object-fit:contain;" />
       </td></tr>
       <tr><td style="background:#fab510;height:4px;"></td></tr>
       <tr><td style="padding:36px;">
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
           </tr>
           <tr>
             <td style="padding:8px 0;color:#555;font-size:13px;">👤 <strong>Organiza</strong></td>
-            <td style="padding:8px 0;font-size:13px;font-weight:700;color:#111;text-align:right;">${organizer || 'Arte Concreto'}</td>
+            <td style="padding:8px 0;font-size:13px;font-weight:700;color:#111;text-align:right;">${organizer || 'ArteConcreto'}</td>
           </tr>
           ${meetingLink ? `<tr>
             <td style="padding:8px 0;color:#555;font-size:13px;">🔗 <strong>Link</strong></td>
@@ -72,11 +72,11 @@ export async function POST(req: NextRequest) {
         </div>` : ''}
 
         <p style="margin:0;font-size:12px;color:#999;">
-          Agregaste este evento desde el CRM Intelligence de Arte Concreto. Si tienes dudas, contáctanos a <span style="color:#fab510;">contacto@arteconcreto.co</span>
+          Agregaste este evento desde el CRM Intelligence de ArteConcreto. Si tienes dudas, contáctanos a <span style="color:#fab510;">contacto@arteconcreto.co</span>
         </p>
       </td></tr>
       <tr><td style="background:#111;padding:18px 36px;text-align:center;">
-        <p style="margin:0;font-size:10px;color:#555;letter-spacing:2px;text-transform:uppercase;">Arte Concreto S.A.S · CRM Intelligence</p>
+        <p style="margin:0;font-size:10px;color:#555;letter-spacing:2px;text-transform:uppercase;">ArteConcreto S.A.S · CRM Intelligence</p>
       </td></tr>
     </table>
   </td></tr>

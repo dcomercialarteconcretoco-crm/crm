@@ -115,6 +115,7 @@ export interface Seller {
     sales?: string;
     commission?: string;
     password?: string;
+    permissions?: Record<string, boolean>;
 }
 
 export interface Notification {

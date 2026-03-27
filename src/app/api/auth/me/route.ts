@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
       await ensureCrmSchema();
       const pool = getPool();
       const { rows } = await pool.query(
-        `SELECT id, name, email, username, role, status, avatar, phone, sales, commission
+        `SELECT id, name, email, username, role, status, avatar, phone, sales, commission, permissions
          FROM crm_users WHERE id = $1 LIMIT 1`,
         [tokenUser.id]
       );
@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
             phone: dbUser.phone ?? tokenUser.phone,
             sales: dbUser.sales ?? tokenUser.sales,
             commission: dbUser.commission ?? tokenUser.commission,
+            permissions: dbUser.permissions ?? null,
           },
         });
       }

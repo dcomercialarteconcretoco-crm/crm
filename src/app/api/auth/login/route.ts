@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       const pool = getPool();
       const { rows } = await pool.query(
         `
-          SELECT id, name, avatar, role, email, phone, username, status, sales, commission, password
+          SELECT id, name, avatar, role, email, phone, username, status, sales, commission, password, permissions
           FROM crm_users
           WHERE lower(email) = $1 OR lower(username) = $1
           LIMIT 1
@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
           phone: user.phone || "",
           sales: user.sales || "$0",
           commission: user.commission || "10%",
+          permissions: user.permissions ?? undefined,
         };
 
         const response = NextResponse.json({ user: sessionUser });

@@ -50,9 +50,15 @@ export async function ensureCrmSchema() {
       sales TEXT,
       commission TEXT,
       password TEXT,
+      permissions JSONB,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+  `);
+
+  // Migrate: add permissions column to existing tables that predate it
+  await pool.query(`
+    ALTER TABLE crm_users ADD COLUMN IF NOT EXISTS permissions JSONB;
   `);
 
   await pool.query(`

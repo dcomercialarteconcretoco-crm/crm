@@ -24,6 +24,7 @@ export type SessionUser = {
   phone?: string;
   sales?: string;
   commission?: string;
+  permissions?: Record<string, boolean>;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
