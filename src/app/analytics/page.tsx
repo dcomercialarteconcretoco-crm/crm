@@ -77,17 +77,19 @@ export default function AnalyticsPage() {
         { label: 'Tasa Ganada', value: quotes.length ? ((quotes.filter(q => q.status === 'Approved').length / quotes.length) * 100).toFixed(0) + '%' : '0%', icon: Target, color: 'text-primary' },
         { label: 'Cierres Exitosos', value: auditLogs.filter(a => a.action === 'SALE_REGISTERED').length.toString(), icon: TrendingUp, color: 'text-emerald-500' },
     ];
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
+            {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Inteligencia de Negocio</h1>
-                    <p className="text-sm text-muted-foreground">Análisis avanzado de rendimiento, conversión y proyecciones.</p>
+                    <h1 className="page-title">Inteligencia de Negocio</h1>
+                    <p className="page-subtitle">Análisis avanzado de rendimiento, conversión y proyecciones.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => addNotification({ title: 'Filtros de fecha', description: 'Selecciona un rango de fechas para filtrar las analíticas.', type: 'ai' })}
-                        className="flex items-center gap-2 px-4 py-2 border border-border/40 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-muted/50 transition-colors"
+                        className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted flex items-center gap-2 text-xs font-bold uppercase tracking-widest"
                     >
                         <Calendar className="w-4 h-4" />
                         Últimos 6 Meses
@@ -113,9 +115,9 @@ export default function AnalyticsPage() {
                                     score: c.score || 0,
                                 })),
                             });
-                            addNotification({ title: '📊 PDF Generado', description: 'Reporte descargado correctamente.', type: 'success' });
+                            addNotification({ title: 'PDF Generado', description: 'Reporte descargado correctamente.', type: 'success' });
                         }}
-                        className="bg-primary text-black font-bold px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 text-xs uppercase tracking-widest"
+                        className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 flex items-center gap-2 text-xs uppercase tracking-widest"
                     >
                         <Download className="w-4 h-4" />
                         PDF Report
@@ -123,69 +125,70 @@ export default function AnalyticsPage() {
                 </div>
             </div>
 
+            {/* KPI Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {statsTop.map((stat) => (
-                    <div key={stat.label} className="bg-card border border-border/40 p-6 rounded-2xl group hover:border-primary/40 transition-colors">
-                        <div className={`p-2 rounded-lg bg-muted/50 w-fit mb-4 ${stat.color}`}>
+                    <div key={stat.label} className="surface-card p-5">
+                        <div className={`p-2 rounded-lg bg-muted w-fit mb-4 ${stat.color}`}>
                             <stat.icon className="w-5 h-5" />
                         </div>
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-1">{stat.label}</p>
+                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground leading-none mb-1">{stat.label}</p>
                         <div className="flex items-end justify-between">
-                            <p className="text-2xl font-black">{stat.value}</p>
+                            <p className="text-2xl font-black text-foreground">{stat.value}</p>
                             <ArrowUpRight className="w-4 h-4 text-emerald-500 mb-1" />
                         </div>
                     </div>
                 ))}
             </div>
 
+            {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                <div className="lg:col-span-8 bg-card border border-border/40 p-8 rounded-3xl">
+                <div className="lg:col-span-8 surface-card p-8">
                     <div className="flex items-center justify-between mb-8">
                         <h3 className="text-lg font-black uppercase tracking-tighter">Proyección de Ingresos vs Cotizado</h3>
-                        <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest opacity-60">
+                        <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                             <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-primary"></div> Cotizado</div>
-                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-white opacity-20"></div> Cerrado</div>
+                            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-muted-foreground opacity-40"></div> Cerrado</div>
                         </div>
                     </div>
                     <div className="h-[350px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={revenueData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff08" />
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                                 <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} dy={10} />
                                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} />
                                 <Tooltip
-                                    cursor={{ fill: '#ffffff05' }}
-                                    contentStyle={{ backgroundColor: '#141417', borderColor: '#fab51044', color: '#fff', borderRadius: '12px' }}
+                                    cursor={{ fill: '#f9fafb' }}
+                                    contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb', color: '#111827', borderRadius: '12px' }}
                                 />
                                 <Bar dataKey="quotes" fill="#fab510" radius={[4, 4, 0, 0]} barSize={30} />
-                                <Bar dataKey="sales" fill="#ffffff20" radius={[4, 4, 0, 0]} barSize={10} />
+                                <Bar dataKey="sales" fill="#e5e7eb" radius={[4, 4, 0, 0]} barSize={10} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
 
-                <div className="lg:col-span-4 bg-card border border-border/40 p-8 rounded-3xl flex flex-col">
+                <div className="lg:col-span-4 surface-card p-8 flex flex-col">
                     <h3 className="text-lg font-black uppercase tracking-tighter mb-8">Embudo de Conversión</h3>
                     <div className="flex-1 space-y-8">
                         {conversionData.map((item, idx) => (
                             <div key={item.name} className="relative">
                                 <div className="flex justify-between items-center mb-2">
-                                    <span className="text-sm font-bold opacity-80">{item.name}</span>
+                                    <span className="text-sm font-bold text-foreground">{item.name}</span>
                                     <span className={`text-xs font-black ${item.value > 0 ? 'text-primary' : 'text-muted-foreground'}`}>
                                         {item.value > 0 ? `${item.value} registros` : 'Sin datos'}
                                     </span>
                                 </div>
-                                <div className="h-3 w-full bg-muted rounded-full overflow-hidden p-0.5">
+                                <div className="progress-track">
                                     <div
-                                        className="h-full bg-primary rounded-full shadow-[0_0_12px_rgba(250,181,16,0.3)] transition-all duration-1000"
+                                        className="progress-fill"
                                         style={{ width: conversionData[0].value === 0 ? '0%' : `${Math.min(100, (item.value / conversionData[0].value) * 100)}%`, opacity: 1 - (idx * 0.2) }}
-                                    ></div>
-
+                                    />
                                 </div>
                             </div>
                         ))}
                     </div>
-                    <div className="mt-8 pt-6 border-t border-border/20 text-center">
+                    <div className="mt-8 pt-6 border-t border-border text-center">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase italic leading-relaxed">
                             Analítica dinámica de conversión generada a partir de los datos actuales.
                         </p>
@@ -193,8 +196,8 @@ export default function AnalyticsPage() {
                 </div>
             </div>
 
-            {/* Cotizaciones Recientes — clickable rows */}
-            <div className="bg-card border border-border/40 rounded-3xl p-8">
+            {/* Cotizaciones Recientes */}
+            <div className="surface-card p-8">
                 <div className="flex items-center justify-between mb-6">
                     <h3 className="text-lg font-black uppercase tracking-tighter">Cotizaciones Recientes</h3>
                     <Link href="/quotes" className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline flex items-center gap-1">
@@ -207,23 +210,23 @@ export default function AnalyticsPage() {
                         <p className="text-xs font-bold uppercase tracking-widest opacity-40">Sin cotizaciones aún</p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto -mx-2">
-                        <table className="w-full text-sm">
+                    <div className="overflow-x-auto">
+                        <table className="table-clean">
                             <thead>
-                                <tr className="border-b border-border/40">
+                                <tr>
                                     {['#', 'Cliente', 'Fecha', 'Total', 'Estado'].map(h => (
-                                        <th key={h} className="text-left text-[9px] font-black uppercase tracking-widest text-muted-foreground/50 pb-3 px-2">{h}</th>
+                                        <th key={h}>{h}</th>
                                     ))}
-                                    <th className="pb-3 px-2"></th>
+                                    <th></th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-border/20">
+                            <tbody>
                                 {quotes.slice(0, 10).map(q => {
                                     const statusMap: Record<string, { label: string; icon: React.ElementType; cls: string }> = {
-                                        'Sent':     { label: 'Enviada',   icon: Clock,         cls: 'text-sky-500 bg-sky-500/10 border-sky-500/20' },
-                                        'Approved': { label: 'Aprobada', icon: CheckCircle2,   cls: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20' },
-                                        'Draft':    { label: 'Borrador', icon: AlertCircle,    cls: 'text-amber-500 bg-amber-500/10 border-amber-500/20' },
-                                        'Rejected': { label: 'Rechazada',icon: AlertCircle,    cls: 'text-rose-500 bg-rose-500/10 border-rose-500/20' },
+                                        'Sent':     { label: 'Enviada',   icon: Clock,         cls: 'text-sky-500 bg-sky-50 border-sky-200' },
+                                        'Approved': { label: 'Aprobada', icon: CheckCircle2,   cls: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+                                        'Draft':    { label: 'Borrador', icon: AlertCircle,    cls: 'text-amber-600 bg-amber-50 border-amber-200' },
+                                        'Rejected': { label: 'Rechazada',icon: AlertCircle,    cls: 'text-rose-600 bg-rose-50 border-rose-200' },
                                     };
                                     const st = statusMap[q.status] || statusMap['Draft'];
                                     const StIcon = st.icon;
@@ -231,22 +234,22 @@ export default function AnalyticsPage() {
                                         <tr
                                             key={q.id}
                                             onClick={() => window.location.href = `/quotes/${q.id}/edit`}
-                                            className="cursor-pointer hover:bg-muted/30 transition-colors group"
+                                            className="cursor-pointer group"
                                         >
-                                            <td className="px-2 py-3.5 text-[10px] font-black text-primary uppercase">{q.number || q.id.slice(0,8)}</td>
-                                            <td className="px-2 py-3.5">
+                                            <td className="text-[10px] font-black text-primary uppercase">{q.number || q.id.slice(0,8)}</td>
+                                            <td>
                                                 <p className="font-bold text-xs text-foreground truncate max-w-[140px]">{q.client || q.clientEmail || '—'}</p>
                                                 {q.clientCompany && q.clientCompany !== q.client && <p className="text-[9px] text-muted-foreground truncate max-w-[140px]">{q.clientCompany}</p>}
                                             </td>
-                                            <td className="px-2 py-3.5 text-[10px] text-muted-foreground whitespace-nowrap">{q.date || '—'}</td>
-                                            <td className="px-2 py-3.5 text-sm font-black text-foreground whitespace-nowrap">{q.total || '—'}</td>
-                                            <td className="px-2 py-3.5">
+                                            <td className="text-[10px] text-muted-foreground whitespace-nowrap">{q.date || '—'}</td>
+                                            <td className="text-sm font-black text-foreground whitespace-nowrap">{q.total || '—'}</td>
+                                            <td>
                                                 <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-black uppercase border ${st.cls}`}>
                                                     <StIcon className="w-2.5 h-2.5" />
                                                     {st.label}
                                                 </span>
                                             </td>
-                                            <td className="px-2 py-3.5 text-right">
+                                            <td className="text-right">
                                                 <ExternalLink className="w-3 h-3 text-muted-foreground/30 group-hover:text-primary transition-colors" />
                                             </td>
                                         </tr>

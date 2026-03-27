@@ -742,7 +742,12 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                             {/* Letterhead */}
                             <div className="flex justify-between items-start border-b-2 border-[#fab510] pb-4">
                                 <div>
-                                    <p className="font-black text-base text-[#1a1a1d]">ARTE CONCRETO S.A.S</p>
+                                    <img
+                                        src="/api/logo"
+                                        alt="Arte Concreto"
+                                        className="h-10 object-contain mb-1"
+                                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                    />
                                     <p className="text-xs text-gray-500">Km 1+800, Anillo Vial · Floridablanca, Santander</p>
                                 </div>
                                 <div className="text-right">

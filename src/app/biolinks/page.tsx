@@ -154,29 +154,29 @@ export default function BiolinksPage() {
 
     const f = (key: keyof Biolink, val: string | boolean) => setForm(prev => ({ ...prev, [key]: val }));
 
-    const inputCls = "w-full bg-muted/30 border border-border/40 rounded-xl px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-primary/60 transition-all placeholder:text-muted-foreground/40 font-medium";
-    const labelCls = "text-[10px] font-black uppercase tracking-widest text-muted-foreground/60";
+    const inputCls = "bg-muted border border-border rounded-xl py-2.5 px-3 text-sm outline-none focus:border-primary focus:bg-white w-full";
+    const labelCls = "block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5";
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
-                    <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
+                    <h1 className="page-title flex items-center gap-2">
                         <CreditCard className="w-6 h-6 text-primary" />
                         Tarjetas Digitales
                     </h1>
-                    <p className="text-sm text-muted-foreground">BioLinks profesionales por empleado con QR y vCard</p>
+                    <p className="page-subtitle">BioLinks profesionales por empleado con QR y vCard</p>
                 </div>
                 <div className="flex items-center gap-2">
                     <button onClick={() => { setSettingsDraft(settings); setShowSettings(true); }}
-                        className="flex items-center gap-2 px-4 py-2.5 border border-border/40 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-muted/40 transition-colors">
+                        className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted flex items-center gap-2">
                         <Settings className="w-4 h-4" />
                         Plantilla global
                     </button>
                     {isSuperAdmin && (
                         <button onClick={openCreate}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-primary text-black rounded-xl text-xs font-black uppercase tracking-wider hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
+                            className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2">
                             <Plus className="w-4 h-4" />
                             Nueva tarjeta
                         </button>
@@ -185,10 +185,10 @@ export default function BiolinksPage() {
             </div>
 
             {error && (
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/20">
-                    <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
-                    <p className="text-xs text-rose-500 font-bold">{error}</p>
-                    <button onClick={() => setError('')} className="ml-auto"><X className="w-3.5 h-3.5 text-rose-400" /></button>
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 border border-red-200">
+                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                    <p className="text-xs text-red-600 font-bold">{error}</p>
+                    <button onClick={() => setError('')} className="ml-auto"><X className="w-3.5 h-3.5 text-red-400" /></button>
                 </div>
             )}
 
@@ -200,15 +200,15 @@ export default function BiolinksPage() {
                 </div>
             ) : cards.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
-                    <div className="w-20 h-20 rounded-[2rem] bg-muted/40 border border-border/30 flex items-center justify-center">
-                        <CreditCard className="w-9 h-9 text-muted-foreground/20" />
+                    <div className="w-20 h-20 rounded-2xl bg-muted border border-border flex items-center justify-center">
+                        <CreditCard className="w-9 h-9 text-muted-foreground/30" />
                     </div>
                     <div>
-                        <p className="font-black text-lg text-foreground">Sin tarjetas digitales aún</p>
+                        <p className="font-bold text-lg text-foreground">Sin tarjetas digitales aún</p>
                         <p className="text-sm text-muted-foreground mt-1">Crea la primera tarjeta para un empleado</p>
                     </div>
                     {isSuperAdmin && (
-                        <button onClick={openCreate} className="flex items-center gap-2 px-6 py-3 bg-primary text-black rounded-xl font-black text-sm hover:scale-105 transition-transform">
+                        <button onClick={openCreate} className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2">
                             <Plus className="w-4 h-4" /> Crear primera tarjeta
                         </button>
                     )}
@@ -216,35 +216,38 @@ export default function BiolinksPage() {
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                     {cards.map(card => (
-                        <div key={card.id} className={clsx("bg-card border rounded-3xl overflow-hidden group transition-all hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-0.5 flex flex-col", card.active ? "border-border/40" : "border-border/20 opacity-60")}>
+                        <div key={card.id} className={clsx(
+                            "bg-white border border-border rounded-xl overflow-hidden hover:shadow-md transition-shadow flex flex-col",
+                            !card.active && "opacity-60"
+                        )}>
                             {/* Card top — gradient + photo */}
                             <div className="relative h-24 flex items-end justify-center pb-0" style={{ background: `linear-gradient(135deg, #111 0%, #1e1e24 100%)` }}>
                                 <div className="absolute inset-0" style={{ background: `radial-gradient(circle at 70% 30%, ${settings.primary_color}18 0%, transparent 70%)` }} />
                                 {card.photo ? (
                                     <img src={card.photo} alt={card.name}
-                                        className="w-16 h-16 rounded-full object-cover border-4 border-card shadow-xl relative z-10 translate-y-8" />
+                                        className="w-16 h-16 rounded-full object-cover border-4 border-white shadow-xl relative z-10 translate-y-8" />
                                 ) : (
-                                    <div className="w-16 h-16 rounded-full bg-primary/20 border-4 border-card flex items-center justify-center font-black text-xl text-primary shadow-xl relative z-10 translate-y-8">
+                                    <div className="w-16 h-16 rounded-full bg-primary/20 border-4 border-white flex items-center justify-center font-black text-xl text-primary shadow-xl relative z-10 translate-y-8">
                                         {card.name.charAt(0).toUpperCase()}
                                     </div>
                                 )}
                             </div>
                             <div className="pt-10 px-5 pb-5 flex flex-col flex-1">
                                 <div className="text-center mb-4">
-                                    <p className="font-black text-base text-foreground leading-tight">{card.name}</p>
+                                    <p className="font-bold text-base text-foreground leading-tight">{card.name}</p>
                                     {card.title && <p className="text-xs text-muted-foreground mt-0.5">{card.title}</p>}
                                     <div className="flex items-center justify-center gap-1.5 mt-2">
-                                        <span className={clsx("px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border",
-                                            card.active ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-muted text-muted-foreground border-border/30")}>
+                                        <span className={clsx("px-2 py-0.5 rounded-full text-xs font-bold border",
+                                            card.active ? "bg-emerald-50 text-emerald-600 border-emerald-200" : "bg-muted text-muted-foreground border-border")}>
                                             {card.active ? 'Activa' : 'Inactiva'}
                                         </span>
                                     </div>
                                 </div>
 
                                 {/* Slug URL */}
-                                <div className="flex items-center gap-1.5 bg-muted/30 border border-border/30 rounded-xl px-3 py-2 mb-4">
-                                    <Link className="w-3 h-3 text-muted-foreground/40 shrink-0" />
-                                    <span className="text-[10px] text-muted-foreground truncate flex-1">/b/{card.slug}</span>
+                                <div className="flex items-center gap-1.5 bg-muted border border-border rounded-xl px-3 py-2 mb-4">
+                                    <Link className="w-3 h-3 text-muted-foreground/50 shrink-0" />
+                                    <span className="text-xs text-muted-foreground truncate flex-1">/b/{card.slug}</span>
                                     <button onClick={() => copyUrl(card)} className="shrink-0 text-muted-foreground hover:text-primary transition-colors">
                                         {copiedId === card.id ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                                     </button>
@@ -263,20 +266,20 @@ export default function BiolinksPage() {
                                 {/* Actions */}
                                 <div className="flex gap-2 mt-auto">
                                     <a href={`/b/${card.slug}`} target="_blank" rel="noopener noreferrer"
-                                        className="flex-1 flex items-center justify-center gap-1 py-2 border border-border/40 rounded-xl text-[10px] font-black uppercase hover:bg-muted/30 transition-colors text-muted-foreground hover:text-foreground">
+                                        className="flex-1 flex items-center justify-center gap-1 py-2 bg-white border border-border text-foreground font-medium rounded-xl text-xs hover:bg-muted transition-colors">
                                         <Eye className="w-3.5 h-3.5" /> Ver
                                     </a>
                                     <button onClick={() => downloadQR(card)}
-                                        className="flex-1 flex items-center justify-center gap-1 py-2 border border-border/40 rounded-xl text-[10px] font-black uppercase hover:bg-muted/30 transition-colors text-muted-foreground hover:text-foreground">
+                                        className="flex-1 flex items-center justify-center gap-1 py-2 bg-white border border-border text-foreground font-medium rounded-xl text-xs hover:bg-muted transition-colors">
                                         <QrCode className="w-3.5 h-3.5" /> QR
                                     </button>
                                     {isSuperAdmin && <>
                                         <button onClick={() => openEdit(card)}
-                                            className="flex-1 flex items-center justify-center gap-1 py-2 bg-primary/10 border border-primary/20 text-primary rounded-xl text-[10px] font-black uppercase hover:bg-primary/20 transition-colors">
+                                            className="flex-1 flex items-center justify-center gap-1 py-2 bg-primary/10 border border-primary/20 text-primary rounded-xl text-xs font-bold hover:bg-primary/20 transition-colors">
                                             <Edit2 className="w-3.5 h-3.5" />
                                         </button>
                                         <button onClick={() => handleDelete(card.id)}
-                                            className="p-2 border border-border/40 rounded-xl text-muted-foreground hover:text-rose-500 hover:border-rose-500/30 transition-colors">
+                                            className="p-2 bg-red-50 border border-red-200 text-red-600 font-medium rounded-xl hover:bg-red-100 transition-colors">
                                             <Trash2 className="w-3.5 h-3.5" />
                                         </button>
                                     </>}
@@ -289,23 +292,23 @@ export default function BiolinksPage() {
 
             {/* ── EDITOR MODAL ── */}
             {showEditor && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-start justify-center p-4 overflow-y-auto">
-                    <div className="w-full max-w-3xl bg-card border border-border/40 rounded-[2.5rem] shadow-2xl overflow-hidden my-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <div className="fixed inset-0 flex items-center justify-center p-4 z-50" style={{ background: 'rgba(10,12,20,0.55)', backdropFilter: 'blur(6px)' }}>
+                    <div className="bg-white border border-border rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
                         {/* Modal header */}
-                        <div className="flex items-center justify-between px-8 py-6 border-b border-border/40">
+                        <div className="flex items-center justify-between p-6 border-b border-border">
                             <div>
-                                <h2 className="font-black text-xl tracking-tight">
+                                <h2 className="font-bold text-xl text-foreground">
                                     {editingCard ? 'Editar tarjeta digital' : 'Nueva tarjeta digital'}
                                 </h2>
                                 <p className="text-xs text-muted-foreground mt-0.5">Datos corporativos del empleado</p>
                             </div>
                             <div className="flex items-center gap-2">
                                 <button onClick={() => setShowPreview(v => !v)}
-                                    className={clsx("flex items-center gap-1.5 px-4 py-2 rounded-xl text-[10px] font-black uppercase border transition-colors",
-                                        showPreview ? "bg-primary/10 border-primary/30 text-primary" : "border-border/40 text-muted-foreground hover:bg-muted/30")}>
+                                    className={clsx("flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold border transition-colors",
+                                        showPreview ? "bg-primary/10 border-primary/30 text-primary" : "bg-white border-border text-foreground hover:bg-muted")}>
                                     <Eye className="w-3.5 h-3.5" /> Preview
                                 </button>
-                                <button onClick={() => setShowEditor(false)} className="p-2 hover:bg-muted/40 rounded-xl transition-colors">
+                                <button onClick={() => setShowEditor(false)} className="p-2 hover:bg-muted rounded-xl transition-colors">
                                     <X className="w-5 h-5 text-muted-foreground" />
                                 </button>
                             </div>
@@ -313,27 +316,27 @@ export default function BiolinksPage() {
 
                         <div className={clsx("grid gap-0", showPreview ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1")}>
                             {/* Form */}
-                            <div className="p-8 space-y-6 overflow-y-auto max-h-[75vh]">
+                            <div className="p-6 space-y-4 overflow-y-auto max-h-[75vh]">
                                 {/* Photo */}
-                                <div className="space-y-2">
+                                <div>
                                     <label className={labelCls}>Foto del empleado</label>
                                     <div className="flex items-center gap-4">
                                         {form.photo ? (
-                                            <img src={form.photo} alt="foto" className="w-16 h-16 rounded-full object-cover border-2 border-border/40" />
+                                            <img src={form.photo} alt="foto" className="w-16 h-16 rounded-full object-cover border-2 border-border" />
                                         ) : (
-                                            <div className="w-16 h-16 rounded-full bg-muted/40 border-2 border-border/30 flex items-center justify-center">
-                                                <User className="w-7 h-7 text-muted-foreground/30" />
+                                            <div className="w-16 h-16 rounded-full bg-muted border-2 border-border flex items-center justify-center">
+                                                <User className="w-7 h-7 text-muted-foreground/40" />
                                             </div>
                                         )}
                                         <div>
                                             <input type="file" ref={photoInputRef} accept="image/*" className="hidden" onChange={handlePhotoUpload} />
                                             <button type="button" onClick={() => photoInputRef.current?.click()}
-                                                className="flex items-center gap-1.5 px-4 py-2 border border-border/40 rounded-xl text-[10px] font-black uppercase hover:bg-muted/30 transition-colors text-muted-foreground">
+                                                className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted flex items-center gap-1.5 text-xs">
                                                 {uploadingPhoto ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Image className="w-3.5 h-3.5" />}
                                                 {uploadingPhoto ? 'Cargando...' : 'Seleccionar foto'}
                                             </button>
                                             {form.photo && (
-                                                <button type="button" onClick={() => f('photo', '')} className="ml-2 text-[10px] text-rose-400 hover:text-rose-500 font-bold">Quitar</button>
+                                                <button type="button" onClick={() => f('photo', '')} className="ml-2 text-xs text-red-500 hover:text-red-600 font-bold">Quitar</button>
                                             )}
                                         </div>
                                     </div>
@@ -341,26 +344,26 @@ export default function BiolinksPage() {
 
                                 {/* Basic info */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
+                                    <div>
                                         <label className={labelCls}>Nombre *</label>
                                         <input type="text" placeholder="Juan Pérez" value={form.name || ''} onChange={e => f('name', e.target.value)} className={inputCls} required />
                                     </div>
-                                    <div className="space-y-1.5">
+                                    <div>
                                         <label className={labelCls}>Cargo</label>
                                         <input type="text" placeholder="Asesor Comercial" value={form.title || ''} onChange={e => f('title', e.target.value)} className={inputCls} />
                                     </div>
-                                    <div className="space-y-1.5">
+                                    <div>
                                         <label className={labelCls}>Teléfono empresa</label>
                                         <input type="tel" placeholder="+57 300 000 0000" value={form.phone || ''} onChange={e => f('phone', e.target.value)} className={inputCls} />
                                     </div>
-                                    <div className="space-y-1.5">
+                                    <div>
                                         <label className={labelCls}>Email empresa</label>
                                         <input type="email" placeholder="juan@arteconcreto.co" value={form.email || ''} onChange={e => f('email', e.target.value)} className={inputCls} />
                                     </div>
                                 </div>
 
                                 {/* Slug */}
-                                <div className="space-y-1.5">
+                                <div>
                                     <label className={labelCls}>Slug de URL (auto-generado si se deja vacío)</label>
                                     <div className="flex items-center gap-2">
                                         <span className="text-xs text-muted-foreground font-bold">/b/</span>
@@ -370,7 +373,7 @@ export default function BiolinksPage() {
 
                                 {/* Social links */}
                                 <div>
-                                    <p className={clsx(labelCls, "mb-3")}>Redes sociales de la empresa</p>
+                                    <p className={labelCls}>Redes sociales de la empresa</p>
                                     <div className="space-y-3">
                                         {[
                                             { icon: <Instagram className="w-4 h-4 text-pink-500" />, key: 'instagram' as keyof Biolink, placeholder: '@arteconcreto o URL completa' },
@@ -380,7 +383,7 @@ export default function BiolinksPage() {
                                             { icon: <Globe     className="w-4 h-4 text-primary" />,   key: 'website'   as keyof Biolink, placeholder: 'https://arteconcreto.co' },
                                         ].map(s => (
                                             <div key={s.key} className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-xl bg-muted/30 border border-border/30 flex items-center justify-center shrink-0">{s.icon}</div>
+                                                <div className="w-8 h-8 rounded-xl bg-muted border border-border flex items-center justify-center shrink-0">{s.icon}</div>
                                                 <input type="text" placeholder={s.placeholder} value={(form[s.key] as string) || ''} onChange={e => f(s.key, e.target.value)} className={clsx(inputCls, "flex-1")} />
                                             </div>
                                         ))}
@@ -388,37 +391,39 @@ export default function BiolinksPage() {
                                 </div>
 
                                 {/* YouTube & Maps */}
-                                <div className="space-y-3">
-                                    <p className={clsx(labelCls, "mb-1")}>Contenido multimedia (opcional)</p>
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-xl bg-muted/30 border border-border/30 flex items-center justify-center shrink-0">
-                                            <Youtube className="w-4 h-4 text-red-500" />
+                                <div>
+                                    <p className={clsx(labelCls, "mb-3")}>Contenido multimedia (opcional)</p>
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-xl bg-muted border border-border flex items-center justify-center shrink-0">
+                                                <Youtube className="w-4 h-4 text-red-500" />
+                                            </div>
+                                            <input type="url" placeholder="https://youtube.com/watch?v=..." value={form.youtube_url || ''} onChange={e => f('youtube_url', e.target.value)} className={clsx(inputCls, "flex-1")} />
                                         </div>
-                                        <input type="url" placeholder="https://youtube.com/watch?v=..." value={form.youtube_url || ''} onChange={e => f('youtube_url', e.target.value)} className={clsx(inputCls, "flex-1")} />
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-xl bg-muted/30 border border-border/30 flex items-center justify-center shrink-0">
-                                            <MapPin className="w-4 h-4 text-rose-400" />
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-xl bg-muted border border-border flex items-center justify-center shrink-0">
+                                                <MapPin className="w-4 h-4 text-red-400" />
+                                            </div>
+                                            <input type="url" placeholder="URL de embed de Google Maps (iframe src=...)" value={form.maps_url || ''} onChange={e => f('maps_url', e.target.value)} className={clsx(inputCls, "flex-1")} />
                                         </div>
-                                        <input type="url" placeholder="URL de embed de Google Maps (iframe src=...)" value={form.maps_url || ''} onChange={e => f('maps_url', e.target.value)} className={clsx(inputCls, "flex-1")} />
                                     </div>
                                 </div>
 
                                 {/* Active toggle */}
-                                <div className="flex items-center justify-between py-3 px-4 bg-muted/20 border border-border/30 rounded-xl">
+                                <div className="flex items-center justify-between py-3 px-4 bg-muted border border-border rounded-xl">
                                     <span className="text-sm font-bold text-foreground">Tarjeta activa</span>
                                     <button type="button" onClick={() => f('active', !form.active)}
-                                        className={clsx("w-12 h-6 rounded-full relative transition-all", form.active ? "bg-primary" : "bg-gray-300")}>
-                                        <div className={clsx("w-4 h-4 bg-white rounded-full absolute top-1 transition-all", form.active ? "right-1" : "left-1")} />
+                                        className={clsx("w-10 h-6 rounded-full relative transition-colors", form.active ? "bg-primary" : "bg-muted border border-border")}>
+                                        <div className={clsx("w-4 h-4 bg-white rounded-full absolute top-1 transition-all shadow-sm", form.active ? "right-1" : "left-1")} />
                                     </button>
                                 </div>
                             </div>
 
                             {/* Preview panel */}
                             {showPreview && (
-                                <div className="border-l border-border/40 bg-muted/5 flex flex-col items-center p-6 overflow-y-auto max-h-[75vh]">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 mb-4">Vista previa</p>
-                                    <div className="w-full max-w-[320px] rounded-[2rem] overflow-hidden shadow-2xl border border-border/30" style={{ transform: 'scale(0.92)', transformOrigin: 'top center' }}>
+                                <div className="border-l border-border bg-muted/30 flex flex-col items-center p-6 overflow-y-auto max-h-[75vh]">
+                                    <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-4">Vista previa</p>
+                                    <div className="w-full max-w-[320px] rounded-2xl overflow-hidden shadow-2xl border border-border" style={{ transform: 'scale(0.92)', transformOrigin: 'top center' }}>
                                         <BiolinkPreview form={form} settings={settings} />
                                     </div>
                                 </div>
@@ -426,12 +431,12 @@ export default function BiolinksPage() {
                         </div>
 
                         {/* Modal footer */}
-                        <div className="flex items-center justify-end gap-3 px-8 py-5 border-t border-border/40 bg-muted/5">
-                            <button onClick={() => setShowEditor(false)} className="px-5 py-2.5 border border-border/40 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-muted/30 transition-colors text-muted-foreground">
+                        <div className="flex items-center justify-end gap-3 p-6 border-t border-border">
+                            <button onClick={() => setShowEditor(false)} className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted">
                                 Cancelar
                             </button>
                             <button onClick={handleSave} disabled={saving || !form.name?.trim()}
-                                className="flex items-center gap-2 px-6 py-2.5 bg-primary text-black rounded-xl text-xs font-black uppercase tracking-wider disabled:opacity-50 hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
+                                className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2 disabled:opacity-50">
                                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                                 {saving ? 'Guardando...' : 'Guardar tarjeta'}
                             </button>
@@ -442,26 +447,26 @@ export default function BiolinksPage() {
 
             {/* ── SETTINGS MODAL ── */}
             {showSettings && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="w-full max-w-md bg-card border border-border/40 rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
-                        <div className="flex items-center justify-between px-8 py-6 border-b border-border/40">
+                <div className="fixed inset-0 flex items-center justify-center p-4 z-50" style={{ background: 'rgba(10,12,20,0.55)', backdropFilter: 'blur(6px)' }}>
+                    <div className="bg-white border border-border rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between p-6 border-b border-border">
                             <div>
-                                <h2 className="font-black text-lg tracking-tight">Plantilla global</h2>
+                                <h2 className="font-bold text-lg text-foreground">Plantilla global</h2>
                                 <p className="text-xs text-muted-foreground">Aplica a todas las tarjetas</p>
                             </div>
-                            <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-muted/40 rounded-xl transition-colors">
+                            <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-muted rounded-xl transition-colors">
                                 <X className="w-5 h-5 text-muted-foreground" />
                             </button>
                         </div>
-                        <div className="p-8 space-y-6">
+                        <div className="p-6 space-y-4 overflow-y-auto max-h-[75vh]">
                             {/* Theme */}
-                            <div className="space-y-2">
+                            <div>
                                 <p className={labelCls}>Tema de fondo</p>
                                 <div className="grid grid-cols-2 gap-2">
                                     {['dark', 'light'].map(t => (
                                         <button key={t} onClick={() => setSettingsDraft(s => ({ ...s, theme: t }))}
-                                            className={clsx("py-3 rounded-xl border text-xs font-black uppercase tracking-wider transition-all",
-                                                settingsDraft.theme === t ? "bg-primary/10 border-primary/30 text-primary" : "border-border/40 text-muted-foreground hover:bg-muted/30")}>
+                                            className={clsx("py-3 rounded-xl border text-xs font-bold transition-all",
+                                                settingsDraft.theme === t ? "bg-primary/10 border-primary/30 text-primary" : "bg-white border-border text-foreground hover:bg-muted")}>
                                             {t === 'dark' ? '🌙 Oscuro' : '☀️ Claro'}
                                         </button>
                                     ))}
@@ -469,20 +474,20 @@ export default function BiolinksPage() {
                             </div>
 
                             {/* Primary color */}
-                            <div className="space-y-2">
+                            <div>
                                 <p className={labelCls}>Color principal</p>
                                 <div className="flex items-center gap-3">
                                     <input type="color" value={settingsDraft.primary_color}
                                         onChange={e => setSettingsDraft(s => ({ ...s, primary_color: e.target.value }))}
-                                        className="w-10 h-10 rounded-xl border border-border/40 cursor-pointer p-0.5 bg-transparent" />
+                                        className="w-10 h-10 rounded-xl border border-border cursor-pointer p-0.5 bg-transparent" />
                                     <input type="text" value={settingsDraft.primary_color}
                                         onChange={e => setSettingsDraft(s => ({ ...s, primary_color: e.target.value }))}
-                                        className="flex-1 bg-muted/30 border border-border/40 rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:border-primary/60 transition-all text-foreground" />
+                                        className="bg-muted border border-border rounded-xl py-2.5 px-3 text-sm outline-none focus:border-primary focus:bg-white flex-1" />
                                 </div>
                             </div>
 
                             {/* Form fields */}
-                            <div className="space-y-2">
+                            <div>
                                 <p className={labelCls}>Campos del formulario "Dejar datos"</p>
                                 <div className="space-y-2">
                                     {[
@@ -491,12 +496,12 @@ export default function BiolinksPage() {
                                         { key: 'phone', label: 'Teléfono' },
                                         { key: 'city', label: 'Ciudad' },
                                     ].map(field => (
-                                        <div key={field.key} className="flex items-center justify-between py-2.5 px-4 bg-muted/20 border border-border/30 rounded-xl">
+                                        <div key={field.key} className="flex items-center justify-between py-2.5 px-4 bg-muted border border-border rounded-xl">
                                             <span className="text-sm font-bold text-foreground">{field.label}</span>
                                             <button onClick={() => setSettingsDraft(s => ({
                                                 ...s, form_fields: { ...s.form_fields, [field.key]: !s.form_fields[field.key] }
-                                            }))} className={clsx("w-10 h-5 rounded-full relative transition-all", settingsDraft.form_fields[field.key] !== false ? "bg-primary" : "bg-gray-300")}>
-                                                <div className={clsx("w-3.5 h-3.5 bg-white rounded-full absolute top-[3px] transition-all", settingsDraft.form_fields[field.key] !== false ? "right-[3px]" : "left-[3px]")} />
+                                            }))} className={clsx("w-10 h-6 rounded-full relative transition-colors", settingsDraft.form_fields[field.key] !== false ? "bg-primary" : "bg-muted border border-border")}>
+                                                <div className={clsx("w-4 h-4 bg-white rounded-full absolute top-1 transition-all shadow-sm", settingsDraft.form_fields[field.key] !== false ? "right-1" : "left-1")} />
                                             </button>
                                         </div>
                                     ))}
@@ -508,19 +513,19 @@ export default function BiolinksPage() {
                                 { key: 'show_youtube' as keyof BiolinkSettings, label: '🎥 Mostrar video YouTube' },
                                 { key: 'show_map'     as keyof BiolinkSettings, label: '📍 Mostrar mapa de ubicación' },
                             ].map(tog => (
-                                <div key={tog.key} className="flex items-center justify-between py-2.5 px-4 bg-muted/20 border border-border/30 rounded-xl">
+                                <div key={tog.key} className="flex items-center justify-between py-2.5 px-4 bg-muted border border-border rounded-xl">
                                     <span className="text-sm font-bold text-foreground">{tog.label}</span>
                                     <button onClick={() => setSettingsDraft(s => ({ ...s, [tog.key]: !s[tog.key] }))}
-                                        className={clsx("w-10 h-5 rounded-full relative transition-all", settingsDraft[tog.key] ? "bg-primary" : "bg-gray-300")}>
-                                        <div className={clsx("w-3.5 h-3.5 bg-white rounded-full absolute top-[3px] transition-all", settingsDraft[tog.key] ? "right-[3px]" : "left-[3px]")} />
+                                        className={clsx("w-10 h-6 rounded-full relative transition-colors", settingsDraft[tog.key] ? "bg-primary" : "bg-muted border border-border")}>
+                                        <div className={clsx("w-4 h-4 bg-white rounded-full absolute top-1 transition-all shadow-sm", settingsDraft[tog.key] ? "right-1" : "left-1")} />
                                     </button>
                                 </div>
                             ))}
                         </div>
-                        <div className="flex gap-3 px-8 py-5 border-t border-border/40">
-                            <button onClick={() => setShowSettings(false)} className="flex-1 py-2.5 border border-border/40 rounded-xl text-xs font-black uppercase tracking-wider text-muted-foreground hover:bg-muted/30 transition-colors">Cancelar</button>
+                        <div className="flex items-center justify-end gap-3 p-6 border-t border-border">
+                            <button onClick={() => setShowSettings(false)} className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted">Cancelar</button>
                             <button onClick={handleSaveSettings} disabled={savingSettings}
-                                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-primary text-black rounded-xl text-xs font-black uppercase tracking-wider hover:bg-primary/90 transition-all disabled:opacity-60">
+                                className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2 disabled:opacity-60">
                                 {savingSettings ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                                 {savingSettings ? 'Guardando...' : 'Guardar'}
                             </button>
@@ -540,16 +545,8 @@ function BiolinkPreview({ form, settings }: { form: Partial<Biolink>; settings: 
     const txt = isDark ? '#fff' : '#111';
     const sub = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)';
     return (
-        <div style={{ background: bg, minHeight: 480, padding: '28px 20px 24px', fontFamily: 'system-ui,sans-serif' }}>
+        <div style={{ background: bg, minHeight: 480, padding: '32px 20px 24px', fontFamily: 'system-ui,sans-serif' }}>
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
-                {/* Logo arriba */}
-                <div style={{ marginBottom: 18, display: 'flex', justifyContent: 'center' }}>
-                    <img
-                        src="https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png"
-                        alt="Arte Concreto"
-                        style={{ height: 34, objectFit: 'contain', filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? 0.95 : 0.85 }}
-                    />
-                </div>
                 {form.photo ? (
                     <img src={form.photo} style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', border: `3px solid ${pc}`, margin: '0 auto 10px', display: 'block' }} />
                 ) : (
@@ -559,6 +556,14 @@ function BiolinkPreview({ form, settings }: { form: Partial<Biolink>; settings: 
                 )}
                 <p style={{ margin: 0, fontWeight: 900, fontSize: 16, color: txt }}>{form.name || 'Nombre del empleado'}</p>
                 {form.title && <p style={{ margin: '4px 0 0', fontSize: 11, color: sub }}>{form.title}</p>}
+                {/* Company logo — white in dark mode */}
+                <div style={{ marginTop: 10, display: 'flex', justifyContent: 'center' }}>
+                    <img
+                        src="https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png"
+                        alt="Arte Concreto"
+                        style={{ height: 22, objectFit: 'contain', filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? 0.9 : 0.8 }}
+                    />
+                </div>
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
                 {form.instagram && <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(225,48,108,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>📸</div>}

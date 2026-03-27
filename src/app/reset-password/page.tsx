@@ -58,49 +58,38 @@ function ResetPasswordForm() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden bg-premium-gradient">
-      <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/12 rounded-full blur-[120px] animate-pulse"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-sky-200/30 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '1s' }}></div>
-      </div>
-
-      <div className="w-full max-w-md z-10">
-        <div className="text-center mb-8 space-y-2">
+    <div className="min-h-screen flex items-center justify-center p-6 bg-background">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <img
-              src="https://cuantium.com/wp-content/uploads/2026/02/logo.png"
-              alt="Logo"
-              className="w-36 h-36 object-contain drop-shadow-[0_0_30px_rgba(255,255,255,0.15)]"
-            />
+            <img src="https://cuantium.com/wp-content/uploads/2026/02/logo.png" alt="Logo" className="w-16 h-16 object-contain" />
           </div>
-          <h1 className="text-3xl font-black text-foreground italic tracking-tighter uppercase">
-            Nueva <span className="text-primary not-italic">Contraseña</span>
+          <h1 className="text-2xl font-black text-foreground tracking-tight">
+            Nueva <span className="text-primary">Contraseña</span>
           </h1>
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">CRM Intelligence • ArteConcreto</p>
+          <p className="text-xs text-muted-foreground mt-1 uppercase tracking-widest font-medium">CRM Intelligence · ArteConcreto</p>
         </div>
 
-        <div className="surface-panel rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/50 to-transparent"></div>
-
+        <div className="bg-white border border-border rounded-2xl p-8 shadow-lg">
           {validating && (
             <div className="flex flex-col items-center gap-4 py-8">
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
-              <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Verificando enlace…</p>
+              <p className="text-xs font-medium text-muted-foreground">Verificando enlace…</p>
             </div>
           )}
 
           {!validating && !tokenValid && (
-            <div className="flex flex-col items-center gap-4 py-8 text-center">
-              <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center">
-                <AlertCircle className="w-8 h-8 text-rose-500" />
+            <div className="flex flex-col items-center gap-4 py-6 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center">
+                <AlertCircle className="w-7 h-7 text-rose-500" />
               </div>
               <div>
-                <p className="font-black text-foreground text-lg mb-1">Enlace inválido</p>
-                <p className="text-[11px] text-muted-foreground">Este enlace ha expirado o ya fue utilizado.<br/>Solicita uno nuevo desde el inicio de sesión.</p>
+                <p className="font-bold text-foreground text-base mb-1">Enlace inválido</p>
+                <p className="text-sm text-muted-foreground">Este enlace ha expirado o ya fue utilizado. Solicita uno nuevo desde el inicio de sesión.</p>
               </div>
               <button
                 onClick={() => router.push('/login')}
-                className="mt-4 px-6 py-3 rounded-2xl bg-primary text-black font-black text-[10px] uppercase tracking-widest hover:scale-105 transition-transform"
+                className="mt-2 px-5 py-2.5 rounded-xl bg-primary text-black font-bold text-sm hover:brightness-105 transition-all"
               >
                 Ir al inicio de sesión
               </button>
@@ -108,51 +97,50 @@ function ResetPasswordForm() {
           )}
 
           {!validating && tokenValid && !done && (
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-5">
               {userName && (
                 <div className="px-4 py-3 rounded-xl bg-primary/10 border border-primary/20">
-                  <p className="text-[11px] font-black text-primary uppercase tracking-wider">Hola, {userName}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">Ingresa tu nueva contraseña a continuación.</p>
+                  <p className="text-xs font-bold text-primary">Hola, {userName}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Ingresa tu nueva contraseña a continuación.</p>
                 </div>
               )}
 
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Nueva contraseña</label>
-                <div className="relative group/input">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50 group-focus-within/input:text-primary transition-colors" />
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Nueva contraseña</label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <input
                     type={showPass ? 'text' : 'password'}
                     placeholder="Mínimo 6 caracteres"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    className="w-full bg-white/70 border border-white/80 rounded-2xl pl-12 pr-12 py-4 text-foreground font-bold outline-none focus:border-primary/50 focus:bg-white transition-all shadow-inner placeholder:text-muted-foreground/60"
+                    className="w-full bg-muted border border-border rounded-xl pl-10 pr-11 py-3 text-sm font-medium text-foreground outline-none focus:border-primary focus:bg-white transition-all placeholder:text-muted-foreground/60"
                     required
                   />
-                  <button type="button" onClick={() => setShowPass(v => !v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground transition-colors">
+                  <button type="button" onClick={() => setShowPass(v => !v)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                     {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Confirmar contraseña</label>
-                <div className="relative group/input">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50 group-focus-within/input:text-primary transition-colors" />
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Confirmar contraseña</label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <input
                     type={showConfirm ? 'text' : 'password'}
                     placeholder="Repite tu nueva contraseña"
                     value={confirm}
                     onChange={e => setConfirm(e.target.value)}
-                    className="w-full bg-white/70 border border-white/80 rounded-2xl pl-12 pr-12 py-4 text-foreground font-bold outline-none focus:border-primary/50 focus:bg-white transition-all shadow-inner placeholder:text-muted-foreground/60"
+                    className="w-full bg-muted border border-border rounded-xl pl-10 pr-11 py-3 text-sm font-medium text-foreground outline-none focus:border-primary focus:bg-white transition-all placeholder:text-muted-foreground/60"
                     required
                   />
-                  <button type="button" onClick={() => setShowConfirm(v => !v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground transition-colors">
+                  <button type="button" onClick={() => setShowConfirm(v => !v)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                     {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              {/* Strength indicator */}
               {password.length > 0 && (
                 <div className="flex gap-1.5">
                   {[1, 2, 3, 4].map(i => (
@@ -160,16 +148,16 @@ function ResetPasswordForm() {
                       "h-1.5 flex-1 rounded-full transition-all",
                       password.length >= i * 3
                         ? i <= 1 ? 'bg-rose-400' : i <= 2 ? 'bg-amber-400' : i <= 3 ? 'bg-yellow-400' : 'bg-emerald-400'
-                        : 'bg-border'
+                        : 'bg-muted'
                     )} />
                   ))}
                 </div>
               )}
 
               {error && (
-                <div className="px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-3 animate-in fade-in duration-300">
+                <div className="px-4 py-3 rounded-xl bg-rose-50 border border-rose-200 flex items-center gap-3 animate-in fade-in duration-200">
                   <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
-                  <p className="text-[10px] font-bold text-rose-500 uppercase tracking-tight">{error}</p>
+                  <p className="text-xs font-medium text-rose-600">{error}</p>
                 </div>
               )}
 
@@ -177,12 +165,12 @@ function ResetPasswordForm() {
                 type="submit"
                 disabled={loading}
                 className={clsx(
-                  "w-full py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all flex items-center justify-center gap-3 shadow-xl shadow-primary/10",
-                  loading ? "bg-muted text-muted-foreground" : "bg-primary text-black hover:scale-[1.02] active:scale-[0.98]"
+                  "w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2",
+                  loading ? "bg-muted text-muted-foreground cursor-not-allowed" : "bg-primary text-black hover:brightness-105 shadow-[0_4px_16px_rgba(250,181,16,0.35)] active:scale-95"
                 )}
               >
                 {loading
-                  ? <div className="w-4 h-4 border-2 border-muted-foreground/20 border-t-muted-foreground rounded-full animate-spin" />
+                  ? <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
                   : <><span>Guardar nueva contraseña</span><ArrowRight className="w-4 h-4" /></>
                 }
               </button>
@@ -190,15 +178,15 @@ function ResetPasswordForm() {
           )}
 
           {done && (
-            <div className="flex flex-col items-center gap-4 py-8 text-center animate-in fade-in duration-500">
-              <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+            <div className="flex flex-col items-center gap-4 py-6 text-center animate-in fade-in duration-300">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                <CheckCircle2 className="w-7 h-7 text-emerald-500" />
               </div>
               <div>
-                <p className="font-black text-foreground text-lg mb-1">¡Contraseña actualizada!</p>
-                <p className="text-[11px] text-muted-foreground">Serás redirigido al inicio de sesión en un momento…</p>
+                <p className="font-bold text-foreground text-base mb-1">¡Contraseña actualizada!</p>
+                <p className="text-sm text-muted-foreground">Serás redirigido al inicio de sesión en un momento…</p>
               </div>
-              <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin mt-2" />
+              <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
             </div>
           )}
         </div>
@@ -209,7 +197,7 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-premium-gradient flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin" /></div>}>
+    <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin" /></div>}>
       <ResetPasswordForm />
     </Suspense>
   );

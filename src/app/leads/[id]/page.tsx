@@ -198,13 +198,13 @@ export default function Lead360Page() {
 
     return (
         <>
-        <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-6">
             {/* Breadcrumbs & Actions */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                    <Link href="/pipeline" className="p-2 hover:bg-muted rounded-full transition-colors font-bold flex items-center gap-2">
-                        <ArrowLeft className="w-5 h-5 text-primary" />
-                        <span className="text-[10px] lg:text-xs uppercase tracking-widest text-muted-foreground">Volver</span>
+                    <Link href="/pipeline" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+                        <ArrowLeft className="w-4 h-4" />
+                        <span>Volver al Pipeline</span>
                     </Link>
                 </div>
                 <div className="flex items-center gap-3">
@@ -213,14 +213,14 @@ export default function Lead360Page() {
                             const info = `${lead.name} | ${lead.email} | ${lead.phone}`;
                             navigator.clipboard?.writeText(info).catch(() => {});
                         }}
-                        className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2.5 border border-border/40 rounded-xl text-[10px] lg:text-xs font-black uppercase tracking-widest hover:bg-muted/50 transition-colors"
+                        className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted transition-colors flex items-center gap-2 text-sm"
                     >
                         <Share2 className="w-4 h-4" />
                         <span>Exportar</span>
                     </button>
                     <button
                         onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', email: lead.email, phone: lead.phone || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
-                        className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-black rounded-xl text-[10px] lg:text-xs font-black uppercase tracking-widest hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+                        className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] transition-all flex items-center gap-2 text-sm"
                     >
                         <Edit2 className="w-4 h-4" />
                         <span>Editar</span>
@@ -228,132 +228,130 @@ export default function Lead360Page() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 {/* Left Column: Info Cards */}
                 <div className="lg:col-span-4 space-y-6">
-                    <div className="bg-card border border-border/40 rounded-[2.5rem] p-6 lg:p-8 space-y-8 relative overflow-hidden shadow-sm">
-                        <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
-                            <Sparkles className="w-32 h-32" />
-                        </div>
-
-                        <div className="flex flex-col items-center justify-center space-y-4 pt-4">
+                    {/* Profile Card */}
+                    <div className="surface-card p-6 space-y-6">
+                        {/* Score badge */}
+                        <div className="flex flex-col items-center justify-center space-y-4 pt-2">
                             <div className="relative">
-                                <div className="w-28 h-28 lg:w-36 lg:h-36 rounded-[2.5rem] border-4 border-primary/20 flex items-center justify-center bg-primary/5 shadow-[0_0_30px_rgba(250,181,16,0.1)] relative overflow-hidden group">
-                                    <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent"></div>
-                                    <span className="text-4xl lg:text-6xl font-black text-primary relative z-10">{lead.score || 85}</span>
+                                <div className="w-24 h-24 rounded-2xl border-4 border-primary/20 flex items-center justify-center bg-primary/5 relative overflow-hidden">
+                                    <span className="text-4xl font-black text-primary relative z-10">{lead.score || 85}</span>
                                 </div>
-                                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-primary text-black text-[8px] lg:text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest shadow-xl border-4 border-background whitespace-nowrap">
+                                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-primary text-black text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest border-2 border-white whitespace-nowrap">
                                     Lead Score
                                 </div>
                             </div>
                             <div className="text-center pt-2">
-                                <h2 className="text-xl lg:text-2xl font-black tracking-tight text-foreground">{lead.company || lead.name}</h2>
-                                <p className="text-[9px] lg:text-[10px] text-primary font-black uppercase tracking-[0.3em] mt-1.5">{lead.company ? 'Socio Corporativo' : 'Cliente Individual'}</p>
+                                <h2 className="text-xl font-black tracking-tight text-foreground">{lead.company || lead.name}</h2>
+                                <p className="text-xs text-primary font-bold uppercase tracking-widest mt-1">{lead.company ? 'Socio Corporativo' : 'Cliente Individual'}</p>
                             </div>
                         </div>
 
-                        <div className="space-y-5 pt-8 border-t border-border/20">
+                        {/* Contact info rows */}
+                        <div className="border-t border-border pt-4 space-y-0">
                             {[
                                 { icon: User, label: 'Contacto Principal', value: lead.name },
                                 { icon: Mail, label: 'Correo', value: lead.email },
                                 { icon: Phone, label: 'Teléfono', value: lead.phone },
                                 { icon: MapPin, label: 'Ubicación', value: lead.city || 'No registrada' }
                             ].map((info) => (
-                                <div key={info.label} className="flex items-center gap-4 group">
-                                    <div className="p-2.5 bg-muted/30 rounded-2xl text-muted-foreground group-hover:text-primary transition-colors border border-border/10 shrink-0">
-                                        <info.icon className="w-4 h-4" />
+                                <div key={info.label} className="flex items-center justify-between py-3 border-b border-border last:border-0">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <info.icon className="w-4 h-4 text-muted-foreground shrink-0" />
+                                        <span className="text-xs text-muted-foreground">{info.label}</span>
                                     </div>
-                                    <div className="min-w-0">
-                                        <p className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.15em]">{info.label}</p>
-                                        <p className="text-xs lg:text-sm font-bold text-foreground/90 truncate">{info.value}</p>
-                                    </div>
+                                    <span className="text-sm font-semibold text-foreground truncate ml-2 max-w-[55%] text-right">{info.value}</span>
                                 </div>
                             ))}
 
                             {/* Assigned Seller — SuperAdmin only */}
                             {isSuperAdmin && (
-                                <div className="pt-4 border-t border-border/20">
+                                <div className="pt-4 border-t border-border mt-2">
                                     <div className="flex items-center justify-between mb-2">
-                                        <p className="text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">Vendedor Asignado</p>
+                                        <p className="text-xs font-bold uppercase tracking-wide text-foreground">Vendedor Asignado</p>
                                         <button
                                             onClick={() => { setAssignSellerId(lead.assignedTo || ''); setShowAssignModal(true); }}
-                                            className="text-[9px] font-black uppercase text-primary hover:text-foreground transition-colors flex items-center gap-1"
+                                            className="text-xs font-medium text-primary hover:text-foreground transition-colors flex items-center gap-1"
                                         >
                                             <Edit2 className="w-3 h-3" />
                                             Asignar
                                         </button>
                                     </div>
                                     {lead.assignedToName ? (
-                                        <div className="flex items-center gap-2 p-2 bg-primary/5 rounded-xl border border-primary/10">
-                                            <div className="w-6 h-6 rounded-lg bg-primary/20 flex items-center justify-center text-[9px] font-black text-primary">
+                                        <div className="flex items-center gap-2 p-2 bg-muted rounded-xl border border-border">
+                                            <div className="w-6 h-6 rounded-lg bg-primary/20 flex items-center justify-center text-xs font-black text-primary">
                                                 {lead.assignedToName[0]}
                                             </div>
-                                            <span className="text-xs font-black text-foreground">{lead.assignedToName}</span>
+                                            <span className="text-sm font-semibold text-foreground">{lead.assignedToName}</span>
                                         </div>
                                     ) : (
-                                        <p className="text-[10px] text-muted-foreground/50 italic">Sin asignar</p>
+                                        <p className="text-xs text-muted-foreground italic">Sin asignar</p>
                                     )}
                                 </div>
                             )}
                         </div>
 
-                        <div className="grid grid-cols-3 gap-3 pt-4 border-t border-border/20">
+                        {/* Quick action buttons */}
+                        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border">
                             <button
                                 onClick={() => {
                                     handleLogContact('QUOTE_SENT', 'Contacto por correo electrónico');
                                     window.location.href = `mailto:${lead.email}`;
                                 }}
-                                className="flex flex-col items-center justify-center gap-2 bg-muted/20 hover:bg-primary/10 p-4 lg:p-5 rounded-[2rem] border border-border/10 hover:border-primary/40 transition-all group"
+                                className="flex flex-col items-center justify-center gap-2 bg-muted hover:bg-primary/10 p-4 rounded-xl border border-border hover:border-primary/40 transition-all group"
                             >
-                                <Mail className="w-5 h-5 text-primary group-hover:scale-110 transition-transform" />
-                                <span className="font-black text-[8px] uppercase tracking-widest">Email</span>
+                                <Mail className="w-4 h-4 text-primary" />
+                                <span className="font-bold text-[10px] uppercase tracking-wide text-foreground">Email</span>
                             </button>
                             <button
                                 onClick={() => {
                                     handleLogContact('CALL_MADE', 'Llamada telefónica (Seguimiento)');
                                     window.location.href = `tel:${lead.phone}`;
                                 }}
-                                className="flex flex-col items-center justify-center gap-2 bg-muted/20 hover:bg-primary/10 p-4 lg:p-5 rounded-[2rem] border border-border/10 hover:border-primary/40 transition-all group"
+                                className="flex flex-col items-center justify-center gap-2 bg-muted hover:bg-primary/10 p-4 rounded-xl border border-border hover:border-primary/40 transition-all group"
                             >
-                                <Phone className="w-5 h-5 text-primary group-hover:scale-110 transition-transform" />
-                                <span className="font-black text-[8px] uppercase tracking-widest">Llamar</span>
+                                <Phone className="w-4 h-4 text-primary" />
+                                <span className="font-bold text-[10px] uppercase tracking-wide text-foreground">Llamar</span>
                             </button>
                             <button
                                 onClick={() => {
                                     handleLogContact('WHATSAPP_SENT', 'Contacto vía WhatsApp');
                                     window.open(`https://wa.me/${lead.phone.replace(/\D/g, '')}`, '_blank');
                                 }}
-                                className="flex flex-col items-center justify-center gap-2 bg-muted/20 hover:bg-emerald-500/10 p-4 lg:p-5 rounded-[2rem] border border-border/10 hover:border-emerald-500/40 transition-all group"
+                                className="flex flex-col items-center justify-center gap-2 bg-muted hover:bg-emerald-50 p-4 rounded-xl border border-border hover:border-emerald-300 transition-all group"
                             >
-                                <MessageSquare className="w-5 h-5 text-emerald-500 group-hover:scale-110 transition-transform" />
-                                <span className="font-black text-[8px] uppercase tracking-widest">WhatsApp</span>
+                                <MessageSquare className="w-4 h-4 text-emerald-500" />
+                                <span className="font-bold text-[10px] uppercase tracking-wide text-foreground">WhatsApp</span>
                             </button>
                         </div>
                     </div>
 
-                    <div className="bg-card border border-border/40 rounded-[2rem] p-6 space-y-6">
-                        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground flex items-center justify-between">
-                            Métricas Clave
-                            <Edit2 className="w-3 h-3 cursor-pointer hover:text-primary transition-colors" />
-                        </h3>
-                        <div className="space-y-5">
+                    {/* Metrics Card */}
+                    <div className="surface-card p-6 space-y-5">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Métricas Clave</h3>
+                            <Edit2 className="w-3 h-3 cursor-pointer text-muted-foreground hover:text-primary transition-colors" />
+                        </div>
+                        <div className="space-y-4">
                             <div className="space-y-2">
                                 <div className="flex justify-between items-end">
-                                    <p className="text-[10px] font-black uppercase text-muted-foreground">Potencial de Cierre</p>
-                                    <span className="text-xs font-black text-primary">{lead.score || 85}%</span>
+                                    <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Potencial de Cierre</p>
+                                    <span className="text-sm font-bold text-primary">{lead.score || 85}%</span>
                                 </div>
                                 <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                                    <div className="h-full bg-primary shadow-[0_0_8px_rgba(250,181,16,0.6)]" style={{ width: `${lead.score || 85}%` }}></div>
+                                    <div className="h-full bg-primary" style={{ width: `${lead.score || 85}%` }}></div>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="p-4 bg-muted/20 rounded-2xl border border-border/10">
-                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Inversión (Estimada)</p>
-                                    <p className="text-lg font-black text-foreground">{new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(leadTasks.reduce((sum, t) => sum + (t.numericValue || 0), 0))}</p>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="p-3 bg-muted rounded-xl border border-border">
+                                    <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-1">Inversión (Est.)</p>
+                                    <p className="text-sm font-black text-foreground">{new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(leadTasks.reduce((sum, t) => sum + (t.numericValue || 0), 0))}</p>
                                 </div>
-                                <div className="p-4 bg-muted/20 rounded-2xl border border-border/10">
-                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Etapa</p>
-                                    <p className="text-lg font-black text-primary capitalize">{STATUS_LABEL[lead.status] || lead.status}</p>
+                                <div className="p-3 bg-muted rounded-xl border border-border">
+                                    <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-1">Etapa</p>
+                                    <p className="text-sm font-black text-primary capitalize">{STATUS_LABEL[lead.status] || lead.status}</p>
                                 </div>
                             </div>
                         </div>
@@ -362,40 +360,36 @@ export default function Lead360Page() {
 
                 {/* Right Column: Activity Feed & AI Tabs */}
                 <div className="lg:col-span-8 space-y-6">
-                    <div className="bg-card border border-border/40 rounded-[2.5rem] overflow-hidden shadow-lg flex flex-col h-full">
-                        <div className="border-b border-border/40 bg-muted/10 px-6 lg:px-8">
-                            <div className="flex gap-6 lg:gap-10 overflow-x-auto scrollbar-hide">
+                    <div className="surface-card overflow-hidden flex flex-col">
+                        {/* Tab Nav */}
+                        <div className="border-b border-border px-4 pt-4">
+                            <div className="flex bg-muted p-1 rounded-xl gap-1 overflow-x-auto scrollbar-hide">
                                 {['Actividad', 'Razonamiento IA', 'Cotizaciones', 'Correos', 'Notas'].map((tab) => (
                                     <button
                                         key={tab}
                                         onClick={() => setActiveTab(tab)}
                                         className={clsx(
-                                            "py-6 text-[10px] lg:text-xs font-black uppercase tracking-[0.2em] border-b-2 transition-all relative whitespace-nowrap",
+                                            "whitespace-nowrap transition-all",
                                             activeTab === tab
-                                                ? "border-primary text-primary"
-                                                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border/40"
+                                                ? "bg-white shadow-sm rounded-lg text-foreground font-semibold px-4 py-2 text-sm"
+                                                : "text-muted-foreground hover:text-foreground px-4 py-2 text-sm"
                                         )}
                                     >
                                         {tab}
-                                        {activeTab === tab && (
-                                            <span className="absolute bottom-0 left-0 right-0 h-1 bg-primary blur-[4px] opacity-30"></span>
-                                        )}
                                     </button>
                                 ))}
                             </div>
                         </div>
 
-                        <div className="p-8 flex-1">
+                        <div className="p-6 flex-1">
                             {activeTab === 'Razonamiento IA' && (
-                                <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <h3 className="text-sm font-black uppercase tracking-widest text-foreground">Log de Razonamiento (Engine Insights)</h3>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[9px] font-black uppercase text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded">Score {lead.score || 0}%</span>
-                                        </div>
+                                <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Log de Razonamiento (Engine Insights)</h3>
+                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-200">Score {lead.score || 0}%</span>
                                     </div>
 
-                                    <div className="space-y-4">
+                                    <div className="space-y-3">
                                         {[
                                             {
                                                 step: 'Análisis de Intención',
@@ -420,30 +414,28 @@ export default function Lead360Page() {
                                                     : 'Sin cotizaciones enviadas. Considerar enviar propuesta para activar el proceso de compra.'
                                             }
                                         ].map((log, i) => (
-                                            <div key={i} className="flex gap-5 p-6 bg-muted/10 border border-border/20 rounded-3xl hover:border-border/30 transition-all">
+                                            <div key={i} className="flex gap-4 p-4 bg-white border border-border rounded-xl">
                                                 <div className={clsx(
-                                                    "w-1 h-full rounded-full shrink-0",
+                                                    "w-1 rounded-full shrink-0 self-stretch",
                                                     log.status === 'Success' ? "bg-emerald-500" : log.status === 'Warning' ? "bg-amber-500" : "bg-sky-500"
                                                 )}></div>
-                                                <div className="space-y-2">
+                                                <div className="space-y-1.5">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50">{log.step}</span>
-                                                        <Clock className="w-3 h-3 text-muted-foreground/30" />
+                                                        <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{log.step}</span>
+                                                        <Clock className="w-3 h-3 text-muted-foreground/40" />
                                                     </div>
-                                                    <p className="text-sm font-medium text-foreground/90 leading-relaxed">{log.content}</p>
+                                                    <p className="text-sm font-medium text-foreground leading-relaxed">{log.content}</p>
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
 
-                                    <div className="p-8 bg-muted/20 border border-dashed border-border/40 rounded-[2.5rem] mt-10">
-                                        <div className="flex items-center gap-4 mb-4">
-                                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                                                <ExternalLink className="w-4 h-4 text-primary" />
-                                            </div>
-                                            <h4 className="text-[11px] font-black uppercase tracking-widest text-primary">Metadata del Cliente</h4>
+                                    <div className="p-5 bg-muted border border-border rounded-xl mt-4">
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <ExternalLink className="w-4 h-4 text-primary" />
+                                            <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Metadata del Cliente</h4>
                                         </div>
-                                        <pre className="text-[10px] font-mono text-muted-foreground/60 overflow-x-auto">
+                                        <pre className="text-[10px] font-mono text-muted-foreground overflow-x-auto">
                                             {JSON.stringify({
                                                 id: lead.id,
                                                 status: lead.status,
@@ -461,30 +453,27 @@ export default function Lead360Page() {
                             )}
 
                             {activeTab === 'Actividad' && (
-                                <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
                                     {/* AI Insight Card */}
-                                    <div className="bg-primary/5 border border-primary/20 rounded-3xl p-5 lg:p-6 relative overflow-hidden group">
-                                        <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform hidden lg:block">
-                                            <Sparkles className="w-10 h-10 text-primary" />
-                                        </div>
-                                        <div className="flex flex-col lg:flex-row gap-5">
-                                            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20 shadow-lg shadow-primary/5">
-                                                <Sparkles className="w-6 h-6 text-primary" />
+                                    <div className="bg-primary/5 border border-primary/20 rounded-xl p-5 relative overflow-hidden">
+                                        <div className="flex flex-col lg:flex-row gap-4">
+                                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20">
+                                                <Sparkles className="w-5 h-5 text-primary" />
                                             </div>
-                                            <div className="space-y-4">
-                                                <p className="text-[13px] lg:text-[15px] leading-relaxed text-foreground/90 font-medium">
-                                                    Cliente <span className="text-primary font-black">{lead.company || lead.name}</span> con score <span className="text-primary font-black">{lead.score || 85}/100</span>. {sentQuotes.length > 0 ? `${sentQuotes.length} cotización(es) enviada(s). Hacer seguimiento para cierre.` : 'Sin cotizaciones activas. Considera generar una propuesta.'}
+                                            <div className="space-y-3">
+                                                <p className="text-sm leading-relaxed text-foreground font-medium">
+                                                    Cliente <span className="text-primary font-bold">{lead.company || lead.name}</span> con score <span className="text-primary font-bold">{lead.score || 85}/100</span>. {sentQuotes.length > 0 ? `${sentQuotes.length} cotización(es) enviada(s). Hacer seguimiento para cierre.` : 'Sin cotizaciones activas. Considera generar una propuesta.'}
                                                 </p>
-                                                <div className="flex flex-col lg:flex-row gap-3">
+                                                <div className="flex flex-col lg:flex-row gap-2">
                                                     <button
                                                         onClick={() => router.push(`/quotes/new?clientId=${lead.id}`)}
-                                                        className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest bg-primary text-black px-6 py-2.5 rounded-xl hover:bg-primary/80 transition-all active:scale-95 shadow-lg shadow-primary/20"
+                                                        className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] transition-all text-xs"
                                                     >
                                                         Generar Cotización
                                                     </button>
                                                     <button
                                                         onClick={() => updateClient(lead.id, { status: 'Inactive' })}
-                                                        className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest bg-muted/40 text-muted-foreground px-6 py-2.5 rounded-xl hover:bg-muted/60 transition-all border border-border/40"
+                                                        className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted transition-colors text-xs"
                                                     >Ignorar</button>
                                                 </div>
                                             </div>
@@ -492,16 +481,16 @@ export default function Lead360Page() {
                                     </div>
 
                                     {/* Timeline Items */}
-                                    <div className="relative pl-10 space-y-6 before:absolute before:left-[19px] before:top-2 before:bottom-2 before:w-[2px] before:bg-gradient-to-b before:from-primary/40 before:via-border/40 before:to-transparent">
+                                    <div className="relative pl-10 space-y-4 before:absolute before:left-[19px] before:top-2 before:bottom-2 before:w-[2px] before:bg-border">
                                         {unifiedTimeline.length > 0 ? unifiedTimeline.map((event) => (
                                             <div key={event.id} className="relative">
-                                                <div className={`absolute -left-[35px] top-1.5 w-9 h-9 rounded-xl border-2 flex items-center justify-center shadow-lg z-10 bg-card ${
-                                                    event.color === 'emerald' ? 'border-emerald-500 shadow-emerald-500/10' :
-                                                    event.color === 'blue' ? 'border-blue-500 shadow-blue-500/10' :
-                                                    event.color === 'amber' ? 'border-amber-500 shadow-amber-500/10' :
-                                                    'border-primary shadow-primary/10'
+                                                <div className={`absolute -left-[35px] top-1.5 w-8 h-8 rounded-xl border-2 flex items-center justify-center z-10 bg-white ${
+                                                    event.color === 'emerald' ? 'border-emerald-400' :
+                                                    event.color === 'blue' ? 'border-blue-400' :
+                                                    event.color === 'amber' ? 'border-amber-400' :
+                                                    'border-primary'
                                                 }`}>
-                                                    <span className="text-sm leading-none">{
+                                                    <span className="text-xs leading-none">{
                                                         event.type === 'WHATSAPP_SENT' ? '💬' :
                                                         event.type === 'CALL_MADE' ? '📞' :
                                                         event.type === 'SALE_REGISTERED' ? '✅' :
@@ -509,23 +498,25 @@ export default function Lead360Page() {
                                                         event.type === 'QUOTE_CREATED' ? '📋' : '📄'
                                                     }</span>
                                                 </div>
-                                                <div className="bg-card border border-border/40 rounded-2xl p-4 hover:border-primary/20 transition-colors">
-                                                    <div className="flex justify-between items-start gap-3">
-                                                        <div className="flex-1 min-w-0">
-                                                            <h4 className="text-sm font-black text-foreground">{event.title}</h4>
-                                                            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{event.detail}</p>
-                                                            {event.author && <p className="text-[10px] text-muted-foreground/50 mt-1">por {event.author}</p>}
+                                                <div className="flex gap-3 p-4 bg-white border border-border rounded-xl">
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex justify-between items-start gap-3">
+                                                            <div className="flex-1 min-w-0">
+                                                                <h4 className="text-sm font-bold text-foreground">{event.title}</h4>
+                                                                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{event.detail}</p>
+                                                                {event.author && <p className="text-[10px] text-muted-foreground mt-1">por {event.author}</p>}
+                                                            </div>
+                                                            <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-1 rounded-lg whitespace-nowrap shrink-0">
+                                                                {(() => { try { return new Date(event.date).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch { return String(event.date); } })()}
+                                                            </span>
                                                         </div>
-                                                        <span className="text-[10px] font-black text-muted-foreground bg-muted/30 px-2 py-1 rounded-lg whitespace-nowrap shrink-0">
-                                                            {(() => { try { return new Date(event.date).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch { return String(event.date); } })()}
-                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
                                         )) : (
                                             <div className="text-center py-10">
-                                                <p className="text-xs font-black uppercase text-muted-foreground/30 tracking-widest">Sin actividad registrada aún</p>
-                                                <p className="text-[10px] text-muted-foreground/20 mt-1">Las acciones aparecerán aquí automáticamente</p>
+                                                <p className="text-xs font-bold uppercase text-muted-foreground tracking-widest">Sin actividad registrada aún</p>
+                                                <p className="text-[10px] text-muted-foreground mt-1">Las acciones aparecerán aquí automáticamente</p>
                                             </div>
                                         )}
                                     </div>
@@ -533,60 +524,53 @@ export default function Lead360Page() {
                             )}
 
                             {activeTab === 'Cotizaciones' && (
-                                <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h3 className="text-sm font-black uppercase tracking-widest text-foreground">Propuestas Enviadas</h3>
+                                <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Propuestas Enviadas</h3>
                                         <div className="flex items-center gap-2">
                                             <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-                                            <span className="text-[9px] font-black uppercase text-emerald-500">{leadQuotes.length} cotización(es)</span>
+                                            <span className="text-xs font-bold text-emerald-600">{leadQuotes.length} cotización(es)</span>
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 gap-4">
+                                    <div className="space-y-3">
                                         {leadQuotes.length > 0 ? leadQuotes.map((quote) => (
                                             <Link key={quote.id} href={`/quotes/${quote.id}/edit`}
-                                                className="p-6 bg-muted/10 border border-border/20 rounded-3xl hover:border-primary/30 hover:bg-primary/[0.03] transition-all group relative overflow-hidden block">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-5">
-                                                        <div className="w-12 h-12 rounded-[1.25rem] bg-muted/20 flex items-center justify-center text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary transition-all">
-                                                            <FileText className="w-6 h-6" />
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-base font-black text-foreground group-hover:text-primary transition-colors">{quote.number}</p>
-                                                            <p className="text-[10px] font-black uppercase text-muted-foreground/50 tracking-widest">{quote.date}</p>
-                                                            {quote.sentByName && (
-                                                                <p className="text-[10px] text-muted-foreground/50 mt-0.5">Enviado por {quote.sentByName}</p>
-                                                            )}
-                                                        </div>
+                                                className="flex items-center justify-between p-4 bg-white border border-border rounded-xl hover:border-primary/40 transition-colors group block">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-all border border-border">
+                                                        <FileText className="w-5 h-5" />
                                                     </div>
-                                                    <div className="text-right flex flex-col items-end gap-2">
-                                                        <p className="text-lg font-black text-foreground">{quote.total}</p>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className={clsx(
-                                                                "text-[9px] font-black px-2 py-0.5 rounded border uppercase tracking-widest",
-                                                                quote.status === 'Approved' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" :
-                                                                quote.status === 'Sent' ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
-                                                                "bg-muted/20 text-muted-foreground/50 border-border/30"
-                                                            )}>
-                                                                {quote.status === 'Sent' ? 'Enviado' : quote.status === 'Approved' ? 'Aprobado' : quote.status === 'Draft' ? 'Borrador' : quote.status}
-                                                            </span>
-                                                            <span className="text-[9px] font-black text-primary/60 group-hover:text-primary transition-colors uppercase tracking-wider">
-                                                                Editar →
-                                                            </span>
-                                                        </div>
+                                                    <div>
+                                                        <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{quote.number}</p>
+                                                        <p className="text-xs text-muted-foreground">{quote.date}</p>
+                                                        {quote.sentByName && (
+                                                            <p className="text-[10px] text-muted-foreground mt-0.5">Enviado por {quote.sentByName}</p>
+                                                        )}
                                                     </div>
+                                                </div>
+                                                <div className="text-right flex flex-col items-end gap-1.5">
+                                                    <p className="text-sm font-black text-foreground">{quote.total}</p>
+                                                    <span className={clsx(
+                                                        "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold",
+                                                        quote.status === 'Approved' ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                                        quote.status === 'Sent' ? "bg-blue-50 text-blue-700 border border-blue-200" :
+                                                        "bg-muted text-muted-foreground border border-border"
+                                                    )}>
+                                                        {quote.status === 'Sent' ? 'Enviado' : quote.status === 'Approved' ? 'Aprobado' : quote.status === 'Draft' ? 'Borrador' : quote.status}
+                                                    </span>
                                                 </div>
                                             </Link>
                                         )) : (
-                                            <div className="text-center py-20 bg-muted/10 rounded-[2rem] border border-dashed border-border/20">
-                                                <p className="text-xs font-black uppercase text-muted-foreground/30 tracking-widest italic">No hay cotizaciones activas</p>
+                                            <div className="text-center py-16 bg-muted rounded-xl border border-border">
+                                                <p className="text-xs font-bold uppercase text-muted-foreground tracking-widest">No hay cotizaciones activas</p>
                                             </div>
                                         )}
                                     </div>
 
                                     <button
                                         onClick={() => router.push(`/quotes/new?clientId=${lead.id}`)}
-                                        className="w-full py-5 border-2 border-dashed border-border/20 rounded-3xl text-[10px] font-black uppercase tracking-widest text-muted-foreground/30 hover:text-primary hover:border-primary/20 hover:bg-primary/5 transition-all flex items-center justify-center gap-3"
+                                        className="w-full py-4 border-2 border-dashed border-border rounded-xl text-xs font-bold uppercase tracking-wide text-muted-foreground hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-all flex items-center justify-center gap-2"
                                     >
                                         <Plus className="w-4 h-4" />
                                         Generar Nueva Propuesta
@@ -595,12 +579,12 @@ export default function Lead360Page() {
                             )}
 
                             {activeTab === 'Correos' && (
-                                <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <h3 className="text-sm font-black uppercase tracking-widest">Historial de Correspondencia</h3>
+                                <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Historial de Correspondencia</h3>
                                         <button
                                             onClick={handleRedactarCorreo}
-                                            className="bg-primary/10 text-primary text-[10px] font-black px-4 py-2 rounded-xl border border-primary/20 hover:bg-primary hover:text-black transition-all flex items-center gap-2"
+                                            className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] transition-all flex items-center gap-2 text-xs"
                                         >
                                             <Send className="w-3 h-3" />
                                             Redactar Correo
@@ -608,50 +592,49 @@ export default function Lead360Page() {
                                     </div>
 
                                     {sentQuotes.length > 0 ? sentQuotes.map((quote) => (
-                                        <div key={quote.id} className="flex items-center gap-4 p-5 bg-muted/5 border border-border/40 rounded-2xl hover:bg-muted/10 transition-colors cursor-pointer group">
-                                            <div className="w-10 h-10 rounded-xl bg-muted/20 flex items-center justify-center text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary transition-all">
-                                                <Mail className="w-5 h-5" />
+                                        <div key={quote.id} className="flex gap-3 p-4 bg-white border border-border rounded-xl hover:border-primary/20 transition-colors cursor-pointer group">
+                                            <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-all border border-border shrink-0">
+                                                <Mail className="w-4 h-4" />
                                             </div>
-                                            <div className="flex-1">
+                                            <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-bold truncate">Cotización {quote.number} — {quote.clientCompany || 'Propuesta Comercial'}</p>
-                                                <p className="text-[10px] text-muted-foreground uppercase font-black mt-1 tracking-tighter">
+                                                <p className="text-xs text-muted-foreground mt-0.5">
                                                     {quote.sentAt ? new Date(quote.sentAt).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : quote.date}
                                                     {quote.sentByName ? ` · ${quote.sentByName}` : ''}
                                                 </p>
                                             </div>
-                                            <span className="text-[9px] font-black uppercase text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-full">Enviado</span>
+                                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">Enviado</span>
                                         </div>
                                     )) : (
-                                        <div className="text-center py-16 bg-muted/5 border border-dashed border-border/40 rounded-[2rem]">
-                                            <Mail className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-                                            <p className="text-xs font-black uppercase text-muted-foreground/30 tracking-widest">Sin correos enviados aún</p>
-                                            <p className="text-[10px] text-muted-foreground/40 mt-2">Los correos de cotizaciones aparecerán aquí</p>
+                                        <div className="text-center py-16 bg-muted rounded-xl border border-border">
+                                            <Mail className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
+                                            <p className="text-xs font-bold uppercase text-muted-foreground tracking-widest">Sin correos enviados aún</p>
+                                            <p className="text-[10px] text-muted-foreground mt-2">Los correos de cotizaciones aparecerán aquí</p>
                                         </div>
                                     )}
                                 </div>
                             )}
 
                             {activeTab === 'Notas' && (
-                                <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300 h-full flex flex-col">
-                                    <div className="relative group">
+                                <div className="space-y-5 animate-in fade-in slide-in-from-top-2 duration-300 flex flex-col">
+                                    <div className="relative">
                                         <textarea
                                             value={noteText}
                                             onChange={(e) => setNoteText(e.target.value)}
                                             placeholder="Añadir una nota interna sobre el proyecto o el lead..."
-                                            className="w-full bg-muted/20 border-2 border-dashed border-border/40 rounded-3xl p-6 text-sm focus:border-primary focus:bg-muted/30 outline-none transition-all resize-none min-h-[150px] font-medium"
+                                            className="bg-muted border border-border rounded-xl py-2.5 px-3 text-sm outline-none focus:border-primary focus:bg-white w-full transition-colors resize-none min-h-[130px] font-medium"
                                         />
                                         {noteText.trim() && (
                                             <button
                                                 onClick={handleSaveNote}
-                                                className="absolute bottom-6 right-6 bg-primary text-black font-black px-6 py-2.5 rounded-xl text-[10px] uppercase tracking-widest transition-all shadow-xl shadow-primary/20 hover:bg-primary/90"
+                                                className="absolute bottom-3 right-3 bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] transition-all text-xs"
                                             >
                                                 Guardar Nota
                                             </button>
                                         )}
                                     </div>
 
-                                    <div className="space-y-4 pt-4">
-                                        {/* All notes: client notes + pipeline task notes */}
+                                    <div className="space-y-3">
                                         {(() => {
                                             const allNotes = [
                                                 ...(lead.notes || []).map((n: {text: string; date: string; author: string}) => ({ text: n.text, date: n.date, author: n.author, source: 'Cliente' })),
@@ -665,25 +648,25 @@ export default function Lead360Page() {
 
                                             if (allNotes.length === 0) return (
                                                 <div className="text-center py-8">
-                                                    <StickyNote className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
-                                                    <p className="text-xs font-black uppercase text-muted-foreground/30 tracking-widest">Sin notas aún</p>
+                                                    <StickyNote className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+                                                    <p className="text-xs font-bold uppercase text-muted-foreground tracking-widest">Sin notas aún</p>
                                                 </div>
                                             );
 
                                             return (
                                                 <div className="space-y-3">
                                                     {allNotes.map((note, i) => (
-                                                        <div key={i} className="p-5 bg-primary/5 border-l-4 border-primary rounded-r-2xl space-y-2">
+                                                        <div key={i} className="p-4 bg-white border border-border rounded-xl border-l-4 border-l-primary space-y-2">
                                                             <div className="flex items-center justify-between gap-2">
-                                                                <span className={`text-[9px] font-black tracking-widest px-2 py-0.5 rounded-full ${note.source === 'Cliente' ? 'bg-primary/10 text-primary' : 'bg-amber-500/10 text-amber-600'}`}>
+                                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${note.source === 'Cliente' ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
                                                                     {note.source}
                                                                 </span>
-                                                                <span className="text-[10px] text-muted-foreground/50">{note.date}</span>
+                                                                <span className="text-xs text-muted-foreground">{note.date}</span>
                                                             </div>
                                                             <p className="text-sm font-medium leading-relaxed text-foreground">{note.text}</p>
                                                             <div className="flex items-center gap-2">
-                                                                <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-black text-primary">{(note.author || 'S')[0]}</div>
-                                                                <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{note.author || 'Sistema'}</span>
+                                                                <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">{(note.author || 'S')[0]}</div>
+                                                                <span className="text-xs font-bold uppercase text-muted-foreground tracking-wide">{note.author || 'Sistema'}</span>
                                                             </div>
                                                         </div>
                                                     ))}
@@ -701,79 +684,90 @@ export default function Lead360Page() {
 
         {/* Edit Modal */}
         {isEditOpen && (
-            <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                <div className="bg-card border border-border rounded-[2rem] w-full max-w-lg shadow-2xl p-8 space-y-6 animate-in zoom-in-95 duration-200">
-                    <div className="flex items-center justify-between">
-                        <h2 className="text-lg font-black uppercase tracking-tight">Editar Cliente</h2>
-                        <button onClick={() => setIsEditOpen(false)} className="p-2 hover:bg-muted rounded-xl transition-all">✕</button>
+            <div className="fixed inset-0 flex items-center justify-center p-4 z-[200]" style={{ background: 'rgba(10,12,20,0.55)', backdropFilter: 'blur(6px)' }}>
+                <div className="bg-white border border-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+                    <div className="flex items-center justify-between p-6 border-b border-border">
+                        <h2 className="text-base font-bold text-foreground">Editar Cliente</h2>
+                        <button onClick={() => setIsEditOpen(false)} className="bg-white border border-border text-foreground font-medium rounded-xl px-3 py-1.5 hover:bg-muted transition-colors text-sm">✕</button>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        {([
-                            { label: 'Nombre', key: 'name', type: 'text' },
-                            { label: 'Empresa', key: 'company', type: 'text' },
-                            { label: 'Email', key: 'email', type: 'email' },
-                            { label: 'Teléfono', key: 'phone', type: 'tel' },
-                            { label: 'Ciudad', key: 'city', type: 'text' },
-                        ] as { label: string; key: keyof typeof editForm; type: string }[]).map(f => (
-                            <div key={f.key} className="space-y-1">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{f.label}</label>
-                                <input
-                                    type={f.type}
-                                    value={editForm[f.key]}
-                                    onChange={e => setEditForm(prev => ({ ...prev, [f.key]: e.target.value }))}
-                                    className="w-full bg-muted/30 border border-border rounded-xl px-4 py-2.5 text-sm font-bold focus:border-primary/50 outline-none"
-                                />
+                    <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                        <div className="grid grid-cols-2 gap-4">
+                            {([
+                                { label: 'Nombre', key: 'name', type: 'text' },
+                                { label: 'Empresa', key: 'company', type: 'text' },
+                                { label: 'Email', key: 'email', type: 'email' },
+                                { label: 'Teléfono', key: 'phone', type: 'tel' },
+                                { label: 'Ciudad', key: 'city', type: 'text' },
+                            ] as { label: string; key: keyof typeof editForm; type: string }[]).map(f => (
+                                <div key={f.key}>
+                                    <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">{f.label}</label>
+                                    <input
+                                        type={f.type}
+                                        value={editForm[f.key]}
+                                        onChange={e => setEditForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                                        className="bg-muted border border-border rounded-xl py-2.5 px-3 text-sm outline-none focus:border-primary focus:bg-white w-full transition-colors"
+                                    />
+                                </div>
+                            ))}
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Estado</label>
+                                <select
+                                    value={editForm.status}
+                                    onChange={e => setEditForm(prev => ({ ...prev, status: e.target.value }))}
+                                    className="bg-muted border border-border rounded-xl py-2.5 px-3 text-sm outline-none focus:border-primary focus:bg-white w-full transition-colors"
+                                >
+                                    <option value="Active">Activo</option>
+                                    <option value="Lead">Lead</option>
+                                    <option value="Inactive">Inactivo</option>
+                                </select>
                             </div>
-                        ))}
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Estado</label>
-                            <select
-                                value={editForm.status}
-                                onChange={e => setEditForm(prev => ({ ...prev, status: e.target.value }))}
-                                className="w-full bg-muted/30 border border-border rounded-xl px-4 py-2.5 text-sm font-bold focus:border-primary/50 outline-none"
-                            >
-                                <option value="Active">Activo</option>
-                                <option value="Lead">Lead</option>
-                                <option value="Inactive">Inactivo</option>
-                            </select>
                         </div>
                     </div>
-                    <button
-                        onClick={() => { updateClient(lead.id, { ...editForm, status: editForm.status as 'Active' | 'Lead' | 'Inactive' }); setIsEditOpen(false); }}
-                        className="w-full bg-primary text-black font-black py-3 rounded-xl uppercase tracking-widest hover:bg-primary/90 transition-all"
-                    >
-                        Guardar Cambios
-                    </button>
+                    <div className="flex items-center justify-end gap-3 p-6 border-t border-border">
+                        <button onClick={() => setIsEditOpen(false)} className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted transition-colors">Cancelar</button>
+                        <button
+                            onClick={() => { updateClient(lead.id, { ...editForm, status: editForm.status as 'Active' | 'Lead' | 'Inactive' }); setIsEditOpen(false); }}
+                            className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] transition-all"
+                        >
+                            Guardar Cambios
+                        </button>
+                    </div>
                 </div>
             </div>
         )}
 
         {showAssignModal && (
-            <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-                <div className="bg-card border border-border rounded-[2rem] p-8 max-w-sm w-full shadow-2xl">
-                    <h3 className="text-base font-black text-foreground mb-1">Asignar Vendedor</h3>
-                    <p className="text-xs text-muted-foreground mb-6">Cliente: <strong>{lead.company || lead.name}</strong></p>
-                    <div className="space-y-2 max-h-[300px] overflow-y-auto mb-6">
-                        {sellers.filter(s => s.status === 'Activo' || !s.status).map(s => (
-                            <button
-                                key={s.id}
-                                onClick={() => setAssignSellerId(s.id)}
-                                className={`w-full text-left flex items-center gap-3 p-3 rounded-xl border transition-all ${assignSellerId === s.id ? 'bg-primary/10 border-primary/40 text-foreground' : 'border-border/40 hover:bg-muted/30 text-foreground'}`}
-                            >
-                                <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary shrink-0">
-                                    {s.name[0]}
-                                </div>
-                                <div>
-                                    <p className="text-sm font-black">{s.name}</p>
-                                    <p className="text-[10px] text-muted-foreground">{s.role}</p>
-                                </div>
-                                {assignSellerId === s.id && <div className="ml-auto w-4 h-4 rounded-full bg-primary flex items-center justify-center"><svg className="w-2.5 h-2.5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg></div>}
-                            </button>
-                        ))}
+            <div className="fixed inset-0 flex items-center justify-center p-4 z-[300]" style={{ background: 'rgba(10,12,20,0.55)', backdropFilter: 'blur(6px)' }}>
+                <div className="bg-white border border-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+                    <div className="flex items-center justify-between p-6 border-b border-border">
+                        <div>
+                            <h3 className="text-base font-bold text-foreground">Asignar Vendedor</h3>
+                            <p className="text-xs text-muted-foreground mt-0.5">Cliente: <strong>{lead.company || lead.name}</strong></p>
+                        </div>
                     </div>
-                    <div className="flex gap-3">
-                        <button onClick={() => setShowAssignModal(false)} className="flex-1 py-3 border border-border/40 rounded-xl text-sm font-black text-muted-foreground hover:bg-muted/20 transition-all">Cancelar</button>
-                        <button onClick={handleAssignSeller} disabled={!assignSellerId} className="flex-1 py-3 bg-primary text-black rounded-xl text-sm font-black disabled:opacity-50 hover:bg-primary/90 transition-all">Confirmar</button>
+                    <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                        <div className="space-y-2">
+                            {sellers.filter(s => s.status === 'Activo' || !s.status).map(s => (
+                                <button
+                                    key={s.id}
+                                    onClick={() => setAssignSellerId(s.id)}
+                                    className={`w-full text-left flex items-center gap-3 p-3 rounded-xl border transition-all ${assignSellerId === s.id ? 'bg-primary/10 border-primary text-foreground' : 'bg-white border-border hover:bg-muted text-foreground'}`}
+                                >
+                                    <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                                        {s.name[0]}
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-bold">{s.name}</p>
+                                        <p className="text-xs text-muted-foreground">{s.role}</p>
+                                    </div>
+                                    {assignSellerId === s.id && <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center shrink-0"><svg className="w-2.5 h-2.5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg></div>}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-end gap-3 p-6 border-t border-border">
+                        <button onClick={() => setShowAssignModal(false)} className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted transition-colors">Cancelar</button>
+                        <button onClick={handleAssignSeller} disabled={!assignSellerId} className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] transition-all disabled:opacity-50">Confirmar</button>
                     </div>
                 </div>
             </div>

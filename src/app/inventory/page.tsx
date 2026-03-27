@@ -416,18 +416,19 @@ export default function InventoryPage() {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* Page Header */}
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Inventario de Productos</h1>
-                    <p className="text-sm text-muted-foreground">Catálogo de mobiliario de concreto y piezas arquitectónicas.</p>
-                    <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] font-black uppercase tracking-[0.18em]">
+                    <h1 className="text-2xl font-black text-foreground tracking-tight">Inventario de Productos</h1>
+                    <p className="text-sm text-muted-foreground mt-1">Catálogo de mobiliario de concreto y piezas arquitectónicas.</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] font-bold uppercase tracking-widest">
                         <span className={clsx(
-                            "rounded-full px-3 py-1 border",
+                            "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border",
                             productSyncStatus.lastResult === 'success'
-                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                 : productSyncStatus.lastResult === 'error'
-                                    ? "bg-rose-500/10 text-rose-600 border-rose-500/20"
-                                    : "bg-white/40 text-muted-foreground border-border/60"
+                                    ? "bg-red-50 text-red-700 border-red-200"
+                                    : "bg-muted text-muted-foreground border-border"
                         )}>
                             {productSyncStatus.lastResult === 'success'
                                 ? 'Sync OK'
@@ -446,18 +447,16 @@ export default function InventoryPage() {
                         <p className="mt-2 text-xs text-muted-foreground">{productSyncStatus.message}</p>
                     )}
                 </div>
-                <div className="flex items-center gap-3">
-                    <div className="flex gap-2">
-                        <button
-                            onClick={handleRefresh}
-                            disabled={isSyncing}
-                            className="flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/20 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-black transition-all text-primary shadow-lg shadow-primary/5 disabled:opacity-50"
-                            title="Borra productos manuales y sincroniza con WooCommerce"
-                        >
-                            <Upload className="w-3.5 h-3.5 rotate-180" />
-                            {isSyncing ? "Sincronizando..." : "Sincronizar Catálogo Web"}
-                        </button>
-                    </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                        onClick={handleRefresh}
+                        disabled={isSyncing}
+                        className="flex items-center gap-2 bg-white border border-border text-foreground font-semibold rounded-xl px-4 py-2.5 hover:bg-muted transition-all text-xs disabled:opacity-50"
+                        title="Borra productos manuales y sincroniza con WooCommerce"
+                    >
+                        <Upload className="w-3.5 h-3.5 rotate-180" />
+                        {isSyncing ? "Sincronizando..." : "Sincronizar Catálogo"}
+                    </button>
                     <div className="relative">
                         <input
                             type="file"
@@ -468,21 +467,26 @@ export default function InventoryPage() {
                         />
                         <button
                             onClick={() => document.getElementById('csv-import')?.click()}
-                            className="flex items-center gap-2 px-4 py-2 border border-border/40 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-muted/50 transition-all text-muted-foreground"
+                            className="flex items-center gap-2 bg-white border border-border text-foreground font-semibold rounded-xl px-4 py-2.5 hover:bg-muted transition-all text-xs"
                         >
                             <BarChart2 className="w-3.5 h-3.5" />
                             Importar CSV
                         </button>
                     </div>
-                    <button onClick={handleExport} className="hidden lg:flex items-center gap-2 px-4 py-2 border border-border/40 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-muted/50 transition-colors text-muted-foreground">
+                    <button
+                        onClick={handleExport}
+                        className="hidden lg:flex items-center gap-2 bg-white border border-border text-foreground font-semibold rounded-xl px-4 py-2.5 hover:bg-muted transition-all text-xs"
+                    >
                         <Download className="w-3.5 h-3.5" />
                         Exportar
                     </button>
                     <button
                         onClick={() => setIsFiltersOpen(!isFiltersOpen)}
                         className={clsx(
-                            "flex items-center gap-2 px-4 py-2 border rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-                            isFiltersOpen ? "bg-primary text-black border-primary shadow-lg shadow-primary/10" : "border-border/40 hover:bg-muted/50 text-muted-foreground"
+                            "flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all border",
+                            isFiltersOpen
+                                ? "bg-primary text-black border-primary"
+                                : "bg-white border-border text-foreground hover:bg-muted"
                         )}
                     >
                         <Search className="w-3.5 h-3.5" />
@@ -490,58 +494,59 @@ export default function InventoryPage() {
                     </button>
                     <button
                         onClick={() => handleOpenModal()}
-                        className="bg-primary text-black font-bold px-6 py-2.5 rounded-xl flex items-center gap-2 hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+                        className="bg-primary text-black font-bold rounded-xl px-4 py-2.5 hover:brightness-105 transition-all flex items-center gap-2 text-sm"
                     >
                         <Plus className="w-4 h-4" />
-                        <span>Nuevo Producto</span>
+                        Nuevo Producto
                     </button>
                 </div>
             </div>
 
+            {/* Advanced Filters Panel */}
             {isFiltersOpen && (
-                <div className="bg-card border border-border/40 rounded-3xl p-6 grid grid-cols-1 md:grid-cols-4 gap-6 animate-in slide-in-from-top-4 duration-300">
+                <div className="bg-white border border-border rounded-2xl shadow-sm p-6 grid grid-cols-1 md:grid-cols-4 gap-6 animate-in slide-in-from-top-4 duration-300">
                     <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Rango de Precio</label>
+                        <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Rango de Precio</label>
                         <div className="flex items-center gap-2">
                             <input
                                 type="number"
                                 placeholder="Min"
                                 value={advFilters.minPrice}
                                 onChange={(e) => setAdvFilters({ ...advFilters, minPrice: e.target.value })}
-                                className="w-full bg-muted/10 border border-border/40 rounded-xl px-3 py-2 text-xs outline-none focus:border-primary transition-all text-white font-bold"
+                                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
                             />
                             <input
                                 type="number"
                                 placeholder="Max"
                                 value={advFilters.maxPrice}
                                 onChange={(e) => setAdvFilters({ ...advFilters, maxPrice: e.target.value })}
-                                className="w-full bg-muted/10 border border-border/40 rounded-xl px-3 py-2 text-xs outline-none focus:border-primary transition-all text-white font-bold"
+                                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
                             />
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Rango de Stock</label>
+                        <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Rango de Stock</label>
                         <div className="flex items-center gap-2">
                             <input
                                 type="number"
                                 placeholder="Min"
                                 value={advFilters.minStock}
                                 onChange={(e) => setAdvFilters({ ...advFilters, minStock: e.target.value })}
-                                className="w-full bg-muted/10 border border-border/40 rounded-xl px-3 py-2 text-xs outline-none focus:border-primary transition-all text-white font-bold"
+                                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
                             />
                             <input
                                 type="number"
                                 placeholder="Max"
                                 value={advFilters.maxStock}
                                 onChange={(e) => setAdvFilters({ ...advFilters, maxStock: e.target.value })}
-                                className="w-full bg-muted/10 border border-border/40 rounded-xl px-3 py-2 text-xs outline-none focus:border-primary transition-all text-white font-bold"
+                                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
                             />
                         </div>
                     </div>
                     <div className="flex items-end">
                         <button
                             onClick={() => setAdvFilters({ minPrice: '', maxPrice: '', minStock: '', maxStock: '' })}
-                            className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-rose-500 transition-colors pb-3"
+                            className="text-xs font-bold text-muted-foreground hover:text-rose-500 transition-colors pb-3"
                         >
                             Limpiar Filtros
                         </button>
@@ -549,33 +554,54 @@ export default function InventoryPage() {
                 </div>
             )}
 
-            <div className="flex items-center gap-2 border-b border-border/40 pb-4">
-                <button onClick={() => { setViewMode('active'); setSelectedProducts([]); }} className={clsx("px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all", viewMode === 'active' ? "bg-primary/10 text-primary border border-primary/20" : "text-muted-foreground hover:bg-muted/50")}>Activos</button>
-                <button onClick={() => { setViewMode('inactive'); setSelectedProducts([]); }} className={clsx("px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all", viewMode === 'inactive' ? "bg-primary/10 text-primary border border-primary/20" : "text-muted-foreground hover:bg-muted/50")}>Inactivos</button>
-                <button onClick={() => { setViewMode('deleted'); setSelectedProducts([]); }} className={clsx("px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all", viewMode === 'deleted' ? "bg-rose-500/10 text-rose-500 border border-rose-500/20" : "text-muted-foreground hover:bg-muted/50")}>Papelera</button>
+            {/* View mode tabs */}
+            <div className="flex items-center gap-2 border-b border-border pb-4">
+                <button
+                    onClick={() => { setViewMode('active'); setSelectedProducts([]); }}
+                    className={clsx("px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all", viewMode === 'active' ? "bg-primary/10 text-primary border border-primary/20" : "text-muted-foreground hover:bg-muted")}
+                >Activos</button>
+                <button
+                    onClick={() => { setViewMode('inactive'); setSelectedProducts([]); }}
+                    className={clsx("px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all", viewMode === 'inactive' ? "bg-primary/10 text-primary border border-primary/20" : "text-muted-foreground hover:bg-muted")}
+                >Inactivos</button>
+                <button
+                    onClick={() => { setViewMode('deleted'); setSelectedProducts([]); }}
+                    className={clsx("px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all", viewMode === 'deleted' ? "bg-rose-50 text-rose-600 border border-rose-200" : "text-muted-foreground hover:bg-muted")}
+                >Papelera</button>
             </div>
 
+            {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {[
-                    { label: 'Total Items', value: products.filter(p => !p.isDeleted).length.toString(), icon: Box, color: 'text-primary' },
-                    { label: 'Categorías', value: uniqueCategories.length.toString(), icon: Layers, color: 'text-sky-500' },
-                    { label: 'Bajo Stock', value: products.filter(p => p.isStockTracked && p.stock < 10).length.toString(), icon: AlertCircle, color: 'text-rose-500' },
-                    { label: 'Valor Catálogo', value: `$${(products.reduce((acc, p) => acc + p.price, 0) / 1000000).toFixed(1)}M`, icon: BarChart2, color: 'text-emerald-500' },
-                ].map((stat) => (
-                    <div key={stat.label} className="bg-card border border-border/40 p-4 rounded-xl flex items-center gap-4 group hover:border-primary/20 transition-all">
-                        <div className={`p-2.5 rounded-2xl bg-muted/50 ${stat.color} group-hover:bg-primary/10 group-hover:text-primary transition-all`}>
-                            <stat.icon size={20} />
+                    { label: 'Total Items', value: products.filter(p => !p.isDeleted).length.toString(), icon: Box, dark: true },
+                    { label: 'Categorías', value: uniqueCategories.length.toString(), icon: Layers, dark: false },
+                    { label: 'Bajo Stock', value: products.filter(p => p.isStockTracked && p.stock < 10).length.toString(), icon: AlertCircle, dark: false },
+                    { label: 'Valor Catálogo', value: `$${(products.reduce((acc, p) => acc + p.price, 0) / 1000000).toFixed(1)}M`, icon: BarChart2, dark: false },
+                ].map((stat, i) => (
+                    <div
+                        key={stat.label}
+                        className={clsx(
+                            "rounded-2xl p-5 flex items-center gap-4",
+                            stat.dark
+                                ? "bg-foreground text-background"
+                                : "bg-white border border-border shadow-sm"
+                        )}
+                    >
+                        <div className={clsx("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", stat.dark ? "bg-background/10" : "bg-primary/10")}>
+                            <stat.icon className={clsx("w-5 h-5", stat.dark ? "text-background" : "text-primary")} />
                         </div>
                         <div>
-                            <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-40">{stat.label}</p>
-                            <p className="text-lg font-black tracking-tighter">{stat.value}</p>
+                            <p className={clsx("text-xs font-bold uppercase tracking-widest", stat.dark ? "text-background/60" : "text-muted-foreground")}>{stat.label}</p>
+                            <p className={clsx("text-xl font-black tracking-tight", stat.dark ? "text-background" : "text-foreground")}>{stat.value}</p>
                         </div>
                     </div>
                 ))}
             </div>
 
-            <div className="bg-card border border-border/40 rounded-2xl overflow-hidden shadow-sm">
-                <div className="p-4 border-b border-border/40 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {/* Table Card */}
+            <div className="bg-white border border-border rounded-2xl shadow-sm overflow-hidden">
+                {/* Table toolbar */}
+                <div className="p-4 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex flex-1 items-center gap-3">
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -584,13 +610,13 @@ export default function InventoryPage() {
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="Buscar por nombre, SKU o categoría..."
-                                className="w-full bg-muted/10 border border-border/40 rounded-lg pl-10 pr-4 py-2 text-sm focus:border-primary outline-none transition-all"
+                                className="w-full bg-muted border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
                             />
                         </div>
                         <select
                             value={selectedCategory}
                             onChange={(e) => setSelectedCategory(e.target.value)}
-                            className="bg-muted/10 border border-border/40 rounded-lg px-3 py-2 text-xs font-bold focus:border-primary outline-none"
+                            className="bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
                         >
                             <option value="All">Todas las Categorías</option>
                             {uniqueCategories.map(cat => (
@@ -600,23 +626,23 @@ export default function InventoryPage() {
                     </div>
                     {selectedProducts.length > 0 && (
                         <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
-                            <span className="text-xs font-black uppercase tracking-widest text-muted-foreground mr-2">{selectedProducts.length} Sel.</span>
+                            <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground mr-2">{selectedProducts.length} Sel.</span>
                             {viewMode === 'active' && (
                                 <>
-                                    <button onClick={handleBulkDeactivate} className="px-3 py-1.5 bg-muted/20 border border-border/40 rounded-lg text-[10px] font-bold uppercase hover:bg-muted/50 transition-colors">Desactivar</button>
-                                    <button onClick={handleBulkSoftDelete} className="px-3 py-1.5 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500 hover:text-white transition-colors">A Papelera</button>
+                                    <button onClick={handleBulkDeactivate} className="px-3 py-1.5 bg-white border border-border rounded-xl text-xs font-semibold hover:bg-muted transition-colors">Desactivar</button>
+                                    <button onClick={handleBulkSoftDelete} className="px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-xl text-xs font-semibold hover:bg-red-100 transition-colors">A Papelera</button>
                                 </>
                             )}
                             {viewMode === 'inactive' && (
                                 <>
-                                    <button onClick={handleBulkActivate} className="px-3 py-1.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg text-[10px] font-bold uppercase hover:bg-emerald-500 hover:text-white transition-colors">Activar</button>
-                                    <button onClick={handleBulkSoftDelete} className="px-3 py-1.5 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-500 hover:text-white transition-colors">A Papelera</button>
+                                    <button onClick={handleBulkActivate} className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-semibold hover:bg-emerald-100 transition-colors">Activar</button>
+                                    <button onClick={handleBulkSoftDelete} className="px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-xl text-xs font-semibold hover:bg-red-100 transition-colors">A Papelera</button>
                                 </>
                             )}
                             {viewMode === 'deleted' && (
                                 <>
-                                    <button onClick={handleBulkRestore} className="px-3 py-1.5 bg-sky-500/10 text-sky-500 border border-sky-500/20 rounded-lg text-[10px] font-bold uppercase hover:bg-sky-500 hover:text-white transition-colors">Restaurar</button>
-                                    <button onClick={handleBulkHardDelete} className="flex items-center gap-1 px-3 py-1.5 bg-rose-500 text-white border border-rose-600 rounded-lg text-[10px] font-bold uppercase hover:bg-rose-600 transition-colors">
+                                    <button onClick={handleBulkRestore} className="px-3 py-1.5 bg-sky-50 text-sky-700 border border-sky-200 rounded-xl text-xs font-semibold hover:bg-sky-100 transition-colors">Restaurar</button>
+                                    <button onClick={handleBulkHardDelete} className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white border border-red-700 rounded-xl text-xs font-semibold hover:bg-red-700 transition-colors">
                                         {isSyncing ? "..." : "Eliminar Definitivo"}
                                     </button>
                                 </>
@@ -624,127 +650,124 @@ export default function InventoryPage() {
                         </div>
                     )}
                 </div>
+
+                {/* Table */}
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left">
+                    <table className="w-full text-sm">
                         <thead>
-                            <tr className="border-b border-border/40 bg-muted/5">
-                                <th className="w-12 px-6 py-4">
+                            <tr className="bg-muted/50 border-b border-border">
+                                <th className="w-12 px-4 py-3">
                                     <input
                                         type="checkbox"
-                                        className="w-4 h-4 rounded border-border/40 bg-muted/20 text-primary focus:ring-primary accent-primary"
+                                        className="w-4 h-4 rounded accent-primary"
                                         checked={filteredProducts.length > 0 && selectedProducts.length === filteredProducts.length}
                                         onChange={handleSelectAll}
                                     />
                                 </th>
-                                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                                <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">
                                     <button onClick={() => handleSort('name')} className="flex items-center gap-1 hover:text-primary transition-colors">
-                                        Producto / SKU
-                                        <ArrowUpDown className="w-3 h-3" />
+                                        Producto / SKU <ArrowUpDown className="w-3 h-3" />
                                     </button>
                                 </th>
-                                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                                <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">
                                     <button onClick={() => handleSort('category')} className="flex items-center gap-1 hover:text-primary transition-colors">
-                                        Categoría
-                                        <ArrowUpDown className="w-3 h-3" />
+                                        Categoría <ArrowUpDown className="w-3 h-3" />
                                     </button>
                                 </th>
-                                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Dimensiones</th>
-                                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                                <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">Dimensiones</th>
+                                <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">
                                     <button onClick={() => handleSort('stock')} className="flex items-center gap-1 hover:text-primary transition-colors">
-                                        Stock
-                                        <ArrowUpDown className="w-3 h-3" />
+                                        Stock <ArrowUpDown className="w-3 h-3" />
                                     </button>
                                 </th>
-                                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                                <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">
                                     <button onClick={() => handleSort('price')} className="flex items-center gap-1 hover:text-primary transition-colors">
-                                        Precio
-                                        <ArrowUpDown className="w-3 h-3" />
+                                        Precio <ArrowUpDown className="w-3 h-3" />
                                     </button>
                                 </th>
-                                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Estado</th>
-                                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground text-right">Acciones</th>
+                                <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">Estado</th>
+                                <th className="text-right px-4 py-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">Acciones</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-border/20">
+                        <tbody>
                             {filteredProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((product) => (
-                                <tr key={product.id} className={clsx("hover:bg-muted/5 transition-colors group", product.isActive === false && "opacity-50")}>
-                                    <td className="w-12 px-6 py-5">
+                                <tr key={product.id} className={clsx("border-b border-border hover:bg-muted/30 transition-colors group", product.isActive === false && "opacity-50")}>
+                                    <td className="w-12 px-4 py-4">
                                         <input
                                             type="checkbox"
-                                            className="w-4 h-4 rounded border-border/40 bg-muted/20 text-primary focus:ring-primary accent-primary"
+                                            className="w-4 h-4 rounded accent-primary"
                                             checked={selectedProducts.includes(product.id)}
                                             onChange={() => handleSelectProduct(product.id)}
                                         />
                                     </td>
-                                    <td className="px-6 py-5">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-14 h-14 rounded-2xl bg-muted/30 flex items-center justify-center text-muted-foreground border border-border/40 overflow-hidden relative group/img">
+                                    <td className="px-4 py-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-xl bg-muted border border-border flex items-center justify-center overflow-hidden shrink-0">
                                                 {product.image ? (
-                                                    <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover/img:scale-110 transition-transform" onError={(e) => { (e.target as HTMLImageElement).src = 'https://cuantium.com/wp-content/uploads/2026/02/logo.png'; (e.target as HTMLImageElement).className = 'w-8 h-8 object-contain opacity-30 filter invert'; }} />
+                                                    <img src={product.image} alt={product.name} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://cuantium.com/wp-content/uploads/2026/02/logo.png'; (e.target as HTMLImageElement).className = 'w-8 h-8 object-contain opacity-30'; }} />
                                                 ) : (
-                                                    <img src="https://cuantium.com/wp-content/uploads/2026/02/logo.png" alt="logo" className="w-11 h-11 object-contain" style={{ filter: 'brightness(0) invert(1)', opacity: 0.6 }} />
+                                                    <img src="https://cuantium.com/wp-content/uploads/2026/02/logo.png" alt="logo" className="w-9 h-9 object-contain opacity-40" />
                                                 )}
                                             </div>
                                             <div>
-                                                <p className="text-sm font-black group-hover:text-primary transition-colors tracking-tight">{product.name}</p>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-[9px] font-black text-muted-foreground uppercase opacity-40">SKU:</span>
-                                                    <p className="text-[9px] font-mono text-muted-foreground bg-muted/5 px-1.5 py-0.5 rounded border border-white/5">{product.sku}</p>
-                                                </div>
+                                                <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{product.name}</p>
+                                                <p className="text-xs font-mono text-muted-foreground">SKU: {product.sku}</p>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-5">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-foreground/40 bg-muted/20 px-3 py-1.5 rounded-xl border border-border/20">{product.category}</span>
+                                    <td className="px-4 py-4">
+                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-muted text-muted-foreground border border-border">{product.category}</span>
                                     </td>
-                                    <td className="px-6 py-5">
-                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                            <Ruler className="w-3.5 h-3.5" />
-                                            {product.dimensions}
+                                    <td className="px-4 py-4">
+                                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                            <Ruler className="w-3.5 h-3.5 shrink-0" />
+                                            {product.dimensions || '—'}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-5">
-                                        <div className="flex items-center gap-1.5 text-xs font-black text-foreground">
+                                    <td className="px-4 py-4">
+                                        <div className="flex items-center gap-1.5 text-sm font-bold text-foreground">
                                             <span className={clsx(
-                                                "w-1.5 h-1.5 rounded-full",
-                                                product.isStockTracked ? (product.stock < 10 ? "bg-rose-500" : "bg-emerald-500") : "bg-sky-500 animate-pulse"
-                                            )}></span>
+                                                "w-2 h-2 rounded-full shrink-0",
+                                                product.isStockTracked ? (product.stock < 10 ? "bg-red-500" : "bg-emerald-500") : "bg-sky-500"
+                                            )} />
                                             {product.isStockTracked ? product.stock : 'Ilimitado'}
                                         </div>
-                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mt-1 opacity-30">
+                                        <p className="text-xs text-muted-foreground mt-0.5">
                                             {product.isStockTracked ? 'Control de Stock' : 'Producción Fábrica'}
                                         </p>
                                     </td>
-                                    <td className="px-6 py-5">
+                                    <td className="px-4 py-4">
                                         <div className="flex flex-col">
-                                            <span className="text-sm font-black text-primary tracking-tighter">${product.price.toLocaleString()}</span>
+                                            <span className="text-sm font-bold text-primary">${product.price.toLocaleString()}</span>
                                             {product.salePrice && product.salePrice > 0 && (
-                                                <span className="text-[9px] font-bold text-rose-500 line-through opacity-50">${product.salePrice.toLocaleString()}</span>
+                                                <span className="text-xs text-red-500 line-through">${product.salePrice.toLocaleString()}</span>
                                             )}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-5">
+                                    <td className="px-4 py-4">
                                         <span className={clsx(
-                                            "inline-flex min-w-[108px] items-center justify-center whitespace-nowrap text-center text-[9px] font-black px-3 py-1.5 rounded-xl uppercase tracking-widest border",
-                                            product.status === 'In Stock' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" :
-                                                product.status === 'Production' ? "bg-primary/10 text-primary border-primary/20" :
-                                                    "bg-rose-500/10 text-rose-500 border-rose-500/20"
+                                            "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border",
+                                            product.status === 'In Stock'
+                                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                                : product.status === 'Production'
+                                                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                                                    : "bg-red-50 text-red-700 border-red-200"
                                         )}>
                                             {product.status === 'In Stock' ? 'En Stock' : product.status === 'Production' ? 'En Producción' : 'Sin Stock'}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-5 text-right">
-                                        <div className="flex items-center justify-end gap-2">
+                                    <td className="px-4 py-4 text-right">
+                                        <div className="flex items-center justify-end gap-1">
                                             {viewMode === 'deleted' ? (
                                                 <>
-                                                    <button onClick={() => updateProduct(product.id, { isDeleted: false })} className="p-2 hover:bg-sky-500/10 hover:text-sky-500 rounded-lg transition-colors border border-transparent hover:border-sky-500/20" title="Restaurar"><Upload className="w-4 h-4" /></button>
-                                                    <button onClick={() => handleDelete(product.id, true)} className="p-2 hover:bg-rose-500/10 hover:text-rose-500 rounded-lg transition-colors border border-transparent hover:border-rose-500/20" title="Eliminar Definitivo"><Trash className="w-4 h-4" /></button>
+                                                    <button onClick={() => updateProduct(product.id, { isDeleted: false })} className="p-2 hover:bg-sky-50 hover:text-sky-600 rounded-lg transition-colors" title="Restaurar"><Upload className="w-4 h-4" /></button>
+                                                    <button onClick={() => handleDelete(product.id, true)} className="p-2 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors" title="Eliminar Definitivo"><Trash className="w-4 h-4" /></button>
                                                 </>
                                             ) : (
                                                 <>
-                                                    <button onClick={() => updateProduct(product.id, { isActive: product.isActive === false ? true : false })} className={clsx("p-2 rounded-lg transition-colors border border-transparent", product.isActive === false ? "hover:bg-emerald-500/10 hover:text-emerald-500 hover:border-emerald-500/20 text-emerald-500" : "hover:bg-muted/50 hover:border-border/40")} title={product.isActive === false ? "Activar" : "Desactivar"}><Box className="w-4 h-4" /></button>
-                                                    <button onClick={() => handleOpenModal(product)} className="p-2 hover:bg-primary/10 hover:text-primary rounded-lg transition-colors border border-transparent hover:border-primary/20" title="Editar"><Edit3 className="w-4 h-4" /></button>
-                                                    <button onClick={() => handleDelete(product.id, false)} className="p-2 hover:bg-rose-500/10 hover:text-rose-500 rounded-lg transition-colors border border-transparent hover:border-rose-500/20" title="Mover a Papelera"><Trash className="w-4 h-4" /></button>
+                                                    <button onClick={() => updateProduct(product.id, { isActive: product.isActive === false ? true : false })} className={clsx("p-2 rounded-lg transition-colors", product.isActive === false ? "text-emerald-600 hover:bg-emerald-50" : "text-muted-foreground hover:bg-muted")} title={product.isActive === false ? "Activar" : "Desactivar"}><Box className="w-4 h-4" /></button>
+                                                    <button onClick={() => handleOpenModal(product)} className="p-2 hover:bg-primary/10 hover:text-primary rounded-lg transition-colors text-muted-foreground" title="Editar"><Edit3 className="w-4 h-4" /></button>
+                                                    <button onClick={() => handleDelete(product.id, false)} className="p-2 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors text-muted-foreground" title="Mover a Papelera"><Trash className="w-4 h-4" /></button>
                                                 </>
                                             )}
                                         </div>
@@ -754,23 +777,24 @@ export default function InventoryPage() {
                         </tbody>
                     </table>
                 </div>
+
                 {/* Pagination */}
                 {filteredProducts.length > 0 && (
-                    <div className="p-4 border-t border-border/40 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="p-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div className="flex items-center gap-3 text-xs text-muted-foreground">
                             <span>Mostrar</span>
                             <select
                                 value={pageSize}
                                 onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
-                                className="bg-muted/20 border border-border/40 rounded-lg px-3 py-1.5 text-xs font-bold focus:border-primary outline-none"
+                                className="bg-muted border border-border rounded-xl px-3 py-1.5 text-xs font-bold outline-none focus:border-primary"
                             >
                                 {[10, 25, 50, 100, 250, 500].map(n => <option key={n} value={n}>{n}</option>)}
                             </select>
                             <span>por página · {filteredProducts.length} total</span>
                         </div>
                         <div className="flex items-center gap-1">
-                            <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-2 py-1 rounded-lg text-xs text-muted-foreground hover:bg-muted/50 disabled:opacity-30 transition-colors">«</button>
-                            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-2 py-1 rounded-lg text-xs text-muted-foreground hover:bg-muted/50 disabled:opacity-30 transition-colors">‹</button>
+                            <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-2 py-1 rounded-lg text-xs text-muted-foreground hover:bg-muted disabled:opacity-30 transition-colors">«</button>
+                            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-2 py-1 rounded-lg text-xs text-muted-foreground hover:bg-muted disabled:opacity-30 transition-colors">‹</button>
                             {Array.from({ length: Math.min(5, Math.ceil(filteredProducts.length / pageSize)) }, (_, i) => {
                                 const totalPages = Math.ceil(filteredProducts.length / pageSize);
                                 let page = i + 1;
@@ -780,270 +804,284 @@ export default function InventoryPage() {
                                     else page = currentPage - 2 + i;
                                 }
                                 return (
-                                    <button key={page} onClick={() => setCurrentPage(page)} className={clsx("w-8 h-8 rounded-lg text-xs font-bold transition-colors", currentPage === page ? "bg-primary text-black" : "text-muted-foreground hover:bg-muted/50")}>{page}</button>
+                                    <button key={page} onClick={() => setCurrentPage(page)} className={clsx("w-8 h-8 rounded-lg text-xs font-bold transition-colors", currentPage === page ? "bg-primary text-black" : "text-muted-foreground hover:bg-muted")}>{page}</button>
                                 );
                             })}
-                            <button onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredProducts.length / pageSize), p + 1))} disabled={currentPage >= Math.ceil(filteredProducts.length / pageSize)} className="px-2 py-1 rounded-lg text-xs text-muted-foreground hover:bg-muted/50 disabled:opacity-30 transition-colors">›</button>
-                            <button onClick={() => setCurrentPage(Math.ceil(filteredProducts.length / pageSize))} disabled={currentPage >= Math.ceil(filteredProducts.length / pageSize)} className="px-2 py-1 rounded-lg text-xs text-muted-foreground hover:bg-muted/50 disabled:opacity-30 transition-colors">»</button>
+                            <button onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredProducts.length / pageSize), p + 1))} disabled={currentPage >= Math.ceil(filteredProducts.length / pageSize)} className="px-2 py-1 rounded-lg text-xs text-muted-foreground hover:bg-muted disabled:opacity-30 transition-colors">›</button>
+                            <button onClick={() => setCurrentPage(Math.ceil(filteredProducts.length / pageSize))} disabled={currentPage >= Math.ceil(filteredProducts.length / pageSize)} className="px-2 py-1 rounded-lg text-xs text-muted-foreground hover:bg-muted disabled:opacity-30 transition-colors">»</button>
                         </div>
                     </div>
                 )}
             </div>
 
-            {/* Modal */}
+            {/* Product Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(245,248,252,0.58)] backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="surface-panel w-full max-w-2xl rounded-[2.5rem] p-8 lg:p-10 relative animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto scrollbar-hide">
-                        <button
-                            onClick={() => setIsModalOpen(false)}
-                            className="absolute top-6 right-6 p-2 hover:bg-muted rounded-full transition-colors"
-                        >
-                            <X className="w-5 h-5 text-muted-foreground" />
-                        </button>
+                <div className="fixed inset-0 flex items-center justify-center p-4 z-[100]" style={{ background: 'rgba(10,12,20,0.55)', backdropFilter: 'blur(6px)' }}>
+                    <div className="bg-white border border-border rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+                        {/* Modal header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                            <h2 className="text-lg font-black text-foreground">{editingProduct ? 'Editar Producto' : 'Nuevo Producto'}</h2>
+                            <button
+                                onClick={() => setIsModalOpen(false)}
+                                className="p-2 hover:bg-muted rounded-xl transition-colors"
+                            >
+                                <X className="w-5 h-5 text-muted-foreground" />
+                            </button>
+                        </div>
 
-                        <h2 className="text-xl font-bold mb-8">{editingProduct ? 'Editar Producto' : 'Nuevo Producto'}</h2>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            <div className="space-y-6">
-                                {/* ===== IMAGE MANAGER ===== */}
-                                <div className="space-y-3">
-                                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Imagen Principal</label>
-                                    {/* Main image preview */}
-                                    <div className="relative w-full h-36 rounded-2xl overflow-hidden bg-muted/20 border border-border/40 flex items-center justify-center group">
-                                        {form.image ? (
-                                            <>
-                                                <img src={form.image} alt="preview" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://cuantium.com/wp-content/uploads/2026/02/logo.png'; }} />
-                                                <button onClick={() => setForm(f => ({ ...f, image: '' }))} className="absolute top-2 right-2 p-1.5 bg-white/80 hover:bg-rose-500 text-muted-foreground hover:text-white rounded-full transition-colors border border-white/70">
-                                                    <X className="w-3 h-3" />
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <img src="https://cuantium.com/wp-content/uploads/2026/02/logo.png" alt="logo" className="w-20 h-20 object-contain opacity-60" />
-                                        )}
-                                    </div>
-                                    {/* Upload + URL row */}
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="text"
-                                            value={form.image || ''}
-                                            onChange={(e) => setForm({ ...form, image: e.target.value })}
-                                            className="flex-1 bg-muted/20 border border-border/40 rounded-xl px-4 py-2.5 text-xs focus:border-primary outline-none transition-all"
-                                            placeholder="URL de imagen principal..."
-                                        />
-                                        <label className={clsx("flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-widest cursor-pointer transition-all", isUploading ? "opacity-50 bg-muted/20 border-border/40" : "bg-primary/10 border-primary/30 text-primary hover:bg-primary hover:text-black")}>
-                                            {isUploading ? <ArrowUpDown className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                                            {isUploading ? '...' : 'Subir'}
-                                            <input type="file" className="hidden" accept="image/*" disabled={isUploading} onChange={async (e) => {
-                                                const file = e.target.files?.[0];
-                                                if (!file) return;
-                                                const url = await uploadFile(file);
-                                                if (url) setForm(f => ({ ...f, image: url }));
-                                                e.target.value = '';
-                                            }} />
-                                        </label>
-                                    </div>
-
-                                    {/* Gallery */}
-                                    <div className="space-y-2 pt-2">
-                                        <div className="flex items-center justify-between">
-                                            <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Galería ({(form.gallery || []).length}/10)</label>
-                                            {(form.gallery || []).length < 10 && (
-                                                <label className={clsx("flex items-center gap-1 px-2 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest cursor-pointer transition-all", isUploading ? "opacity-50" : "bg-muted/20 border-border/40 hover:bg-primary/10 hover:text-primary hover:border-primary/30")}>
-                                                    <Plus className="w-3 h-3" />
-                                                    Agregar
-                                                    <input type="file" className="hidden" accept="image/*" multiple disabled={isUploading} onChange={async (e) => {
-                                                        const files = Array.from(e.target.files || []);
-                                                        const currentGallery = form.gallery || [];
-                                                        const slots = 10 - currentGallery.length;
-                                                        const toUpload = files.slice(0, slots);
-                                                        const urls: string[] = [];
-                                                        for (const file of toUpload) {
-                                                            const url = await uploadFile(file);
-                                                            if (url) urls.push(url);
-                                                        }
-                                                        if (urls.length) setForm(f => ({ ...f, gallery: [...(f.gallery || []), ...urls] }));
-                                                        e.target.value = '';
-                                                    }} />
-                                                </label>
-                                            )}
-                                        </div>
-                                        <div className="grid grid-cols-5 gap-2">
-                                            {(form.gallery || []).map((src, idx) => (
-                                                <div key={idx} className="relative aspect-square rounded-xl overflow-hidden bg-muted/20 border border-border/40 group/gimg">
-                                                    <img src={src} alt={`galeria-${idx}`} className="w-full h-full object-cover" />
-                                                    <button onClick={() => setForm(f => ({ ...f, gallery: (f.gallery || []).filter((_, i) => i !== idx) }))} className="absolute inset-0 bg-black/60 opacity-0 group-hover/gimg:opacity-100 flex items-center justify-center transition-opacity">
-                                                        <X className="w-4 h-4 text-white" />
+                        {/* Modal body */}
+                        <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* Left column */}
+                                <div className="space-y-5">
+                                    {/* Image Manager */}
+                                    <div className="space-y-3">
+                                        <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Imagen Principal</label>
+                                        <div className="relative w-full h-36 rounded-2xl overflow-hidden bg-muted border border-border flex items-center justify-center">
+                                            {form.image ? (
+                                                <>
+                                                    <img src={form.image} alt="preview" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://cuantium.com/wp-content/uploads/2026/02/logo.png'; }} />
+                                                    <button onClick={() => setForm(f => ({ ...f, image: '' }))} className="absolute top-2 right-2 p-1.5 bg-white hover:bg-red-50 text-muted-foreground hover:text-red-600 rounded-full transition-colors border border-border">
+                                                        <X className="w-3 h-3" />
                                                     </button>
-                                                </div>
-                                            ))}
-                                            {(form.gallery || []).length < 10 && (
-                                                <label className="aspect-square rounded-xl border-2 border-dashed border-border/40 hover:border-primary/50 bg-muted/10 flex flex-col items-center justify-center cursor-pointer transition-colors group/add">
-                                                    <Plus className="w-5 h-5 text-muted-foreground group-hover/add:text-primary transition-colors" />
-                                                    <input type="file" className="hidden" accept="image/*" disabled={isUploading} onChange={async (e) => {
-                                                        const file = e.target.files?.[0];
-                                                        if (!file) return;
-                                                        const url = await uploadFile(file);
-                                                        if (url) setForm(f => ({ ...f, gallery: [...(f.gallery || []), url] }));
-                                                        e.target.value = '';
-                                                    }} />
-                                                </label>
+                                                </>
+                                            ) : (
+                                                <img src="https://cuantium.com/wp-content/uploads/2026/02/logo.png" alt="logo" className="w-16 h-16 object-contain opacity-40" />
                                             )}
                                         </div>
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Nombre del Producto</label>
-                                    <input
-                                        type="text"
-                                        value={form.name}
-                                        onChange={(e) => setForm({ ...form, name: e.target.value })}
-                                        className="w-full bg-muted/20 border border-border/40 rounded-2xl px-5 py-4 text-sm focus:border-primary outline-none transition-all font-bold"
-                                        placeholder="Nombre comercial..."
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Descripción Corta</label>
-                                    <textarea
-                                        value={form.shortDescription}
-                                        onChange={(e) => setForm({ ...form, shortDescription: e.target.value })}
-                                        className="w-full bg-muted/20 border border-border/40 rounded-2xl px-5 py-4 text-sm focus:border-primary outline-none transition-all h-24 resize-none"
-                                        placeholder="Resumen del producto para WooCommerce..."
-                                    />
-                                </div>
-                            </div>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                value={form.image || ''}
+                                                onChange={(e) => setForm({ ...form, image: e.target.value })}
+                                                className="flex-1 bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
+                                                placeholder="URL de imagen principal..."
+                                            />
+                                            <label className={clsx("flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all", isUploading ? "opacity-50 bg-muted border-border text-muted-foreground" : "bg-white border-border text-foreground hover:bg-muted")}>
+                                                {isUploading ? <ArrowUpDown className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                                                {isUploading ? '...' : 'Subir'}
+                                                <input type="file" className="hidden" accept="image/*" disabled={isUploading} onChange={async (e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (!file) return;
+                                                    const url = await uploadFile(file);
+                                                    if (url) setForm(f => ({ ...f, image: url }));
+                                                    e.target.value = '';
+                                                }} />
+                                            </label>
+                                        </div>
 
-                            <div className="space-y-6">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">SKU</label>
-                                        <input
-                                            type="text"
-                                            value={form.sku}
-                                            onChange={(e) => setForm({ ...form, sku: e.target.value })}
-                                            className="w-full bg-muted/20 border border-border/40 rounded-2xl px-5 py-4 text-sm focus:border-primary outline-none transition-all font-mono"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Categoría</label>
-                                        <input
-                                            list="category-options"
-                                            value={form.category}
-                                            onChange={(e) => setForm({ ...form, category: e.target.value })}
-                                            className="w-full bg-muted/20 border border-border/40 rounded-2xl px-5 py-4 text-sm focus:border-primary outline-none transition-all"
-                                            placeholder="Ej: Urban"
-                                        />
-                                        <datalist id="category-options">
-                                            {uniqueCategories.map(cat => (
-                                                <option key={cat} value={cat} />
-                                            ))}
-                                        </datalist>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Precio Normal</label>
-                                        <input
-                                            type="number"
-                                            value={form.price}
-                                            onChange={(e) => setForm({ ...form, price: parseFloat(e.target.value) })}
-                                            className="w-full bg-muted/20 border border-border/40 rounded-2xl px-5 py-4 text-sm focus:border-primary outline-none transition-all font-black text-primary"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Precio Rebajado</label>
-                                        <input
-                                            type="number"
-                                            value={form.salePrice}
-                                            onChange={(e) => setForm({ ...form, salePrice: parseFloat(e.target.value) })}
-                                            className="w-full bg-muted/20 border border-border/40 rounded-2xl px-5 py-4 text-sm focus:border-primary outline-none transition-all font-black text-rose-500"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Control de Stock</label>
-                                        <div
-                                            onClick={() => setForm({ ...form, isStockTracked: !form.isStockTracked })}
-                                            className={clsx(
-                                                "w-full rounded-2xl px-5 py-4 border transition-all cursor-pointer flex items-center justify-between",
-                                                form.isStockTracked ? "bg-primary/10 border-primary/40 text-primary" : "bg-muted/20 border-border/40 text-muted-foreground"
-                                            )}
-                                        >
-                                            <span className="text-[10px] font-black uppercase tracking-widest">{form.isStockTracked ? "Activado" : "Ilimitado"}</span>
-                                            <div className={clsx(
-                                                "w-4 h-4 rounded-full border transition-all flex items-center justify-center",
-                                                form.isStockTracked ? "bg-primary border-primary" : "border-muted-foreground/40"
-                                            )}>
-                                                {form.isStockTracked && <div className="w-2 h-2 bg-black rounded-full" />}
+                                        {/* Gallery */}
+                                        <div className="space-y-2 pt-1">
+                                            <div className="flex items-center justify-between">
+                                                <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Galería ({(form.gallery || []).length}/10)</label>
+                                                {(form.gallery || []).length < 10 && (
+                                                    <label className={clsx("flex items-center gap-1 px-2 py-1 rounded-lg border text-xs font-semibold cursor-pointer transition-all", isUploading ? "opacity-50 bg-muted border-border" : "bg-white border-border text-foreground hover:bg-muted")}>
+                                                        <Plus className="w-3 h-3" />
+                                                        Agregar
+                                                        <input type="file" className="hidden" accept="image/*" multiple disabled={isUploading} onChange={async (e) => {
+                                                            const files = Array.from(e.target.files || []);
+                                                            const currentGallery = form.gallery || [];
+                                                            const slots = 10 - currentGallery.length;
+                                                            const toUpload = files.slice(0, slots);
+                                                            const urls: string[] = [];
+                                                            for (const file of toUpload) {
+                                                                const url = await uploadFile(file);
+                                                                if (url) urls.push(url);
+                                                            }
+                                                            if (urls.length) setForm(f => ({ ...f, gallery: [...(f.gallery || []), ...urls] }));
+                                                            e.target.value = '';
+                                                        }} />
+                                                    </label>
+                                                )}
+                                            </div>
+                                            <div className="grid grid-cols-5 gap-2">
+                                                {(form.gallery || []).map((src, idx) => (
+                                                    <div key={idx} className="relative aspect-square rounded-xl overflow-hidden bg-muted border border-border group/gimg">
+                                                        <img src={src} alt={`galeria-${idx}`} className="w-full h-full object-cover" />
+                                                        <button onClick={() => setForm(f => ({ ...f, gallery: (f.gallery || []).filter((_, i) => i !== idx) }))} className="absolute inset-0 bg-black/50 opacity-0 group-hover/gimg:opacity-100 flex items-center justify-center transition-opacity">
+                                                            <X className="w-4 h-4 text-white" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                {(form.gallery || []).length < 10 && (
+                                                    <label className="aspect-square rounded-xl border-2 border-dashed border-border hover:border-primary bg-muted flex flex-col items-center justify-center cursor-pointer transition-colors">
+                                                        <Plus className="w-5 h-5 text-muted-foreground hover:text-primary transition-colors" />
+                                                        <input type="file" className="hidden" accept="image/*" disabled={isUploading} onChange={async (e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (!file) return;
+                                                            const url = await uploadFile(file);
+                                                            if (url) setForm(f => ({ ...f, gallery: [...(f.gallery || []), url] }));
+                                                            e.target.value = '';
+                                                        }} />
+                                                    </label>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1 opacity-50">Cantidad Stock</label>
+
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Nombre del Producto</label>
                                         <input
-                                            type="number"
-                                            disabled={!form.isStockTracked}
-                                            value={form.stock}
-                                            onChange={(e) => setForm({ ...form, stock: parseInt(e.target.value) })}
-                                            className={clsx(
-                                                "w-full bg-muted/20 border border-border/40 rounded-2xl px-5 py-4 text-sm focus:border-primary outline-none transition-all",
-                                                !form.isStockTracked && "opacity-20"
-                                            )}
+                                            type="text"
+                                            value={form.name}
+                                            onChange={(e) => setForm({ ...form, name: e.target.value })}
+                                            className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all font-semibold"
+                                            placeholder="Nombre comercial..."
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Descripción Corta</label>
+                                        <textarea
+                                            value={form.shortDescription}
+                                            onChange={(e) => setForm({ ...form, shortDescription: e.target.value })}
+                                            className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all h-24 resize-none"
+                                            placeholder="Resumen del producto para WooCommerce..."
                                         />
                                     </div>
                                 </div>
-                            </div>
-                        </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Dimensiones (cm)</label>
-                                <div className="grid grid-cols-3 gap-2">
-                                    {[{ label: 'Alto', val: dimH, set: setDimH }, { label: 'Ancho', val: dimW, set: setDimW }, { label: 'Largo', val: dimD, set: setDimD }].map(({ label, val, set }) => (
-                                        <div key={label} className="space-y-1">
-                                            <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest pl-1 opacity-60">{label}</span>
+                                {/* Right column */}
+                                <div className="space-y-5">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">SKU</label>
                                             <input
-                                                type="number"
-                                                min="0"
-                                                value={val}
-                                                onChange={(e) => {
-                                                    set(e.target.value);
-                                                    const newH = label === 'Alto' ? e.target.value : dimH;
-                                                    const newW = label === 'Ancho' ? e.target.value : dimW;
-                                                    const newD = label === 'Largo' ? e.target.value : dimD;
-                                                    if (newH || newW || newD) setForm(f => ({ ...f, dimensions: `${newH || 0}x${newW || 0}x${newD || 0}cm` }));
-                                                }}
-                                                className="w-full bg-muted/20 border border-border/40 rounded-xl px-3 py-3 text-sm focus:border-primary outline-none transition-all text-center font-bold"
-                                                placeholder="0"
+                                                type="text"
+                                                value={form.sku}
+                                                onChange={(e) => setForm({ ...form, sku: e.target.value })}
+                                                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all font-mono"
                                             />
                                         </div>
-                                    ))}
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Categoría</label>
+                                            <input
+                                                list="category-options"
+                                                value={form.category}
+                                                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                                                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
+                                                placeholder="Ej: Urban"
+                                            />
+                                            <datalist id="category-options">
+                                                {uniqueCategories.map(cat => (
+                                                    <option key={cat} value={cat} />
+                                                ))}
+                                            </datalist>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Precio Normal</label>
+                                            <input
+                                                type="number"
+                                                value={form.price}
+                                                onChange={(e) => setForm({ ...form, price: parseFloat(e.target.value) })}
+                                                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all font-bold text-primary"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Precio Rebajado</label>
+                                            <input
+                                                type="number"
+                                                value={form.salePrice}
+                                                onChange={(e) => setForm({ ...form, salePrice: parseFloat(e.target.value) })}
+                                                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all font-bold text-red-600"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Control de Stock</label>
+                                            <div
+                                                onClick={() => setForm({ ...form, isStockTracked: !form.isStockTracked })}
+                                                className={clsx(
+                                                    "w-full rounded-xl px-3 py-2.5 border transition-all cursor-pointer flex items-center justify-between",
+                                                    form.isStockTracked ? "bg-primary/10 border-primary/40 text-primary" : "bg-muted border-border text-muted-foreground"
+                                                )}
+                                            >
+                                                <span className="text-xs font-bold uppercase tracking-widest">{form.isStockTracked ? "Activado" : "Ilimitado"}</span>
+                                                <div className={clsx(
+                                                    "w-4 h-4 rounded-full border transition-all flex items-center justify-center",
+                                                    form.isStockTracked ? "bg-primary border-primary" : "border-muted-foreground/40"
+                                                )}>
+                                                    {form.isStockTracked && <div className="w-2 h-2 bg-black rounded-full" />}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5 opacity-60">Cantidad Stock</label>
+                                            <input
+                                                type="number"
+                                                disabled={!form.isStockTracked}
+                                                value={form.stock}
+                                                onChange={(e) => setForm({ ...form, stock: parseInt(e.target.value) })}
+                                                className={clsx(
+                                                    "w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all",
+                                                    !form.isStockTracked && "opacity-30"
+                                                )}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
-                                <p className="text-[9px] text-muted-foreground opacity-40 pl-1">{form.dimensions || 'Sin dimensiones'}</p>
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest pl-1">Estado de Producción</label>
-                                <select
-                                    value={form.status}
-                                    onChange={(e) => setForm({ ...form, status: e.target.value as any })}
-                                    className="w-full bg-muted/20 border border-border/40 rounded-2xl px-5 py-4 text-sm focus:border-primary outline-none transition-all appearance-none cursor-pointer"
-                                >
-                                    <option value="In Stock">Disponible Stock</option>
-                                    <option value="Production">En Producción</option>
-                                    <option value="Out of Stock">No Disponible</option>
-                                </select>
+
+                            {/* Dimensions + Status row */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 pt-1">
+                                <div>
+                                    <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Dimensiones (cm)</label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {[{ label: 'Alto', val: dimH, set: setDimH }, { label: 'Ancho', val: dimW, set: setDimW }, { label: 'Largo', val: dimD, set: setDimD }].map(({ label, val, set }) => (
+                                            <div key={label} className="space-y-1">
+                                                <span className="text-xs text-muted-foreground font-bold">{label}</span>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={val}
+                                                    onChange={(e) => {
+                                                        set(e.target.value);
+                                                        const newH = label === 'Alto' ? e.target.value : dimH;
+                                                        const newW = label === 'Ancho' ? e.target.value : dimW;
+                                                        const newD = label === 'Largo' ? e.target.value : dimD;
+                                                        if (newH || newW || newD) setForm(f => ({ ...f, dimensions: `${newH || 0}x${newW || 0}x${newD || 0}cm` }));
+                                                    }}
+                                                    className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all text-center font-bold"
+                                                    placeholder="0"
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1">{form.dimensions || 'Sin dimensiones'}</p>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Estado de Producción</label>
+                                    <select
+                                        value={form.status}
+                                        onChange={(e) => setForm({ ...form, status: e.target.value as any })}
+                                        className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
+                                    >
+                                        <option value="In Stock">Disponible Stock</option>
+                                        <option value="Production">En Producción</option>
+                                        <option value="Out of Stock">No Disponible</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="flex gap-4 mt-10">
+                        {/* Modal footer */}
+                        <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
+                            <button
+                                onClick={() => setIsModalOpen(false)}
+                                className="bg-white border border-border text-foreground font-semibold rounded-xl px-4 py-2.5 hover:bg-muted transition-all text-sm"
+                            >
+                                Cancelar
+                            </button>
                             <button
                                 onClick={handleSave}
                                 disabled={isSyncing}
-                                className="w-full bg-primary text-black font-black py-5 rounded-[1.5rem] hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 active:scale-[0.98] disabled:opacity-50"
+                                className="bg-primary text-black font-bold rounded-xl px-4 py-2.5 hover:brightness-105 transition-all text-sm disabled:opacity-50"
                             >
-                                {isSyncing ? "GUARDANDO Y SINCRONIZANDO..." : (editingProduct ? 'ACTUALIZAR PRODUCTO' : 'REGISTRAR EN CATÁLOGO')}
+                                {isSyncing ? "Guardando..." : (editingProduct ? 'Actualizar Producto' : 'Registrar en Catálogo')}
                             </button>
                         </div>
                     </div>

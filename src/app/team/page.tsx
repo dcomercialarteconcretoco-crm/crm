@@ -132,33 +132,38 @@ export default function TeamPage() {
     };
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-700">
-            {/* Header */}
+        <div className="space-y-6 animate-in fade-in duration-700 pb-24 lg:pb-10">
+
+            {/* Page Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="page-hero-title text-2xl font-black tracking-tight flex items-center gap-3">
+                    <h1 className="page-title flex items-center gap-3">
                         Equipo de Trabajo
-                        <span className="text-[10px] font-black uppercase text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20">Sync Global</span>
+                        <span className="text-xs font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-full border border-primary/20">
+                            Sync Global
+                        </span>
                     </h1>
-                    <p className="text-sm text-muted-foreground font-medium">Gestiona tu equipo. Los cambios se reflejan en el Pipeline en tiempo real.</p>
+                    <p className="page-subtitle">Gestiona tu equipo. Los cambios se reflejan en el Pipeline en tiempo real.</p>
                 </div>
                 <button
                     onClick={() => handleOpenModal()}
-                    className="bg-primary text-black font-black px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 text-xs uppercase tracking-widest"
+                    className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 transition-all shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2 text-sm self-start md:self-auto"
                 >
                     <Plus className="w-4 h-4" />
-                    <span>Añadir Miembro</span>
+                    Añadir Miembro
                 </button>
             </div>
 
             {/* View Switcher */}
             <div className="flex items-center justify-center">
-                <div className="bg-white/28 border border-white/70 p-1 rounded-2xl flex items-center gap-1 backdrop-blur-xl">
+                <div className="surface-card rounded-xl p-1 flex items-center gap-1">
                     <button
                         onClick={() => setView('team')}
                         className={clsx(
-                            "px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
-                            view === 'team' ? "bg-primary text-black" : "text-muted-foreground hover:text-foreground"
+                            'px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all flex items-center gap-2',
+                            view === 'team'
+                                ? 'bg-primary text-black shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
                         )}
                     >
                         <Users className="w-3.5 h-3.5" />
@@ -167,8 +172,10 @@ export default function TeamPage() {
                     <button
                         onClick={() => setView('stats')}
                         className={clsx(
-                            "px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
-                            view === 'stats' ? "bg-primary text-black" : "text-muted-foreground hover:text-foreground"
+                            'px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all flex items-center gap-2',
+                            view === 'stats'
+                                ? 'bg-primary text-black shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
                         )}
                     >
                         <TrendingUp className="w-3.5 h-3.5" />
@@ -178,20 +185,20 @@ export default function TeamPage() {
             </div>
 
             {/* Filter Bar */}
-            <div className="p-2 border-b border-white/50 bg-white/12 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="surface-card rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <input
                         type="text"
                         placeholder="Buscar por nombre, cargo o email..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-white/36 border border-white/75 rounded-2xl pl-12 pr-4 py-4 text-sm focus:border-primary/50 outline-none transition-all font-bold text-foreground placeholder:text-muted-foreground backdrop-blur-xl"
+                        className="w-full bg-muted border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all text-foreground placeholder:text-muted-foreground"
                     />
                 </div>
-                <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pr-4">
+                <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                     {filteredSellers.length} miembros en el equipo
-                </div>
+                </span>
             </div>
 
             {view === 'team' ? (
@@ -203,69 +210,79 @@ export default function TeamPage() {
                         const isProtected = ['superadmin', 'admin', 'manager'].includes(roleLC);
                         const canDelete = !isSelf && !isProtected;
                         return (
-                        <div key={seller.id} className={`surface-card rounded-2xl p-5 relative overflow-hidden group hover:border-primary/20 transition-all flex flex-col ${isSelf ? 'ring-2 ring-primary/40' : ''}`}>
-                            {isSelf && (
-                                <div className="absolute top-3 right-3 bg-primary text-black text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full">
-                                    Tú
+                            <div
+                                key={seller.id}
+                                className={clsx(
+                                    'surface-card rounded-2xl p-5 relative overflow-hidden group hover:border-primary/30 transition-all flex flex-col',
+                                    isSelf && 'ring-2 ring-primary/40'
+                                )}
+                            >
+                                {isSelf && (
+                                    <div className="absolute top-3 right-3 bg-primary text-black text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full">
+                                        Tú
+                                    </div>
+                                )}
+
+                                {/* Avatar + identity */}
+                                <div className="flex flex-col items-center">
+                                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-base font-bold text-primary mb-3 overflow-hidden group-hover:scale-105 transition-all duration-300">
+                                        {seller.avatar ? (
+                                            <img src={seller.avatar} alt={seller.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            seller.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                                        )}
+                                    </div>
+                                    <div className="text-center">
+                                        <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{seller.name}</h3>
+                                        <p className="text-xs text-muted-foreground mt-0.5">{seller.role}</p>
+                                    </div>
                                 </div>
-                            )}
-                            <div className="flex flex-col items-center">
-                                <div className="w-16 h-16 rounded-2xl bg-white border border-primary/20 flex items-center justify-center text-xl font-black text-primary mb-3 transform group-hover:scale-105 transition-all duration-300 overflow-hidden shadow-sm">
-                                    {seller.avatar ? (
-                                        <img src={seller.avatar} alt={seller.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                        seller.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+
+                                {/* Contact info */}
+                                <div className="mt-4 pt-4 border-t border-border space-y-2">
+                                    <div className="flex items-center gap-2.5 text-muted-foreground">
+                                        <div className="w-7 h-7 rounded-lg bg-muted border border-border flex items-center justify-center shrink-0">
+                                            <Mail className="w-3.5 h-3.5" />
+                                        </div>
+                                        <span className="text-xs truncate">{seller.email || '—'}</span>
+                                    </div>
+                                    {seller.phone ? (
+                                        <div className="flex items-center gap-2.5 text-muted-foreground">
+                                            <div className="w-7 h-7 rounded-lg bg-muted border border-border flex items-center justify-center shrink-0">
+                                                <Phone className="w-3.5 h-3.5" />
+                                            </div>
+                                            <span className="text-xs">{seller.phone}</span>
+                                        </div>
+                                    ) : null}
+                                </div>
+
+                                {/* Action Footer */}
+                                <div className={clsx('grid gap-2 mt-4', canDelete ? 'grid-cols-2' : 'grid-cols-1')}>
+                                    <button
+                                        onClick={() => handleOpenModal(seller)}
+                                        className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-black font-bold text-xs transition-all border border-primary/20"
+                                    >
+                                        <Eye className="w-3.5 h-3.5" />
+                                        Ver Perfil
+                                    </button>
+                                    {canDelete && (
+                                        <button
+                                            onClick={() => handleDelete(seller.id)}
+                                            className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white font-bold text-xs transition-all border border-rose-500/20"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            Eliminar
+                                        </button>
                                     )}
                                 </div>
-                                <div className="text-center">
-                                    <h3 className="text-sm font-black text-foreground uppercase group-hover:text-primary transition-colors italic tracking-tighter">{seller.name}</h3>
-                                    <p className="text-[9px] font-black text-primary uppercase tracking-widest mt-0.5 opacity-70 italic">{seller.role}</p>
-                                </div>
                             </div>
-
-                            <div className="mt-4 pt-4 border-t border-white/55 space-y-2">
-                                <div className="flex items-center gap-3 text-muted-foreground">
-                                    <div className="w-7 h-7 rounded-lg bg-white/42 border border-white/70 flex items-center justify-center shrink-0">
-                                        <Mail className="w-3.5 h-3.5 text-muted-foreground" />
-                                    </div>
-                                    <span className="text-[10px] font-bold tracking-tight lowercase truncate">{seller.email || '—'}</span>
-                                </div>
-                                {seller.phone ? (
-                                    <div className="flex items-center gap-3 text-muted-foreground">
-                                        <div className="w-7 h-7 rounded-lg bg-white/42 border border-white/70 flex items-center justify-center shrink-0">
-                                            <Phone className="w-3.5 h-3.5 text-muted-foreground" />
-                                        </div>
-                                        <span className="text-[10px] font-bold tracking-tight">{seller.phone}</span>
-                                    </div>
-                                ) : null}
-                            </div>
-
-                            {/* Action Footer */}
-                            <div className={`grid gap-2 mt-4 ${canDelete ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                                <button
-                                    onClick={() => handleOpenModal(seller)}
-                                    className="flex items-center justify-center gap-2 py-3 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-black font-black uppercase text-[9px] tracking-widest transition-all border border-primary/10"
-                                >
-                                    <Eye className="w-3 h-3" />
-                                    Ver Perfil
-                                </button>
-                                {canDelete && (
-                                    <button
-                                        onClick={() => handleDelete(seller.id)}
-                                        className="flex items-center justify-center gap-2 py-3 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-black font-black uppercase text-[9px] tracking-widest transition-all border border-rose-500/10"
-                                    >
-                                        <Trash2 className="w-3 h-3" />
-                                        Eliminar
-                                    </button>
-                                )}
-                            </div>
-                        </div>
                         );
                     })}
                 </div>
             ) : (
                 /* Stats View */
-                <div className="space-y-6">
+                <div className="space-y-4">
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Rendimiento del equipo</p>
                     {filteredSellers.map((seller) => {
                         const sellerQuotes = quotes.filter(q => q.sellerId === seller.id || q.sellerName === seller.name);
                         const sellerTasks = tasks.filter(t => t.assignedTo === seller.id || t.assignedTo === seller.name);
@@ -277,51 +294,58 @@ export default function TeamPage() {
                             : '$0';
 
                         return (
-                        <div key={seller.id} className="surface-card rounded-[2.5rem] p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center hover:border-primary/20 transition-all shadow-[0_20px_60px_rgba(15,23,42,0.07)] relative group">
-                            <div className="lg:col-span-4 flex items-center gap-6">
-                                <div className="w-16 h-16 rounded-2xl bg-white/55 border border-white/75 flex items-center justify-center text-xl font-black text-primary/70 group-hover:bg-primary group-hover:text-black transition-all overflow-hidden">
-                                    {seller.avatar ? (
-                                        <img src={seller.avatar} alt={seller.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                        seller.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-                                    )}
+                            <div
+                                key={seller.id}
+                                className="surface-card rounded-2xl p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center hover:border-primary/30 transition-all group"
+                            >
+                                {/* Identity */}
+                                <div className="lg:col-span-4 flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-base font-bold text-primary group-hover:bg-primary group-hover:text-black transition-all overflow-hidden shrink-0">
+                                        {seller.avatar ? (
+                                            <img src={seller.avatar} alt={seller.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            seller.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                                        )}
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{seller.name}</h3>
+                                        <p className="text-xs text-muted-foreground mt-0.5">{seller.role}</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">
+                                            {sellerTasks.length} tarea{sellerTasks.length !== 1 ? 's' : ''} asignada{sellerTasks.length !== 1 ? 's' : ''}
+                                        </p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="text-base font-black text-foreground uppercase italic tracking-tighter group-hover:text-primary transition-colors">{seller.name}</h3>
-                                    <p className="text-[10px] font-black text-primary/70 uppercase tracking-widest mt-0.5 italic">{seller.role}</p>
-                                    <p className="text-[9px] text-muted-foreground mt-1">{sellerTasks.length} tarea{sellerTasks.length !== 1 ? 's' : ''} asignada{sellerTasks.length !== 1 ? 's' : ''}</p>
-                                </div>
-                            </div>
 
-                            <div className="lg:col-span-8 grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div className="p-4 rounded-2xl flex flex-col items-center justify-center border border-border/40 bg-sky-500/5 transition-all hover:scale-105">
-                                    <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">Cotizaciones</p>
-                                    <p className="text-xl font-black italic tracking-tighter text-sky-500">{sellerQuotes.length}</p>
-                                    <p className="text-[7px] font-black text-muted-foreground/70 uppercase tracking-tighter mt-1">total enviadas</p>
+                                {/* Stat boxes */}
+                                <div className="lg:col-span-8 grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    <div className="surface-card rounded-xl p-4 flex flex-col items-center justify-center border-border hover:scale-105 transition-all">
+                                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Cotizaciones</p>
+                                        <p className="text-xl font-black text-sky-500">{sellerQuotes.length}</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">total enviadas</p>
+                                    </div>
+                                    <div className="surface-card rounded-xl p-4 flex flex-col items-center justify-center border-border hover:scale-105 transition-all">
+                                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Ganadas</p>
+                                        <p className="text-xl font-black text-emerald-500">{wonQuotes.length}</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">aprobadas</p>
+                                    </div>
+                                    <div className="surface-card rounded-xl p-4 flex flex-col items-center justify-center border-border hover:scale-105 transition-all">
+                                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Tasa</p>
+                                        <p className="text-xl font-black text-primary">{conversionRate}%</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">conversión</p>
+                                    </div>
+                                    <div className="surface-card rounded-xl p-4 flex flex-col items-center justify-center border-border hover:scale-105 transition-all">
+                                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Revenue</p>
+                                        <p className="text-sm font-black text-amber-500 text-center leading-tight">{revenueFormatted}</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">ganado</p>
+                                    </div>
                                 </div>
-                                <div className="p-4 rounded-2xl flex flex-col items-center justify-center border border-border/40 bg-emerald-500/5 transition-all hover:scale-105">
-                                    <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">Ganadas</p>
-                                    <p className="text-xl font-black italic tracking-tighter text-emerald-500">{wonQuotes.length}</p>
-                                    <p className="text-[7px] font-black text-muted-foreground/70 uppercase tracking-tighter mt-1">aprobadas</p>
-                                </div>
-                                <div className="p-4 rounded-2xl flex flex-col items-center justify-center border border-border/40 bg-primary/5 transition-all hover:scale-105">
-                                    <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">Tasa</p>
-                                    <p className="text-xl font-black italic tracking-tighter text-primary">{conversionRate}%</p>
-                                    <p className="text-[7px] font-black text-muted-foreground/70 uppercase tracking-tighter mt-1">conversión</p>
-                                </div>
-                                <div className="p-4 rounded-2xl flex flex-col items-center justify-center border border-border/40 bg-amber-500/5 transition-all hover:scale-105">
-                                    <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">Revenue</p>
-                                    <p className="text-sm font-black italic tracking-tighter text-amber-500 text-center leading-tight">{revenueFormatted}</p>
-                                    <p className="text-[7px] font-black text-muted-foreground/70 uppercase tracking-tighter mt-1">ganado</p>
-                                </div>
-                            </div>
 
-                            <div className="hidden lg:block absolute top-6 right-8">
-                                <span className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.3em] flex items-center gap-2">
-                                    <Clock className="w-3 h-3" /> En vivo
-                                </span>
+                                <div className="hidden lg:flex lg:col-span-12 justify-end -mt-4">
+                                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                                        <Clock className="w-3 h-3" /> En vivo
+                                    </span>
+                                </div>
                             </div>
-                        </div>
                         );
                     })}
                 </div>
@@ -329,75 +353,94 @@ export default function TeamPage() {
 
             {/* Add/Edit Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[rgba(247,243,234,0.78)] backdrop-blur-xl">
-                    <div className="surface-panel w-full max-w-xl rounded-[3rem] overflow-hidden shadow-[0_28px_80px_rgba(20,16,8,0.14)] flex flex-col animate-in zoom-in-95 duration-300 border border-white/85">
+                <div
+                    className="fixed inset-0 flex items-center justify-center p-4 z-[100]"
+                    style={{ background: 'rgba(10,12,20,0.55)', backdropFilter: 'blur(6px)' }}
+                >
+                    <div className="bg-white border border-border rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-200">
+
                         {/* Modal Header */}
-                        <div className="p-8 border-b border-border/60 flex items-center justify-between bg-white/56">
-                            <h2 className="text-3xl font-black text-foreground italic tracking-tighter uppercase">
+                        <div className="flex items-center justify-between p-6 border-b border-border">
+                            <h2 className="text-lg font-bold text-foreground">
                                 {editingSeller ? 'Editar Perfil' : 'Nuevo Miembro'}
                             </h2>
-                            <X className="w-8 h-8 text-muted-foreground cursor-pointer hover:text-foreground transition-colors" onClick={() => setIsModalOpen(false)} />
+                            <button
+                                onClick={() => setIsModalOpen(false)}
+                                className="w-8 h-8 flex items-center justify-center rounded-xl bg-muted border border-border text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
                         </div>
 
-                        <div className="p-8 space-y-8 overflow-y-auto max-h-[70vh] custom-scrollbar bg-white/42">
+                        {/* Modal Body */}
+                        <div className="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
+
                             {/* Avatar Section */}
-                            <div className="flex flex-col items-center gap-4">
+                            <div className="flex flex-col items-center gap-3 pb-2">
                                 <AvatarUpload
                                     value={form.avatar || ''}
                                     onChange={(base64) => setForm(f => ({ ...f, avatar: base64 }))}
                                     name={form.name}
                                     size="md"
                                 />
-                                <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">Configuración de Identidad</p>
+                                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Foto de perfil</p>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <p className="text-[10px] font-black text-muted-foreground uppercase ml-2">Nombre Completo</p>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">
+                                        Nombre Completo
+                                    </label>
                                     <div className="relative">
-                                        <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+                                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                         <input
                                             type="text"
                                             placeholder="Ej: Roberto Gómez"
                                             value={form.name}
                                             onChange={(e) => setForm({ ...form, name: e.target.value })}
-                                            className="w-full bg-white/74 border border-white/90 rounded-2xl pl-12 pr-4 py-4 text-foreground font-bold outline-none focus:border-primary/50 transition-all shadow-inner placeholder:text-muted-foreground/60"
+                                            className="w-full bg-muted border border-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:bg-white transition-all placeholder:text-muted-foreground/60"
                                         />
                                     </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <p className="text-[10px] font-black text-muted-foreground uppercase ml-2">Username @</p>
+                                <div>
+                                    <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">
+                                        Username @
+                                    </label>
                                     <input
                                         type="text"
                                         placeholder="roberto.g"
                                         value={form.username}
                                         onChange={(e) => setForm({ ...form, username: e.target.value })}
-                                        className="w-full bg-white/74 border border-white/90 rounded-2xl px-6 py-4 text-foreground font-bold outline-none focus:border-primary/50 transition-all shadow-inner placeholder:text-muted-foreground/60"
+                                        className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:bg-white transition-all placeholder:text-muted-foreground/60"
                                     />
                                 </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <p className="text-[10px] font-black text-muted-foreground uppercase ml-2">Email Corporativo</p>
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">
+                                    Email Corporativo
+                                </label>
                                 <div className="relative">
-                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                     <input
                                         type="email"
                                         placeholder="nombre@arteconcreto.co"
                                         value={form.email}
                                         onChange={(e) => setForm({ ...form, email: e.target.value })}
-                                        className="w-full bg-white/74 border border-white/90 rounded-2xl pl-12 pr-4 py-4 text-foreground font-bold outline-none focus:border-primary/50 transition-all shadow-inner placeholder:text-muted-foreground/60"
+                                        className="w-full bg-muted border border-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:bg-white transition-all placeholder:text-muted-foreground/60"
                                     />
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <p className="text-[10px] font-black text-muted-foreground uppercase ml-2">Rol de Acceso</p>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">
+                                        Rol de Acceso
+                                    </label>
                                     <select
                                         value={form.role}
                                         onChange={(e) => setForm({ ...form, role: e.target.value as any })}
-                                        className="w-full bg-white/74 border border-white/90 rounded-2xl px-6 py-4 text-foreground font-bold outline-none focus:border-primary/50 appearance-none shadow-inner"
+                                        className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:bg-white appearance-none transition-all"
                                     >
                                         <option value="SuperAdmin">Administrador Principal</option>
                                         <option value="Admin">Administrador</option>
@@ -405,20 +448,22 @@ export default function TeamPage() {
                                         <option value="Vendedor">Vendedor Senior</option>
                                     </select>
                                 </div>
-                                <div className="space-y-2">
-                                    <p className="text-[10px] font-black text-muted-foreground uppercase ml-2">Contraseña de Acceso</p>
+                                <div>
+                                    <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">
+                                        Contraseña de Acceso
+                                    </label>
                                     <div className="relative">
-                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+                                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                         <input
                                             type={showPassword ? "text" : "password"}
                                             placeholder="••••••••"
                                             value={form.password}
                                             onChange={(e) => setForm({ ...form, password: e.target.value })}
-                                            className="w-full bg-white/74 border border-white/90 rounded-2xl pl-12 pr-12 py-4 text-foreground font-bold outline-none focus:border-primary/50 transition-all shadow-inner placeholder:text-muted-foreground/60"
+                                            className="w-full bg-muted border border-border rounded-xl pl-9 pr-10 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:bg-white transition-all placeholder:text-muted-foreground/60"
                                         />
                                         <button
                                             onClick={() => setShowPassword(!showPassword)}
-                                            className="absolute right-4 top-1/2 -translate-y-1/2 hover:text-primary transition-colors text-muted-foreground/50"
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
                                         >
                                             {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                         </button>
@@ -428,11 +473,17 @@ export default function TeamPage() {
                         </div>
 
                         {/* Modal Footer */}
-                        <div className="p-8 border-t border-border/60 flex gap-4 bg-white/56">
-                            <button onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-5 rounded-2xl border border-white/90 text-foreground font-black uppercase text-[10px] tracking-widest hover:bg-white/80 transition-all">
+                        <div className="flex items-center justify-end gap-3 p-6 border-t border-border">
+                            <button
+                                onClick={() => setIsModalOpen(false)}
+                                className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted transition-colors text-sm"
+                            >
                                 Cancelar
                             </button>
-                            <button onClick={handleSave} className="flex-1 bg-primary text-black font-black px-4 py-5 rounded-2xl shadow-xl shadow-primary/15 uppercase text-[10px] tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                            <button
+                                onClick={handleSave}
+                                className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 transition-all shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2 text-sm"
+                            >
                                 <CheckCircle2 className="w-4 h-4" />
                                 {editingSeller ? 'Actualizar Miembro' : 'Crear Usuario'}
                             </button>
