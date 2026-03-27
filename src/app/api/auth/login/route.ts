@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
       };
 
       const response = NextResponse.json({ user });
-      response.cookies.set(SESSION_COOKIE_NAME, createSessionToken(user), {
+      response.cookies.set(SESSION_COOKIE_NAME, await createSessionToken(user), {
         httpOnly: true,
         sameSite: "lax",
         secure: process.env.NODE_ENV === "production",
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
         };
 
         const response = NextResponse.json({ user: sessionUser });
-        response.cookies.set(SESSION_COOKIE_NAME, createSessionToken(sessionUser), {
+        response.cookies.set(SESSION_COOKIE_NAME, await createSessionToken(sessionUser), {
           httpOnly: true,
           sameSite: "lax",
           secure: process.env.NODE_ENV === "production",

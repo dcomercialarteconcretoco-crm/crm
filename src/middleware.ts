@@ -14,7 +14,7 @@ const PUBLIC_API_PREFIXES = [
     '/api/logo',            // Logo proxy — public asset
 ];
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl;
 
     // Only guard API routes
@@ -27,7 +27,7 @@ export function middleware(req: NextRequest) {
 
     // Validate session cookie
     const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const user = parseSessionToken(token);
+    const user = await parseSessionToken(token);
 
     if (!user) {
         return NextResponse.json(

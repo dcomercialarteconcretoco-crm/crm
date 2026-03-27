@@ -1,16 +1,17 @@
-import crypto from "crypto";
+/**
+ * auth-session.ts
+ * Uses Web Crypto API (globalThis.crypto.subtle) so tokens are signed and
+ * verified identically in the Vercel Edge runtime (middleware) and in
+ * Node.js route handlers.  Node.js ≥ 18 ships globalThis.crypto natively.
+ */
 
 const SESSION_COOKIE = "crm_session";
-const SESSION_SECRET = (() => {
-  const secret =
-    process.env.SESSION_SECRET ||
-    process.env.SUPERADMIN_PASSWORD ||
-    '';
-  if (!secret && process.env.NODE_ENV === 'production') {
-    console.error('[AUTH] ⚠️  SESSION_SECRET no configurado — set SESSION_SECRET en las variables de entorno de Vercel');
-  }
-  return secret || 'ac-fallback-dev-secret-change-in-prod';
-})();
+
+const SESSION_SECRET = (
+  process.env.SESSION_SECRET ||
+  process.env.SUPERADMIN_PASSWORD ||
+  "ac-fallback-dev-secret-change-in-prod"
+).trim();
 
 export type SessionUser = {
   id: string;
@@ -25,24 +26,60 @@ export type SessionUser = {
   commission?: string;
 };
 
-function sign(payload: string) {
-  return crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("hex");
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const enc = new TextEncoder();
+
+async function getKey(): Promise<CryptoKey> {
+  return globalThis.crypto.subtle.importKey(
+    "raw",
+    enc.encode(SESSION_SECRET),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"]
+  );
 }
 
-export function createSessionToken(user: SessionUser) {
-  const payload = Buffer.from(JSON.stringify(user)).toString("base64url");
-  const signature = sign(payload);
-  return `${payload}.${signature}`;
+async function hmacHex(payload: string): Promise<string> {
+  const key = await getKey();
+  const buf = await globalThis.crypto.subtle.sign("HMAC", key, enc.encode(payload));
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
-export function parseSessionToken(token?: string | null): SessionUser | null {
+function b64urlEncode(str: string): string {
+  return btoa(unescape(encodeURIComponent(str)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
+}
+
+function b64urlDecode(str: string): string {
+  const padded = str.replace(/-/g, "+").replace(/_/g, "/");
+  return decodeURIComponent(escape(atob(padded)));
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+export async function createSessionToken(user: SessionUser): Promise<string> {
+  const payload = b64urlEncode(JSON.stringify(user));
+  const sig = await hmacHex(payload);
+  return `${payload}.${sig}`;
+}
+
+export async function parseSessionToken(
+  token?: string | null
+): Promise<SessionUser | null> {
   if (!token) return null;
-  const [payload, signature] = token.split(".");
-  if (!payload || !signature) return null;
-  if (sign(payload) !== signature) return null;
-
+  const dot = token.lastIndexOf(".");
+  if (dot === -1) return null;
+  const payload = token.slice(0, dot);
+  const sig = token.slice(dot + 1);
   try {
-    return JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as SessionUser;
+    const expected = await hmacHex(payload);
+    if (expected !== sig) return null;
+    return JSON.parse(b64urlDecode(payload)) as SessionUser;
   } catch {
     return null;
   }

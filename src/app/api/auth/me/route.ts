@@ -4,7 +4,7 @@ import { ensureCrmSchema, getPool, hasDatabase } from "@/lib/postgres";
 
 export async function GET(req: NextRequest) {
   const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const tokenUser = parseSessionToken(token);
+  const tokenUser = await parseSessionToken(token);
 
   if (!tokenUser) {
     return NextResponse.json({ user: null }, { status: 401 });
