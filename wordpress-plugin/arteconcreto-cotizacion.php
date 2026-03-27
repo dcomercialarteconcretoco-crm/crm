@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Arte Concreto – Botón Pedir Cotización
  * Description: Botones de cotización (WhatsApp y Correo) en páginas de producto y grilla. Ambos capturan el lead en el CRM y abren WhatsApp.
- * Version: 3.0.0
+ * Version: 3.1.0
  * Author: Arte Concreto / MiWibi
  * Text Domain: ac-cotizacion
  */
@@ -20,6 +20,20 @@ add_action( 'wp_ajax_nopriv_ac_search_products', 'ac_search_products_handler' );
 add_action( 'wp_ajax_ac_search_products',        'ac_search_products_handler' );
 
 function ac_search_products_handler() {
+    // CSRF: verificar nonce
+    if ( ! check_ajax_referer( 'ac_search_nonce', '_wpnonce', false ) ) {
+        wp_send_json_error( [ 'message' => 'Invalid request' ], 403 );
+    }
+
+    // Rate limiting: máx 30 búsquedas por IP por minuto
+    $ip  = sanitize_text_field( $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0' );
+    $key = 'ac_rl_' . md5( $ip );
+    $hits = (int) get_transient( $key );
+    if ( $hits >= 30 ) {
+        wp_send_json_error( [ 'message' => 'Too many requests' ], 429 );
+    }
+    set_transient( $key, $hits + 1, 60 );
+
     $term = sanitize_text_field( $_GET['q'] ?? '' );
     if ( mb_strlen( $term ) < 2 ) { wp_send_json( [] ); }
 
@@ -187,7 +201,7 @@ function ac_render_modal_and_scripts() {
                             width:100%; padding:11px 14px 11px 38px;
                             border:1.5px solid #ddd; border-radius:10px;
                             font-size:14px; box-sizing:border-box; outline:none; font-family:inherit;
-                        " onfocus="this.style.borderColor='<?php echo AC_COLOR_GOLD; ?>'" onblur="this.style.borderColor='#ddd'" />
+                        " onfocus="this.style.borderColor='<?php echo esc_js( AC_COLOR_GOLD ); ?>'" onblur="this.style.borderColor='#ddd'" />
                         <svg style="position:absolute;left:11px;top:50%;transform:translateY(-50%);pointer-events:none;color:#aaa;" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                         <div id="ac-search-results" style="
                             display:none; position:absolute; top:calc(100% + 4px); left:0; right:0;
@@ -209,14 +223,14 @@ function ac_render_modal_and_scripts() {
                             <input name="name" type="text" required placeholder="Ej: Juan Pérez" style="
                                 width:100%; padding:12px 14px; border:1.5px solid #ddd; border-radius:10px;
                                 font-size:14px; box-sizing:border-box; outline:none; font-family:inherit;
-                            " onfocus="this.style.borderColor='<?php echo AC_COLOR_GOLD; ?>'" onblur="this.style.borderColor='#ddd'" />
+                            " onfocus="this.style.borderColor='<?php echo esc_js( AC_COLOR_GOLD ); ?>'" onblur="this.style.borderColor='#ddd'" />
                         </div>
                         <div>
                             <label style="display:block; font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#777; margin-bottom:6px;">Empresa / Proyecto</label>
                             <input name="company" type="text" placeholder="Ej: Constructora XYZ" style="
                                 width:100%; padding:12px 14px; border:1.5px solid #ddd; border-radius:10px;
                                 font-size:14px; box-sizing:border-box; outline:none; font-family:inherit;
-                            " onfocus="this.style.borderColor='<?php echo AC_COLOR_GOLD; ?>'" onblur="this.style.borderColor='#ddd'" />
+                            " onfocus="this.style.borderColor='<?php echo esc_js( AC_COLOR_GOLD ); ?>'" onblur="this.style.borderColor='#ddd'" />
                         </div>
                     </div>
                     <div style="margin-bottom:14px;">
@@ -224,7 +238,7 @@ function ac_render_modal_and_scripts() {
                         <input name="email" type="email" required placeholder="juan@empresa.com" style="
                             width:100%; padding:12px 14px; border:1.5px solid #ddd; border-radius:10px;
                             font-size:14px; box-sizing:border-box; outline:none; font-family:inherit;
-                        " onfocus="this.style.borderColor='<?php echo AC_COLOR_GOLD; ?>'" onblur="this.style.borderColor='#ddd'" />
+                        " onfocus="this.style.borderColor='<?php echo esc_js( AC_COLOR_GOLD ); ?>'" onblur="this.style.borderColor='#ddd'" />
                     </div>
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px;">
                         <div>
@@ -232,14 +246,14 @@ function ac_render_modal_and_scripts() {
                             <input name="phone" type="tel" placeholder="+57 300 000 0000" style="
                                 width:100%; padding:12px 14px; border:1.5px solid #ddd; border-radius:10px;
                                 font-size:14px; box-sizing:border-box; outline:none; font-family:inherit;
-                            " onfocus="this.style.borderColor='<?php echo AC_COLOR_GOLD; ?>'" onblur="this.style.borderColor='#ddd'" />
+                            " onfocus="this.style.borderColor='<?php echo esc_js( AC_COLOR_GOLD ); ?>'" onblur="this.style.borderColor='#ddd'" />
                         </div>
                         <div>
                             <label style="display:block; font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#777; margin-bottom:6px;">Ciudad</label>
                             <input name="city" type="text" placeholder="Bogotá, Medellín..." style="
                                 width:100%; padding:12px 14px; border:1.5px solid #ddd; border-radius:10px;
                                 font-size:14px; box-sizing:border-box; outline:none; font-family:inherit;
-                            " onfocus="this.style.borderColor='<?php echo AC_COLOR_GOLD; ?>'" onblur="this.style.borderColor='#ddd'" />
+                            " onfocus="this.style.borderColor='<?php echo esc_js( AC_COLOR_GOLD ); ?>'" onblur="this.style.borderColor='#ddd'" />
                         </div>
                     </div>
                     <div style="margin-bottom:20px;">
@@ -250,7 +264,7 @@ function ac_render_modal_and_scripts() {
                             width:100%; padding:12px 14px; border:1.5px solid #ddd; border-radius:10px;
                             font-size:14px; box-sizing:border-box; outline:none; font-family:inherit;
                             resize:vertical; min-height:80px;
-                        " onfocus="this.style.borderColor='<?php echo AC_COLOR_GOLD; ?>'" onblur="this.style.borderColor='#ddd'"></textarea>
+                        " onfocus="this.style.borderColor='<?php echo esc_js( AC_COLOR_GOLD ); ?>'" onblur="this.style.borderColor='#ddd'"></textarea>
                     </div>
 
                     <!-- Botón de envío (texto y color cambian según source) -->
@@ -268,7 +282,7 @@ function ac_render_modal_and_scripts() {
 
                 <!-- Estados -->
                 <div id="ac-sending" style="display:none; text-align:center; padding:20px 0;">
-                    <div style="width:36px; height:36px; border:3px solid #eee; border-top-color:<?php echo AC_COLOR_GOLD; ?>; border-radius:50%; animation:ac-spin 0.8s linear infinite; margin:0 auto 12px;"></div>
+                    <div style="width:36px; height:36px; border:3px solid #eee; border-top-color:<?php echo esc_js( AC_COLOR_GOLD ); ?>; border-radius:50%; animation:ac-spin 0.8s linear infinite; margin:0 auto 12px;"></div>
                     <p style="font-size:14px; font-weight:700; color:#555; margin:0;">Enviando solicitud...</p>
                 </div>
                 <div id="ac-success" style="display:none; text-align:center; padding:20px 0;">
@@ -298,9 +312,17 @@ function ac_render_modal_and_scripts() {
     (function() {
         var CRM_URL   = '<?php echo esc_js( AC_CRM_ENDPOINT ); ?>';
         var AJAX_URL  = '<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>';
-        var GOLD      = '<?php echo AC_COLOR_GOLD; ?>';
-        var DARK      = '<?php echo AC_COLOR_DARK; ?>';
-        var WA_NUM    = '<?php echo AC_WHATSAPP_NUM; ?>';
+        var AC_NONCE  = '<?php echo esc_js( wp_create_nonce( 'ac_search_nonce' ) ); ?>';
+        var GOLD      = '<?php echo esc_js( AC_COLOR_GOLD ); ?>';
+        var DARK      = '<?php echo esc_js( AC_COLOR_DARK ); ?>';
+        var WA_NUM    = '<?php echo esc_js( AC_WHATSAPP_NUM ); ?>';
+
+        // Sanitiza URLs antes de usarlas en src/href (previene XSS con javascript: o data: URIs)
+        function safeUrl(url) {
+            if (!url) return '';
+            url = String(url).trim();
+            return /^https?:\/\//i.test(url) ? url : '';
+        }
 
         // Estado actual del modal
         var currentProduct = {};
@@ -405,6 +427,8 @@ function ac_render_modal_and_scripts() {
 
         // ── Buscador ─────────────────────────────────────────────────────────
         var searchTimer;
+        var searchController = null; // AbortController para cancelar requests en vuelo
+
         el('ac-search-input').addEventListener('input', function() {
             var q = this.value.trim();
             clearTimeout(searchTimer);
@@ -413,13 +437,24 @@ function ac_render_modal_and_scripts() {
         });
 
         function doSearch(q) {
+            // Cancelar request anterior si aún está en vuelo (evita race condition)
+            if (searchController) { searchController.abort(); }
+            searchController = new AbortController();
+
             var res = el('ac-search-results');
             res.innerHTML = '<div style="padding:14px;font-size:13px;color:#aaa;text-align:center;">Buscando...</div>';
             res.style.display = 'block';
-            fetch(AJAX_URL + '?action=ac_search_products&q=' + encodeURIComponent(q))
+
+            fetch(AJAX_URL + '?action=ac_search_products&_wpnonce=' + AC_NONCE + '&q=' + encodeURIComponent(q), {
+                signal: searchController.signal,
+            })
                 .then(function(r) { return r.json(); })
-                .then(function(products) { renderSearchResults(products); })
-                .catch(function() {
+                .then(function(data) {
+                    // wp_send_json_error envuelve en {success:false,data:...}
+                    renderSearchResults(Array.isArray(data) ? data : (data.data || []));
+                })
+                .catch(function(err) {
+                    if (err.name === 'AbortError') return; // cancelado intencionalmente, no es error
                     res.innerHTML = '<div style="padding:14px;font-size:13px;color:#c00;text-align:center;">Error al buscar.</div>';
                 });
         }
@@ -436,7 +471,7 @@ function ac_render_modal_and_scripts() {
                     'display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;' +
                     'border-bottom:1px solid #f5f5f5;transition:background .12s;' +
                     (added ? 'opacity:.45;pointer-events:none;' : '') + '">' +
-                    '<img src="' + (p.image||'') + '" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #eee;flex-shrink:0;" />' +
+                    '<img src="' + safeUrl(p.image) + '" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #eee;flex-shrink:0;" />' +
                     '<div style="flex:1;min-width:0;">' +
                         '<p style="margin:0;font-size:13px;font-weight:700;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(p.name) + '</p>' +
                         '<p style="margin:2px 0 0;font-size:11px;color:#888;">' + (p.sku ? 'SKU: ' + escHtml(p.sku) + ' · ' : '') + escHtml(p.price_html) + '</p>' +
@@ -472,7 +507,7 @@ function ac_render_modal_and_scripts() {
             list.innerHTML = ids.map(function(id) {
                 var item = extraItems[id]; var p = item.product;
                 return '<div class="ac-extra-item" data-id="' + id + '" style="display:flex;align-items:center;gap:10px;background:#f9f9f9;border:1px solid #eee;border-radius:10px;padding:10px 12px;margin-bottom:8px;">' +
-                    '<img src="' + (p.image||'') + '" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #eee;flex-shrink:0;" />' +
+                    '<img src="' + safeUrl(p.image) + '" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #eee;flex-shrink:0;" />' +
                     '<div style="flex:1;min-width:0;">' +
                         '<p style="margin:0;font-size:12px;font-weight:800;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(p.name) + '</p>' +
                         '<p style="margin:2px 0 0;font-size:11px;color:#888;">' + escHtml(p.price_html) + '</p>' +
@@ -536,7 +571,7 @@ function ac_render_modal_and_scripts() {
             var nameVal  = nameInput.value.trim();
             var emailVal = emailInput.value.trim();
             if (!nameVal)  { nameInput.focus();  nameInput.style.borderColor  = '#e53e3e'; return; }
-            if (!emailVal || !emailVal.includes('@')) { emailInput.focus(); emailInput.style.borderColor = '#e53e3e'; return; }
+            if (!emailVal || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(emailVal)) { emailInput.focus(); emailInput.style.borderColor = '#e53e3e'; return; }
 
             var phoneVal   = form.elements['phone'].value.trim();
             var cityVal    = form.elements['city'].value.trim();
