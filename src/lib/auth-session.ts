@@ -1,10 +1,16 @@
 import crypto from "crypto";
 
 const SESSION_COOKIE = "crm_session";
-const SESSION_SECRET =
-  process.env.SESSION_SECRET ||
-  process.env.SUPERADMIN_PASSWORD ||
-  "arteconcreto-session-secret";
+const SESSION_SECRET = (() => {
+  const secret =
+    process.env.SESSION_SECRET ||
+    process.env.SUPERADMIN_PASSWORD ||
+    '';
+  if (!secret && process.env.NODE_ENV === 'production') {
+    console.error('[AUTH] ⚠️  SESSION_SECRET no configurado — set SESSION_SECRET en las variables de entorno de Vercel');
+  }
+  return secret || 'ac-fallback-dev-secret-change-in-prod';
+})();
 
 export type SessionUser = {
   id: string;

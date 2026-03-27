@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hasDatabase, getPool, ensureCrmSchema } from '@/lib/postgres';
+import { rateLimit } from '@/lib/rate-limit';
 
 const FROM_EMAIL = process.env.FROM_EMAIL || 'cotizaciones@arteconcreto.co';
 const CC_EMAIL   = 'marketing@arteconcreto.co';
@@ -125,6 +126,11 @@ export async function OPTIONS() {
 }
 
 export async function POST(req: NextRequest) {
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const rl = rateLimit(ip);
+    if (!rl.ok) {
+        return NextResponse.json({ error: 'Demasiadas solicitudes. Intenta en ' + rl.retryAfter + 's' }, { status: 429, headers: { ...CORS_HEADERS, 'Retry-After': String(rl.retryAfter) } });
+    }
     try {
         const body = await req.json();
         const { name, email, phone, city, company } = body;

@@ -5,7 +5,7 @@ const FROM_EMAIL = process.env.FROM_EMAIL || 'cotizaciones@arteconcreto.co';
 const CC_EMAIL = 'marketing@arteconcreto.co';
 
 // Logo con fondo claro — se muestra en píldora blanca dentro del header oscuro
-const LOGO_URL = 'https://cuantium.com/wp-content/uploads/2026/02/logo.png';
+const LOGO_URL = 'https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png';
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://crm-sand-three.vercel.app';
 
 export async function POST(request: NextRequest) {

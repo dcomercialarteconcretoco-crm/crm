@@ -8,8 +8,9 @@ export async function GET() {
 
   await ensureCrmSchema();
   const pool = getPool();
+  // ⚠️ Never return password hashes — omitted from SELECT intentionally
   const { rows } = await pool.query(`
-    SELECT id, name, avatar, role, email, phone, username, status, sales, commission, password
+    SELECT id, name, avatar, role, email, phone, username, status, sales, commission
     FROM crm_users
     ORDER BY created_at ASC
   `);
