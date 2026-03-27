@@ -65,9 +65,9 @@ export default function LoginPage() {
                 <div className="text-center mb-8">
                     <div className="flex justify-center mb-5">
                         <img
-                            src="https://cuantium.com/wp-content/uploads/2026/02/logo.png"
-                            alt="Logo"
-                            className="w-20 h-20 object-contain"
+                            src="https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png"
+                            alt="Arte Concreto"
+                            className="h-16 w-auto object-contain"
                         />
                     </div>
                     <h1 className="text-2xl font-black text-foreground tracking-tight">
