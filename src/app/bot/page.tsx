@@ -596,14 +596,14 @@ export default function MiWiBotPage() {
                                 </div>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto divide-y divide-border/10 custom-scrollbar">
+                            <div className="flex-1 overflow-y-auto divide-y divide-border custom-scrollbar">
                                 {liveConversations.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center py-16 px-6 text-center gap-3">
-                                        <div className="w-12 h-12 rounded-2xl bg-muted/40 border border-border/30 flex items-center justify-center">
-                                            <Globe className="w-5 h-5 text-muted-foreground/30" />
+                                        <div className="w-12 h-12 rounded-2xl bg-muted border border-border flex items-center justify-center">
+                                            <Globe className="w-5 h-5 text-muted-foreground" />
                                         </div>
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">Sin conversaciones aún</p>
-                                        <p className="text-[9px] text-muted-foreground/30 font-medium">Los chats del widget web aparecerán aquí en tiempo real</p>
+                                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Sin conversaciones aún</p>
+                                        <p className="text-xs text-muted-foreground">Los chats del widget web aparecerán aquí en tiempo real</p>
                                     </div>
                                 ) : liveConversations.map((conv) => {
                                     const lastMsg = conv.messages[conv.messages.length - 1];
@@ -620,30 +620,28 @@ export default function MiWiBotPage() {
                                             key={conv.id}
                                             onClick={() => setSelectedConversation(conv)}
                                             className={clsx(
-                                                "p-5 lg:p-6 cursor-pointer transition-all hover:bg-muted/10 relative group",
-                                                isSelected ? "bg-primary/[0.03]" : ""
+                                                "p-4 cursor-pointer transition-all hover:bg-muted relative group",
+                                                isSelected ? "bg-muted" : ""
                                             )}
                                         >
-                                            {isSelected && <div className="absolute left-0 top-0 w-1 h-full bg-primary"></div>}
-                                            <div className="flex gap-4">
+                                            {isSelected && <div className="absolute left-0 top-0 w-0.5 h-full bg-primary"></div>}
+                                            <div className="flex gap-3">
                                                 <div className="relative shrink-0">
-                                                    <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center font-black text-[10px] lg:text-xs text-primary uppercase">
+                                                    <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center font-black text-xs text-primary uppercase">
                                                         {(conv.lead.name || 'W')[0].toUpperCase()}
                                                     </div>
-                                                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-emerald-500 border-2 border-card rounded-full"></div>
+                                                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="flex justify-between items-start mb-1">
-                                                        <p className="text-xs lg:text-sm font-black text-foreground truncate group-hover:text-primary transition-colors">{conv.lead.name || 'Lead Web'}</p>
-                                                        <span className="text-[8px] lg:text-[9px] font-bold text-muted-foreground uppercase shrink-0 ml-2">{timeAgo}</span>
+                                                    <div className="flex justify-between items-start mb-0.5">
+                                                        <p className="text-sm font-bold text-foreground truncate">{conv.lead.name || 'Lead Web'}</p>
+                                                        <span className="text-[10px] text-muted-foreground shrink-0 ml-2">{timeAgo}</span>
                                                     </div>
-                                                    {conv.lead.company && <p className="text-[9px] text-muted-foreground/60 font-bold truncate mb-1">{conv.lead.company}{conv.lead.city ? ` · ${conv.lead.city}` : ''}</p>}
-                                                    <p className="text-[10px] lg:text-[11px] text-muted-foreground truncate font-medium">{lastMsg?.content?.slice(0, 60) || '...'}</p>
-                                                    <div className="mt-2 flex items-center gap-2">
-                                                        <div className="px-2 py-0.5 rounded-md border text-[7px] lg:text-[8px] font-black uppercase tracking-tighter text-sky-500 border-sky-500/20 bg-sky-500/5">
-                                                            Web Chat
-                                                        </div>
-                                                        <span className="text-[7px] font-bold text-muted-foreground/40">{conv.messages.length} msgs</span>
+                                                    {conv.lead.company && <p className="text-xs text-muted-foreground truncate mb-0.5">{conv.lead.company}{conv.lead.city ? ` · ${conv.lead.city}` : ''}</p>}
+                                                    <p className="text-xs text-muted-foreground truncate">{lastMsg?.content?.slice(0, 60) || '...'}</p>
+                                                    <div className="mt-1.5 flex items-center gap-2">
+                                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 border border-sky-200 text-sky-700">Web Chat</span>
+                                                        <span className="text-[10px] text-muted-foreground">{conv.messages.length} msgs</span>
                                                     </div>
                                                 </div>
                                             </div>
