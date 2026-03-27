@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Shield,
     Search,
@@ -22,15 +22,20 @@ import {
     Eye,
     AlertTriangle,
     Zap,
-    Package
+    Package,
+    ChevronLeft,
+    ChevronRight,
+    Trash2
 } from 'lucide-react';
 import { useApp, AuditLog, Seller, Anomaly } from '@/context/AppContext';
 import { clsx } from 'clsx';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
+const PAGE_SIZE = 20;
+
 export default function AuditPage() {
-    const { auditLogs, sellers, anomalies } = useApp();
+    const { auditLogs, sellers, anomalies, purgeOldAuditLogs } = useApp();
     const [activeView, setActiveView] = useState<'logs' | 'anomalies'>('logs');
     const [searchTerm, setSearchTerm] = useState('');
     const [filterAction, setFilterAction] = useState<string>('all');
@@ -38,8 +43,15 @@ export default function AuditPage() {
     const [filterTargetType, setFilterTargetType] = useState<string>('all');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
+    const [page, setPage] = useState(1);
     const [isGeneratingReport, setIsGeneratingReport] = useState(false);
     const [showReportModal, setShowReportModal] = useState(false);
+
+    // Auto-purge logs older than 180 days on mount
+    useEffect(() => { purgeOldAuditLogs(); }, []);
+
+    // Reset to page 1 when any filter changes
+    useEffect(() => { setPage(1); }, [searchTerm, filterAction, filterUser, filterTargetType, dateFrom, dateTo]);
 
     const generateReport = () => {
         setIsGeneratingReport(true);
@@ -125,6 +137,9 @@ export default function AuditPage() {
     });
 
     const hasActiveFilters = searchTerm || filterAction !== 'all' || filterUser !== 'all' || filterTargetType !== 'all' || dateFrom || dateTo;
+
+    const totalPages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
+    const paginatedLogs = filteredLogs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
     const exportCSV = () => {
         const headers = ['Fecha', 'Usuario', 'Rol', 'Acción', 'Tipo', 'Objetivo', 'Detalles'];
@@ -382,7 +397,7 @@ export default function AuditPage() {
                                                 <p className="text-sm font-bold text-muted-foreground/40 uppercase tracking-widest">Sin registros con los filtros actuales</p>
                                             </td>
                                         </tr>
-                                    ) : filteredLogs.map((log: AuditLog) => {
+                                    ) : paginatedLogs.map((log: AuditLog) => {
                                         const badge = getActionBadge(log.action);
                                         const typeLabel = getTargetTypeLabel(log.action);
                                         return (
@@ -449,6 +464,56 @@ export default function AuditPage() {
                             </table>
                         </div>
                     </div>
+
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-between px-6 py-4 bg-muted/10 border border-border/40 rounded-[2rem]">
+                            <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest">
+                                Página <span className="text-foreground">{page}</span> de <span className="text-foreground">{totalPages}</span>
+                                <span className="ml-3 opacity-50">({filteredLogs.length} registros)</span>
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                                    disabled={page === 1}
+                                    className="flex items-center gap-1.5 px-4 py-2 rounded-2xl border border-border/40 text-[11px] font-black uppercase tracking-widest hover:bg-muted/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                    <ChevronLeft className="w-3.5 h-3.5" /> Anterior
+                                </button>
+                                <div className="flex items-center gap-1">
+                                    {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                                        let p: number;
+                                        if (totalPages <= 7) p = i + 1;
+                                        else if (page <= 4) p = i + 1;
+                                        else if (page >= totalPages - 3) p = totalPages - 6 + i;
+                                        else p = page - 3 + i;
+                                        return (
+                                            <button
+                                                key={p}
+                                                onClick={() => setPage(p)}
+                                                className={clsx(
+                                                    "w-8 h-8 rounded-xl text-[11px] font-black transition-all",
+                                                    p === page ? "bg-primary text-black shadow-lg shadow-primary/20" : "text-muted-foreground hover:bg-muted/30"
+                                                )}
+                                            >{p}</button>
+                                        );
+                                    })}
+                                </div>
+                                <button
+                                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={page === totalPages}
+                                    className="flex items-center gap-1.5 px-4 py-2 rounded-2xl border border-border/40 text-[11px] font-black uppercase tracking-widest hover:bg-muted/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                    Siguiente <ChevronRight className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Purge notice */}
+                    <p className="text-center text-[10px] font-bold text-muted-foreground/30 uppercase tracking-widest">
+                        Registros mayores a 180 días se eliminan automáticamente al abrir esta página
+                    </p>
                 </>
             ) : (
                 /* Anomalies View */

@@ -807,7 +807,7 @@ export default function MiWiBotPage() {
                         </div>
 
                         {/* Product Catalog Panel — right column (desktop only) */}
-                        <div className="hidden xl:flex w-64 border-l border-border/40 flex-col bg-muted/5 shrink-0">
+                        <div className="hidden lg:flex w-56 xl:w-64 border-l border-border/40 flex-col bg-muted/5 shrink-0">
                             <div className="p-4 border-b border-border/40 space-y-3">
                                 <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">Catálogo de Productos</p>
                                 <div className="relative">

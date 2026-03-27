@@ -343,6 +343,7 @@ interface AppContextType {
     addAnomaly: (anomaly: Omit<Anomaly, 'id' | 'timestamp' | 'status'>) => void;
     updateProduct: (id: string, updates: Partial<Product>) => void;
     deleteProduct: (id: string) => void;
+    purgeOldAuditLogs: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -922,6 +923,15 @@ REGLAS DE ORO:
         });
     };
 
+    const purgeOldAuditLogs = () => {
+        const cutoff = Date.now() - 180 * 24 * 60 * 60 * 1000;
+        setAuditLogs(prev => {
+            const next = prev.filter(l => new Date(l.timestamp).getTime() >= cutoff);
+            if (next.length !== prev.length) persistSharedState({ auditLogs: next });
+            return next;
+        });
+    };
+
     const addAnomaly = (anom: Omit<Anomaly, 'id' | 'timestamp' | 'status'>) => {
         const id = `anom-${Date.now()}`;
         setAnomalies(prev => {
@@ -1154,7 +1164,7 @@ REGLAS DE ORO:
             updateSeller, deleteSeller, updateSettings,
             updateForm, deleteForm,
             markNotificationAsRead, clearNotifications, removeNotification, setNotifications,
-            auditLogs, addAuditLog, anomalies, addAnomaly,
+            auditLogs, addAuditLog, purgeOldAuditLogs, anomalies, addAnomaly,
             products, productSyncStatus, refreshProducts, updateProduct, deleteProduct,
             currentUser, isHydrating, login, logout
         }), [
