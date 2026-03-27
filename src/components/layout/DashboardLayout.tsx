@@ -160,6 +160,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         pathname.startsWith('/public') ||
         pathname.startsWith('/widget') ||
         pathname.startsWith('/b/') ||
+        pathname.startsWith('/m') ||
         pathname === '/reset-password';
 
     useEffect(() => {

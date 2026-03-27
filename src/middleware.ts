@@ -14,8 +14,27 @@ const PUBLIC_API_PREFIXES = [
     '/api/logo',            // Logo proxy — public asset
 ];
 
+/** Mobile UA keywords — redirect to /m on these devices */
+const MOBILE_UA_RE = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+
+/** Pages that should never trigger mobile redirect */
+const NO_REDIRECT = ['/login', '/reset-password', '/public', '/b/', '/widget', '/m', '/api'];
+
 export async function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl;
+
+    // ── Mobile auto-redirect ─────────────────────────────────────────────────
+    // Redirect mobile browsers from the root CRM to /m (light mobile UI)
+    if (
+        !pathname.startsWith('/api/') &&
+        !NO_REDIRECT.some(p => pathname.startsWith(p)) &&
+        pathname === '/'                              // only from homepage for now
+    ) {
+        const ua = req.headers.get('user-agent') ?? '';
+        if (MOBILE_UA_RE.test(ua)) {
+            return NextResponse.redirect(new URL('/m', req.url));
+        }
+    }
 
     // Only guard API routes
     if (!pathname.startsWith('/api/')) return NextResponse.next();
@@ -44,5 +63,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-    matcher: '/api/:path*',
+    matcher: ['/', '/api/:path*'],
 };
