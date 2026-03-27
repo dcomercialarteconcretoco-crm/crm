@@ -98,26 +98,23 @@ export default function BiolinkPublicCard({ card, settings }: { card: Biolink; s
         <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px 48px', fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}>
             <div style={{ width: '100%', maxWidth: '420px' }}>
 
-                {/* Hero */}
-                <div style={{ textAlign: 'center', padding: '28px 0 24px' }}>
-                    {/* Logo — top of card */}
-                    <div style={{ marginBottom: 28 }}>
+                {/* Hero: logo left + photo right */}
+                <div style={{ padding: '28px 0 20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
                         <img
                             src="https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png"
                             alt="Arte Concreto"
-                            style={{ height: 80, objectFit: 'contain', display: 'block', margin: '0 auto', filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? 0.95 : 0.9 }}
+                            style={{ height: 36, objectFit: 'contain', filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? 0.95 : 0.85 }}
                         />
+                        {card.photo ? (
+                            <img src={card.photo} alt={card.name}
+                                style={{ width: 80, height: 80, borderRadius: '50%', objectFit: 'cover', border: `3px solid ${pc}`, boxShadow: `0 0 0 5px ${pc}20` }} />
+                        ) : (
+                            <div style={{ width: 80, height: 80, borderRadius: '50%', background: `${pc}20`, border: `3px solid ${pc}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30, fontWeight: 900, color: pc }}>
+                                {card.name.charAt(0).toUpperCase()}
+                            </div>
+                        )}
                     </div>
-
-                    {/* Avatar */}
-                    {card.photo ? (
-                        <img src={card.photo} alt={card.name}
-                            style={{ width: 100, height: 100, borderRadius: '50%', objectFit: 'cover', border: `3px solid ${pc}`, margin: '0 auto 16px', display: 'block', boxShadow: `0 0 0 6px ${pc}20` }} />
-                    ) : (
-                        <div style={{ width: 100, height: 100, borderRadius: '50%', background: `${pc}20`, border: `3px solid ${pc}`, margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36, fontWeight: 900, color: pc }}>
-                            {card.name.charAt(0).toUpperCase()}
-                        </div>
-                    )}
                     <h1 style={{ margin: 0, fontSize: 26, fontWeight: 900, color: txtMain, letterSpacing: '-0.5px' }}>{card.name}</h1>
                     {card.title && <p style={{ margin: '6px 0 0', fontSize: 14, color: txtSub, fontWeight: 500 }}>{card.title}</p>}
                 </div>
