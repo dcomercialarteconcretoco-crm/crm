@@ -883,19 +883,19 @@ export default function MiWiBotPage() {
                 )}
 
                 {activeTab === 'programming' && (
-                    <div className="flex-1 p-16 space-y-12 overflow-y-auto custom-scrollbar">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+                    <div className="flex-1 p-8 space-y-8 overflow-y-auto custom-scrollbar">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                             <div>
-                                <h2 className="text-3xl font-black text-foreground tracking-tighter flex items-center gap-3">
-                                    <BrainCircuit className="w-8 h-8 text-primary" />
+                                <h2 className="text-2xl font-black text-foreground tracking-tight flex items-center gap-3">
+                                    <BrainCircuit className="w-6 h-6 text-primary" />
                                     Entrenamiento de MiWi
                                 </h2>
-                                <p className="text-sm text-muted-foreground font-bold uppercase tracking-widest mt-2">Configura la lógica, el conocimiento y la voz de tu IA</p>
+                                <p className="text-sm text-muted-foreground mt-1">Configura la lógica, el conocimiento y la voz de tu IA</p>
                             </div>
-                            <div className="flex items-center gap-4">
-                                <div className="p-4 bg-primary/5 rounded-3xl border border-primary/20 flex items-center gap-4 h-fit">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-white border border-border rounded-2xl p-4 shadow-sm flex items-center gap-4">
                                     <div className="relative">
-                                        <Circle className="w-12 h-12 text-muted-foreground/10" strokeWidth={4} />
+                                        <Circle className="w-12 h-12 text-muted" strokeWidth={4} />
                                         <Circle
                                             className="w-12 h-12 text-primary absolute top-0 left-0 -rotate-90"
                                             strokeWidth={4}
@@ -905,96 +905,84 @@ export default function MiWiBotPage() {
                                         <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black">{trainingScore}%</span>
                                     </div>
                                     <div>
-                                        <p className="text-[9px] font-black uppercase tracking-widest text-primary">Score de Entrenamiento</p>
-                                        <p className="text-xs font-black text-foreground">Nivel: {trainingLevel}</p>
+                                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Score de Entrenamiento</p>
+                                        <p className="text-sm font-bold text-foreground">Nivel: {trainingLevel}</p>
                                     </div>
                                 </div>
                                 <button
                                     onClick={handleSaveBotConfig}
-                                    className="bg-primary text-black font-black px-8 py-4 rounded-2xl flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_10px_20px_rgba(250,181,16,0.2)] disabled:opacity-60 disabled:hover:scale-100"
+                                    className="bg-primary text-black font-bold px-6 py-2.5 rounded-xl flex items-center gap-2 hover:brightness-105 transition-all disabled:opacity-60"
                                     disabled={isSavingConfig}
                                 >
                                     <Save className="w-4 h-4" />
-                                    <span className="text-[10px] uppercase tracking-widest">{isSavingConfig ? 'Guardando...' : 'Guardar Todo'}</span>
+                                    <span className="text-sm">{isSavingConfig ? 'Guardando...' : 'Guardar Todo'}</span>
                                 </button>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             {/* Structured Knowledge Section */}
-                            <div className="lg:col-span-2 space-y-8">
-                                <div className="p-10 bg-muted/10 border border-border rounded-[2.5rem] space-y-10">
+                            <div className="lg:col-span-2 space-y-6">
+                                <div className="bg-white border border-border rounded-2xl shadow-sm p-6 space-y-6">
                                     <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20">
-                                                <Wand2 className="w-6 h-6 text-primary" />
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
+                                                <Wand2 className="w-5 h-5 text-primary" />
                                             </div>
-                                            <h3 className="text-xl font-black text-foreground">Base de Datos de Negocio</h3>
+                                            <h3 className="text-base font-bold text-foreground">Base de Datos de Negocio</h3>
                                         </div>
-                                        <span className="text-[10px] font-black text-muted-foreground/30 uppercase tracking-[0.2em]">Prioridad Alta</span>
+                                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Prioridad Alta</span>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        <div className="space-y-4">
-                                            <div className="flex items-center gap-2 text-primary">
-                                                <Clock className="w-4 h-4" />
-                                                <label className="text-[10px] font-black uppercase tracking-widest">Tiempos de Entrega</label>
-                                            </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                        <div className="space-y-2">
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-primary" />Tiempos de Entrega</label>
                                             <input
                                                 type="text"
                                                 placeholder="Ej: 10 a 15 días hábiles"
-                                                className="w-full bg-muted/10 border border-border/40 rounded-2xl p-5 text-sm font-bold text-foreground outline-none focus:border-primary/50 transition-all"
+                                                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
                                                 value={deliveryTimes}
                                                 onChange={(e) => setDeliveryTimes(e.target.value)}
                                             />
-                                            <p className="text-[9px] text-muted-foreground/50 font-medium italic">MiWi mencionará este dato al preguntar sobre disponibilidad.</p>
+                                            <p className="text-xs text-muted-foreground italic">MiWi mencionará este dato al preguntar sobre disponibilidad.</p>
                                         </div>
 
-                                        <div className="space-y-4">
-                                            <div className="flex items-center gap-2 text-primary">
-                                                <Truck className="w-4 h-4" />
-                                                <label className="text-[10px] font-black uppercase tracking-widest">Costo de Envío</label>
-                                            </div>
+                                        <div className="space-y-2">
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5 flex items-center gap-1.5"><Truck className="w-3.5 h-3.5 text-primary" />Costo de Envío</label>
                                             <input
                                                 type="text"
                                                 placeholder="Ej: Gratis en Bogotá, resto del país contraentrega"
-                                                className="w-full bg-muted/10 border border-border/40 rounded-2xl p-5 text-sm font-bold text-foreground outline-none focus:border-primary/50 transition-all"
+                                                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
                                                 value={shippingCost}
                                                 onChange={(e) => setShippingCost(e.target.value)}
                                             />
                                         </div>
 
-                                        <div className="space-y-4">
-                                            <div className="flex items-center gap-2 text-primary">
-                                                <MapPin className="w-4 h-4" />
-                                                <label className="text-[10px] font-black uppercase tracking-widest">Zona de Cobertura</label>
-                                            </div>
+                                        <div className="space-y-2">
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-primary" />Zona de Cobertura</label>
                                             <textarea
                                                 placeholder="Ej: Toda Colombia, especializado en zonas urbanas."
-                                                className="w-full bg-muted/10 border border-border/40 rounded-2xl p-5 text-sm font-bold text-foreground outline-none focus:border-primary/50 transition-all h-32"
+                                                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all h-28 resize-none"
                                                 value={coverageArea}
                                                 onChange={(e) => setCoverageArea(e.target.value)}
                                             />
                                         </div>
 
-                                        <div className="space-y-4">
-                                            <div className="flex items-center gap-2 text-primary">
-                                                <HelpCircle className="w-4 h-4" />
-                                                <label className="text-[10px] font-black uppercase tracking-widest">Preguntas Frecuentes (FAQ)</label>
-                                            </div>
-                                            <div className="space-y-3">
+                                        <div className="space-y-2">
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5 flex items-center gap-1.5"><HelpCircle className="w-3.5 h-3.5 text-primary" />Preguntas Frecuentes (FAQ)</label>
+                                            <div className="space-y-2">
                                                 {faqs.map((faq, index) => (
-                                                    <div key={`faq-${index}`} className="flex items-center gap-3">
+                                                    <div key={`faq-${index}`} className="flex items-center gap-2">
                                                         <input
                                                             type="text"
                                                             value={faq}
                                                             onChange={(e) => updateFaq(index, e.target.value)}
                                                             placeholder={`FAQ ${index + 1}`}
-                                                            className="w-full p-4 bg-muted/10 border border-border/40 rounded-xl text-[11px] font-bold text-foreground outline-none focus:border-primary/50 transition-colors"
+                                                            className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
                                                         />
                                                         <button
                                                             onClick={() => removeFaq(index)}
-                                                            className="p-3 rounded-xl border border-border/40 text-muted-foreground hover:text-rose-500 hover:border-rose-500/30 transition-all"
+                                                            className="p-2 rounded-xl border border-border text-muted-foreground hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-all shrink-0"
                                                         >
                                                             <X className="w-4 h-4" />
                                                         </button>
@@ -1002,7 +990,7 @@ export default function MiWiBotPage() {
                                                 ))}
                                                 <button
                                                     onClick={addFaq}
-                                                    className="w-full p-4 text-primary text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-primary/10 rounded-xl hover:bg-primary/5 transition-all"
+                                                    className="w-full py-2.5 text-primary text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 border border-primary/20 rounded-xl hover:bg-primary/5 transition-all"
                                                 >
                                                     <Zap className="w-3 h-3" /> Añadir Nueva FAQ
                                                 </button>
@@ -1011,16 +999,16 @@ export default function MiWiBotPage() {
                                     </div>
                                 </div>
 
-                                <div className="space-y-4">
-                                    <label className="text-[10px] font-black uppercase text-primary tracking-[0.3em] pl-6 h-fit">Instrucciones Maestras (System Prompt)</label>
+                                <div className="space-y-2">
+                                    <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Instrucciones Maestras (System Prompt)</label>
                                     <div className="relative group">
                                         <textarea
-                                            className="w-full h-80 bg-muted/10 border border-border rounded-[2.5rem] p-10 text-sm focus:border-primary/50 outline-none transition-all font-bold text-foreground leading-relaxed custom-scrollbar"
+                                            className="w-full h-64 bg-muted border border-border rounded-2xl px-4 py-3 text-sm focus:border-primary focus:bg-white outline-none transition-all text-foreground leading-relaxed custom-scrollbar resize-none"
                                             value={systemPrompt}
                                             onChange={(e) => setSystemPrompt(e.target.value)}
                                         />
-                                        <div className="absolute bottom-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button className="p-3 bg-primary text-black rounded-xl shadow-lg hover:scale-110 transition-all">
+                                        <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button className="p-2 bg-primary text-black rounded-xl hover:brightness-105 transition-all">
                                                 <CheckCircle2 className="w-4 h-4" />
                                             </button>
                                         </div>
@@ -1029,13 +1017,13 @@ export default function MiWiBotPage() {
                             </div>
 
                             {/* Sidebar Config / Protocol */}
-                            <div className="space-y-10">
-                                <div className="p-10 bg-muted/10 border border-border rounded-[2.5rem] space-y-8">
-                                    <div className="flex items-center gap-4 mb-2">
-                                        <Shield className="w-5 h-5 text-primary" />
-                                        <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-foreground">Escalamiento Humano</h4>
+                            <div className="space-y-5">
+                                <div className="bg-white border border-border rounded-2xl shadow-sm p-5 space-y-5">
+                                    <div className="flex items-center gap-3">
+                                        <Shield className="w-4 h-4 text-primary" />
+                                        <h4 className="text-xs font-bold uppercase tracking-widest text-foreground">Escalamiento Humano</h4>
                                     </div>
-                                    <div className="space-y-6">
+                                    <div className="space-y-4">
                                         {[
                                             { id: 'largeSale', label: 'Alertar por "Venta Grande"', active: escalationRules.largeSale },
                                             { id: 'anger', label: 'Pasar a Humano por Enojo', active: escalationRules.anger },
@@ -1043,13 +1031,13 @@ export default function MiWiBotPage() {
                                             { id: 'catalogOnly', label: 'Modo Solo Catalogo (No IA)', active: escalationRules.catalogOnly },
                                         ].map((cap) => (
                                             <div key={cap.id} className="flex items-center justify-between">
-                                                <span className="text-[11px] font-bold text-muted-foreground">{cap.label}</span>
+                                                <span className="text-sm text-muted-foreground">{cap.label}</span>
                                                 <button
                                                     onClick={() => toggleEscalationRule(cap.id as keyof typeof escalationRules)}
                                                     className={clsx(
-                                                    "w-10 h-5 rounded-full relative transition-all",
-                                                    cap.active ? "bg-primary" : "bg-muted-foreground/10"
-                                                )}
+                                                        "w-10 h-5 rounded-full relative transition-all shrink-0",
+                                                        cap.active ? "bg-primary" : "bg-muted border border-border"
+                                                    )}
                                                 >
                                                     <div className={clsx(
                                                         "absolute top-1 w-3 h-3 rounded-full bg-white transition-all",
@@ -1061,29 +1049,29 @@ export default function MiWiBotPage() {
                                     </div>
                                 </div>
 
-                                <div className="p-10 bg-gradient-to-br from-rose-500/10 to-transparent border border-rose-500/20 rounded-[2.5rem] space-y-6">
-                                    <div className="flex items-center gap-4 text-rose-500">
-                                        <AlertTriangle className="w-6 h-6" />
-                                        <h4 className="text-[11px] font-black uppercase tracking-[0.2em]">Protocolo de Crisis</h4>
+                                <div className="bg-white border border-red-200 rounded-2xl shadow-sm p-5 space-y-4">
+                                    <div className="flex items-center gap-3 text-red-600">
+                                        <AlertTriangle className="w-4 h-4" />
+                                        <h4 className="text-xs font-bold uppercase tracking-widest">Protocolo de Crisis</h4>
                                     </div>
-                                    <p className="text-[11px] text-muted-foreground font-bold leading-relaxed italic">
+                                    <p className="text-sm text-muted-foreground leading-relaxed">
                                         "Si el bot detecta reclamaciones o términos legales, MiWi detendrá sus respuestas y te enviará un alerta roja inmediata."
                                     </p>
-                                    <button className="w-full py-4 border border-rose-500/20 rounded-2xl text-[9px] font-black uppercase tracking-widest text-rose-500 hover:bg-rose-500 hover:text-white transition-all">
+                                    <button className="w-full py-2.5 border border-red-200 rounded-xl text-xs font-bold uppercase tracking-widest text-red-600 hover:bg-red-500 hover:text-white transition-all">
                                         Configurar Palabras Prohibidas
                                     </button>
                                 </div>
 
-                                <div className="p-10 bg-muted/10 border border-border rounded-[2.5rem] space-y-6">
+                                <div className="bg-white border border-border rounded-2xl shadow-sm p-5 space-y-4">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
-                                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground">Estado del Aprendizaje</h4>
+                                        <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></div>
+                                        <h4 className="text-xs font-bold uppercase tracking-widest text-foreground">Estado del Aprendizaje</h4>
                                     </div>
-                                    <div className="space-y-2">
-                                        <div className="h-1.5 w-full bg-muted/10 rounded-full overflow-hidden">
+                                    <div className="space-y-1.5">
+                                        <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                                             <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${trainingScore}%` }} />
                                         </div>
-                                        <div className="flex justify-between items-center text-[9px] font-black uppercase text-muted-foreground/40">
+                                        <div className="flex justify-between text-xs text-muted-foreground">
                                             <span>Modelo Entrenado</span>
                                             <span>{trainingScore}% completitud</span>
                                         </div>
@@ -1093,28 +1081,26 @@ export default function MiWiBotPage() {
                         </div>
 
                         {/* ── HORARIO DE ATENCIÓN ── */}
-                        <div className="p-10 bg-muted/10 border border-border rounded-[2.5rem] space-y-8">
+                        <div className="bg-white border border-border rounded-2xl shadow-sm p-6 space-y-6">
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20">
-                                        <Clock className="w-6 h-6 text-primary" />
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
+                                        <Clock className="w-5 h-5 text-primary" />
                                     </div>
                                     <div>
-                                        <h3 className="text-xl font-black text-foreground">Horario de Atención del Bot</h3>
-                                        <p className="text-[10px] font-black text-muted-foreground/50 uppercase tracking-widest mt-1">
-                                            Fuera de este horario el bot responde con el mensaje offline
-                                        </p>
+                                        <h3 className="text-base font-bold text-foreground">Horario de Atención del Bot</h3>
+                                        <p className="text-xs text-muted-foreground mt-0.5">Fuera de este horario el bot responde con el mensaje offline</p>
                                     </div>
                                 </div>
                                 <label className="flex items-center gap-3 cursor-pointer select-none">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                                    <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                                         {botSchedule.enabled ? 'Activo' : 'Desactivado'}
                                     </span>
                                     <div
                                         onClick={() => setBotSchedule(s => ({ ...s, enabled: !s.enabled }))}
                                         className={clsx(
                                             "relative w-12 h-6 rounded-full transition-colors cursor-pointer border-2",
-                                            botSchedule.enabled ? "bg-primary border-primary" : "bg-muted/30 border-border"
+                                            botSchedule.enabled ? "bg-primary border-primary" : "bg-muted border-border"
                                         )}
                                     >
                                         <div className={clsx(
@@ -1126,9 +1112,8 @@ export default function MiWiBotPage() {
                             </div>
 
                             {botSchedule.enabled && (
-                                <div className="space-y-6">
-                                    {/* Day rows */}
-                                    <div className="space-y-3">
+                                <div className="space-y-5">
+                                    <div className="space-y-2">
                                         {([
                                             { key: 'mon', label: 'Lunes' },
                                             { key: 'tue', label: 'Martes' },
@@ -1141,10 +1126,9 @@ export default function MiWiBotPage() {
                                             const day = botSchedule.days[key];
                                             return (
                                                 <div key={key} className={clsx(
-                                                    "flex items-center gap-4 p-4 rounded-2xl border transition-all",
-                                                    day.enabled ? "bg-white/30 border-primary/20" : "bg-muted/5 border-border/30 opacity-60"
+                                                    "flex items-center gap-4 p-3 rounded-xl border transition-all",
+                                                    day.enabled ? "bg-white border-primary/30" : "bg-muted border-border opacity-60"
                                                 )}>
-                                                    {/* Enable toggle */}
                                                     <button
                                                         onClick={() => setBotSchedule(s => ({
                                                             ...s,
@@ -1152,12 +1136,12 @@ export default function MiWiBotPage() {
                                                         }))}
                                                         className={clsx(
                                                             "w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all",
-                                                            day.enabled ? "bg-primary border-primary text-black" : "border-border bg-transparent"
+                                                            day.enabled ? "bg-primary border-primary text-black" : "border-border bg-white"
                                                         )}
                                                     >
                                                         {day.enabled && <Check className="w-3 h-3" />}
                                                     </button>
-                                                    <span className="w-24 text-[11px] font-black uppercase tracking-widest text-foreground shrink-0">{label}</span>
+                                                    <span className="w-24 text-xs font-bold uppercase tracking-widest text-foreground shrink-0">{label}</span>
                                                     <div className="flex items-center gap-2 flex-1">
                                                         <input
                                                             type="time"
@@ -1167,9 +1151,9 @@ export default function MiWiBotPage() {
                                                                 ...s,
                                                                 days: { ...s.days, [key]: { ...s.days[key], start: e.target.value } }
                                                             }))}
-                                                            className="flex-1 bg-muted/10 border border-border/40 rounded-xl px-3 py-2 text-sm font-bold text-foreground outline-none focus:border-primary/50 transition-all disabled:opacity-40"
+                                                            className="flex-1 bg-muted border border-border rounded-xl px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:bg-white transition-all disabled:opacity-40"
                                                         />
-                                                        <span className="text-muted-foreground font-black text-sm">—</span>
+                                                        <span className="text-muted-foreground text-sm">—</span>
                                                         <input
                                                             type="time"
                                                             value={day.end}
@@ -1178,7 +1162,7 @@ export default function MiWiBotPage() {
                                                                 ...s,
                                                                 days: { ...s.days, [key]: { ...s.days[key], end: e.target.value } }
                                                             }))}
-                                                            className="flex-1 bg-muted/10 border border-border/40 rounded-xl px-3 py-2 text-sm font-bold text-foreground outline-none focus:border-primary/50 transition-all disabled:opacity-40"
+                                                            className="flex-1 bg-muted border border-border rounded-xl px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:bg-white transition-all disabled:opacity-40"
                                                         />
                                                     </div>
                                                 </div>
@@ -1186,14 +1170,13 @@ export default function MiWiBotPage() {
                                         })}
                                     </div>
 
-                                    {/* Timezone */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Zona Horaria</label>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Zona Horaria</label>
                                             <select
                                                 value={botSchedule.timezone}
                                                 onChange={e => setBotSchedule(s => ({ ...s, timezone: e.target.value }))}
-                                                className="w-full bg-muted/10 border border-border/40 rounded-2xl p-4 text-sm font-bold text-foreground outline-none focus:border-primary/50 transition-all"
+                                                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:bg-white transition-all"
                                             >
                                                 <option value="America/Bogota">América/Bogotá (UTC-5)</option>
                                                 <option value="America/New_York">América/New York (UTC-5/-4)</option>
@@ -1201,13 +1184,13 @@ export default function MiWiBotPage() {
                                                 <option value="Europe/Madrid">Europa/Madrid (UTC+1/+2)</option>
                                             </select>
                                         </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Mensaje Offline</label>
+                                        <div className="space-y-1.5">
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Mensaje Offline</label>
                                             <input
                                                 type="text"
                                                 value={botSchedule.offlineMessage}
                                                 onChange={e => setBotSchedule(s => ({ ...s, offlineMessage: e.target.value }))}
-                                                className="w-full bg-muted/10 border border-border/40 rounded-2xl p-4 text-sm font-bold text-foreground outline-none focus:border-primary/50 transition-all"
+                                                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:bg-white transition-all"
                                                 placeholder="Mensaje cuando el bot está fuera de horario..."
                                             />
                                         </div>
@@ -1219,63 +1202,66 @@ export default function MiWiBotPage() {
                 )}
 
                 {activeTab === 'capture' && (
-                    <div className="flex-1 p-6 lg:p-8 space-y-6 lg:space-y-8 flex flex-col items-center overflow-y-auto custom-scrollbar">
+                    <div className="flex-1 p-8 space-y-8 flex flex-col items-center overflow-y-auto custom-scrollbar">
                         <div className="text-center space-y-2 max-w-2xl">
-                            <Shield className="w-9 h-9 lg:w-11 lg:h-11 text-primary mx-auto mb-2" />
-                            <h2 className="text-xl lg:text-3xl font-black text-foreground tracking-tighter uppercase italic">Formulario de Pre-Chat</h2>
-                            <p className="text-[11px] lg:text-sm text-muted-foreground font-bold leading-relaxed">
+                            <Shield className="w-10 h-10 text-primary mx-auto" />
+                            <h2 className="text-2xl font-black text-foreground tracking-tight">Formulario de Pre-Chat</h2>
+                            <p className="text-sm text-muted-foreground leading-relaxed">
                                 Captura los datos del cliente automáticamente antes de iniciar la conversación con MiWi. Esto garantiza que todos los contactos se registren como Leads.
                             </p>
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 w-full max-w-5xl items-start">
-                            <div className="space-y-4">
-                                <h3 className="text-[10px] lg:text-xs font-black uppercase text-primary tracking-[0.3em] pl-4 border-l-4 border-primary">Campos del Chatbot</h3>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full max-w-4xl items-start">
+                            <div className="space-y-3">
+                                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground pl-1">Campos del Chatbot</p>
                                 <div className="space-y-2">
                                     {Object.entries(captureFields).map(([key, val]) => (
                                         <div
                                             key={key}
                                             onClick={() => toggleField(key as any)}
                                             className={clsx(
-                                                "flex items-center justify-between p-4 lg:p-4.5 rounded-2xl border cursor-pointer transition-all",
-                                                val ? "bg-primary/10 border-primary/40 text-foreground" : "bg-muted/10 border-border/40 text-muted-foreground opacity-20"
+                                                "flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all",
+                                                val ? "bg-primary/5 border-primary/30 text-foreground" : "bg-white border-border text-muted-foreground opacity-50"
                                             )}
                                         >
-                                            <div className="flex items-center gap-4">
+                                            <div className="flex items-center gap-3">
                                                 {val ? <CheckCircle2 className="w-5 h-5 text-primary" /> : <Circle className="w-5 h-5" />}
-                                                <span className="text-[11px] lg:text-[13px] font-black uppercase tracking-[0.14em]">{key === 'name' ? 'Nombre Completo' : key === 'email' ? 'Correo Electrónico' : key === 'phone' ? 'WhatsApp' : key === 'city' ? 'Ciudad' : 'Empresa'}</span>
+                                                <span className="text-sm font-bold">{key === 'name' ? 'Nombre Completo' : key === 'email' ? 'Correo Electrónico' : key === 'phone' ? 'WhatsApp' : key === 'city' ? 'Ciudad' : 'Empresa'}</span>
                                             </div>
-                                            <span className="text-[8px] lg:text-[9px] font-black opacity-40 uppercase">{val ? 'Requerido' : 'Off'}</span>
+                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold"
+                                                style={val ? { background: '#fef9e7', color: '#b45309', border: '1px solid #fde68a' } : { background: '#f4f4f5', color: '#71717a', border: '1px solid #e4e4e7' }}>
+                                                {val ? 'Requerido' : 'Off'}
+                                            </span>
                                         </div>
                                     ))}
                                 </div>
                             </div>
 
-                            <div className="space-y-4">
-                                <h3 className="text-[10px] lg:text-xs font-black uppercase text-muted-foreground/30 tracking-[0.3em] pl-4 border-l-4 border-border">Preview del Saludo</h3>
-                                <div className="bg-card border border-border/60 rounded-[2.2rem] p-5 lg:p-6 shadow-xl space-y-5 relative overflow-hidden">
-                                    <div className="space-y-3">
-                                        <div className="w-11 h-11 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
-                                            <Bot className="w-6 h-6 text-black animate-pulse" />
+                            <div className="space-y-3">
+                                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground pl-1">Preview del Saludo</p>
+                                <div className="bg-white border border-border rounded-2xl shadow-sm p-5 space-y-4">
+                                    <div className="space-y-2">
+                                        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+                                            <Bot className="w-5 h-5 text-black" />
                                         </div>
                                         <div>
-                                            <h4 className="text-sm lg:text-base font-black text-foreground tracking-tighter uppercase italic">MiWi AI Bot</h4>
-                                            <p className="text-[10px] lg:text-[11px] text-muted-foreground font-bold leading-relaxed mt-1">¡Hola! Para brindarte una mejor atención, por favor déjanos tus datos básicos antes de empezar.</p>
+                                            <h4 className="text-sm font-bold text-foreground">MiWi AI Bot</h4>
+                                            <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">¡Hola! Para brindarte una mejor atención, por favor déjanos tus datos básicos antes de empezar.</p>
                                         </div>
                                     </div>
-                                    <div className="space-y-3">
+                                    <div className="space-y-2">
                                         {Object.entries(captureFields).filter(([_, v]) => v).map(([k]) => (
-                                            <div key={k} className="h-11 bg-muted/20 border border-border/40 rounded-xl px-4 flex items-center border-dashed">
-                                                <span className="text-[9px] lg:text-[10px] font-black text-muted-foreground/30 uppercase tracking-[0.12em]">{k === 'name' ? 'Escribe tu nombre' : k === 'email' ? 'Tu correo electrónico' : k === 'phone' ? 'Tu WhatsApp' : k === 'city' ? 'Tu ciudad' : 'Completar campo'}</span>
+                                            <div key={k} className="h-10 bg-muted border border-dashed border-border rounded-xl px-3 flex items-center">
+                                                <span className="text-xs text-muted-foreground">{k === 'name' ? 'Escribe tu nombre' : k === 'email' ? 'Tu correo electrónico' : k === 'phone' ? 'Tu WhatsApp' : k === 'city' ? 'Tu ciudad' : 'Completar campo'}</span>
                                             </div>
                                         ))}
                                     </div>
-                                    <button className="w-full bg-primary text-black font-black py-3.5 rounded-2xl text-[10px] uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all">
+                                    <button className="w-full bg-primary text-black font-bold py-2.5 rounded-xl text-xs uppercase tracking-widest hover:brightness-105 transition-all">
                                         Iniciar Conversación
                                     </button>
                                     <button
                                         onClick={handleSaveBotConfig}
-                                        className="w-full bg-card border border-border/40 text-foreground font-black py-3.5 rounded-2xl text-[10px] uppercase tracking-widest hover:bg-muted/20 transition-all disabled:opacity-60"
+                                        className="w-full bg-white border border-border text-foreground font-semibold py-2.5 rounded-xl text-xs uppercase tracking-widest hover:bg-muted transition-all disabled:opacity-60"
                                         disabled={isSavingConfig}
                                     >
                                         {isSavingConfig ? 'Guardando...' : 'Guardar Pre-captura'}
@@ -1287,86 +1273,80 @@ export default function MiWiBotPage() {
                 )}
 
                 {activeTab === 'widget' && (
-                    <div className="flex-1 p-20 space-y-16 overflow-y-auto custom-scrollbar">
-                        <div className="flex flex-col md:flex-row gap-16 items-center">
-                            <div className="flex-1 space-y-8">
-                                <h2 className="text-5xl font-black text-foreground tracking-tighter">Lleva a MiWi a cualquier lugar.</h2>
-                                <p className="text-xl text-muted-foreground font-bold leading-relaxed">
+                    <div className="flex-1 p-8 space-y-8 overflow-y-auto custom-scrollbar">
+                        <div className="flex flex-col md:flex-row gap-8 items-start">
+                            <div className="flex-1 space-y-4">
+                                <h2 className="text-2xl font-black text-foreground tracking-tight">Lleva a MiWi a cualquier lugar.</h2>
+                                <p className="text-sm text-muted-foreground leading-relaxed">
                                     Copia este fragmento de código y pégalo antes de la etiqueta <code className="text-primary font-mono">&lt;/body&gt;</code> de tu sitio web o landing page.
                                 </p>
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-4 text-emerald-500">
-                                        <Zap className="w-6 h-6" />
-                                        <span className="text-xs font-black uppercase tracking-widest">Instalación en 1 minuto</span>
-                                    </div>
+                                <div className="flex items-center gap-2 text-emerald-600">
+                                    <Zap className="w-4 h-4" />
+                                    <span className="text-xs font-bold uppercase tracking-widest">Instalación en 1 minuto</span>
                                 </div>
                             </div>
 
-                            <div className="flex-1 w-full space-y-6">
-                                <div className="bg-card border border-border rounded-[2.5rem] p-10 relative group">
-                                    <div className="absolute top-6 right-6 flex gap-2">
+                            <div className="flex-1 w-full space-y-4">
+                                <div className="bg-white border border-border rounded-2xl shadow-sm p-5 relative">
+                                    <div className="absolute top-4 right-4 flex gap-2">
                                         <button
                                             onClick={copyWidgetSnippet}
-                                            className="p-3 bg-muted/10 rounded-xl border border-border transition-all text-muted-foreground/40 hover:text-foreground"
+                                            className="p-2 bg-muted rounded-xl border border-border transition-all text-muted-foreground hover:text-foreground"
                                         >
                                             <Copy className="w-4 h-4" />
                                         </button>
                                         <button
                                             onClick={shareWidgetSnippet}
-                                            className="p-3 bg-muted/10 rounded-xl border border-border transition-all text-muted-foreground/40 hover:text-foreground"
+                                            className="p-2 bg-muted rounded-xl border border-border transition-all text-muted-foreground hover:text-foreground"
                                         >
                                             <Share2 className="w-4 h-4" />
                                         </button>
                                     </div>
-                                    <pre className="text-xs font-mono text-primary/80 leading-relaxed overflow-x-auto pt-10">
+                                    <pre className="text-xs font-mono text-primary leading-relaxed overflow-x-auto pt-8">
                                         {widgetSnippet}
                                     </pre>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="p-6 bg-muted/10 border border-border/50 rounded-3xl flex flex-col gap-3">
-                                        <Code className="text-primary w-8 h-8" />
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-foreground">Bot Name</p>
+                                    <div className="bg-white border border-border rounded-2xl shadow-sm p-4 flex flex-col gap-2">
+                                        <div className="flex items-center gap-2 text-primary"><Code className="w-4 h-4" /><p className="text-xs font-bold uppercase tracking-widest text-foreground">Bot Name</p></div>
                                         <input
                                             type="text"
                                             value={widgetConfig.botName}
                                             onChange={(e) => setWidgetConfig(prev => ({ ...prev, botName: e.target.value }))}
-                                            className="bg-transparent border border-border/40 rounded-xl px-4 py-3 text-xs font-bold text-foreground outline-none focus:border-primary/50"
+                                            className="bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
                                         />
                                     </div>
-                                    <div className="p-6 bg-muted/10 border border-border/50 rounded-3xl flex flex-col gap-3">
-                                        <Key className="text-primary w-8 h-8" />
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-foreground">API Key</p>
+                                    <div className="bg-white border border-border rounded-2xl shadow-sm p-4 flex flex-col gap-2">
+                                        <div className="flex items-center gap-2 text-primary"><Key className="w-4 h-4" /><p className="text-xs font-bold uppercase tracking-widest text-foreground">API Key</p></div>
                                         <input
                                             type="text"
                                             value={widgetConfig.apiKey}
                                             onChange={(e) => setWidgetConfig(prev => ({ ...prev, apiKey: e.target.value }))}
-                                            className="bg-transparent border border-border/40 rounded-xl px-4 py-3 text-xs font-bold text-foreground outline-none focus:border-primary/50"
+                                            className="bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
                                         />
                                     </div>
-                                    <div className="p-6 bg-muted/10 border border-border/50 rounded-3xl flex flex-col gap-3">
-                                        <Globe className="text-sky-500 w-8 h-8" />
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-foreground">Dominio Autorizado</p>
+                                    <div className="bg-white border border-border rounded-2xl shadow-sm p-4 flex flex-col gap-2">
+                                        <div className="flex items-center gap-2 text-sky-600"><Globe className="w-4 h-4" /><p className="text-xs font-bold uppercase tracking-widest text-foreground">Dominio Autorizado</p></div>
                                         <input
                                             type="text"
                                             value={widgetConfig.authorizedDomain}
                                             onChange={(e) => setWidgetConfig(prev => ({ ...prev, authorizedDomain: e.target.value }))}
-                                            className="bg-transparent border border-border/40 rounded-xl px-4 py-3 text-xs font-bold text-foreground outline-none focus:border-primary/50"
+                                            className="bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
                                         />
                                     </div>
-                                    <div className="p-6 bg-muted/10 border border-border/50 rounded-3xl flex flex-col gap-3">
-                                        <MessageCircle className="text-emerald-500 w-8 h-8" />
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-foreground">WhatsApp Sync</p>
+                                    <div className="bg-white border border-border rounded-2xl shadow-sm p-4 flex flex-col gap-2">
+                                        <div className="flex items-center gap-2 text-emerald-600"><MessageCircle className="w-4 h-4" /><p className="text-xs font-bold uppercase tracking-widest text-foreground">WhatsApp Sync</p></div>
                                         <button
                                             onClick={() => setWidgetConfig(prev => ({ ...prev, whatsappSync: !prev.whatsappSync }))}
                                             className={clsx(
-                                                "w-fit px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-                                                widgetConfig.whatsappSync ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" : "bg-muted/20 text-muted-foreground border border-border/40"
+                                                "w-fit px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all border",
+                                                widgetConfig.whatsappSync ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-muted text-muted-foreground border-border"
                                             )}
                                         >
                                             {widgetConfig.whatsappSync ? 'Activo' : 'Inactivo'}
                                         </button>
-                                        <p className="text-xs font-bold text-muted-foreground">
+                                        <p className="text-xs text-muted-foreground">
                                             {settings.whatsapp.status === 'connected'
                                                 ? settings.whatsapp.displayPhoneNumber || 'API Conectada'
                                                 : settings.whatsapp.status === 'configured'
@@ -1377,454 +1357,15 @@ export default function MiWiBotPage() {
                                         </p>
                                     </div>
                                     <div className="md:col-span-2 flex justify-end">
-                                    <button
-                                        onClick={handleSaveBotConfig}
-                                        className="bg-primary text-black font-black px-8 py-4 rounded-2xl flex items-center gap-2 hover:scale-[1.02] transition-all disabled:opacity-60 disabled:hover:scale-100"
-                                        disabled={isSavingConfig}
-                                    >
-                                        <Save className="w-4 h-4" />
-                                        <span className="text-[10px] uppercase tracking-widest">{isSavingConfig ? 'Guardando...' : 'Guardar Widget'}</span>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Product Picker Modal */}
-            {
-                isProductModalOpen && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-                        <div
-                            className="absolute inset-0 bg-background/80 backdrop-blur-xl animate-in fade-in duration-300"
-                            onClick={() => setIsProductModalOpen(false)}
-                        />
-                        <div className="relative w-full max-w-4xl bg-card border border-border rounded-[3rem] shadow-2xl overflow-hidden flex flex-col h-[600px] animate-in zoom-in-95 duration-300">
-                            {/* Tab Switcher */}
-                            <div className="flex px-8 border-b border-border bg-muted/10">
-                                <button
-                                    onClick={() => setModalTab('products')}
-                                    className={clsx(
-                                        "px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative",
-                                        modalTab === 'products' ? "text-primary" : "text-muted-foreground/30 hover:text-foreground"
-                                    )}
-                                >
-                                    Productos Individuales
-                                    {modalTab === 'products' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary shadow-[0_-2px_10px_rgba(250,181,16,0.5)]" />}
-                                </button>
-                                <button
-                                    onClick={() => setModalTab('combos')}
-                                    className={clsx(
-                                        "px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative flex items-center gap-2",
-                                        modalTab === 'combos' ? "text-primary" : "text-muted-foreground/30 hover:text-foreground"
-                                    )}
-                                >
-                                    <Zap className="w-3 h-3" />
-                                    Combos / Paquetes
-                                    {modalTab === 'combos' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary shadow-[0_-2px_10px_rgba(250,181,16,0.5)]" />}
-                                </button>
-                                <button
-                                    onClick={() => setModalTab('quotes')}
-                                    className={clsx(
-                                        "px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative flex items-center gap-2",
-                                        modalTab === 'quotes' ? "text-primary" : "text-muted-foreground/30 hover:text-foreground"
-                                    )}
-                                >
-                                    <FileText className="w-3 h-3" />
-                                    Cotizaciones PDF
-                                    {modalTab === 'quotes' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary shadow-[0_-2px_10px_rgba(250,181,16,0.5)]" />}
-                                </button>
-                            </div>
-
-                            {/* Search & Statistics */}
-                            <div className="p-8 border-b border-white/5 bg-white/[0.01] grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                                <div className="relative">
-                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
-                                    <input
-                                        type="text"
-                                        placeholder="Buscar producto por nombre o categoría..."
-                                        className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-4 text-sm font-bold text-white outline-none focus:border-primary/50 transition-all"
-                                        value={searchProduct}
-                                        onChange={(e) => setSearchProduct(e.target.value)}
-                                    />
-                                </div>
-                                <div className="flex items-center justify-end gap-3">
-                                    <div className="px-4 py-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
-                                        <span className="text-[10px] font-black text-emerald-500 uppercase">Stock Actual: 154 Items</span>
+                                        <button
+                                            onClick={handleSaveBotConfig}
+                                            className="bg-primary text-black font-bold px-6 py-2.5 rounded-xl flex items-center gap-2 hover:brightness-105 transition-all disabled:opacity-60"
+                                            disabled={isSavingConfig}
+                                        >
+                                            <Save className="w-4 h-4" />
+                                            <span className="text-sm">{isSavingConfig ? 'Guardando...' : 'Guardar Widget'}</span>
+                                        </button>
                                     </div>
-                                    <button className="p-2 bg-white/5 rounded-xl border border-white/10 text-white/40 hover:text-white">
-                                        <Plus className="w-5 h-5" />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* List Content */}
-                            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                                {modalTab === 'products' ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {products
-                                            .filter(p =>
-                                                p.name.toLowerCase().includes(searchProduct.toLowerCase()) ||
-                                                p.category.toLowerCase().includes(searchProduct.toLowerCase()) ||
-                                                p.sku.toLowerCase().includes(searchProduct.toLowerCase())
-                                            )
-                                            .map(product => (
-                                                <div
-                                                    key={product.id}
-                                                    onClick={() => toggleProductSelection(product.id)}
-                                                    className={clsx(
-                                                        "group p-6 rounded-[2rem] border transition-all cursor-pointer flex gap-6 relative",
-                                                        selectedProducts.includes(product.id)
-                                                            ? "bg-primary/10 border-primary shadow-[0_0_20px_rgba(250,181,16,0.1)]"
-                                                            : "bg-white/[0.02] border-white/5 hover:border-primary/30"
-                                                    )}
-                                                >
-                                                    {/* Selection Checkbox */}
-                                                    <div className={clsx(
-                                                        "absolute top-4 right-4 w-6 h-6 rounded-lg border flex items-center justify-center transition-all",
-                                                        selectedProducts.includes(product.id)
-                                                            ? "bg-primary border-primary text-black"
-                                                            : "bg-white/5 border-white/10 text-transparent"
-                                                    )}>
-                                                        <Check className="w-4 h-4" strokeWidth={4} />
-                                                    </div>
-
-                                                    <div className="w-24 h-24 rounded-2xl overflow-hidden shrink-0 border border-white/5 group-hover:scale-105 transition-transform">
-                                                        <img src={product.image || 'https://images.unsplash.com/photo-1594913366159-1832ebbee3f4?w=800&h=800&fit=crop'} alt={product.name} className="w-full h-full object-cover" />
-                                                    </div>
-                                                    <div className="flex-1 flex flex-col justify-between py-1">
-                                                        <div>
-                                                            <span className="text-[9px] font-black text-primary uppercase tracking-widest block mb-1">{product.category}</span>
-                                                            <h4 className="text-sm font-black text-white mb-1">{product.name}</h4>
-                                                            <p className="text-[10px] font-bold text-white/40 leading-tight line-clamp-2">{product.shortDescription}</p>
-                                                        </div>
-                                                        <div className="flex items-center justify-between mt-4">
-                                                            <span className="text-sm font-black text-white">${product.price.toLocaleString()}</span>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    addNotification({ title: 'Enviando al chat', description: `Producto "${product.name}" enviado al bot.`, type: 'success' });
-                                                                    setIsProductModalOpen(false);
-                                                                    setIsAttachmentMenuOpen(false);
-                                                                    setSelectedProducts([]);
-                                                                }}
-                                                                className="bg-primary/10 text-primary border border-primary/20 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-primary hover:text-black transition-all"
-                                                            >
-                                                                Enviar Solo Este
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                    </div>
-                                ) : modalTab === 'combos' ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        {combos.map(combo => (
-                                            <div
-                                                key={combo.id}
-                                                className="group bg-white/[0.02] border border-white/10 rounded-[2.5rem] overflow-hidden hover:border-primary/50 transition-all flex flex-col"
-                                            >
-                                                <div className="h-41 relative overflow-hidden">
-                                                    <img src={combo.img} alt={combo.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                                                    <div className="absolute top-4 left-4 bg-primary text-black px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl">
-                                                        {combo.discount}
-                                                    </div>
-                                                </div>
-                                                <div className="p-8 space-y-4">
-                                                    <div>
-                                                        <h4 className="text-xl font-black text-white">{combo.name}</h4>
-                                                        <p className="text-xs text-white/40 font-bold mt-2 leading-relaxed">{combo.description}</p>
-                                                    </div>
-                                                    <div className="flex items-center justify-between pt-4 border-t border-white/5">
-                                                        <div>
-                                                            <p className="text-[10px] text-rose-500 font-black line-through opacity-50">{combo.originalPrice}</p>
-                                                            <p className="text-2xl font-black text-white">{combo.price}</p>
-                                                        </div>
-                                                        <button
-                                                            onClick={() => {
-                                                                addNotification({ title: 'Combo enviado', description: `Combo "${combo.name}" enviado al bot.`, type: 'success' });
-                                                                setIsProductModalOpen(false);
-                                                                setIsAttachmentMenuOpen(false);
-                                                            }}
-                                                            className="bg-primary text-black px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-[0_10px_20px_rgba(250,181,16,0.2)]"
-                                                        >
-                                                            Enviar Combo
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : quotes.length === 0 ? (
-                                    <div className="flex flex-col items-center justify-center py-20 text-center">
-                                        <FileText className="w-12 h-12 text-muted-foreground/30 mb-4" />
-                                        <p className="text-sm font-black text-muted-foreground uppercase tracking-widest">Sin cotizaciones</p>
-                                        <p className="text-xs text-muted-foreground/50 mt-1">Crea cotizaciones desde el módulo de Cotizaciones</p>
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {quotes.map(q => (
-                                            <div key={q.id} className="group p-6 bg-white/[0.02] border border-white/10 rounded-2xl hover:border-primary/50 transition-all flex flex-col gap-4">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20">
-                                                        <FileText className="w-5 h-5 text-primary" />
-                                                    </div>
-                                                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${q.status === 'Approved' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-muted/20 text-muted-foreground'}`}>{q.status}</span>
-                                                </div>
-                                                <div>
-                                                    <h4 className="text-sm font-black text-foreground italic">Cot. #{q.id.slice(-6).toUpperCase()}</h4>
-                                                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest mt-0.5">Cliente: {q.client || '—'}</p>
-                                                </div>
-                                                <div className="flex items-center justify-between pt-3 border-t border-border">
-                                                    <span className="text-base font-black text-foreground">{q.total || '$0'}</span>
-                                                    <button
-                                                        onClick={() => {
-                                                            addNotification({ title: 'Cotización enviada al chat', description: `Cot. #${q.id.slice(-6).toUpperCase()} enviada a ${selectedChat?.sender || 'cliente'}`, type: 'success' });
-                                                            setIsProductModalOpen(false);
-                                                            setIsAttachmentMenuOpen(false);
-                                                        }}
-                                                        className="bg-muted/10 border border-border px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-primary hover:text-black transition-all"
-                                                    >
-                                                        Enviar PDF
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Modal Footer */}
-                            <div className="p-8 border-t border-border bg-muted/5 flex items-center justify-between">
-                                <div className="flex flex-col items-start">
-                                    <span className="text-[10px] text-muted-foreground/30 font-black uppercase tracking-[0.4em]">MiWi Intelligence Database System</span>
-                                    {selectedProducts.length > 0 && (
-                                        <span className="text-[10px] text-primary font-black uppercase mt-1">{selectedProducts.length} productos seleccionados</span>
-                                    )}
-                                </div>
-                                <div className="flex gap-4">
-                                    <button
-                                        onClick={() => setSelectedProducts([])}
-                                        className={clsx(
-                                            "px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all",
-                                            selectedProducts.length > 0 ? "text-rose-500 hover:bg-rose-500/10" : "text-muted-foreground/20 pointer-events-none"
-                                        )}
-                                    >
-                                        Limpiar Selección
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            addNotification({ title: 'Productos enviados', description: `${selectedProducts.length} productos enviados al bot.`, type: 'success' });
-                                            setIsProductModalOpen(false);
-                                            setIsAttachmentMenuOpen(false);
-                                            setSelectedProducts([]);
-                                        }}
-                                        className={clsx(
-                                            "px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl",
-                                            selectedProducts.length > 0
-                                                ? "bg-primary text-black shadow-primary/20 hover:scale-[1.02] active:scale-[0.98]"
-                                                : "bg-muted/10 text-muted-foreground/20 pointer-events-none"
-                                        )}
-                                    >
-                                        {selectedProducts.length > 0 ? `Enviar Selección (${selectedProducts.length})` : 'Selecciona productos'}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
-            {/* Quotation Modal */}
-            {
-                isQuoteModalOpen && (
-                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
-                        <div
-                            className="absolute inset-0 bg-background/90 backdrop-blur-2xl animate-in fade-in duration-500"
-                            onClick={() => !isGeneratingQuote && setIsQuoteModalOpen(false)}
-                        />
-
-                        <div className="relative w-full max-w-5xl bg-card border border-border rounded-[4rem] shadow-2xl overflow-hidden flex flex-col h-[800px] animate-in zoom-in-95 duration-500">
-                            {/* Modal Header */}
-                            <div className="p-10 border-b border-border flex items-center justify-between bg-muted/5">
-                                <div className="flex items-center gap-6">
-                                    <div className="w-16 h-16 rounded-[2rem] bg-primary/20 flex items-center justify-center border border-primary/30">
-                                        <FilePlus className="w-8 h-8 text-primary" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-3xl font-black text-foreground tracking-tighter">Generador de Inteligencia de Cotización</h3>
-                                        <p className="text-[10px] text-primary font-black uppercase tracking-[0.3em]">Convierte este chat en un Lead y una Propuesta Formal</p>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => setIsQuoteModalOpen(false)}
-                                    className="p-4 bg-white/5 rounded-2xl border border-white/10 hover:bg-rose-500 text-white transition-all shadow-xl"
-                                >
-                                    <X className="w-6 h-6" />
-                                </button>
-                            </div>
-
-                            <div className="flex-1 overflow-hidden flex">
-                                {/* Left: Client Info & Items */}
-                                <div className="flex-1 p-12 overflow-y-auto custom-scrollbar space-y-12">
-                                    <div className="space-y-8">
-                                        <h4 className="text-xs font-black uppercase text-muted-foreground tracking-[0.3em] flex items-center gap-3">
-                                            <User className="w-4 h-4" /> Información del Prospecto (Lead)
-                                        </h4>
-                                        <div className="grid grid-cols-2 gap-8">
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black uppercase text-primary tracking-widest ml-4">Nombre Completo</label>
-                                                <input
-                                                    type="text"
-                                                    value={quoteForm.clientName}
-                                                    onChange={(e) => setQuoteForm({ ...quoteForm, clientName: e.target.value })}
-                                                    className="w-full bg-muted/10 border border-border rounded-2xl p-5 text-sm font-bold text-foreground focus:border-primary transition-all outline-none"
-                                                    placeholder="Ej: Juan Perez"
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black uppercase text-primary tracking-widest ml-4">Empresa / Proyecto</label>
-                                                <input
-                                                    type="text"
-                                                    value={quoteForm.clientCompany}
-                                                    onChange={(e) => setQuoteForm({ ...quoteForm, clientCompany: e.target.value })}
-                                                    className="w-full bg-muted/10 border border-border rounded-2xl p-5 text-sm font-bold text-foreground focus:border-primary transition-all outline-none"
-                                                    placeholder="Ej: Constructora Capital"
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black uppercase text-primary tracking-widest ml-4">WhatsApp / Celular</label>
-                                                <input
-                                                    type="text"
-                                                    value={quoteForm.clientPhone}
-                                                    onChange={(e) => setQuoteForm({ ...quoteForm, clientPhone: e.target.value })}
-                                                    className="w-full bg-muted/10 border border-border rounded-2xl p-5 text-sm font-bold text-foreground focus:border-primary transition-all outline-none"
-                                                    placeholder="+57 321..."
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black uppercase text-primary tracking-widest ml-4">Correo Electrónico</label>
-                                                <input
-                                                    type="email"
-                                                    value={quoteForm.clientEmail}
-                                                    onChange={(e) => setQuoteForm({ ...quoteForm, clientEmail: e.target.value })}
-                                                    className="w-full bg-muted/10 border border-border rounded-2xl p-5 text-sm font-bold text-foreground focus:border-primary transition-all outline-none"
-                                                    placeholder="nombre@email.com"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-8">
-                                        <div className="flex items-center justify-between">
-                                            <h4 className="text-xs font-black uppercase text-muted-foreground/40 tracking-[0.3em] flex items-center gap-3">
-                                                <Package className="w-4 h-4" /> Productos a Cotizar
-                                            </h4>
-                                            <button
-                                                onClick={() => { setIsQuoteModalOpen(false); setIsProductModalOpen(true); }}
-                                                className="text-[10px] font-black uppercase text-primary hover:underline"
-                                            >
-                                                + Explorar Catálogo
-                                            </button>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            {products.slice(0, 2).map(product => (
-                                                <div key={product.id} className="p-6 bg-muted/5 border border-border/50 rounded-3xl flex items-center justify-between group hover:border-primary/20 transition-all">
-                                                    <div className="flex items-center gap-6">
-                                                        <img src={product.image || 'https://images.unsplash.com/photo-1594913366159-1832ebbee3f4?w=800&h=800&fit=crop'} className="w-16 h-16 rounded-xl object-cover border border-border/10" />
-                                                        <div>
-                                                            <p className="text-sm font-black text-foreground">{product.name}</p>
-                                                            <p className="text-xs font-bold text-primary">${product.price.toLocaleString()} / Un.</p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-8">
-                                                        <div className="flex items-center gap-4 bg-background/40 p-2 rounded-xl border border-border/50">
-                                                            <button className="w-8 h-8 rounded-lg bg-muted/20 hover:bg-muted/30 text-foreground font-black">-</button>
-                                                            <span className="text-sm font-black text-foreground w-4 text-center">1</span>
-                                                            <button className="w-8 h-8 rounded-lg bg-muted/20 hover:bg-muted/30 text-foreground font-black">+</button>
-                                                        </div>
-                                                        <button className="text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <X className="w-5 h-5" />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Right: Summary & Action */}
-                                <div className="w-[400px] bg-white/[0.01] border-l border-white/5 p-12 flex flex-col justify-between">
-                                    <div className="space-y-10">
-                                        <h4 className="text-xs font-black uppercase text-white/40 tracking-[0.3em]">Resumen de la Propuesta</h4>
-
-                                        <div className="space-y-6">
-                                            <div className="flex justify-between items-center text-sm">
-                                                <span className="text-muted-foreground/40 font-bold uppercase tracking-widest text-[10px]">Subtotal Bruto</span>
-                                                <span className="font-black text-foreground">$570.000</span>
-                                            </div>
-                                            <div className="flex justify-between items-center text-sm">
-                                                <span className="text-muted-foreground/40 font-bold uppercase tracking-widest text-[10px]">IVA (19%)</span>
-                                                <span className="font-black text-foreground">$108.300</span>
-                                            </div>
-                                            <div className="h-px bg-border" />
-                                            <div className="flex justify-between items-end">
-                                                <div>
-                                                    <p className="text-primary font-black uppercase tracking-[0.2em] text-[10px] mb-1">Inversión Final</p>
-                                                    <p className="text-4xl font-black text-foreground tracking-tighter">$678.300</p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="p-6 bg-emerald-500/5 border border-emerald-500/20 rounded-3xl space-y-3">
-                                            <div className="flex items-center gap-2 text-emerald-500">
-                                                <CheckCircle2 className="w-4 h-4" />
-                                                <span className="text-[10px] font-black uppercase tracking-widest">Sincronización Automática</span>
-                                            </div>
-                                            <p className="text-[10px] text-muted-foreground font-bold leading-relaxed italic">
-                                                Al generar esta cotización, el sistema creará automáticamente un Lead en "ArteConcreto Master CRM" y notificará al equipo comercial.
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <button
-                                        onClick={() => {
-                                            setIsGeneratingQuote(true);
-                                            setTimeout(() => {
-                                                setIsGeneratingQuote(false);
-                                                setQuoteSuccess(true);
-                                                setTimeout(() => {
-                                                    setQuoteSuccess(false);
-                                                    setIsQuoteModalOpen(false);
-                                                    addNotification({ title: 'PDF generado', description: 'El catálogo PDF fue generado y enviado al chat del bot.', type: 'success' });
-                                                }, 2000);
-                                            }, 3000);
-                                        }}
-                                        className={clsx(
-                                            "w-full h-24 rounded-[2.5rem] flex items-center justify-center gap-4 text-sm font-black uppercase tracking-[0.2em] transition-all relative overflow-hidden group shadow-2xl",
-                                            quoteSuccess ? "bg-emerald-500 text-white" : "bg-primary text-black hover:scale-[1.02] active:scale-[0.98]"
-                                        )}
-                                        disabled={isGeneratingQuote}
-                                    >
-                                        {isGeneratingQuote ? (
-                                            <>
-                                                <div className="w-6 h-6 border-4 border-black/20 border-t-black rounded-full animate-spin" />
-                                                <span>Generando Propuesta...</span>
-                                            </>
-                                        ) : quoteSuccess ? (
-                                            <>
-                                                <CheckCircle2 className="w-8 h-8 animate-in zoom-in duration-300" />
-                                                <span>¡Enviado con Éxito!</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Send className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                                                <span>Generar y Enviar</span>
-                                            </>
-                                        )}
-                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -1835,25 +1376,25 @@ export default function MiWiBotPage() {
                 {activeTab === 'learning' && (
                     <div className="flex flex-col w-full h-full">
                         {/* Header */}
-                        <div className="flex items-center justify-between px-8 py-5 border-b border-border/40 bg-gradient-to-r from-primary/5 to-transparent">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-white">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-                                    <BrainCircuit className="w-5 h-5 text-primary" />
+                                <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                                    <BrainCircuit className="w-4 h-4 text-primary" />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-black text-foreground">ConcreBOT · Modo Aprendizaje</h3>
-                                    <p className="text-[10px] text-muted-foreground font-medium">Entrena al bot sobre productos, precios y procesos de venta</p>
+                                    <h3 className="text-sm font-bold text-foreground">ConcreBOT · Modo Aprendizaje</h3>
+                                    <p className="text-xs text-muted-foreground">Entrena al bot sobre productos, precios y procesos de venta</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-xl px-4 py-2">
-                                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                                    <span className="text-[10px] font-black text-primary uppercase tracking-widest">Modo Aprendizaje</span>
-                                </div>
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-primary/10 border border-primary/20 text-primary">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                                    Modo Aprendizaje
+                                </span>
                                 {learningMsgs.length > 0 && (
                                     <button
                                         onClick={() => { setLearningMsgs([]); setLearningStarted(false); persistLearning([]); }}
-                                        className="text-[9px] font-black uppercase tracking-widest text-muted-foreground hover:text-rose-500 transition-colors px-3 py-2 rounded-lg hover:bg-rose-500/5 border border-transparent hover:border-rose-200"
+                                        className="text-xs font-bold text-muted-foreground hover:text-red-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-red-50 border border-transparent hover:border-red-200"
                                     >
                                         Borrar historial
                                     </button>
@@ -1862,19 +1403,19 @@ export default function MiWiBotPage() {
                         </div>
 
                         {/* Chat area */}
-                        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 custom-scrollbar bg-background">
                             {learningMsgs.length === 0 && !learningStarted && (
                                 <div className="flex flex-col items-center justify-center h-full gap-5 px-6">
-                                    <div className="w-16 h-16 rounded-[2rem] bg-primary/10 border border-primary/20 flex items-center justify-center">
+                                    <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
                                         <BrainCircuit className="w-8 h-8 text-primary" />
                                     </div>
                                     <div className="text-center max-w-sm">
-                                        <h4 className="text-base font-black text-foreground mb-1">ConcreBOT quiere aprender</h4>
-                                        <p className="text-[12px] text-muted-foreground leading-relaxed">Inicia una sesión y ConcreBOT comenzará a hacerte preguntas sobre productos, precios y procesos de venta. Lo que enseñes aquí se usará cuando chatee con clientes.</p>
+                                        <h4 className="text-base font-bold text-foreground mb-1">ConcreBOT quiere aprender</h4>
+                                        <p className="text-sm text-muted-foreground leading-relaxed">Inicia una sesión y ConcreBOT comenzará a hacerte preguntas sobre productos, precios y procesos de venta. Lo que enseñes aquí se usará cuando chatee con clientes.</p>
                                     </div>
                                     <button
                                         onClick={startLearningSession}
-                                        className="flex items-center gap-3 bg-primary text-black font-black px-8 py-4 rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-primary/20"
+                                        className="flex items-center gap-2 bg-primary text-black font-bold px-6 py-3 rounded-xl hover:brightness-105 transition-all"
                                     >
                                         <BrainCircuit className="w-5 h-5" />
                                         Iniciar Sesión de Aprendizaje
@@ -1884,22 +1425,20 @@ export default function MiWiBotPage() {
 
                             {learningMsgs.map(msg => (
                                 <div key={msg.id} className={clsx('flex gap-3', msg.role === 'admin' ? 'flex-row-reverse' : 'flex-row')}>
-                                    {/* Avatar */}
                                     <div className={clsx(
-                                        'w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-[10px] font-black',
-                                        msg.role === 'bot' ? 'bg-primary/10 border border-primary/20 text-primary' : 'bg-foreground/10 border border-foreground/10 text-foreground'
+                                        'w-8 h-8 rounded-xl flex items-center justify-center shrink-0',
+                                        msg.role === 'bot' ? 'bg-primary/10 border border-primary/20 text-primary' : 'bg-foreground text-background'
                                     )}>
                                         {msg.role === 'bot' ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
                                     </div>
-                                    {/* Bubble */}
                                     <div className={clsx(
-                                        'max-w-[75%] px-4 py-3 rounded-2xl text-[12px] leading-relaxed',
+                                        'max-w-[75%] px-4 py-3 rounded-2xl text-sm leading-relaxed',
                                         msg.role === 'bot'
-                                            ? 'bg-muted/60 border border-border/40 text-foreground rounded-tl-sm'
+                                            ? 'bg-white border border-border text-foreground rounded-tl-sm shadow-sm'
                                             : 'bg-primary text-black font-semibold rounded-tr-sm'
                                     )}>
                                         <p className="whitespace-pre-wrap">{msg.content}</p>
-                                        <p className={clsx('text-[9px] mt-1.5', msg.role === 'bot' ? 'text-muted-foreground' : 'text-black/60')}>{msg.ts}</p>
+                                        <p className={clsx('text-[10px] mt-1.5', msg.role === 'bot' ? 'text-muted-foreground' : 'text-black/60')}>{msg.ts}</p>
                                     </div>
                                 </div>
                             ))}
@@ -1909,10 +1448,10 @@ export default function MiWiBotPage() {
                                     <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
                                         <Bot className="w-4 h-4 text-primary" />
                                     </div>
-                                    <div className="px-4 py-3 bg-muted/60 border border-border/40 rounded-2xl rounded-tl-sm flex items-center gap-1.5">
-                                        <div className="w-2 h-2 rounded-full bg-primary/60 animate-bounce [animation-delay:0ms]" />
-                                        <div className="w-2 h-2 rounded-full bg-primary/60 animate-bounce [animation-delay:150ms]" />
-                                        <div className="w-2 h-2 rounded-full bg-primary/60 animate-bounce [animation-delay:300ms]" />
+                                    <div className="px-4 py-3 bg-white border border-border rounded-2xl rounded-tl-sm flex items-center gap-1.5 shadow-sm">
+                                        <div className="w-2 h-2 rounded-full bg-primary animate-bounce [animation-delay:0ms]" />
+                                        <div className="w-2 h-2 rounded-full bg-primary animate-bounce [animation-delay:150ms]" />
+                                        <div className="w-2 h-2 rounded-full bg-primary animate-bounce [animation-delay:300ms]" />
                                     </div>
                                 </div>
                             )}
@@ -1921,9 +1460,9 @@ export default function MiWiBotPage() {
 
                         {/* Knowledge stats */}
                         {learningMsgs.length > 0 && (
-                            <div className="mx-6 mb-3 px-4 py-2.5 bg-emerald-500/5 border border-emerald-500/20 rounded-xl flex items-center gap-3">
-                                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                                <p className="text-[10px] font-bold text-emerald-700">
+                            <div className="mx-5 mb-3 px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <p className="text-xs font-bold text-emerald-700">
                                     {Math.floor(learningMsgs.filter(m => m.role === 'admin').length)} respuestas guardadas · ConcreBOT está aprendiendo sobre ArteConcreto
                                 </p>
                             </div>
@@ -1931,29 +1470,463 @@ export default function MiWiBotPage() {
 
                         {/* Input */}
                         {(learningStarted || learningMsgs.length > 0) && (
-                            <div className="px-6 pb-6">
-                                <div className="flex items-end gap-3 bg-muted/30 border border-border/60 rounded-2xl p-3">
+                            <div className="px-5 pb-5">
+                                <div className="flex items-end gap-3 bg-muted border border-border rounded-xl p-3">
                                     <textarea
                                         value={learningInput}
                                         onChange={e => setLearningInput(e.target.value)}
                                         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendLearningMessage(); } }}
                                         placeholder="Responde a ConcreBOT para enseñarle..."
                                         rows={2}
-                                        className="flex-1 bg-transparent text-sm text-foreground resize-none outline-none placeholder:text-muted-foreground font-medium"
+                                        className="flex-1 bg-transparent text-sm text-foreground resize-none outline-none placeholder:text-muted-foreground"
                                     />
                                     <button
                                         onClick={sendLearningMessage}
                                         disabled={!learningInput.trim() || isLearningTyping}
-                                        className="bg-primary text-black p-2.5 rounded-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-40 disabled:hover:scale-100 shrink-0"
+                                        className="bg-primary text-black p-2.5 rounded-xl hover:brightness-105 transition-all disabled:opacity-40 shrink-0"
                                     >
                                         <Send className="w-4 h-4" />
                                     </button>
                                 </div>
-                                <p className="text-[9px] text-muted-foreground mt-2 text-center">Enter para enviar · Shift+Enter nueva línea</p>
+                                <p className="text-[10px] text-muted-foreground mt-1.5 text-center">Enter para enviar · Shift+Enter nueva línea</p>
                             </div>
                         )}
                     </div>
                 )}
+            </div>
+
+            {/* Product Picker Modal */}
+            {isProductModalOpen && (
+                <div className="fixed inset-0 flex items-center justify-center p-4 z-[100]" style={{ background: 'rgba(10,12,20,0.55)', backdropFilter: 'blur(6px)' }}>
+                    <div
+                        className="absolute inset-0"
+                        onClick={() => setIsProductModalOpen(false)}
+                    />
+                    <div className="relative bg-white border border-border rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col h-[600px] animate-in zoom-in-95 duration-300">
+                        {/* Modal header with tab switcher */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                            <div className="bg-muted rounded-xl p-1 flex gap-1">
+                                <button
+                                    onClick={() => setModalTab('products')}
+                                    className={clsx(
+                                        "flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all",
+                                        modalTab === 'products' ? "bg-white border border-border text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    Productos Individuales
+                                </button>
+                                <button
+                                    onClick={() => setModalTab('combos')}
+                                    className={clsx(
+                                        "flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all",
+                                        modalTab === 'combos' ? "bg-white border border-border text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    <Zap className="w-3 h-3" />
+                                    Combos
+                                </button>
+                                <button
+                                    onClick={() => setModalTab('quotes')}
+                                    className={clsx(
+                                        "flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all",
+                                        modalTab === 'quotes' ? "bg-white border border-border text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    <FileText className="w-3 h-3" />
+                                    Cotizaciones PDF
+                                </button>
+                            </div>
+                            <button onClick={() => setIsProductModalOpen(false)} className="p-2 hover:bg-muted rounded-xl transition-colors text-muted-foreground hover:text-foreground">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Search & Stats */}
+                        <div className="px-6 py-4 border-b border-border flex flex-col md:flex-row gap-3 items-center">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar producto por nombre o categoría..."
+                                    className="w-full bg-muted border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
+                                    value={searchProduct}
+                                    onChange={(e) => setSearchProduct(e.target.value)}
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 border border-emerald-200 text-emerald-700">Stock: 154 Items</span>
+                                <button className="p-2 bg-muted rounded-xl border border-border text-muted-foreground hover:text-foreground">
+                                    <Plus className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* List Content */}
+                        <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+                            {modalTab === 'products' ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {products
+                                        .filter(p =>
+                                            p.name.toLowerCase().includes(searchProduct.toLowerCase()) ||
+                                            p.category.toLowerCase().includes(searchProduct.toLowerCase()) ||
+                                            p.sku.toLowerCase().includes(searchProduct.toLowerCase())
+                                        )
+                                        .map(product => (
+                                            <div
+                                                key={product.id}
+                                                onClick={() => toggleProductSelection(product.id)}
+                                                className={clsx(
+                                                    "p-4 rounded-2xl border transition-all cursor-pointer flex gap-4 relative",
+                                                    selectedProducts.includes(product.id)
+                                                        ? "bg-primary/5 border-primary"
+                                                        : "bg-white border-border hover:border-primary/40"
+                                                )}
+                                            >
+                                                <div className={clsx(
+                                                    "absolute top-3 right-3 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all",
+                                                    selectedProducts.includes(product.id)
+                                                        ? "bg-primary border-primary text-black"
+                                                        : "bg-white border-border"
+                                                )}>
+                                                    {selectedProducts.includes(product.id) && <Check className="w-3 h-3" strokeWidth={4} />}
+                                                </div>
+                                                <div className="w-20 h-20 rounded-xl overflow-hidden shrink-0 border border-border">
+                                                    <img src={product.image || 'https://images.unsplash.com/photo-1594913366159-1832ebbee3f4?w=800&h=800&fit=crop'} alt={product.name} className="w-full h-full object-cover" />
+                                                </div>
+                                                <div className="flex-1 flex flex-col justify-between py-0.5">
+                                                    <div>
+                                                        <span className="text-[10px] font-bold text-primary uppercase tracking-widest block mb-0.5">{product.category}</span>
+                                                        <h4 className="text-sm font-bold text-foreground mb-0.5">{product.name}</h4>
+                                                        <p className="text-xs text-muted-foreground line-clamp-1">{product.shortDescription}</p>
+                                                    </div>
+                                                    <div className="flex items-center justify-between mt-2">
+                                                        <span className="text-sm font-bold text-foreground">${product.price.toLocaleString()}</span>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                addNotification({ title: 'Enviando al chat', description: `Producto "${product.name}" enviado al bot.`, type: 'success' });
+                                                                setIsProductModalOpen(false);
+                                                                setIsAttachmentMenuOpen(false);
+                                                                setSelectedProducts([]);
+                                                            }}
+                                                            className="bg-white border border-border text-foreground font-semibold rounded-xl px-3 py-1.5 text-xs hover:bg-muted transition-all"
+                                                        >
+                                                            Enviar Solo Este
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                </div>
+                            ) : modalTab === 'combos' ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    {combos.map(combo => (
+                                        <div
+                                            key={combo.id}
+                                            className="bg-white border border-border rounded-2xl overflow-hidden hover:border-primary/40 transition-all flex flex-col shadow-sm"
+                                        >
+                                            <div className="h-36 relative overflow-hidden">
+                                                <img src={combo.img} alt={combo.name} className="w-full h-full object-cover" />
+                                                <div className="absolute top-3 left-3 bg-primary text-black px-2.5 py-1 rounded-lg text-xs font-bold">
+                                                    {combo.discount}
+                                                </div>
+                                            </div>
+                                            <div className="p-4 space-y-3">
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-foreground">{combo.name}</h4>
+                                                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{combo.description}</p>
+                                                </div>
+                                                <div className="flex items-center justify-between pt-3 border-t border-border">
+                                                    <div>
+                                                        <p className="text-xs text-red-500 line-through">{combo.originalPrice}</p>
+                                                        <p className="text-base font-bold text-foreground">{combo.price}</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            addNotification({ title: 'Combo enviado', description: `Combo "${combo.name}" enviado al bot.`, type: 'success' });
+                                                            setIsProductModalOpen(false);
+                                                            setIsAttachmentMenuOpen(false);
+                                                        }}
+                                                        className="bg-primary text-black font-bold px-4 py-2 rounded-xl text-xs hover:brightness-105 transition-all"
+                                                    >
+                                                        Enviar Combo
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : quotes.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-16 text-center">
+                                    <FileText className="w-10 h-10 text-muted-foreground mb-3" />
+                                    <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Sin cotizaciones</p>
+                                    <p className="text-xs text-muted-foreground mt-1">Crea cotizaciones desde el módulo de Cotizaciones</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {quotes.map(q => (
+                                        <div key={q.id} className="bg-white border border-border rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+                                            <div className="flex items-center justify-between">
+                                                <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20">
+                                                    <FileText className="w-4 h-4 text-primary" />
+                                                </div>
+                                                <span className={clsx("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold",
+                                                    q.status === 'Approved' ? "bg-emerald-50 border border-emerald-200 text-emerald-700" : "bg-muted border border-border text-muted-foreground"
+                                                )}>{q.status}</span>
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-bold text-foreground">Cot. #{q.id.slice(-6).toUpperCase()}</h4>
+                                                <p className="text-xs text-muted-foreground mt-0.5">Cliente: {q.client || '—'}</p>
+                                            </div>
+                                            <div className="flex items-center justify-between pt-3 border-t border-border">
+                                                <span className="text-sm font-bold text-foreground">{q.total || '$0'}</span>
+                                                <button
+                                                    onClick={() => {
+                                                        addNotification({ title: 'Cotización enviada al chat', description: `Cot. #${q.id.slice(-6).toUpperCase()} enviada a ${selectedChat?.sender || 'cliente'}`, type: 'success' });
+                                                        setIsProductModalOpen(false);
+                                                        setIsAttachmentMenuOpen(false);
+                                                    }}
+                                                    className="bg-white border border-border text-foreground font-semibold rounded-xl px-3 py-1.5 text-xs hover:bg-muted transition-all"
+                                                >
+                                                    Enviar PDF
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-6 py-4 border-t border-border flex items-center justify-between">
+                            <div>
+                                <span className="text-xs text-muted-foreground font-bold uppercase tracking-widest">MiWi Intelligence</span>
+                                {selectedProducts.length > 0 && (
+                                    <span className="block text-xs text-primary font-bold mt-0.5">{selectedProducts.length} productos seleccionados</span>
+                                )}
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setSelectedProducts([])}
+                                    className={clsx(
+                                        "px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all",
+                                        selectedProducts.length > 0 ? "text-red-600 hover:bg-red-50 border border-red-200" : "text-muted-foreground opacity-40 pointer-events-none"
+                                    )}
+                                >
+                                    Limpiar
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        addNotification({ title: 'Productos enviados', description: `${selectedProducts.length} productos enviados al bot.`, type: 'success' });
+                                        setIsProductModalOpen(false);
+                                        setIsAttachmentMenuOpen(false);
+                                        setSelectedProducts([]);
+                                    }}
+                                    className={clsx(
+                                        "px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all",
+                                        selectedProducts.length > 0
+                                            ? "bg-primary text-black hover:brightness-105"
+                                            : "bg-muted text-muted-foreground pointer-events-none"
+                                    )}
+                                >
+                                    {selectedProducts.length > 0 ? `Enviar Selección (${selectedProducts.length})` : 'Selecciona productos'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Quotation Modal */}
+            {isQuoteModalOpen && (
+                <div className="fixed inset-0 flex items-center justify-center p-4 z-[110]" style={{ background: 'rgba(10,12,20,0.55)', backdropFilter: 'blur(6px)' }}>
+                    <div
+                        className="absolute inset-0"
+                        onClick={() => !isGeneratingQuote && setIsQuoteModalOpen(false)}
+                    />
+
+                    <div className="relative bg-white border border-border rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col" style={{ maxHeight: '90vh' }}>
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
+                                    <FilePlus className="w-5 h-5 text-primary" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-bold text-foreground">Generador de Cotización</h3>
+                                    <p className="text-xs text-muted-foreground">Convierte este chat en un Lead y una Propuesta Formal</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsQuoteModalOpen(false)}
+                                className="p-2 hover:bg-muted rounded-xl transition-colors text-muted-foreground hover:text-foreground"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-hidden flex">
+                            {/* Left: Client Info & Items */}
+                            <div className="flex-1 px-6 py-5 overflow-y-auto custom-scrollbar space-y-6">
+                                <div className="space-y-4">
+                                    <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                        <User className="w-3.5 h-3.5" /> Información del Prospecto
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Nombre Completo</label>
+                                            <input
+                                                type="text"
+                                                value={quoteForm.clientName}
+                                                onChange={(e) => setQuoteForm({ ...quoteForm, clientName: e.target.value })}
+                                                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
+                                                placeholder="Ej: Juan Perez"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Empresa / Proyecto</label>
+                                            <input
+                                                type="text"
+                                                value={quoteForm.clientCompany}
+                                                onChange={(e) => setQuoteForm({ ...quoteForm, clientCompany: e.target.value })}
+                                                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
+                                                placeholder="Ej: Constructora Capital"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">WhatsApp / Celular</label>
+                                            <input
+                                                type="text"
+                                                value={quoteForm.clientPhone}
+                                                onChange={(e) => setQuoteForm({ ...quoteForm, clientPhone: e.target.value })}
+                                                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
+                                                placeholder="+57 321..."
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Correo Electrónico</label>
+                                            <input
+                                                type="email"
+                                                value={quoteForm.clientEmail}
+                                                onChange={(e) => setQuoteForm({ ...quoteForm, clientEmail: e.target.value })}
+                                                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
+                                                placeholder="nombre@email.com"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                            <Package className="w-3.5 h-3.5" /> Productos a Cotizar
+                                        </h4>
+                                        <button
+                                            onClick={() => { setIsQuoteModalOpen(false); setIsProductModalOpen(true); }}
+                                            className="text-xs font-bold text-primary hover:underline"
+                                        >
+                                            + Explorar Catálogo
+                                        </button>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {products.slice(0, 2).map(product => (
+                                            <div key={product.id} className="bg-white border border-border rounded-xl p-4 flex items-center justify-between group hover:border-primary/30 transition-all shadow-sm">
+                                                <div className="flex items-center gap-4">
+                                                    <img src={product.image || 'https://images.unsplash.com/photo-1594913366159-1832ebbee3f4?w=800&h=800&fit=crop'} className="w-14 h-14 rounded-xl object-cover border border-border" />
+                                                    <div>
+                                                        <p className="text-sm font-bold text-foreground">{product.name}</p>
+                                                        <p className="text-xs text-primary font-bold">${product.price.toLocaleString()} / Un.</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-4">
+                                                    <div className="flex items-center gap-2 bg-muted p-1.5 rounded-xl border border-border">
+                                                        <button className="w-7 h-7 rounded-lg bg-white border border-border hover:bg-muted text-foreground font-bold text-sm">-</button>
+                                                        <span className="text-sm font-bold text-foreground w-4 text-center">1</span>
+                                                        <button className="w-7 h-7 rounded-lg bg-white border border-border hover:bg-muted text-foreground font-bold text-sm">+</button>
+                                                    </div>
+                                                    <button className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Right: Summary & Action */}
+                            <div className="w-72 border-l border-border px-6 py-5 flex flex-col justify-between bg-muted">
+                                <div className="space-y-5">
+                                    <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Resumen de la Propuesta</h4>
+
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-muted-foreground font-bold uppercase tracking-wide">Subtotal Bruto</span>
+                                            <span className="text-sm font-bold text-foreground">$570.000</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-muted-foreground font-bold uppercase tracking-wide">IVA (19%)</span>
+                                            <span className="text-sm font-bold text-foreground">$108.300</span>
+                                        </div>
+                                        <div className="h-px bg-border" />
+                                        <div>
+                                            <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1">Inversión Final</p>
+                                            <p className="text-3xl font-black text-foreground">$678.300</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-2">
+                                        <div className="flex items-center gap-2 text-emerald-700">
+                                            <CheckCircle2 className="w-4 h-4" />
+                                            <span className="text-xs font-bold uppercase tracking-widest">Sincronización Automática</span>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground leading-relaxed">
+                                            Al generar esta cotización, el sistema creará un Lead en el CRM y notificará al equipo comercial.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={() => {
+                                        setIsGeneratingQuote(true);
+                                        setTimeout(() => {
+                                            setIsGeneratingQuote(false);
+                                            setQuoteSuccess(true);
+                                            setTimeout(() => {
+                                                setQuoteSuccess(false);
+                                                setIsQuoteModalOpen(false);
+                                                addNotification({ title: 'PDF generado', description: 'El catálogo PDF fue generado y enviado al chat del bot.', type: 'success' });
+                                            }, 2000);
+                                        }, 3000);
+                                    }}
+                                    className={clsx(
+                                        "w-full py-4 rounded-xl flex items-center justify-center gap-3 text-sm font-bold uppercase tracking-wide transition-all",
+                                        quoteSuccess ? "bg-emerald-500 text-white" : "bg-primary text-black hover:brightness-105"
+                                    )}
+                                    disabled={isGeneratingQuote}
+                                >
+                                    {isGeneratingQuote ? (
+                                        <>
+                                            <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                                            <span>Generando...</span>
+                                        </>
+                                    ) : quoteSuccess ? (
+                                        <>
+                                            <CheckCircle2 className="w-5 h-5" />
+                                            <span>¡Enviado con Éxito!</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Send className="w-5 h-5" />
+                                            <span>Generar y Enviar</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
+
