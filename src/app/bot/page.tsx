@@ -150,7 +150,7 @@ export default function MiWiBotPage() {
         },
         offlineMessage: 'Nuestro asistente no está disponible ahora. Te responderemos en nuestro próximo horario de atención.',
     };
-    const [botSchedule, setBotSchedule] = useState(botSettings.schedule ?? DEFAULT_SCHEDULE);
+    const [botSchedule, setBotSchedule] = useState(DEFAULT_SCHEDULE);
 
     // Attachment & Product States
     const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false);

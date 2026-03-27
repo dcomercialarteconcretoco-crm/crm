@@ -99,7 +99,17 @@ export default function BiolinkPublicCard({ card, settings }: { card: Biolink; s
             <div style={{ width: '100%', maxWidth: '420px' }}>
 
                 {/* Hero */}
-                <div style={{ textAlign: 'center', padding: '32px 0 24px' }}>
+                <div style={{ textAlign: 'center', padding: '28px 0 24px' }}>
+                    {/* Logo — top of card */}
+                    <div style={{ marginBottom: 24 }}>
+                        <img
+                            src="https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png"
+                            alt="Arte Concreto"
+                            style={{ height: 48, objectFit: 'contain', display: 'block', margin: '0 auto', filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? 0.95 : 0.9 }}
+                        />
+                    </div>
+
+                    {/* Avatar */}
                     {card.photo ? (
                         <img src={card.photo} alt={card.name}
                             style={{ width: 100, height: 100, borderRadius: '50%', objectFit: 'cover', border: `3px solid ${pc}`, margin: '0 auto 16px', display: 'block', boxShadow: `0 0 0 6px ${pc}20` }} />
@@ -110,10 +120,6 @@ export default function BiolinkPublicCard({ card, settings }: { card: Biolink; s
                     )}
                     <h1 style={{ margin: 0, fontSize: 26, fontWeight: 900, color: txtMain, letterSpacing: '-0.5px' }}>{card.name}</h1>
                     {card.title && <p style={{ margin: '6px 0 0', fontSize: 14, color: txtSub, fontWeight: 500 }}>{card.title}</p>}
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, background: `${pc}18`, borderRadius: 20, padding: '4px 14px', border: `1px solid ${pc}30` }}>
-                        <img src="https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png"
-                            alt="Arte Concreto" style={{ height: 22, objectFit: 'contain', filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? 0.92 : 0.85 }} />
-                    </div>
                 </div>
 
                 {/* Social links */}
