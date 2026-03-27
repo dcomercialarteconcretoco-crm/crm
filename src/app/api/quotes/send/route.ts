@@ -16,6 +16,7 @@ export async function POST(request: NextRequest) {
     clientEmail,
     clientCompany,
     sellerName,
+    sellerPhone,
     sellerId,
     items,
     subtotal,
@@ -24,6 +25,10 @@ export async function POST(request: NextRequest) {
     sentAt,
     sentByName,
     sentById,
+    referencia,
+    validUntil,
+    deliveryTime,
+    paymentTerms,
   } = payload;
 
   if (!clientEmail) {
@@ -133,6 +138,34 @@ export async function POST(request: NextRequest) {
     </table>
   </div>
 
+  <!-- REFERENCIA -->
+  ${referencia ? `<div style="margin:0 32px 20px;background:#faf7f0;border-left:4px solid #fab510;border-radius:0 12px 12px 0;padding:14px 20px;">
+    <p style="margin:0;font-size:9px;color:#aaa;font-weight:900;text-transform:uppercase;letter-spacing:2px;margin-bottom:4px;">Referencia del Proyecto</p>
+    <p style="margin:0;font-size:13px;color:#1a1a1d;font-weight:700;">${referencia}</p>
+  </div>` : ''}
+
+  <!-- CONDICIONES -->
+  <div style="margin:0 32px 20px;display:grid;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        ${validUntil ? `<td style="padding:10px 16px 10px 0;vertical-align:top;width:50%;">
+          <p style="margin:0 0 3px;font-size:9px;color:#aaa;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;">Vigencia</p>
+          <p style="margin:0;font-size:12px;color:#1a1a1d;font-weight:600;">Hasta el ${validUntil}</p>
+        </td>` : ''}
+        ${deliveryTime ? `<td style="padding:10px 0;vertical-align:top;">
+          <p style="margin:0 0 3px;font-size:9px;color:#aaa;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;">Plazo de Entrega</p>
+          <p style="margin:0;font-size:12px;color:#1a1a1d;font-weight:600;">${deliveryTime}</p>
+        </td>` : ''}
+      </tr>
+      ${paymentTerms ? `<tr>
+        <td colspan="2" style="padding:10px 0 0;">
+          <p style="margin:0 0 3px;font-size:9px;color:#aaa;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;">Forma de Pago</p>
+          <p style="margin:0;font-size:12px;color:#1a1a1d;font-weight:600;white-space:pre-line;">${paymentTerms}</p>
+        </td>
+      </tr>` : ''}
+    </table>
+  </div>
+
   <!-- TOTALES -->
   <div style="margin:4px 32px 28px;background:#faf7f0;border-radius:14px;padding:20px 24px;border:1px solid #ede8da;">
     <table width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -162,6 +195,7 @@ export async function POST(request: NextRequest) {
           <p style="margin:0;font-size:13px;color:#aaa;">
             Asesor: <strong style="color:#fab510;">${sellerName}</strong>
           </p>
+          ${sellerPhone ? `<p style="margin:3px 0 0;font-size:12px;color:#fab510;font-weight:700;">${sellerPhone}</p>` : ''}
           <p style="margin:5px 0 0;font-size:12px;color:#555;">
             <span style="color:#888;">cotizaciones&#64;arteconcreto&#46;co</span>
             &nbsp;&middot;&nbsp;

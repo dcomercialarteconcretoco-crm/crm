@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
     Plus, Minus, Trash2, Search,
     CheckCircle, UserPlus, Box, RefreshCw, ShoppingCart,
-    Building2, Package
+    Building2, Package, Eye, X, FileText, Send
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { generateProposalPDF } from '@/lib/pdf-generator';
@@ -44,6 +44,16 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     const [clientSearch, setClientSearch] = useState('');
     const [showClientDropdown, setShowClientDropdown] = useState(false);
 
+    // Campos comerciales (formato Word oficial)
+    const [referencia, setReferencia] = useState('');
+    const [validUntil, setValidUntil] = useState('');
+    const [deliveryTime, setDeliveryTime] = useState('A convenir con el cliente.');
+    const [paymentTerms, setPaymentTerms] = useState('- Anticipo del 50% del total de la orden.\n- El saldo deberá cancelarse en su totalidad antes de la entrega de los productos. El producto que no sea cancelado en su totalidad, no podrá ser entregado.');
+
+    // Preview modal
+    const [showPreview, setShowPreview] = useState(false);
+    const [pendingAction, setPendingAction] = useState<'pdf' | 'email' | 'whatsapp' | null>(null);
+
     useEffect(() => {
         const doSync = async () => {
             setIsSyncing(true);
@@ -69,6 +79,11 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 image: (i as any).image,
             })));
         }
+        // Load commercial fields
+        if (existing.referencia) setReferencia(existing.referencia);
+        if (existing.validUntil) setValidUntil(existing.validUntil);
+        if (existing.deliveryTime) setDeliveryTime(existing.deliveryTime);
+        if (existing.paymentTerms) setPaymentTerms(existing.paymentTerms);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editQuoteId]);
 
@@ -133,36 +148,29 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     const formatCurrency = (v: number) =>
         new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v);
 
-    const handleSaveAndGenerate = async () => {
-        const client = clients.find(c => c.id === selectedClientId);
-        if (!client) { addNotification({ title: 'Cliente requerido', description: 'Selecciona un cliente.', type: 'alert' }); return; }
-        if (items.length === 0) { addNotification({ title: 'Sin productos', description: 'Agrega al menos un producto.', type: 'alert' }); return; }
+    const getCommonQuoteFields = (client: typeof clients[0], quoteNumber: string, mappedItems: typeof items) => ({
+        number: quoteNumber, client: client.name, clientId: client.id,
+        clientEmail: client.email || '', clientCompany: client.company || '',
+        date: new Date().toLocaleDateString('es-CO'),
+        total: formatCurrency(total), numericTotal: total, subtotal, tax,
+        items: mappedItems.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity })),
+        notes: '', sellerId: currentUser?.id || '', sellerName: currentUser?.name || '',
+        referencia, validUntil, deliveryTime, paymentTerms,
+        sellerPhone: currentUser?.phone || '',
+    });
 
+    const executeGeneratePDF = async () => {
+        const client = clients.find(c => c.id === selectedClientId);
+        if (!client) return;
         const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
 
         if (!isAdmin) {
             const quoteNumber = genQuoteNumber();
-            addQuote({
-                number: quoteNumber, client: client.name, clientId: client.id,
-                clientEmail: client.email || '', clientCompany: client.company || '',
-                date: new Date().toLocaleDateString('es-CO'),
-                total: formatCurrency(total), numericTotal: total, subtotal, tax,
-                items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity })),
-                notes: '', sellerId: currentUser?.id || '', sellerName: currentUser?.name || '',
-                status: 'PENDING_APPROVAL' as const,
-                pendingAction: 'generate_pdf',
-                requestedBy: currentUser?.id || '',
-                requestedByName: currentUser?.name || '',
-                requestedAt: new Date().toISOString(),
-            });
-            addNotification({ title: 'Solicitud enviada', description: 'Tu solicitud fue enviada al administrador para aprobación.', type: 'alert' });
-            addNotification({
-                title: '⏳ Aprobación requerida',
-                description: `${currentUser?.name} solicita generar PDF — Cotización ${quoteNumber} para ${client.name} · Total: ${formatCurrency(total)}`,
-                type: 'alert',
-                forAdmin: true,
-            });
+            addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'PENDING_APPROVAL' as const, pendingAction: 'generate_pdf', requestedBy: currentUser?.id || '', requestedByName: currentUser?.name || '', requestedAt: new Date().toISOString() });
+            addNotification({ title: 'Solicitud enviada', description: 'Enviada al administrador para aprobación.', type: 'alert' });
+            addNotification({ title: '⏳ Aprobación requerida', description: `${currentUser?.name} solicita generar PDF — ${quoteNumber} para ${client.name} · ${formatCurrency(total)}`, type: 'alert', forAdmin: true });
             setSentConfirm({ quoteNumber, email: '', pending: true, pendingAction: 'generate_pdf' });
+            setShowPreview(false);
             return;
         }
 
@@ -170,93 +178,63 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         try {
             const mappedItems = items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity }));
             let quoteNumber: string;
-
             if (isEditMode && editQuoteId) {
                 const existing = quotes.find(q => q.id === editQuoteId);
                 quoteNumber = existing?.number || genQuoteNumber();
-                updateQuote(editQuoteId, {
-                    client: client.name, clientId: client.id,
-                    clientEmail: client.email || '', clientCompany: client.company || '',
-                    total: formatCurrency(total), numericTotal: total, subtotal, tax,
-                    items: mappedItems,
-                });
+                updateQuote(editQuoteId, { ...getCommonQuoteFields(client, quoteNumber, items), status: existing?.status || 'Draft' as const });
             } else {
                 quoteNumber = genQuoteNumber();
-                addQuote({
-                    number: quoteNumber, client: client.name, clientId: client.id,
-                    clientEmail: client.email || '', clientCompany: client.company || '',
-                    date: new Date().toLocaleDateString('es-CO'),
-                    total: formatCurrency(total), numericTotal: total, subtotal, tax,
-                    items: mappedItems,
-                    notes: '', sellerId: currentUser?.id || '', sellerName: currentUser?.name || '',
-                    status: 'Draft' as const,
-                });
+                addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Draft' as const });
             }
-
             await generateProposalPDF({
-                quoteNumber,
-                date: new Date().toLocaleDateString('es-CO'),
-                leadName: client.name, leadCompany: client.company,
-                leadEmail: client.email, leadCity: client.city,
+                quoteNumber, date: new Date().toLocaleDateString('es-CO'),
+                leadName: client.name, leadCompany: client.company, leadEmail: client.email, leadCity: client.city,
+                referencia, validUntil, deliveryTime, paymentTerms,
+                sellerName: currentUser?.name || 'ArteConcreto',
+                sellerPhone: currentUser?.phone || '',
                 items: items.map(i => ({ ...i, total: i.price * i.quantity })),
                 subtotal, tax, total,
             });
-            addAuditLog({
-                userId: currentUser?.id || '',
-                userName: currentUser?.name || 'Sistema',
-                userRole: currentUser?.role || 'Vendedor',
-                action: 'QUOTE_SENT',
-                targetId: client.id,
-                targetName: client.company || client.name,
-                details: `Cotización ${quoteNumber} ${isEditMode ? 'editada' : 'generada'} · Total: ${formatCurrency(total)}`,
-                verified: true
-            });
-            addNotification({ title: `Cotización ${quoteNumber} lista`, description: isEditMode ? 'Cambios guardados y PDF descargado.' : 'Guardada y PDF descargado.', type: 'success' });
+            addAuditLog({ userId: currentUser?.id || '', userName: currentUser?.name || 'Sistema', userRole: currentUser?.role || 'Vendedor', action: 'QUOTE_SENT', targetId: client.id, targetName: client.company || client.name, details: `Cotización ${quoteNumber} ${isEditMode ? 'editada' : 'generada'} · Total: ${formatCurrency(total)}`, verified: true });
+            addNotification({ title: `Cotización ${quoteNumber} lista`, description: 'PDF descargado.', type: 'success' });
         } finally {
             setIsSaving(false);
+            setShowPreview(false);
         }
     };
 
-    const handleSendWhatsApp = () => {
+    const handleSaveAndGenerate = async () => {
         const client = clients.find(c => c.id === selectedClientId);
-        if (!client?.phone) { addNotification({ title: 'Teléfono requerido', description: 'El cliente no tiene número registrado.', type: 'alert' }); return; }
+        if (!client) { addNotification({ title: 'Cliente requerido', description: 'Selecciona un cliente.', type: 'alert' }); return; }
         if (items.length === 0) { addNotification({ title: 'Sin productos', description: 'Agrega al menos un producto.', type: 'alert' }); return; }
+        setPendingAction('pdf');
+        setShowPreview(true);
+    };
 
+    const executeWhatsApp = () => {
+        const client = clients.find(c => c.id === selectedClientId);
+        if (!client?.phone) return;
         const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
-
         if (!isAdmin) {
             const quoteNumber = genQuoteNumber();
-            addQuote({
-                number: quoteNumber, client: client.name, clientId: client.id,
-                clientEmail: client.email || '', clientCompany: client.company || '',
-                date: new Date().toLocaleDateString('es-CO'),
-                total: formatCurrency(total), numericTotal: total, subtotal, tax,
-                items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity })),
-                notes: '', sellerId: currentUser?.id || '', sellerName: currentUser?.name || '',
-                status: 'PENDING_APPROVAL' as const,
-                pendingAction: 'send_whatsapp',
-                requestedBy: currentUser?.id || '',
-                requestedByName: currentUser?.name || '',
-                requestedAt: new Date().toISOString(),
-            });
-            addNotification({ title: 'Solicitud enviada', description: 'Tu solicitud fue enviada al administrador para aprobación.', type: 'alert' });
-            addNotification({
-                title: '⏳ Aprobación requerida',
-                description: `${currentUser?.name} solicita enviar WhatsApp — Cotización ${quoteNumber} para ${client.name} · Total: ${formatCurrency(total)}`,
-                type: 'alert',
-                forAdmin: true,
-            });
+            addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'PENDING_APPROVAL' as const, pendingAction: 'send_whatsapp', requestedBy: currentUser?.id || '', requestedByName: currentUser?.name || '', requestedAt: new Date().toISOString() });
+            addNotification({ title: 'Solicitud enviada', description: 'Enviada al administrador para aprobación.', type: 'alert' });
+            addNotification({ title: '⏳ Aprobación requerida', description: `${currentUser?.name} solicita enviar WhatsApp — ${genQuoteNumber()} para ${client.name} · ${formatCurrency(total)}`, type: 'alert', forAdmin: true });
             setSentConfirm({ quoteNumber, email: client.phone || '', pending: true, pendingAction: 'send_whatsapp' });
+            setShowPreview(false);
             return;
         }
-
+        const quoteNumber = genQuoteNumber();
+        addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Sent' as const });
         const phone = client.phone.replace(/\D/g, '');
         const intlPhone = phone.startsWith('57') ? phone : `57${phone}`;
         const itemsList = items.map(i => `  • ${i.name} x${i.quantity} → ${formatCurrency(i.price * i.quantity)}`).join('\n');
+        const vigencia = validUntil ? `Vigencia hasta: ${validUntil}` : 'Vigencia: 15 días calendario';
         const msg = [
             `Hola ${client.name.split(' ')[0]} 👋`,
             ``,
-            `Te comparto tu cotización de *ArteConcreto S.A.S*:`,
+            `Adjunto encontrará la cotización *${quoteNumber}* de *Arte Concreto S.A.S*:`,
+            referencia ? `📋 ${referencia}` : '',
             ``,
             itemsList,
             ``,
@@ -264,52 +242,35 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             `IVA (19%): ${formatCurrency(tax)}`,
             `*TOTAL: ${formatCurrency(total)}*`,
             ``,
-            `Vigencia: 15 días calendario`,
+            vigencia,
             `📍 Km 1+800, Anillo Vial, Floridablanca, Santander`,
-        ].join('\n');
+            currentUser?.phone ? `📞 ${currentUser.phone}` : '',
+        ].filter(l => l !== '').join('\n');
         window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`, '_blank');
-        addAuditLog({
-            userId: currentUser?.id || '',
-            userName: currentUser?.name || 'Sistema',
-            userRole: currentUser?.role || 'Vendedor',
-            action: 'WHATSAPP_SENT',
-            targetId: client.id,
-            targetName: client.company || client.name,
-            details: `WhatsApp enviado con cotización · Total: ${formatCurrency(total)} → ${client.phone}`,
-            verified: true
-        });
+        addAuditLog({ userId: currentUser?.id || '', userName: currentUser?.name || 'Sistema', userRole: currentUser?.role || 'Vendedor', action: 'WHATSAPP_SENT', targetId: client.id, targetName: client.company || client.name, details: `WhatsApp enviado con cotización ${quoteNumber} · Total: ${formatCurrency(total)} → ${client.phone}`, verified: true });
+        setShowPreview(false);
     };
 
-    const handleSendEmail = async () => {
+    const handleSendWhatsApp = () => {
         const client = clients.find(c => c.id === selectedClientId);
-        if (!client?.email) { addNotification({ title: 'Email requerido', description: 'El cliente no tiene email.', type: 'alert' }); return; }
+        if (!client?.phone) { addNotification({ title: 'Teléfono requerido', description: 'El cliente no tiene número registrado.', type: 'alert' }); return; }
         if (items.length === 0) { addNotification({ title: 'Sin productos', description: 'Agrega al menos un producto.', type: 'alert' }); return; }
+        setPendingAction('whatsapp');
+        setShowPreview(true);
+    };
 
+    const executeEmail = async () => {
+        const client = clients.find(c => c.id === selectedClientId);
+        if (!client?.email) return;
         const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
 
         if (!isAdmin) {
             const quoteNumber = genQuoteNumber();
-            addQuote({
-                number: quoteNumber, client: client.name, clientId: client.id,
-                clientEmail: client.email || '', clientCompany: client.company || '',
-                date: new Date().toLocaleDateString('es-CO'),
-                total: formatCurrency(total), numericTotal: total, subtotal, tax,
-                items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity })),
-                notes: '', sellerId: currentUser?.id || '', sellerName: currentUser?.name || '',
-                status: 'PENDING_APPROVAL' as const,
-                pendingAction: 'send_email',
-                requestedBy: currentUser?.id || '',
-                requestedByName: currentUser?.name || '',
-                requestedAt: new Date().toISOString(),
-            });
-            addNotification({ title: 'Solicitud enviada', description: 'Tu solicitud fue enviada al administrador para aprobación.', type: 'alert' });
-            addNotification({
-                title: '⏳ Aprobación requerida',
-                description: `${currentUser?.name} solicita enviar email — Cotización ${quoteNumber} para ${client.name} · Total: ${formatCurrency(total)}`,
-                type: 'alert',
-                forAdmin: true,
-            });
+            addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'PENDING_APPROVAL' as const, pendingAction: 'send_email', requestedBy: currentUser?.id || '', requestedByName: currentUser?.name || '', requestedAt: new Date().toISOString() });
+            addNotification({ title: 'Solicitud enviada', description: 'Enviada al administrador para aprobación.', type: 'alert' });
+            addNotification({ title: '⏳ Aprobación requerida', description: `${currentUser?.name} solicita enviar email — para ${client.name} · ${formatCurrency(total)}`, type: 'alert', forAdmin: true });
             setSentConfirm({ quoteNumber, email: client.email, pending: true, pendingAction: 'send_email' });
+            setShowPreview(false);
             return;
         }
 
@@ -317,40 +278,24 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         try {
             const sentAt = new Date().toISOString();
             const quoteNumber = genQuoteNumber();
-            const quoteId = addQuote({
-                number: quoteNumber, client: client.name, clientId: client.id,
-                clientEmail: client.email || '', clientCompany: client.company || '',
-                date: new Date().toLocaleDateString('es-CO'),
-                total: formatCurrency(total), numericTotal: total, subtotal, tax,
-                items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity })),
-                notes: '', sellerId: currentUser?.id || '', sellerName: currentUser?.name || '',
-                status: 'Draft' as const, sentAt, sentByName: currentUser?.name || '', sentById: currentUser?.id || '',
-            });
+            const quoteId = addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Draft' as const, sentAt, sentByName: currentUser?.name || '', sentById: currentUser?.id || '' });
             const res = await fetch('/api/quotes/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     quoteNumber, clientName: client.name, clientEmail: client.email,
                     clientCompany: client.company || '', sellerName: currentUser?.name || 'ArteConcreto',
-                    sellerId: currentUser?.id || '', sentAt, sentByName: currentUser?.name || '',
-                    sentById: currentUser?.id || '',
+                    sellerId: currentUser?.id || '', sentAt, sentByName: currentUser?.name || '', sentById: currentUser?.id || '',
                     items: items.map(i => ({ name: i.name, price: i.price, quantity: i.quantity, unit: i.unit })),
                     subtotal, tax, total,
+                    referencia, validUntil, deliveryTime, paymentTerms,
+                    sellerPhone: currentUser?.phone || '',
                 }),
             });
             const data = await res.json();
             if (res.ok) {
                 updateQuote(quoteId, { status: 'Sent', sentAt: data.sentAt || sentAt, sentByName: data.sentByName || currentUser?.name || '', sentById: data.sentById || currentUser?.id || '' });
-                addAuditLog({
-                    userId: currentUser?.id || '',
-                    userName: currentUser?.name || 'Sistema',
-                    userRole: currentUser?.role || 'Vendedor',
-                    action: 'QUOTE_SENT',
-                    targetId: client.id,
-                    targetName: client.company || client.name,
-                    details: `Email enviado con cotización ${quoteNumber} → ${client.email}`,
-                    verified: true
-                });
+                addAuditLog({ userId: currentUser?.id || '', userName: currentUser?.name || 'Sistema', userRole: currentUser?.role || 'Vendedor', action: 'QUOTE_SENT', targetId: client.id, targetName: client.company || client.name, details: `Email enviado con cotización ${quoteNumber} → ${client.email}`, verified: true });
                 addNotification({ title: `Cotización ${quoteNumber} enviada`, description: `Enviada a ${client.email}`, type: 'success' });
                 setSentConfirm({ quoteNumber, email: client.email });
             } else {
@@ -360,8 +305,18 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             addNotification({ title: 'Error de conexión', description: 'No se pudo enviar.', type: 'alert' });
         } finally {
             setIsSendingEmail(false);
+            setShowPreview(false);
         }
     };
+
+    const handleSendEmail = async () => {
+        const client = clients.find(c => c.id === selectedClientId);
+        if (!client?.email) { addNotification({ title: 'Email requerido', description: 'El cliente no tiene email.', type: 'alert' }); return; }
+        if (items.length === 0) { addNotification({ title: 'Sin productos', description: 'Agrega al menos un producto.', type: 'alert' }); return; }
+        setPendingAction('email');
+        setShowPreview(true);
+    };
+
 
     const handleCreateClient = (e: React.FormEvent) => {
         e.preventDefault();
@@ -594,8 +549,56 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 </div>
             </div>
 
-            {/* ── RIGHT: Cart + Totals ── */}
+            {/* ── RIGHT: Commercial Conditions + Cart + Totals ── */}
             <div className="space-y-4">
+
+                {/* Condiciones Comerciales */}
+                <div className="surface-panel rounded-[2rem] overflow-hidden">
+                    <div className="px-5 py-4 border-b border-border/40 bg-white/30 flex items-center gap-3">
+                        <FileText className="w-4 h-4 text-primary" />
+                        <h3 className="text-[10px] font-black uppercase tracking-widest">Condiciones Comerciales</h3>
+                    </div>
+                    <div className="p-5 space-y-4">
+                        <div className="space-y-1.5">
+                            <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Referencia del Proyecto *</label>
+                            <input
+                                type="text"
+                                value={referencia}
+                                onChange={e => setReferencia(e.target.value)}
+                                placeholder="SUMINISTRO DE MOBILIARIO EN CONCRETO PARA..."
+                                className="w-full bg-white/80 border border-border/60 rounded-xl px-4 py-3 text-[11px] font-bold outline-none focus:border-primary transition-all text-foreground"
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Vigencia de la Oferta</label>
+                            <input
+                                type="text"
+                                value={validUntil}
+                                onChange={e => setValidUntil(e.target.value)}
+                                placeholder="15 de Abril de 2026"
+                                className="w-full bg-white/80 border border-border/60 rounded-xl px-4 py-3 text-[11px] font-bold outline-none focus:border-primary transition-all text-foreground"
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Plazo de Entrega</label>
+                            <input
+                                type="text"
+                                value={deliveryTime}
+                                onChange={e => setDeliveryTime(e.target.value)}
+                                className="w-full bg-white/80 border border-border/60 rounded-xl px-4 py-3 text-[11px] font-bold outline-none focus:border-primary transition-all text-foreground"
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Forma de Pago</label>
+                            <textarea
+                                value={paymentTerms}
+                                onChange={e => setPaymentTerms(e.target.value)}
+                                rows={4}
+                                className="w-full bg-white/80 border border-border/60 rounded-xl px-4 py-3 text-[11px] font-bold outline-none focus:border-primary transition-all text-foreground resize-none"
+                            />
+                        </div>
+                    </div>
+                </div>
                 <div className="surface-panel rounded-[2rem] overflow-hidden sticky top-6">
 
                     {/* Cart header */}
@@ -704,6 +707,151 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 </div>
             </div>
         </div>
+
+        {/* ── PREVIEW MODAL ── */}
+        {showPreview && (() => {
+            const client = clients.find(c => c.id === selectedClientId);
+            const qNum = `AC-${new Date().getFullYear()}-PREVIEW`;
+            const today = new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
+            return (
+                <div className="fixed inset-0 z-[500] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between px-6 py-4 bg-[#1a1a1d] shrink-0">
+                            <div className="flex items-center gap-3">
+                                <Eye className="w-5 h-5 text-[#fab510]" />
+                                <span className="text-white font-black text-sm uppercase tracking-widest">Vista Previa de la Propuesta</span>
+                            </div>
+                            <button onClick={() => { setShowPreview(false); setPendingAction(null); }} className="text-gray-400 hover:text-white transition-colors">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Quote Preview Content */}
+                        <div className="overflow-y-auto flex-1 p-6 space-y-5 text-sm text-gray-800 bg-[#faf9f6]">
+                            {/* Letterhead */}
+                            <div className="flex justify-between items-start border-b-2 border-[#fab510] pb-4">
+                                <div>
+                                    <p className="font-black text-base text-[#1a1a1d]">ARTE CONCRETO S.A.S</p>
+                                    <p className="text-xs text-gray-500">Km 1+800, Anillo Vial · Floridablanca, Santander</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-xs text-gray-400 uppercase tracking-widest">Cotización No.</p>
+                                    <p className="font-black text-[#fab510] text-lg">{isEditMode && editQuoteId ? (quotes.find(q => q.id === editQuoteId)?.number || qNum) : qNum}</p>
+                                </div>
+                            </div>
+
+                            {/* Date + Addressee */}
+                            <div>
+                                <p className="text-xs text-gray-600">Floridablanca, {today}</p>
+                                <div className="mt-3">
+                                    <p className="text-xs text-gray-500">Señores.</p>
+                                    <p className="font-black text-sm text-[#1a1a1d] mt-1">{client?.name?.toUpperCase() || 'CLIENTE'}</p>
+                                    {client?.company && <p className="font-bold text-xs text-gray-700">{client.company.toUpperCase()}</p>}
+                                </div>
+                            </div>
+
+                            {/* Referencia */}
+                            <div className="bg-[#fab510]/10 border border-[#fab510]/30 rounded-xl px-4 py-3">
+                                <span className="font-black text-xs text-[#1a1a1d] uppercase tracking-wide">REFERENCIA: </span>
+                                <span className="font-bold text-xs text-gray-700 uppercase">{referencia || '(sin referencia)'}</span>
+                            </div>
+
+                            {/* Sections */}
+                            <div className="space-y-4">
+                                <div>
+                                    <p className="font-black text-xs text-[#1a1a1d] uppercase mb-1">1. Alcance de la Propuesta:</p>
+                                    <p className="text-xs text-gray-600 leading-relaxed">La presente oferta se entrega en la planta de producción, Anillo Vial Km 1 + 800 Floridablanca – Girón. <span className="font-bold">No incluye</span> transporte, descargue ni instalación.</p>
+                                </div>
+                                <div>
+                                    <p className="font-black text-xs text-[#1a1a1d] uppercase mb-1">2. Vigencia de la Oferta:</p>
+                                    <p className="text-xs text-gray-600">La cotización tiene vigencia hasta el <strong>{validUntil || '(definir fecha)'}</strong>.</p>
+                                </div>
+                                <div>
+                                    <p className="font-black text-xs text-[#1a1a1d] uppercase mb-1">3. Plazo de Entrega:</p>
+                                    <p className="text-xs text-gray-600">{deliveryTime}</p>
+                                </div>
+                                <div>
+                                    <p className="font-black text-xs text-[#1a1a1d] uppercase mb-1">4. Forma de Pago:</p>
+                                    <p className="text-xs text-gray-600 whitespace-pre-line">{paymentTerms}</p>
+                                </div>
+                            </div>
+
+                            {/* Items Table */}
+                            <div>
+                                <p className="font-black text-xs text-[#1a1a1d] uppercase mb-2">5. Cantidades y Precios del Proyecto:</p>
+                                <table className="w-full text-xs border-collapse">
+                                    <thead>
+                                        <tr className="bg-[#1a1a1d] text-white">
+                                            <th className="text-left px-3 py-2 font-black uppercase tracking-wide">Descripción</th>
+                                            <th className="text-center px-2 py-2 font-black uppercase tracking-wide">Unidad</th>
+                                            <th className="text-center px-2 py-2 font-black uppercase tracking-wide">Cant.</th>
+                                            <th className="text-right px-3 py-2 font-black uppercase tracking-wide">P. Unit.</th>
+                                            <th className="text-right px-3 py-2 font-black uppercase tracking-wide">Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {items.map((item, idx) => (
+                                            <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#faf7f0]'}>
+                                                <td className="px-3 py-2 font-semibold">{item.name}</td>
+                                                <td className="px-2 py-2 text-center text-gray-500">{item.unit}</td>
+                                                <td className="px-2 py-2 text-center font-bold text-[#fab510]">{item.quantity}</td>
+                                                <td className="px-3 py-2 text-right text-gray-600">{formatCurrency(item.price)}</td>
+                                                <td className="px-3 py-2 text-right font-bold">{formatCurrency(item.price * item.quantity)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                <div className="flex justify-end mt-2 gap-4 text-xs pr-3">
+                                    <div className="text-right space-y-1">
+                                        <div className="text-gray-500">Subtotal: <strong className="text-gray-800">{formatCurrency(subtotal)}</strong></div>
+                                        <div className="text-gray-500">IVA (19%): <strong className="text-gray-800">{formatCurrency(tax)}</strong></div>
+                                        <div className="bg-[#fab510] text-black font-black px-4 py-2 rounded-lg text-sm mt-1">TOTAL: {formatCurrency(total)}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Closing */}
+                            <div className="border-t border-gray-200 pt-4 space-y-1">
+                                <p className="text-xs text-gray-600">Esperamos que esta oferta sea de su agrado.</p>
+                                <p className="text-xs text-gray-600">Quedamos atentos a sus comentarios o inquietudes.</p>
+                                <p className="text-xs text-gray-600 mt-2">Cordialmente,</p>
+                                <p className="font-black text-xs text-[#1a1a1d] mt-3">{(currentUser?.name || 'Asesor Comercial').toUpperCase()}</p>
+                                <p className="text-xs text-gray-600">Asesor Comercial.</p>
+                                {currentUser?.phone && <p className="text-xs text-gray-600">{currentUser.phone}</p>}
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="px-6 py-4 bg-white border-t border-gray-100 flex gap-3 shrink-0">
+                            <button
+                                onClick={() => { setShowPreview(false); setPendingAction(null); }}
+                                className="flex-1 py-3 rounded-2xl border border-border text-sm font-black text-muted-foreground hover:bg-accent/30 transition-all uppercase tracking-widest"
+                            >
+                                ← Editar
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (pendingAction === 'pdf') executeGeneratePDF();
+                                    else if (pendingAction === 'email') executeEmail();
+                                    else if (pendingAction === 'whatsapp') executeWhatsApp();
+                                }}
+                                disabled={isSaving || isSendingEmail}
+                                className="flex-1 py-3 rounded-2xl bg-primary text-black font-black text-sm flex items-center justify-center gap-2 hover:scale-[1.02] transition-all shadow-lg shadow-primary/20 uppercase tracking-widest disabled:opacity-60"
+                            >
+                                {isSaving || isSendingEmail
+                                    ? <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                                    : <Send className="w-4 h-4" />
+                                }
+                                {pendingAction === 'pdf' ? 'Confirmar y Descargar PDF'
+                                    : pendingAction === 'email' ? 'Confirmar y Enviar Email'
+                                    : 'Confirmar y Enviar WhatsApp'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        })()}
 
         {sentConfirm && (
           <div className="fixed inset-0 z-[300] flex items-end justify-center p-6 pointer-events-none">

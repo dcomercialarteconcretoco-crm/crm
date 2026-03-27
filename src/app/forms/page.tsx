@@ -354,7 +354,7 @@ export default function FormsPage() {
                                                 onClick={() => setStyleConfig({ ...styleConfig, theme: theme.id })}
                                                 className={clsx(
                                                     "p-4 rounded-xl border text-left transition-all space-y-2",
-                                                    styleConfig.theme === theme.id ? "bg-primary/10 border-primary text-primary" : "bg-white/5 border-white/10 text-white/20 hover:text-white"
+                                                    styleConfig.theme === theme.id ? "bg-primary/10 border-primary text-primary" : "bg-muted/40 border-border text-foreground/70 hover:text-foreground hover:border-border/80"
                                                 )}
                                             >
                                                 <theme.icon className="w-4 h-4" />
@@ -365,7 +365,7 @@ export default function FormsPage() {
                                 </div>
 
                                 <div className="space-y-4">
-                                    <label className="text-[10px] font-black uppercase text-white/20 tracking-[0.3em] pl-1">Color de Marca</label>
+                                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.3em] pl-1">Color de Marca</label>
                                     <div className="flex items-center gap-4">
                                         <input
                                             type="color"
@@ -383,7 +383,7 @@ export default function FormsPage() {
                                 </div>
 
                                 <div className="space-y-4">
-                                    <label className="text-[10px] font-black uppercase text-white/20 tracking-[0.3em] pl-1">Bordes y Ángulos</label>
+                                    <label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.3em] pl-1">Bordes y Ángulos</label>
                                     <div className="flex gap-2">
                                         {['0.5rem', '1.5rem', '3rem'].map((r) => (
                                             <button
@@ -391,7 +391,7 @@ export default function FormsPage() {
                                                 onClick={() => setStyleConfig({ ...styleConfig, corners: r })}
                                                 className={clsx(
                                                     "flex-1 py-3 border rounded-lg transition-all text-[9px] font-black uppercase",
-                                                    styleConfig.corners === r ? "bg-primary/10 border-primary text-primary" : "bg-white/5 border-white/10 text-white/20"
+                                                    styleConfig.corners === r ? "bg-primary/10 border-primary text-primary" : "bg-muted/40 border-border text-foreground/70 hover:text-foreground"
                                                 )}
                                             >
                                                 {r === '0.5rem' ? 'Recto' : r === '1.5rem' ? 'Suave' : 'Curvo'}

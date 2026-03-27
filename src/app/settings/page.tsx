@@ -53,6 +53,7 @@ export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState('profile');
     const [showPassword, setShowPassword] = useState(false);
     const [aiActive, setAiActive] = useState(true);
+    const [notifEnabled, setNotifEnabled] = useState([true, true, true, true]);
     const [primaryColor, setPrimaryColor] = useState('#FAB510');
     const [themeMode, setThemeMode] = useState('dark');
     const [layoutMode, setLayoutMode] = useState('classic');
@@ -260,7 +261,7 @@ export default function SettingsPage() {
                                             onClick={() => setAiActive(!aiActive)}
                                             className={clsx(
                                                 "w-14 h-8 rounded-full relative transition-all duration-300",
-                                                aiActive ? "bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]" : "bg-muted"
+                                                aiActive ? "bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]" : "bg-gray-300"
                                             )}
                                         >
                                             <div className={clsx(
@@ -337,7 +338,7 @@ export default function SettingsPage() {
                                                     <span className="text-[11px] font-bold opacity-70">{opt.label}</span>
                                                     <button className={clsx(
                                                         "w-10 h-5 rounded-full relative transition-all",
-                                                        opt.active ? "bg-primary" : "bg-muted"
+                                                        opt.active ? "bg-primary" : "bg-gray-300"
                                                     )}>
                                                         <div className={clsx(
                                                             "absolute top-1 w-3 h-3 bg-white rounded-full transition-all",
@@ -359,18 +360,45 @@ export default function SettingsPage() {
                         {activeTab === 'profile' && (
                             <div className="space-y-10 animate-in fade-in slide-in-from-right-4 duration-500">
                                 <div className="flex items-center gap-8">
-                                    <div className="relative group">
+                                    <div className="relative group cursor-pointer" onClick={() => (document.getElementById('avatar-upload-settings') as HTMLInputElement)?.click()}>
                                         <div className="w-28 h-28 rounded-[2rem] bg-primary flex items-center justify-center text-black font-black text-4xl shadow-[0_0_30px_rgba(250,181,16,0.2)] border-4 border-background overflow-hidden">
-                                            {currentUser?.name?.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase() || 'AC'}
+                                            {currentUser?.avatar
+                                                ? <img src={currentUser.avatar} alt="avatar" className="w-full h-full object-cover" />
+                                                : (currentUser?.name?.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase() || 'AC')
+                                            }
                                         </div>
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-[2rem] cursor-pointer">
-                                            <Save className="w-6 h-6 text-white" />
+                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-[2rem]">
+                                            <span className="text-white text-[10px] font-black uppercase tracking-wider">Cambiar</span>
                                         </div>
                                     </div>
+                                    <input
+                                        id="avatar-upload-settings"
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (!file || !currentUser) return;
+                                            const reader = new FileReader();
+                                            reader.onload = async (ev) => {
+                                                const base64 = ev.target?.result as string;
+                                                await fetch(`/api/team/${currentUser.id}`, {
+                                                    method: 'PUT',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ avatar: base64 }),
+                                                });
+                                                window.location.reload();
+                                            };
+                                            reader.readAsDataURL(file);
+                                        }}
+                                    />
                                     <div className="space-y-1">
                                         <h3 className="text-2xl font-black tracking-tight text-foreground">{currentUser?.name || 'Usuario'}</h3>
                                         <p className="text-sm font-bold text-primary uppercase tracking-widest">{currentUser?.role || 'Administrador'}</p>
-                                        <button className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40 hover:opacity-100 transition-colors mt-2">Cambiar Avatar</button>
+                                        <button
+                                            onClick={() => (document.getElementById('avatar-upload-settings') as HTMLInputElement)?.click()}
+                                            className="text-[10px] font-black uppercase tracking-[0.2em] text-primary hover:opacity-80 transition-opacity mt-2"
+                                        >Cambiar Avatar</button>
                                     </div>
                                 </div>
 
@@ -458,16 +486,19 @@ export default function SettingsPage() {
                                         { title: 'Actualización de Pipeline', desc: 'Notificar cuando un lead cambia de etapa.', type: 'Push' },
                                         { title: 'Recordatorios de Tareas', desc: 'Alertas sobre citas y llamadas pendientes.', type: 'Push + WhatsApp' },
                                         { title: 'Reportes Semanales', desc: 'Resumen ejecutivo de ventas todos los lunes.', type: 'Email' },
-                                    ].map((pref) => (
+                                    ].map((pref, i) => (
                                         <div key={pref.title} className="flex items-center justify-between p-8 bg-muted/10 border border-border rounded-[2rem] hover:border-primary/20 transition-all">
                                             <div className="space-y-1">
                                                 <h4 className="text-sm font-black text-foreground">{pref.title}</h4>
                                                 <p className="text-[11px] text-muted-foreground font-medium">{pref.desc}</p>
                                             </div>
                                             <div className="flex items-center gap-4">
-                                                <span className="text-[10px] font-black text-primary/50 uppercase tracking-widest bg-primary/5 px-3 py-1 rounded-full">{pref.type}</span>
-                                                <button className="w-12 h-6 bg-primary rounded-full relative p-1 transition-all">
-                                                    <div className="w-4 h-4 bg-background rounded-full absolute right-1"></div>
+                                                <span className="text-[10px] font-black text-primary uppercase tracking-widest border border-primary/30 bg-primary/10 px-3 py-1 rounded-full">{pref.type}</span>
+                                                <button
+                                                    onClick={() => setNotifEnabled(prev => prev.map((v, idx) => idx === i ? !v : v))}
+                                                    className={clsx("w-12 h-6 rounded-full relative p-1 transition-all duration-300", notifEnabled[i] ? "bg-primary shadow-[0_0_10px_rgba(250,181,16,0.4)]" : "bg-gray-300")}
+                                                >
+                                                    <div className={clsx("w-4 h-4 bg-white rounded-full absolute transition-all", notifEnabled[i] ? "right-1" : "left-1")}></div>
                                                 </button>
                                             </div>
                                         </div>
@@ -544,7 +575,7 @@ export default function SettingsPage() {
                                             onClick={() => updateSettings({ allowExports: !settings.allowExports })}
                                             className={clsx(
                                                 "w-12 h-6 rounded-full relative p-1 transition-all",
-                                                settings.allowExports ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]" : "bg-muted"
+                                                settings.allowExports ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]" : "bg-gray-300"
                                             )}
                                         >
                                             <div className={clsx(
@@ -571,7 +602,7 @@ export default function SettingsPage() {
                                             onClick={() => updateSettings({ blockScreenshots: !settings.blockScreenshots })}
                                             className={clsx(
                                                 "w-12 h-6 rounded-full relative p-1 transition-all",
-                                                settings.blockScreenshots ? "bg-rose-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]" : "bg-muted"
+                                                settings.blockScreenshots ? "bg-rose-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]" : "bg-gray-300"
                                             )}
                                         >
                                             <div className={clsx(

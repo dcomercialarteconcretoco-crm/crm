@@ -82,4 +82,17 @@ export async function ensureCrmSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_documents (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      filename TEXT NOT NULL,
+      mimetype TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      data TEXT NOT NULL,
+      uploaded_by TEXT,
+      uploaded_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
 }

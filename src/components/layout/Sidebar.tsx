@@ -15,7 +15,8 @@ import {
   Bot,
   Shield,
   FilePlus2,
-  Loader2
+  Loader2,
+  FolderOpen
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -27,6 +28,7 @@ function cn(...inputs: ClassValue[]) {
 
 const navItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'MiWi Bot', href: '/bot', icon: Bot },
   { name: 'Cotizaciones', href: '/quotes', icon: FileText },
   { name: 'Pipeline', href: '/pipeline', icon: Workflow },
   { name: 'Clientes', href: '/clients', icon: Users },
@@ -35,7 +37,7 @@ const navItems = [
   { name: 'Analíticas', href: '/analytics', icon: BarChart3 },
   { name: 'Equipo', href: '/team', icon: Users },
   { name: 'Formbuilder IA', href: '/forms', icon: FilePlus2 },
-  { name: 'MiWi Bot', href: '/bot', icon: Bot },
+  { name: 'Documentos', href: '/documents', icon: FolderOpen },
 ];
 
 

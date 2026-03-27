@@ -83,14 +83,20 @@ export interface Quote {
     tax?: number;
     items?: QuoteItem[];
     notes?: string;
+    // Campos comerciales (Word format)
+    referencia?: string;        // REFERENCIA: descripción del proyecto
+    validUntil?: string;        // Vigencia: "15 de Abril de 2026"
+    deliveryTime?: string;      // Plazo de entrega
+    paymentTerms?: string;      // Forma de pago (texto libre)
+    sellerPhone?: string;       // Teléfono del asesor
     sellerId?: string;
     sellerName?: string;
     status: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'PENDING_APPROVAL';
     taskId?: string;
     opens?: number;
-    sentAt?: string;        // ISO timestamp del envío
-    sentByName?: string;    // Nombre del usuario que lo envió
-    sentById?: string;      // ID del usuario que lo envió
+    sentAt?: string;
+    sentByName?: string;
+    sentById?: string;
     pendingAction?: 'send_email' | 'send_whatsapp' | 'generate_pdf';
     requestedBy?: string;
     requestedByName?: string;
