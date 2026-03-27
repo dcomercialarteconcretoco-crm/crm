@@ -12,11 +12,7 @@ const CORS_HEADERS = {
 };
 
 function generateQuoteNumber() {
-    const now = new Date();
-    const y = now.getFullYear().toString().slice(-2);
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    return `COT-${y}${m}${d}-${Math.floor(Math.random() * 9000) + 1000}`;
+    return `AC-${new Date().getFullYear()}-${Math.floor(Math.random() * 90000) + 10000}`;
 }
 
 function formatCOP(value: number) {

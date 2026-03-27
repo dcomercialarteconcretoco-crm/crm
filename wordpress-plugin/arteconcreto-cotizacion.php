@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Arte Concreto – Botón Pedir Cotización
  * Description: Agrega un botón "Pedir Cotización" en las páginas de producto WooCommerce. Envía la solicitud al CRM MiWibi y la crea automáticamente en el pipeline.
- * Version: 2.0.0
+ * Version: 2.2.0
  * Author: Arte Concreto / MiWibi
  * Text Domain: ac-cotizacion
  */

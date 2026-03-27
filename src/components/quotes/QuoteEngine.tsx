@@ -683,6 +683,16 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
 
                     {/* Actions */}
                     <div className="px-5 pb-5 space-y-2.5">
+                        {/* Preview button */}
+                        <button
+                            onClick={() => { setPendingAction(null); setShowPreview(true); }}
+                            disabled={items.length === 0}
+                            className="w-full bg-muted/60 border border-border/60 text-foreground font-black py-3.5 rounded-2xl flex items-center justify-center gap-2.5 hover:bg-accent/40 transition-all text-[10px] uppercase tracking-widest disabled:opacity-40"
+                        >
+                            <Eye className="w-4 h-4 text-primary" />
+                            Previsualizar Cotización
+                        </button>
+
                         <button onClick={handleSaveAndGenerate} disabled={isSaving}
                             className="w-full bg-primary text-black font-black py-4 rounded-2xl flex items-center justify-center gap-3 hover:scale-[1.02] transition-all shadow-lg shadow-primary/20 text-[10px] uppercase tracking-widest disabled:opacity-60">
                             {isSaving
@@ -828,25 +838,27 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                 onClick={() => { setShowPreview(false); setPendingAction(null); }}
                                 className="flex-1 py-3 rounded-2xl border border-border text-sm font-black text-muted-foreground hover:bg-accent/30 transition-all uppercase tracking-widest"
                             >
-                                ← Editar
+                                ← {pendingAction ? 'Editar' : 'Cerrar'}
                             </button>
-                            <button
-                                onClick={() => {
-                                    if (pendingAction === 'pdf') executeGeneratePDF();
-                                    else if (pendingAction === 'email') executeEmail();
-                                    else if (pendingAction === 'whatsapp') executeWhatsApp();
-                                }}
-                                disabled={isSaving || isSendingEmail}
-                                className="flex-1 py-3 rounded-2xl bg-primary text-black font-black text-sm flex items-center justify-center gap-2 hover:scale-[1.02] transition-all shadow-lg shadow-primary/20 uppercase tracking-widest disabled:opacity-60"
-                            >
-                                {isSaving || isSendingEmail
-                                    ? <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
-                                    : <Send className="w-4 h-4" />
-                                }
-                                {pendingAction === 'pdf' ? 'Confirmar y Descargar PDF'
-                                    : pendingAction === 'email' ? 'Confirmar y Enviar Email'
-                                    : 'Confirmar y Enviar WhatsApp'}
-                            </button>
+                            {pendingAction && (
+                                <button
+                                    onClick={() => {
+                                        if (pendingAction === 'pdf') executeGeneratePDF();
+                                        else if (pendingAction === 'email') executeEmail();
+                                        else if (pendingAction === 'whatsapp') executeWhatsApp();
+                                    }}
+                                    disabled={isSaving || isSendingEmail}
+                                    className="flex-1 py-3 rounded-2xl bg-primary text-black font-black text-sm flex items-center justify-center gap-2 hover:scale-[1.02] transition-all shadow-lg shadow-primary/20 uppercase tracking-widest disabled:opacity-60"
+                                >
+                                    {isSaving || isSendingEmail
+                                        ? <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                                        : <Send className="w-4 h-4" />
+                                    }
+                                    {pendingAction === 'pdf' ? 'Confirmar y Descargar PDF'
+                                        : pendingAction === 'email' ? 'Confirmar y Enviar Email'
+                                        : 'Confirmar y Enviar WhatsApp'}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

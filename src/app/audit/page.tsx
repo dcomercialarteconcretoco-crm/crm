@@ -24,8 +24,7 @@ import {
     Zap,
     Package,
     ChevronLeft,
-    ChevronRight,
-    Trash2
+    ChevronRight
 } from 'lucide-react';
 import { useApp, AuditLog, Seller, Anomaly } from '@/context/AppContext';
 import { clsx } from 'clsx';
