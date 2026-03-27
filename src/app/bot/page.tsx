@@ -653,50 +653,50 @@ export default function MiWiBotPage() {
 
                         {/* Chat Area */}
                         <div className={clsx(
-                            "flex-1 flex flex-col bg-card duration-300",
+                            "flex-1 flex flex-col bg-white duration-300",
                             !selectedConversation && "hidden lg:flex"
                         )}>
                             {!selectedConversation ? (
                                 <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-                                    <div className="w-24 h-24 rounded-[2.5rem] bg-muted/50 border border-border/40 flex items-center justify-center mb-6">
-                                        <MessageCircle className="w-10 h-10 text-muted-foreground/20" />
+                                    <div className="w-20 h-20 rounded-2xl bg-muted border border-border flex items-center justify-center mb-4">
+                                        <MessageCircle className="w-9 h-9 text-muted-foreground" />
                                     </div>
-                                    <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Selecciona un chat</h3>
-                                    <p className="text-xs text-muted-foreground/40 mt-2">Para comenzar a monitorear en tiempo real</p>
+                                    <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Selecciona un chat</h3>
+                                    <p className="text-xs text-muted-foreground mt-1">Para comenzar a monitorear en tiempo real</p>
                                 </div>
                             ) : (
                                 <React.Fragment>
                                     {/* Chat header */}
-                                    <div className="h-20 border-b border-border/40 px-6 lg:px-8 flex items-center justify-between bg-card shrink-0">
-                                        <div className="flex items-center gap-4">
+                                    <div className="h-16 border-b border-border px-5 flex items-center justify-between bg-white shrink-0">
+                                        <div className="flex items-center gap-3">
                                             <button onClick={() => setSelectedConversation(null)} className="lg:hidden p-2 -ml-2 hover:bg-muted rounded-xl transition-colors">
                                                 <ChevronRight className="w-5 h-5 rotate-180" />
                                             </button>
-                                            <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-black text-[10px] lg:text-xs border border-primary/20 shrink-0">
+                                            <div className="w-9 h-9 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-bold text-xs border border-primary/20 shrink-0">
                                                 {(selectedConversation.lead.name || 'W')[0].toUpperCase()}
                                             </div>
                                             <div className="min-w-0">
-                                                <p className="text-xs lg:text-sm font-black text-foreground tracking-tight truncate">{selectedConversation.lead.name || 'Lead Web'}</p>
-                                                <div className="flex items-center gap-3 flex-wrap">
-                                                    <div className="flex items-center gap-1.5">
+                                                <p className="text-sm font-bold text-foreground truncate">{selectedConversation.lead.name || 'Lead Web'}</p>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <div className="flex items-center gap-1">
                                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                                                        <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">Web Chat · En vivo</span>
+                                                        <span className="text-[10px] font-bold text-muted-foreground">Web Chat · En vivo</span>
                                                     </div>
-                                                    {selectedConversation.lead.city && <span className="text-[8px] text-muted-foreground/50 font-bold">{selectedConversation.lead.city}</span>}
-                                                    {selectedConversation.lead.company && <span className="text-[8px] text-muted-foreground/50 font-bold">{selectedConversation.lead.company}</span>}
+                                                    {selectedConversation.lead.city && <span className="text-[10px] text-muted-foreground">{selectedConversation.lead.city}</span>}
+                                                    {selectedConversation.lead.company && <span className="text-[10px] text-muted-foreground">{selectedConversation.lead.company}</span>}
                                                 </div>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             {selectedConversation.lead.phone && (
                                                 <a href={`https://wa.me/${selectedConversation.lead.phone.replace(/\D/g,'')}`} target="_blank" rel="noreferrer"
-                                                    className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-500 hover:bg-emerald-500/20 transition-all shrink-0">
+                                                    className="p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 hover:bg-emerald-100 transition-all shrink-0">
                                                     <Phone className="w-4 h-4" />
                                                 </a>
                                             )}
                                             {selectedConversation.lead.email && (
                                                 <a href={`mailto:${selectedConversation.lead.email}`}
-                                                    className="p-2.5 bg-sky-500/10 border border-sky-500/20 rounded-xl text-sky-500 hover:bg-sky-500/20 transition-all shrink-0">
+                                                    className="p-2 bg-sky-50 border border-sky-200 rounded-xl text-sky-700 hover:bg-sky-100 transition-all shrink-0">
                                                     <Mail className="w-4 h-4" />
                                                 </a>
                                             )}
@@ -704,28 +704,28 @@ export default function MiWiBotPage() {
                                     </div>
 
                                     {/* Lead info bar */}
-                                    <div className="px-6 py-3 bg-muted/10 border-b border-border/30 flex items-center gap-4 flex-wrap">
+                                    <div className="px-5 py-2 bg-muted border-b border-border flex items-center gap-4 flex-wrap">
                                         {selectedConversation.lead.email && (
-                                            <span className="text-[9px] font-bold text-muted-foreground flex items-center gap-1">
+                                            <span className="text-xs text-muted-foreground flex items-center gap-1">
                                                 <Mail className="w-3 h-3" />{selectedConversation.lead.email}
                                             </span>
                                         )}
                                         {selectedConversation.lead.phone && (
-                                            <span className="text-[9px] font-bold text-muted-foreground flex items-center gap-1">
+                                            <span className="text-xs text-muted-foreground flex items-center gap-1">
                                                 <Phone className="w-3 h-3" />{selectedConversation.lead.phone}
                                             </span>
                                         )}
-                                        <span className="text-[9px] font-bold text-muted-foreground ml-auto">
+                                        <span className="text-xs text-muted-foreground ml-auto">
                                             {selectedConversation.messages.length} mensajes · {new Date(selectedConversation.createdAt).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })}
                                         </span>
                                     </div>
 
                                     {/* Messages */}
-                                    <div className="flex-1 overflow-y-auto p-6 lg:p-8 space-y-4 custom-scrollbar bg-background/30">
+                                    <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar bg-background">
                                         {selectedConversation.messages.map((msg, i) => (
                                             <div key={i} className={clsx("flex gap-3", msg.role === 'assistant' ? 'flex-row-reverse' : '')}>
                                                 <div className={clsx(
-                                                    "w-8 h-8 rounded-xl shrink-0 flex items-center justify-center text-[10px] font-black",
+                                                    "w-8 h-8 rounded-xl shrink-0 flex items-center justify-center text-xs font-bold",
                                                     msg.role === 'assistant' ? 'bg-primary text-black' : 'bg-muted border border-border text-muted-foreground'
                                                 )}>
                                                     {msg.role === 'assistant' ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
@@ -733,11 +733,11 @@ export default function MiWiBotPage() {
                                                 <div className={clsx(
                                                     "max-w-[72%] px-4 py-3 rounded-2xl text-sm leading-relaxed",
                                                     msg.role === 'assistant'
-                                                        ? 'bg-primary/10 border border-primary/20 text-foreground rounded-tr-none'
-                                                        : 'bg-card border border-border text-foreground rounded-tl-none'
+                                                        ? 'bg-white border border-border text-foreground rounded-tr-none shadow-sm'
+                                                        : 'bg-white border border-border text-foreground rounded-tl-none shadow-sm'
                                                 )}>
                                                     <p className="font-medium">{msg.content}</p>
-                                                    <p className="text-[8px] font-bold text-muted-foreground/50 mt-1 uppercase tracking-wider">
+                                                    <p className="text-[10px] text-muted-foreground mt-1">
                                                         {msg.role === 'assistant' ? 'Bot' : selectedConversation.lead.name || 'Lead'} · {new Date(msg.timestamp).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
                                                     </p>
                                                 </div>
@@ -746,24 +746,24 @@ export default function MiWiBotPage() {
                                         <div ref={chatEndRef} />
                                     </div>
 
-                                    <div className="p-4 lg:p-5 bg-card border-t border-border/40 relative shrink-0">
+                                    <div className="p-4 bg-white border-t border-border relative shrink-0">
                                         {/* Attachment Menu Overlay */}
                                         {isAttachmentMenuOpen && (
-                                            <div className="absolute bottom-full mb-4 left-6 lg:left-8 bg-card border border-border/40 rounded-[2rem] p-4 shadow-2xl animate-in slide-in-from-bottom-4 duration-300 z-50 w-[calc(100%-3rem)] lg:w-64">
-                                                <div className="grid grid-cols-1 lg:grid-cols-1 gap-2">
+                                            <div className="absolute bottom-full mb-3 left-4 bg-white border border-border rounded-2xl p-3 shadow-2xl animate-in slide-in-from-bottom-4 duration-300 z-50 w-60">
+                                                <div className="space-y-1">
                                                     <button
                                                         onClick={() => {
                                                             setIsQuoteModalOpen(true);
                                                             setIsAttachmentMenuOpen(false);
                                                         }}
-                                                        className="flex items-center gap-4 p-4 hover:bg-muted/50 rounded-2xl transition-all group"
+                                                        className="flex items-center gap-3 p-3 w-full hover:bg-muted rounded-xl transition-all text-left"
                                                     >
-                                                        <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20 group-hover:scale-110 transition-transform">
-                                                            <FilePlus className="w-5 h-5 text-primary" />
+                                                        <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20">
+                                                            <FilePlus className="w-4 h-4 text-primary" />
                                                         </div>
-                                                        <div className="text-left">
-                                                            <p className="text-[11px] font-black text-foreground">Cotización</p>
-                                                            <p className="text-[9px] text-muted-foreground font-bold">Generar PDF</p>
+                                                        <div>
+                                                            <p className="text-xs font-bold text-foreground">Cotización</p>
+                                                            <p className="text-[10px] text-muted-foreground">Generar PDF</p>
                                                         </div>
                                                     </button>
                                                     <button
@@ -771,26 +771,26 @@ export default function MiWiBotPage() {
                                                             setIsProductModalOpen(true);
                                                             setIsAttachmentMenuOpen(false);
                                                         }}
-                                                        className="flex items-center gap-4 p-4 hover:bg-muted/50 rounded-2xl transition-all group"
+                                                        className="flex items-center gap-3 p-3 w-full hover:bg-muted rounded-xl transition-all text-left"
                                                     >
-                                                        <div className="w-10 h-10 bg-sky-500/10 rounded-xl flex items-center justify-center border border-sky-500/20 group-hover:scale-110 transition-transform">
-                                                            <Package className="w-5 h-5 text-sky-500" />
+                                                        <div className="w-9 h-9 bg-sky-50 rounded-xl flex items-center justify-center border border-sky-200">
+                                                            <Package className="w-4 h-4 text-sky-600" />
                                                         </div>
-                                                        <div className="text-left">
-                                                            <p className="text-[11px] font-black text-foreground">Productos</p>
-                                                            <p className="text-[9px] text-muted-foreground font-bold">Enviar ficha</p>
+                                                        <div>
+                                                            <p className="text-xs font-bold text-foreground">Productos</p>
+                                                            <p className="text-[10px] text-muted-foreground">Enviar ficha</p>
                                                         </div>
                                                     </button>
                                                 </div>
                                             </div>
                                         )}
 
-                                        <div className="bg-muted/20 border-2 border-border/40 rounded-2xl lg:rounded-[1.5rem] p-2 lg:p-3 flex items-center gap-2 lg:gap-3 focus-within:border-primary/50 transition-all">
+                                        <div className="bg-muted border border-border rounded-xl p-2 flex items-center gap-2 focus-within:border-primary focus-within:bg-white transition-all">
                                             <button
                                                 onClick={() => setIsAttachmentMenuOpen(!isAttachmentMenuOpen)}
                                                 className={clsx(
-                                                    "p-2.5 lg:p-3 rounded-xl transition-all",
-                                                    isAttachmentMenuOpen ? "bg-primary text-black" : "hover:bg-muted text-muted-foreground/40"
+                                                    "p-2 rounded-lg transition-all",
+                                                    isAttachmentMenuOpen ? "bg-primary text-black" : "hover:bg-white text-muted-foreground"
                                                 )}
                                             >
                                                 <Paperclip className="w-5 h-5" />
@@ -801,14 +801,14 @@ export default function MiWiBotPage() {
                                                 onChange={e => setReplyText(e.target.value)}
                                                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendHumanReply(); } }}
                                                 placeholder={isHumanInControl ? "Escribe como agente humano..." : "Responde al cliente..."}
-                                                className="flex-1 bg-transparent border-none outline-none text-xs lg:text-sm px-1 lg:px-2 font-bold text-foreground placeholder:text-muted-foreground/30"
+                                                className="flex-1 bg-transparent border-none outline-none text-sm px-2 text-foreground placeholder:text-muted-foreground"
                                             />
                                             <button
                                                 onClick={sendHumanReply}
                                                 disabled={!replyText.trim() || isSendingReply}
-                                                className="bg-primary text-black p-3.5 lg:p-4 rounded-xl hover:scale-105 transition-all shadow-lg shadow-primary/10 disabled:opacity-40 disabled:hover:scale-100"
+                                                className="bg-primary text-black p-2.5 rounded-lg hover:brightness-105 transition-all disabled:opacity-40"
                                             >
-                                                <Send className="w-5 h-5" />
+                                                <Send className="w-4 h-4" />
                                             </button>
                                         </div>
                                     </div>
@@ -817,17 +817,17 @@ export default function MiWiBotPage() {
                         </div>
 
                         {/* Product Catalog Panel — right column (desktop only) */}
-                        <div className="hidden lg:flex w-56 xl:w-64 border-l border-border/40 flex-col bg-muted/5 shrink-0">
-                            <div className="p-4 border-b border-border/40 space-y-3">
-                                <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">Catálogo de Productos</p>
+                        <div className="hidden lg:flex w-56 xl:w-64 border-l border-border flex-col bg-white shrink-0">
+                            <div className="p-4 border-b border-border space-y-3">
+                                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Catálogo de Productos</p>
                                 <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/30" />
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                                     <input
                                         type="text"
                                         placeholder="Buscar..."
                                         value={searchProduct}
                                         onChange={e => setSearchProduct(e.target.value)}
-                                        className="w-full bg-card border border-border/40 rounded-xl pl-9 pr-3 py-2 text-[11px] outline-none focus:border-primary/50 text-foreground transition-all"
+                                        className="w-full bg-muted border border-border rounded-xl pl-9 pr-3 py-2 text-xs outline-none focus:border-primary focus:bg-white transition-all"
                                     />
                                 </div>
                             </div>
@@ -842,19 +842,19 @@ export default function MiWiBotPage() {
                                             : 'Consultar';
                                         const copyText = `*${p.name}*\nPrecio: ${fmtPrice}\nSKU: ${p.sku || 'N/A'}`;
                                         return (
-                                            <div key={p.id} className="bg-card border border-border/40 rounded-xl p-3 hover:border-primary/30 transition-colors group">
+                                            <div key={p.id} className="bg-white border border-border rounded-xl p-3 hover:border-primary/40 transition-colors">
                                                 <div className="flex items-start gap-2">
                                                     {p.image ? (
-                                                        <img src={p.image} alt={p.name} className="w-10 h-10 rounded-lg object-cover bg-muted shrink-0 border border-border/30" />
+                                                        <img src={p.image} alt={p.name} className="w-10 h-10 rounded-lg object-cover bg-muted shrink-0 border border-border" />
                                                     ) : (
-                                                        <div className="w-10 h-10 rounded-lg bg-muted/50 border border-border/30 flex items-center justify-center shrink-0">
-                                                            <Package className="w-4 h-4 text-muted-foreground/30" />
+                                                        <div className="w-10 h-10 rounded-lg bg-muted border border-border flex items-center justify-center shrink-0">
+                                                            <Package className="w-4 h-4 text-muted-foreground" />
                                                         </div>
                                                     )}
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-[11px] font-black text-foreground leading-tight line-clamp-2">{p.name}</p>
-                                                        <p className="text-[10px] text-primary font-black mt-0.5">{fmtPrice}</p>
-                                                        {p.sku && <p className="text-[8px] text-muted-foreground uppercase tracking-wider">{p.sku}</p>}
+                                                        <p className="text-xs font-bold text-foreground leading-tight line-clamp-2">{p.name}</p>
+                                                        <p className="text-xs text-primary font-bold mt-0.5">{fmtPrice}</p>
+                                                        {p.sku && <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{p.sku}</p>}
                                                     </div>
                                                 </div>
                                                 <button
@@ -863,7 +863,7 @@ export default function MiWiBotPage() {
                                                         setReplyText(prev => prev ? `${prev}\n${copyText}` : copyText);
                                                         addNotification({ title: 'Producto copiado', description: p.name, type: 'success' });
                                                     }}
-                                                    className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-muted/50 hover:bg-primary/10 hover:text-primary border border-border/30 hover:border-primary/30 transition-all text-[9px] font-black uppercase tracking-wider text-muted-foreground"
+                                                    className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-muted hover:bg-primary/10 hover:text-primary border border-border hover:border-primary/30 transition-all text-[10px] font-bold uppercase tracking-wide text-muted-foreground"
                                                 >
                                                     <Copy className="w-3 h-3" />
                                                     Copiar al chat
@@ -873,8 +873,8 @@ export default function MiWiBotPage() {
                                     })}
                                 {products.length === 0 && (
                                     <div className="flex flex-col items-center justify-center py-8 text-center gap-2">
-                                        <Package className="w-8 h-8 text-muted-foreground/20" />
-                                        <p className="text-[9px] text-muted-foreground/40 font-bold uppercase tracking-wider">Sin productos sincronizados</p>
+                                        <Package className="w-8 h-8 text-muted-foreground" />
+                                        <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider">Sin productos sincronizados</p>
                                     </div>
                                 )}
                             </div>

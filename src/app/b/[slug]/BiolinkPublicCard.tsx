@@ -104,7 +104,7 @@ export default function BiolinkPublicCard({ card, settings }: { card: Biolink; s
                         <img
                             src="https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png"
                             alt="Arte Concreto"
-                            style={{ height: 36, objectFit: 'contain', filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? 0.95 : 0.85 }}
+                            style={{ height: 52, objectFit: 'contain', filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? 0.95 : 0.85 }}
                         />
                         {card.photo ? (
                             <img src={card.photo} alt={card.name}

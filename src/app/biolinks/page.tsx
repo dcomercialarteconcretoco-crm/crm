@@ -551,7 +551,7 @@ function BiolinkPreview({ form, settings }: { form: Partial<Biolink>; settings: 
                 <img
                     src="https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png"
                     alt="Arte Concreto"
-                    style={{ height: 28, objectFit: 'contain', filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? 0.9 : 0.85 }}
+                    style={{ height: 48, objectFit: 'contain', filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? 0.9 : 0.85 }}
                 />
                 {form.photo ? (
                     <img src={form.photo} style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: `3px solid ${pc}` }} />
