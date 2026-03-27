@@ -20,13 +20,15 @@ import {
 import { clsx } from 'clsx';
 
 import { useApp, Product } from '@/context/AppContext';
+import { hasPermission } from '@/lib/permissions';
 
 const INITIAL_PRODUCTS: Product[] = [];
 
 export default function InventoryPage() {
     const { settings, sellers, products, productSyncStatus, refreshProducts, updateProduct, deleteProduct, currentUser, addNotification, addAuditLog } = useApp();
-    const userIsSuperAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
-    const canExport = userIsSuperAdmin && settings.allowExports;
+    const canManageInventory = hasPermission(currentUser, 'inventory.manage');
+    const canExportInventory = hasPermission(currentUser, 'inventory.export');
+    const canExport = canExportInventory && settings.allowExports;
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 

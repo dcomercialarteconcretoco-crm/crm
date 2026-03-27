@@ -51,6 +51,7 @@ import {
 import { clsx } from 'clsx';
 import { useApp, Task, Activity, Seller, Client } from '@/context/AppContext';
 import SearchableSelect from '@/components/SearchableSelect';
+import { hasPermission } from '@/lib/permissions';
 
 // ─── Stage System ────────────────────────────────────────────────────────────
 
@@ -325,7 +326,7 @@ export default function PipelinePage() {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const currentUser: Seller = sellers.find(s => s.role === 'SuperAdmin') || sellers[0];
-    const isSuperAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
+    const canReassign = hasPermission(currentUser, 'pipeline.reassign');
 
     const [newDeal, setNewDeal] = useState({
         title: '',
@@ -399,7 +400,7 @@ export default function PipelinePage() {
             const data = await res.json();
             if (res.ok) {
                 addNotification({ title: `Orden ${orderNumber} Enviada`, description: `Producción notificada a: ${recipientEmails.join(', ')}`, type: 'success' });
-                addAuditLog({ userId: currentUser.id, userName: currentUser.name, userRole: isSuperAdmin ? 'SuperAdmin' : 'Vendedor', action: 'SALE_REGISTERED', targetName: task.client, details: `Orden de Producción ${orderNumber} enviada. ($${task.numericValue.toLocaleString()})`, verified: true });
+                addAuditLog({ userId: currentUser.id, userName: currentUser.name, userRole: canReassign ? 'SuperAdmin' : 'Vendedor', action: 'SALE_REGISTERED', targetName: task.client, details: `Orden de Producción ${orderNumber} enviada. ($${task.numericValue.toLocaleString()})`, verified: true });
             } else throw new Error(data.error);
         } catch {
             addNotification({ title: 'Error en Orden de Producción', description: 'La venta se registró pero no se pudo enviar el correo.', type: 'alert' });
@@ -457,7 +458,7 @@ export default function PipelinePage() {
                 registrationDate: new Date().toISOString().split('T')[0]
             });
             finalClientId = newId;
-            addAuditLog({ userId: currentUser.id, userName: currentUser.name, userRole: isSuperAdmin ? 'SuperAdmin' : 'Vendedor', action: 'LEAD_CREATED', targetId: newId, targetName: inlineClient.company, details: `Registro manual de nuevo lead: ${inlineClient.name} (${inlineClient.company})`, verified: true });
+            addAuditLog({ userId: currentUser.id, userName: currentUser.name, userRole: canReassign ? 'SuperAdmin' : 'Vendedor', action: 'LEAD_CREATED', targetId: newId, targetName: inlineClient.company, details: `Registro manual de nuevo lead: ${inlineClient.name} (${inlineClient.company})`, verified: true });
             await new Promise(r => setTimeout(r, 800));
         }
 
@@ -492,7 +493,7 @@ export default function PipelinePage() {
         const clientName = showNewClientForm ? inlineClient.name : clients.find(c => c.id === finalClientId)?.name || 'Contacto';
         const total = calculateNewDealTotal();
         const quoteId = `QT-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`;
-        const actualSeller = isSuperAdmin ? (sellers.find(s => s.id === newDeal.assignedTo) || currentUser) : currentUser;
+        const actualSeller = canReassign ? (sellers.find(s => s.id === newDeal.assignedTo) || currentUser) : currentUser;
 
         const newTaskData: Omit<Task, 'id'> = {
             title: newDeal.title || 'Nuevo Negocio',
@@ -527,7 +528,7 @@ export default function PipelinePage() {
     const handleDelete = () => {
         if (selectedTask) {
             deleteTask(selectedTask.id);
-            addAuditLog({ userId: currentUser.id, userName: currentUser.name, userRole: isSuperAdmin ? 'SuperAdmin' : 'Vendedor', action: 'TASK_DELETED', targetId: selectedTask.id, targetName: selectedTask.client, details: `Eliminación de negocio: "${selectedTask.title}" (${selectedTask.client})`, verified: true });
+            addAuditLog({ userId: currentUser.id, userName: currentUser.name, userRole: canReassign ? 'SuperAdmin' : 'Vendedor', action: 'TASK_DELETED', targetId: selectedTask.id, targetName: selectedTask.client, details: `Eliminación de negocio: "${selectedTask.title}" (${selectedTask.client})`, verified: true });
             setIsEditModalOpen(false);
             setSelectedTask(null);
         }
@@ -546,7 +547,7 @@ export default function PipelinePage() {
         addAuditLog({
             userId: currentUser?.id || 'system',
             userName: currentUser?.name || 'Sistema',
-            userRole: isSuperAdmin ? 'SuperAdmin' : 'Vendedor',
+            userRole: canReassign ? 'SuperAdmin' : 'Vendedor',
             action: 'CALL_MADE',
             targetId: selectedTask.clientId || selectedTask.id,
             targetName: selectedTask.client,
@@ -587,7 +588,7 @@ export default function PipelinePage() {
                 timestamp: new Date(),
             };
             updateTask(activeId, { stageId: destColId, activities: [stageActivity, ...movedTask.activities] } as any);
-            addAuditLog({ userId: currentUser.id, userName: currentUser.name, userRole: isSuperAdmin ? 'SuperAdmin' : 'Vendedor', action: 'LEAD_STATUS_CHANGE', targetId: activeId, targetName: movedTask.client, details: `Cambio de etapa: ${fromLabel} → ${toLabel}`, verified: true });
+            addAuditLog({ userId: currentUser.id, userName: currentUser.name, userRole: canReassign ? 'SuperAdmin' : 'Vendedor', action: 'LEAD_STATUS_CHANGE', targetId: activeId, targetName: movedTask.client, details: `Cambio de etapa: ${fromLabel} → ${toLabel}`, verified: true });
             if (destColId === 'won') {
                 addNotification({ title: 'Venta Cerrada', description: `${movedTask.client} — $${movedTask.numericValue.toLocaleString()} COP. Enviando Orden de Producción...`, type: 'success' });
                 sendProductionOrder(movedTask, []);
@@ -917,19 +918,19 @@ export default function PipelinePage() {
                                             <div className="flex flex-col">
                                                 <label className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-2">
                                                     Asignación de Equipo
-                                                    {isSuperAdmin ? <ShieldCheck className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
+                                                    {canReassign ? <ShieldCheck className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
                                                 </label>
-                                                {!isSuperAdmin && <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">Solo SuperAdmin puede cambiar la asignación</p>}
+                                                {!canReassign && <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">Solo SuperAdmin puede cambiar la asignación</p>}
                                             </div>
-                                            {isSuperAdmin && <div className="text-[8px] font-black bg-primary text-black px-2 py-0.5 rounded-full uppercase tracking-tighter">Acceso Total</div>}
+                                            {canReassign && <div className="text-[8px] font-black bg-primary text-black px-2 py-0.5 rounded-full uppercase tracking-tighter">Acceso Total</div>}
                                         </div>
                                         <div className="relative">
                                             <div className="absolute left-4 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full border border-primary/30 bg-primary/10 flex items-center justify-center overflow-hidden">
-                                                {isSuperAdmin ? (
+                                                {canReassign ? (
                                                     sellers.find(s => s.id === newDeal.assignedTo)?.avatar ? <img src={sellers.find(s => s.id === newDeal.assignedTo)?.avatar} className="w-full h-full object-cover" alt="" /> : <User className="w-4 h-4 text-primary" />
                                                 ) : currentUser?.avatar ? <img src={currentUser.avatar} className="w-full h-full object-cover" alt="" /> : <User className="w-4 h-4 text-primary" />}
                                             </div>
-                                            <select value={isSuperAdmin ? newDeal.assignedTo : currentUser.id} disabled={!isSuperAdmin} onChange={e => setNewDeal({ ...newDeal, assignedTo: e.target.value })} className={clsx("w-full bg-white border border-border rounded-xl pl-16 pr-4 py-4 text-sm font-black text-foreground outline-none transition-all appearance-none focus:border-primary", !isSuperAdmin && "opacity-60 cursor-not-allowed")}>
+                                            <select value={canReassign ? newDeal.assignedTo : currentUser.id} disabled={!canReassign} onChange={e => setNewDeal({ ...newDeal, assignedTo: e.target.value })} className={clsx("w-full bg-white border border-border rounded-xl pl-16 pr-4 py-4 text-sm font-black text-foreground outline-none transition-all appearance-none focus:border-primary", !canReassign && "opacity-60 cursor-not-allowed")}>
                                                 <option value="">Asignar responsable...</option>
                                                 {sellers.map(s => <option key={s.id} value={s.id}>{s.name} ({s.role})</option>)}
                                             </select>
@@ -1016,18 +1017,18 @@ export default function PipelinePage() {
 
                             <div className="flex-1 space-y-4">
                                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest pl-1">Asignación Operativa</p>
-                                <div className={clsx("p-4 rounded-xl border transition-all", isSuperAdmin ? "bg-primary/5 border-primary/20" : "bg-muted border-border opacity-80")}>
+                                <div className={clsx("p-4 rounded-xl border transition-all", canReassign ? "bg-primary/5 border-primary/20" : "bg-muted border-border opacity-80")}>
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-full border-2 border-primary/30 bg-primary/10 flex items-center justify-center overflow-hidden">
                                             {sellers.find(s => s.name === selectedTask.assignedTo)?.avatar ? <img src={sellers.find(s => s.name === selectedTask.assignedTo)?.avatar} className="w-full h-full object-cover" alt="" /> : <User className="w-4 h-4 text-primary" />}
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Vendedor Cargo</p>
-                                            <select disabled={!isSuperAdmin} className={clsx("bg-transparent text-xs font-black text-foreground outline-none w-full", !isSuperAdmin && "cursor-not-allowed")} value={sellers.find(s => s.name === selectedTask.assignedTo)?.id || ''} onChange={e => { const s = sellers.find(sel => sel.id === e.target.value); if (s) updateTask(selectedTask.id, { assignedTo: s.name }); }}>
+                                            <select disabled={!canReassign} className={clsx("bg-transparent text-xs font-black text-foreground outline-none w-full", !canReassign && "cursor-not-allowed")} value={sellers.find(s => s.name === selectedTask.assignedTo)?.id || ''} onChange={e => { const s = sellers.find(sel => sel.id === e.target.value); if (s) updateTask(selectedTask.id, { assignedTo: s.name }); }}>
                                                 {sellers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                             </select>
                                         </div>
-                                        {!isSuperAdmin && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
+                                        {!canReassign && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
                                     </div>
                                 </div>
                             </div>

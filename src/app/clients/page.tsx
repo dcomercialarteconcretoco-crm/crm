@@ -27,6 +27,7 @@ import { clsx } from 'clsx';
 import Link from 'next/link';
 import { useApp, Client } from '@/context/AppContext';
 import SearchableSelect from '@/components/SearchableSelect';
+import { hasPermission } from '@/lib/permissions';
 
 export default function ClientsPage() {
     const { clients, addClient, addNotification, settings, sellers, quotes, currentUser: ctxUser } = useApp();
@@ -36,9 +37,10 @@ export default function ClientsPage() {
     const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const currentUser = ctxUser || sellers[0];
-    const userIsSuperAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
-    const canExport = userIsSuperAdmin && settings.allowExports;
+    const currentUser = ctxUser;
+    const canExportClients = hasPermission(currentUser, 'clients.export');
+    const canDeleteClients = hasPermission(currentUser, 'clients.delete');
+    const canExport = canExportClients && settings.allowExports;
 
     // Form state for new client
     const [newClientForm, setNewClientForm] = useState({

@@ -655,6 +655,12 @@ REGLAS DE ORO:
                     if (Array.isArray(teamData.users)) setSellers(teamData.users);
                 }
 
+                if (teamRes.status === 401 && meRes.status === 401) {
+                    // Both failed — session completely invalid, force logout
+                    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+                    setCurrentUser(null);
+                }
+
                 if (clientsRes.ok) {
                     const clientsData = await clientsRes.json();
                     if (Array.isArray(clientsData.clients)) setClients(clientsData.clients);

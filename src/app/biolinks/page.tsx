@@ -8,7 +8,9 @@ import {
     AlertCircle, User, Image, Link, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useRouter } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
+import { hasPermission } from '@/lib/permissions';
 
 interface Biolink {
     id: string; slug: string; photo?: string; name: string; title?: string;
@@ -36,6 +38,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://crm-sand-three.verce
 
 export default function BiolinksPage() {
     const { currentUser, sellers } = useApp();
+    const router = useRouter();
     const [cards, setCards]         = useState<Biolink[]>([]);
     const [settings, setSettings]   = useState<BiolinkSettings>(DEFAULT_SETTINGS);
     const [loading, setLoading]     = useState(true);
@@ -60,24 +63,40 @@ export default function BiolinksPage() {
     // Copied slug
     const [copiedId, setCopiedId] = useState('');
 
-    const isSuperAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
+    const canManage = hasPermission(currentUser, 'biolinks.manage');
+    const canView   = hasPermission(currentUser, 'biolinks.view');
 
     useEffect(() => {
-        Promise.all([
-            fetch('/api/biolinks').then(r => r.json()).catch(() => []),
-            fetch('/api/biolinks/settings').then(r => r.json()).catch(() => DEFAULT_SETTINGS),
-        ]).then(([bl, st]) => {
-            if (!Array.isArray(bl) && bl?.error) {
-                setError('Sin acceso a tarjetas digitales. Por favor cierra sesión e inicia sesión nuevamente.');
-                setCards([]);
-            } else {
-                setCards(Array.isArray(bl) ? bl : []);
+        const loadData = async () => {
+            try {
+                const [blRes, stRes] = await Promise.all([
+                    fetch('/api/biolinks'),
+                    fetch('/api/biolinks/settings'),
+                ]);
+                // If session expired, force logout
+                if (blRes.status === 401) {
+                    await fetch('/api/auth/logout', { method: 'POST' });
+                    router.push('/login');
+                    return;
+                }
+                const bl = blRes.ok ? await blRes.json() : { error: `HTTP ${blRes.status}` };
+                const st = stRes.ok ? await stRes.json() : null;
+                if (!Array.isArray(bl) && bl?.error) {
+                    setError('Error cargando tarjetas. Por favor recarga la página.');
+                    setCards([]);
+                } else {
+                    setCards(Array.isArray(bl) ? bl : []);
+                }
+                setSettings((!st || st?.error) ? DEFAULT_SETTINGS : st);
+                setSettingsDraft((!st || st?.error) ? DEFAULT_SETTINGS : st);
+            } catch (e: any) {
+                setError(e.message);
+            } finally {
+                setLoading(false);
             }
-            setSettings((!st || st?.error) ? DEFAULT_SETTINGS : st);
-            setSettingsDraft((!st || st?.error) ? DEFAULT_SETTINGS : st);
-        }).catch(e => setError(e.message))
-          .finally(() => setLoading(false));
-    }, []);
+        };
+        loadData();
+    }, [router]);
 
     const openCreate = () => {
         setEditingCard(null);
@@ -179,7 +198,7 @@ export default function BiolinksPage() {
                         <Settings className="w-4 h-4" />
                         Plantilla global
                     </button>
-                    {isSuperAdmin && (
+                    {canManage && (
                         <button onClick={openCreate}
                             className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2">
                             <Plus className="w-4 h-4" />
@@ -215,7 +234,7 @@ export default function BiolinksPage() {
                         <p className="font-bold text-lg text-foreground">Sin tarjetas digitales aún</p>
                         <p className="text-sm text-muted-foreground mt-1">Crea la primera tarjeta para un empleado</p>
                     </div>
-                    {isSuperAdmin && (
+                    {canManage && (
                         <button onClick={openCreate} className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2">
                             <Plus className="w-4 h-4" /> Crear primera tarjeta
                         </button>
@@ -281,7 +300,7 @@ export default function BiolinksPage() {
                                         className="flex-1 flex items-center justify-center gap-1 py-2 bg-white border border-border text-foreground font-medium rounded-xl text-xs hover:bg-muted transition-colors">
                                         <QrCode className="w-3.5 h-3.5" /> QR
                                     </button>
-                                    {isSuperAdmin && <>
+                                    {canManage && <>
                                         <button onClick={() => openEdit(card)}
                                             className="flex-1 flex items-center justify-center gap-1 py-2 bg-primary/10 border border-primary/20 text-primary rounded-xl text-xs font-bold hover:bg-primary/20 transition-colors">
                                             <Edit2 className="w-3.5 h-3.5" />
