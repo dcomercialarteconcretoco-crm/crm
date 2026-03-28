@@ -27,6 +27,7 @@ import {
     ChevronRight
 } from 'lucide-react';
 import { useApp, AuditLog, Seller, Anomaly } from '@/context/AppContext';
+import { PermissionGate } from '@/components/PermissionGate';
 import { clsx } from 'clsx';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -197,6 +198,7 @@ export default function AuditPage() {
     ];
 
     return (
+        <PermissionGate require="audit.view">
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Page Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -692,5 +694,6 @@ export default function AuditPage() {
                 </div>
             )}
         </div>
+        </PermissionGate>
     );
 }

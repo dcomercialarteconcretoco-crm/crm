@@ -11,6 +11,7 @@ import { clsx } from 'clsx';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
 import { hasPermission } from '@/lib/permissions';
+import { PermissionGate } from '@/components/PermissionGate';
 
 interface Biolink {
     id: string; slug: string; photo?: string; name: string; title?: string;
@@ -182,6 +183,7 @@ export default function BiolinksPage() {
     const labelCls = "block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5";
 
     return (
+        <PermissionGate require="biolinks.view">
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-3">
@@ -561,6 +563,7 @@ export default function BiolinksPage() {
                 </div>
             )}
         </div>
+        </PermissionGate>
     );
 }
 

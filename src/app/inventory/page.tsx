@@ -21,6 +21,7 @@ import { clsx } from 'clsx';
 
 import { useApp, Product } from '@/context/AppContext';
 import { hasPermission } from '@/lib/permissions';
+import { PermissionGate } from '@/components/PermissionGate';
 
 const INITIAL_PRODUCTS: Product[] = [];
 
@@ -417,6 +418,7 @@ export default function InventoryPage() {
     };
 
     return (
+        <PermissionGate require="inventory.view">
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
@@ -1090,5 +1092,6 @@ export default function InventoryPage() {
                 </div>
             )}
         </div>
+        </PermissionGate>
     );
 }

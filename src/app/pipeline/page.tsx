@@ -52,6 +52,7 @@ import { clsx } from 'clsx';
 import { useApp, Task, Activity, Seller, Client } from '@/context/AppContext';
 import SearchableSelect from '@/components/SearchableSelect';
 import { hasPermission } from '@/lib/permissions';
+import { PermissionGate } from '@/components/PermissionGate';
 
 // ─── Stage System ────────────────────────────────────────────────────────────
 
@@ -655,6 +656,7 @@ export default function PipelinePage() {
     // ─── Render ───────────────────────────────────────────────────────────────
 
     return (
+        <PermissionGate require="pipeline.view">
         <div className="h-full min-h-0 flex flex-col space-y-6 animate-in fade-in duration-700 overflow-hidden">
             {/* Header */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 px-2 lg:px-0">
@@ -1181,5 +1183,6 @@ export default function PipelinePage() {
                 </div>
             )}
         </div>
+        </PermissionGate>
     );
 }

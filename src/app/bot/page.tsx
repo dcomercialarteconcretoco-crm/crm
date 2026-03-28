@@ -49,6 +49,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useApp } from '@/context/AppContext';
+import { PermissionGate } from '@/components/PermissionGate';
 
 interface Message {
     id: string;
@@ -462,6 +463,7 @@ export default function MiWiBotPage() {
     const scoreStroke = 100 - trainingScore;
 
     return (
+        <PermissionGate require="bot.use">
         <div className="flex flex-col gap-4 animate-in fade-in duration-700" style={{ height: 'calc(100vh - 7rem)' }}>
             {/* Header / Tabs */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 px-2 lg:px-0">
@@ -1927,6 +1929,7 @@ export default function MiWiBotPage() {
                 </div>
             )}
         </div>
+        </PermissionGate>
     );
 }
 

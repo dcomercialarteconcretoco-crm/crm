@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useApp } from '@/context/AppContext';
+import { PermissionGate } from '@/components/PermissionGate';
 
 const categories = [
     { id: 'profile', name: 'Perfil de Usuario', icon: User },
@@ -196,6 +197,7 @@ export default function SettingsPage() {
     };
 
     return (
+        <PermissionGate require="settings.view">
         <div className="max-w-6xl mx-auto space-y-6 lg:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 px-4 lg:px-0">
             {/* Header Section */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -1311,5 +1313,6 @@ export default function SettingsPage() {
                 </div>
             </div>
         </div>
+        </PermissionGate>
     );
 }

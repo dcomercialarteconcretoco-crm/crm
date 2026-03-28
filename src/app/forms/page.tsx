@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useApp, FormDefinition } from '@/context/AppContext';
+import { PermissionGate } from '@/components/PermissionGate';
 
 export default function FormsPage() {
     const { forms, addForm, deleteForm, updateForm, refreshProducts, addNotification } = useApp();
@@ -147,6 +148,7 @@ export default function FormsPage() {
 
     if (view === 'list') {
         return (
+            <PermissionGate require="forms.view">
             <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-700">
                 <div className="flex items-center justify-between">
                     <div>
@@ -211,10 +213,12 @@ export default function FormsPage() {
                     )}
                 </div>
             </div>
+            </PermissionGate>
         );
     }
 
     return (
+        <PermissionGate require="forms.view">
         <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* Header Section */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -620,5 +624,6 @@ export default function FormsPage() {
                 </div>
             </div>
         </div>
+        </PermissionGate>
     );
 }

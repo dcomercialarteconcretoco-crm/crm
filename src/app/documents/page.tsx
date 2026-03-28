@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FileText, Upload, Trash2, Eye, Search } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
+import { PermissionGate } from '@/components/PermissionGate';
 
 interface DocumentRecord {
   id: string;
@@ -126,6 +127,7 @@ export default function DocumentsPage() {
   );
 
   return (
+    <PermissionGate require="documents.view">
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       {/* Toast */}
       {toast && (
@@ -282,5 +284,6 @@ export default function DocumentsPage() {
         </p>
       )}
     </div>
+    </PermissionGate>
   );
 }

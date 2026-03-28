@@ -4,12 +4,13 @@ import React, { useState, useMemo } from 'react';
 import {
     FileText, Plus, Search, Download, Mail, ChevronRight,
     Clock, CheckCircle2, Send, MessageCircle, Trophy, TrendingUp,
-    Filter, ArrowDownToLine, Eye, Pencil
+    Filter, ArrowDownToLine, Eye, Pencil, Trash2
 } from 'lucide-react';
 import Link from 'next/link';
 import { clsx } from 'clsx';
 import { useApp, Quote } from '@/context/AppContext';
 import { generateProposalPDF } from '@/lib/pdf-generator';
+import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
     'Draft':    { label: 'Borrador',  className: 'bg-muted/40 text-muted-foreground' },
@@ -159,6 +160,7 @@ export default function QuotesPage() {
     };
 
     return (
+        <PermissionGate require="quotes.view">
         <div className="space-y-6 animate-in fade-in duration-500 pb-24 lg:pb-10">
 
             {/* Page Header */}
@@ -363,6 +365,15 @@ export default function QuotesPage() {
                                             : <Download className="w-3.5 h-3.5" />
                                         }
                                     </button>
+                                    <PermissionHide require="quotes.delete">
+                                        <button
+                                            onClick={() => { if (confirm('¿Eliminar esta cotización?')) deleteQuote(quote.id); }}
+                                            title="Eliminar cotización"
+                                            className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-border text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-all"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                    </PermissionHide>
                                 </div>
                             </div>
                         );
@@ -370,5 +381,6 @@ export default function QuotesPage() {
                 </div>
             </div>
         </div>
+        </PermissionGate>
     );
 }

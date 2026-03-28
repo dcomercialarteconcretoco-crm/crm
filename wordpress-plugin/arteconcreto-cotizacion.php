@@ -167,7 +167,7 @@ function ac_render_modal_and_scripts() {
             ">
                 <div>
                     <p id="ac-modal-label" style="margin:0; font-size:10px; font-weight:800; letter-spacing:.18em; text-transform:uppercase; color:#888;"></p>
-                    <p style="margin:4px 0 0; font-size:16px; font-weight:900; color:#111;">Arte Concreto S.A.S</p>
+                    <p style="margin:4px 0 0; font-size:16px; font-weight:900; color:#111;">ArteConcreto S.A.S</p>
                 </div>
                 <button id="ac-close-quote" type="button" style="
                     background:none; border:1px solid #ddd; border-radius:50%; width:34px; height:34px;

@@ -28,9 +28,10 @@ import Link from 'next/link';
 import { useApp, Client } from '@/context/AppContext';
 import SearchableSelect from '@/components/SearchableSelect';
 import { hasPermission } from '@/lib/permissions';
+import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
 
 export default function ClientsPage() {
-    const { clients, addClient, addNotification, settings, sellers, quotes, currentUser: ctxUser } = useApp();
+    const { clients, addClient, deleteClient, addNotification, settings, sellers, quotes, currentUser: ctxUser } = useApp();
     const [viewMode, setViewMode] = useState<'grid'|'list'>('list');
     const [searchTerm, setSearchTerm] = useState("");
     const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
@@ -266,6 +267,7 @@ export default function ClientsPage() {
     };
 
     return (
+        <PermissionGate require="clients.view">
         <div className="space-y-6">
             {/* Page Header */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -604,6 +606,14 @@ export default function ClientsPage() {
                                     <Edit2 className="w-3.5 h-3.5" />
                                     Editar
                                 </button>
+                                <PermissionHide require="clients.delete">
+                                    <button
+                                        onClick={() => { if (confirm('¿Eliminar este cliente?')) deleteClient(client.id); }}
+                                        className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-500 text-rose-500 hover:text-white font-medium text-xs transition-all border border-rose-100"
+                                    >
+                                        Eliminar
+                                    </button>
+                                </PermissionHide>
                             </div>
                         </div>
                     );
@@ -738,5 +748,6 @@ export default function ClientsPage() {
                 </div>
             )}
         </div>
+        </PermissionGate>
     );
 }

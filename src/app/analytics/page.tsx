@@ -33,6 +33,7 @@ import {
 
 import { useApp } from '@/context/AppContext';
 import { generatePDFReport } from '@/lib/pdf-generator';
+import { PermissionGate } from '@/components/PermissionGate';
 
 export default function AnalyticsPage() {
     const { clients, tasks, quotes, auditLogs, addNotification } = useApp();
@@ -79,6 +80,7 @@ export default function AnalyticsPage() {
     ];
 
     return (
+        <PermissionGate require="analytics.view">
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -261,5 +263,6 @@ export default function AnalyticsPage() {
                 )}
             </div>
         </div>
+        </PermissionGate>
     );
 }

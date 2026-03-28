@@ -22,6 +22,7 @@ import {
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useApp } from '@/context/AppContext';
+import { hasPermission, PermissionKey } from '@/lib/permissions';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -31,36 +32,36 @@ const navGroups = [
   {
     label: 'Comercial',
     items: [
-      { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-      { name: 'ConcreBOT', href: '/bot', icon: Bot },
-      { name: 'Cotizaciones', href: '/quotes', icon: FileText },
-      { name: 'Pipeline', href: '/pipeline', icon: Workflow },
-      { name: 'Clientes', href: '/clients', icon: Users },
+      { name: 'Dashboard',     href: '/',         icon: LayoutDashboard, permission: null              },
+      { name: 'ConcreBOT',     href: '/bot',       icon: Bot,             permission: 'bot.use'         },
+      { name: 'Cotizaciones',  href: '/quotes',    icon: FileText,        permission: 'quotes.view'     },
+      { name: 'Pipeline',      href: '/pipeline',  icon: Workflow,        permission: 'pipeline.view'   },
+      { name: 'Clientes',      href: '/clients',   icon: Users,           permission: 'clients.view'    },
     ],
   },
   {
     label: 'Operaciones',
     items: [
-      { name: 'Inventario', href: '/inventory', icon: Archive },
-      { name: 'Agenda', href: '/scheduler', icon: Calendar },
-      { name: 'Analíticas', href: '/analytics', icon: BarChart3 },
-      { name: 'Equipo', href: '/team', icon: Users },
+      { name: 'Inventario',    href: '/inventory', icon: Archive,   permission: 'inventory.view'  },
+      { name: 'Agenda',        href: '/scheduler', icon: Calendar,  permission: 'scheduler.view'  },
+      { name: 'Analíticas',    href: '/analytics', icon: BarChart3, permission: 'analytics.view'  },
+      { name: 'Equipo',        href: '/team',      icon: Users,     permission: 'team.view'       },
     ],
   },
   {
     label: 'Herramientas',
     items: [
-      { name: 'Formbuilder IA', href: '/forms', icon: FilePlus2 },
-      { name: 'Documentos', href: '/documents', icon: FolderOpen },
-      { name: 'Tarjetas Digitales', href: '/biolinks', icon: CreditCard },
+      { name: 'Formbuilder IA',      href: '/forms',     icon: FilePlus2, permission: 'forms.view'     },
+      { name: 'Documentos',          href: '/documents', icon: FolderOpen,permission: 'documents.view' },
+      { name: 'Tarjetas Digitales',  href: '/biolinks',  icon: CreditCard,permission: 'biolinks.view'  },
     ],
   },
-];
+] as const;
 
 const systemItems = [
-  { name: 'Auditoría', href: '/audit', icon: Shield },
-  { name: 'Configuración', href: '/settings', icon: Settings },
-];
+  { name: 'Auditoría',     href: '/audit',    icon: Shield,   permission: 'audit.view'    },
+  { name: 'Configuración', href: '/settings', icon: Settings, permission: 'settings.view' },
+] as const;
 
 interface SidebarProps {
   isCompact?: boolean;
@@ -70,6 +71,10 @@ export function Sidebar({ isCompact }: SidebarProps) {
   const pathname = usePathname();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const { currentUser } = useApp();
+
+  /** Hides nav items the user has no permission for */
+  const canSee = (permission: string | null) =>
+    !permission || hasPermission(currentUser, permission as PermissionKey);
   const displayName =
     currentUser?.name === 'Administrador Principal' || currentUser?.name === 'Acceso Alternativo'
       ? 'Juan Sierra'
@@ -118,7 +123,7 @@ export function Sidebar({ isCompact }: SidebarProps) {
                 {group.label}
               </div>
             )}
-            {group.items.map((item) => {
+            {group.items.filter(item => canSee(item.permission)).map((item) => {
               const isActive = pathname === item.href;
               return (
                 <Link
@@ -160,7 +165,7 @@ export function Sidebar({ isCompact }: SidebarProps) {
         {!isCompact && (
           <div className="mt-2 mb-1 px-3 text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">Sistema</div>
         )}
-        {systemItems.map((item) => {
+        {systemItems.filter(item => canSee(item.permission)).map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link

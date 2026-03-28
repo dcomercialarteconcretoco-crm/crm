@@ -30,6 +30,7 @@ import {
     getDefaultPermissions,
     ALL_PERMISSION_KEYS,
 } from '@/lib/permissions';
+import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
 
 type FormSeller = Omit<Seller, 'id'> & { permissions: Record<string, boolean> };
 
@@ -180,6 +181,7 @@ export default function TeamPage() {
     };
 
     return (
+        <PermissionGate require="team.view">
         <div className="space-y-6 animate-in fade-in duration-700 pb-24 lg:pb-10">
 
             {/* Page Header */}
@@ -329,6 +331,7 @@ export default function TeamPage() {
                                         {isCurrentUserAdmin ? 'Ver / Editar' : 'Ver Perfil'}
                                     </button>
                                     {canDelete && (
+                                        <PermissionHide require="team.delete">
                                         <button
                                             onClick={() => handleDelete(seller.id)}
                                             className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white font-bold text-xs transition-all border border-rose-500/20"
@@ -336,6 +339,7 @@ export default function TeamPage() {
                                             <Trash2 className="w-3.5 h-3.5" />
                                             Eliminar
                                         </button>
+                                        </PermissionHide>
                                     )}
                                 </div>
                             </div>
@@ -659,5 +663,6 @@ export default function TeamPage() {
                 </div>
             )}
         </div>
+        </PermissionGate>
     );
 }
