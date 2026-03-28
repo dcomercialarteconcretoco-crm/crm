@@ -711,6 +711,45 @@ export default function SettingsPage() {
                                     </div>
                                 </div>
 
+                                {/* ── Plugin de WordPress ─────────────────────────────────── */}
+                                <div className="bg-primary/5 border-2 border-primary/30 rounded-2xl p-6 space-y-4">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2.5 bg-primary/20 rounded-xl border border-primary/30">
+                                                <svg className="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M12 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8zm-1-5h2v2h-2zm0-8h2v6h-2z"/>
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-base text-foreground tracking-tight">Plugin WordPress</h4>
+                                                <p className="text-xs text-muted-foreground font-bold uppercase tracking-wide">Botones de cotización + Tracking de conversiones</p>
+                                            </div>
+                                        </div>
+                                        <a
+                                            href="/api/download/wp-plugin"
+                                            download
+                                            className="inline-flex items-center gap-2 bg-primary text-black font-black text-sm uppercase tracking-widest px-5 py-3 rounded-xl hover:brightness-105 transition-all shrink-0"
+                                        >
+                                            <Download className="w-4 h-4" />
+                                            Descargar Plugin (.zip)
+                                        </a>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                                        <div className="bg-white/70 border border-primary/10 rounded-xl p-3 space-y-1">
+                                            <p className="font-black text-foreground uppercase tracking-wide">① Descarga</p>
+                                            <p className="text-muted-foreground">Descarga el .zip con el botón de arriba — siempre es la versión más reciente.</p>
+                                        </div>
+                                        <div className="bg-white/70 border border-primary/10 rounded-xl p-3 space-y-1">
+                                            <p className="font-black text-foreground uppercase tracking-wide">② Instala en WP</p>
+                                            <p className="text-muted-foreground">WordPress Admin → Plugins → Añadir nuevo → Subir plugin → selecciona el .zip.</p>
+                                        </div>
+                                        <div className="bg-white/70 border border-primary/10 rounded-xl p-3 space-y-1">
+                                            <p className="font-black text-foreground uppercase tracking-wide">③ Configura</p>
+                                            <p className="text-muted-foreground">En WP: Ajustes → Arte Concreto CRM → ingresa el número de WhatsApp y el Google Ads ID.</p>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div className="space-y-6">
                                     {/* Gemini & Resend APIs */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -769,6 +808,56 @@ export default function SettingsPage() {
                                             </p>
                                         </div>
 
+                                        {/* Google Marketing (Ads + GA4) */}
+                                        <div className="bg-white border border-border rounded-2xl p-6 shadow-sm space-y-5">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2.5 bg-blue-500/10 rounded-xl border border-blue-500/20">
+                                                    <svg className="w-5 h-5" viewBox="0 0 48 48" fill="none">
+                                                        <path d="M44 24c0-11.046-8.954-20-20-20S4 12.954 4 24s8.954 20 20 20 20-8.954 20-20z" fill="#4285F4"/>
+                                                        <path d="M24 4C12.954 4 4 12.954 4 24h20V4z" fill="#34A853"/>
+                                                        <path d="M4 24c0 11.046 8.954 20 20 20V24H4z" fill="#FBBC05"/>
+                                                        <path d="M44 24H24v20c11.046 0 20-8.954 20-20z" fill="#EA4335"/>
+                                                    </svg>
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-black text-base text-foreground tracking-tight">Google Marketing</h4>
+                                                    <p className="text-xs text-muted-foreground font-bold uppercase tracking-wide">Google Ads + GA4 Analytics</p>
+                                                </div>
+                                                <div className={`ml-auto inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${settings.googleAdsId ? 'text-emerald-600 bg-emerald-500/10 border-emerald-500/20' : 'text-muted-foreground bg-muted border-border'}`}>
+                                                    {settings.googleAdsId ? 'Configurado' : 'Sin configurar'}
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div className="space-y-1.5">
+                                                    <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Google Ads ID</label>
+                                                    <input
+                                                        type="text"
+                                                        value={settings.googleAdsId || ''}
+                                                        onChange={(e) => updateSettings({ googleAdsId: e.target.value.trim() })}
+                                                        placeholder="AW-16678711976"
+                                                        className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all font-mono"
+                                                    />
+                                                    <p className="text-xs text-muted-foreground">En <strong>ads.google.com → Herramientas → Conversiones</strong>. Formato: <code className="bg-muted px-1 rounded">AW-XXXXXXXXXX</code></p>
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">GA4 Property ID</label>
+                                                    <input
+                                                        type="text"
+                                                        value={settings.ga4PropertyId || ''}
+                                                        onChange={(e) => updateSettings({ ga4PropertyId: e.target.value.trim() })}
+                                                        placeholder="123456789"
+                                                        className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all font-mono"
+                                                    />
+                                                    <p className="text-xs text-muted-foreground">En <strong>analytics.google.com → Admin → Propiedad</strong>. Solo el número.</p>
+                                                </div>
+                                            </div>
+                                            <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl">
+                                                <p className="text-xs text-blue-700 leading-relaxed">
+                                                    <span className="font-black">Para leer datos de GA4 en Analíticas:</span> agrega <code className="bg-blue-100 px-1 rounded">GA4_SERVICE_ACCOUNT_JSON</code> en <code className="bg-blue-100 px-1 rounded">.env.local</code> con el JSON de tu cuenta de servicio de Google Cloud (con acceso Viewer a la propiedad GA4).
+                                                </p>
+                                            </div>
+                                        </div>
+
                                         {/* Resend */}
                                         <div className="bg-white border border-border rounded-2xl p-6 shadow-sm space-y-4">
                                             <div className="flex items-center gap-3">
@@ -790,6 +879,44 @@ export default function SettingsPage() {
                                                     className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
                                                 />
                                             </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Número WhatsApp del Negocio */}
+                                    <div className="bg-white border border-border rounded-2xl p-6 shadow-sm space-y-5">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                                                <MessageCircle className="w-5 h-5 text-emerald-500" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-base text-foreground tracking-tight">Número WhatsApp del Negocio</h4>
+                                                <p className="text-xs text-muted-foreground font-bold uppercase tracking-wide">Botón WP + Cotizaciones + Bot</p>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Número en formato internacional (sin + ni guiones)</label>
+                                            <input
+                                                type="text"
+                                                value={settings.businessWhatsapp || '573178929477'}
+                                                onChange={(e) => updateSettings({ businessWhatsapp: e.target.value.replace(/[^0-9]/g, '') })}
+                                                placeholder="573178929477"
+                                                className="w-full bg-muted border-2 border-primary/40 focus:border-primary rounded-xl px-4 py-3 text-lg font-bold outline-none transition-all tracking-widest"
+                                            />
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                Este número se usa en: botón de WP, enlaces de cotización, bot de chat y cualquier link de WhatsApp del sistema.<br/>
+                                                Formato: <code className="bg-muted px-1 rounded">573178929477</code> (código país 57 + número local sin 0)
+                                            </p>
+                                        </div>
+                                        <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl flex items-center gap-3">
+                                            <span className="text-xs text-emerald-700 font-bold">Número activo:</span>
+                                            <a
+                                                href={`https://wa.me/${settings.businessWhatsapp || '573178929477'}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-sm font-black text-emerald-600 hover:underline tracking-widest"
+                                            >
+                                                +{settings.businessWhatsapp || '573178929477'}
+                                            </a>
                                         </div>
                                     </div>
 

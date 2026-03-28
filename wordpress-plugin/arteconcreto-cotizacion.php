@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Arte Concreto – Botón Pedir Cotización
  * Description: Botones de cotización (WhatsApp y Correo) en páginas de producto y grilla. Ambos capturan el lead en el CRM y abren WhatsApp.
- * Version: 3.1.0
+ * Version: 3.3.0
  * Author: Arte Concreto / MiWibi
  * Text Domain: ac-cotizacion
  */
@@ -10,10 +10,289 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 // ── Configuración ────────────────────────────────────────────────────────────
-define( 'AC_CRM_ENDPOINT',  'https://crm-sand-three.vercel.app/api/public/quote-request' );
+define( 'AC_CRM_ENDPOINT',  get_option( 'ac_crm_endpoint', 'https://crm-sand-three.vercel.app/api/public/quote-request' ) );
 define( 'AC_COLOR_GOLD',    '#fab510' );
 define( 'AC_COLOR_DARK',    '#1a1a1a' );
-define( 'AC_WHATSAPP_NUM',  '573150231956' );
+define( 'AC_WHATSAPP_NUM',  get_option( 'ac_whatsapp_num', '573178929477' ) );
+
+// ── Admin: Página de Ajustes ──────────────────────────────────────────────────
+add_action( 'admin_menu', 'ac_admin_menu' );
+function ac_admin_menu() {
+    add_options_page(
+        'Arte Concreto CRM',
+        'Arte Concreto CRM',
+        'manage_options',
+        'ac-cotizacion',
+        'ac_admin_settings_page'
+    );
+}
+
+add_action( 'admin_init', 'ac_admin_settings_init' );
+function ac_admin_settings_init() {
+    register_setting( 'ac_cotizacion_options', 'ac_whatsapp_num', [
+        'sanitize_callback' => function( $val ) { return preg_replace( '/[^0-9]/', '', $val ); },
+        'default' => '573178929477',
+    ]);
+    register_setting( 'ac_cotizacion_options', 'ac_crm_endpoint', [
+        'sanitize_callback' => 'esc_url_raw',
+        'default' => 'https://crm-sand-three.vercel.app/api/public/quote-request',
+    ]);
+    register_setting( 'ac_cotizacion_options', 'ac_google_ads_id', [
+        'sanitize_callback' => 'sanitize_text_field',
+        'default' => '',
+    ]);
+    // Etiquetas de conversión individuales (del panel de Google Ads)
+    foreach ( [ 'ac_conv_cart', 'ac_conv_checkout', 'ac_conv_purchase', 'ac_conv_contact', 'ac_conv_registro' ] as $key ) {
+        register_setting( 'ac_cotizacion_options', $key, [
+            'sanitize_callback' => 'sanitize_text_field',
+            'default' => '',
+        ]);
+    }
+}
+
+function ac_admin_settings_page() {
+    if ( ! current_user_can( 'manage_options' ) ) return;
+    $saved = isset( $_GET['settings-updated'] ) && $_GET['settings-updated'];
+    ?>
+    <div class="wrap">
+        <h1 style="display:flex;align-items:center;gap:10px;">
+            <span style="display:inline-block;width:12px;height:12px;background:#fab510;border-radius:50%;"></span>
+            Arte Concreto CRM — Ajustes del Plugin
+        </h1>
+        <?php if ( $saved ) : ?>
+            <div class="notice notice-success is-dismissible"><p><strong>Ajustes guardados correctamente.</strong></p></div>
+        <?php endif; ?>
+        <form method="post" action="options.php" style="max-width:560px;margin-top:20px;">
+            <?php settings_fields( 'ac_cotizacion_options' ); ?>
+            <table class="form-table" role="presentation">
+                <tr>
+                    <th scope="row">
+                        <label for="ac_whatsapp_num">
+                            <strong>Número WhatsApp del Negocio</strong>
+                        </label>
+                    </th>
+                    <td>
+                        <input
+                            id="ac_whatsapp_num"
+                            name="ac_whatsapp_num"
+                            type="text"
+                            value="<?php echo esc_attr( get_option( 'ac_whatsapp_num', '573178929477' ) ); ?>"
+                            class="regular-text"
+                            placeholder="573178929477"
+                        />
+                        <p class="description">
+                            Número en formato internacional <strong>sin + ni guiones</strong>.<br>
+                            Ejemplo: <code>573178929477</code> (Colombia 57 + número local).
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="ac_crm_endpoint">
+                            <strong>Endpoint del CRM</strong>
+                        </label>
+                    </th>
+                    <td>
+                        <input
+                            id="ac_crm_endpoint"
+                            name="ac_crm_endpoint"
+                            type="url"
+                            value="<?php echo esc_attr( get_option( 'ac_crm_endpoint', 'https://crm-sand-three.vercel.app/api/public/quote-request' ) ); ?>"
+                            class="large-text"
+                            placeholder="https://tu-crm.vercel.app/api/public/quote-request"
+                        />
+                        <p class="description">URL completa del endpoint donde el plugin envía los leads.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row" colspan="2"><hr style="margin:10px 0;border-color:#eee;"><h3 style="margin:0;font-size:14px;">Google Ads &amp; Analytics</h3></th>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="ac_google_ads_id"><strong>Google Ads ID</strong></label></th>
+                    <td>
+                        <input id="ac_google_ads_id" name="ac_google_ads_id" type="text"
+                            value="<?php echo esc_attr( get_option( 'ac_google_ads_id', '' ) ); ?>"
+                            class="regular-text" placeholder="AW-16678711976" />
+                        <p class="description">El ID de tu cuenta de Google Ads. Lo encuentras en <strong>Herramientas → Conversiones</strong> en ads.google.com.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label><strong>Etiqueta: Añadir al carrito</strong></label></th>
+                    <td>
+                        <input name="ac_conv_cart" type="text"
+                            value="<?php echo esc_attr( get_option( 'ac_conv_cart', '' ) ); ?>"
+                            class="regular-text" placeholder="QIfZCKOI9qUaEKjlg5E-" />
+                        <p class="description">Solo la parte después de <code>/</code> en el <code>send_to</code>. Ej: <code>AW-XXXXXXX/<strong>QIfZCKOI...</strong></code></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label><strong>Etiqueta: Inicio de compra</strong></label></th>
+                    <td>
+                        <input name="ac_conv_checkout" type="text"
+                            value="<?php echo esc_attr( get_option( 'ac_conv_checkout', '' ) ); ?>"
+                            class="regular-text" placeholder="nzQUCKmI9qUaEKjlg5E-" />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label><strong>Etiqueta: Compra (Google for WooCommerce)</strong></label></th>
+                    <td>
+                        <input name="ac_conv_purchase" type="text"
+                            value="<?php echo esc_attr( get_option( 'ac_conv_purchase', '' ) ); ?>"
+                            class="regular-text" placeholder="ACsSCLmOm8wZEKjlg5E-" />
+                        <p class="description">La etiqueta de compra con valor de transacción. Incluye los dos si tienes el de "Compra simple" (<code>T-LjCKCI...</code>) separados por coma.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label><strong>Etiqueta: Contacto / Cotización</strong></label></th>
+                    <td>
+                        <input name="ac_conv_contact" type="text"
+                            value="<?php echo esc_attr( get_option( 'ac_conv_contact', '' ) ); ?>"
+                            class="regular-text" placeholder="xzqaCKyI9qUaEKjlg5E-" />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label><strong>Etiqueta: Registro</strong></label></th>
+                    <td>
+                        <input name="ac_conv_registro" type="text"
+                            value="<?php echo esc_attr( get_option( 'ac_conv_registro', '' ) ); ?>"
+                            class="regular-text" placeholder="h9fVCKaI9qUaEKjlg5E-" />
+                    </td>
+                </tr>
+            </table>
+            <?php submit_button( 'Guardar Ajustes' ); ?>
+        </form>
+    </div>
+    <?php
+}
+
+// ── Google Ads: helpers ──────────────────────────────────────────────────────
+function ac_ads_id()   { return get_option( 'ac_google_ads_id', '' ); }
+function ac_conv( $k ) { return get_option( $k, '' ); }
+
+/**
+ * Inyecta el snippet base de gtag si hay un Google Ads ID configurado.
+ * Se añade en <head> una sola vez por página.
+ */
+add_action( 'wp_head', 'ac_inject_gtag_base', 1 );
+function ac_inject_gtag_base() {
+    $ads_id = ac_ads_id();
+    if ( ! $ads_id ) return;
+    ?>
+    <!-- Arte Concreto CRM – Google Ads base tag -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=<?php echo esc_attr( $ads_id ); ?>"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){ dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', '<?php echo esc_js( $ads_id ); ?>');
+    </script>
+    <?php
+}
+
+/**
+ * Evento de conversión: Inicio de compra (página de checkout).
+ */
+add_action( 'woocommerce_before_checkout_form', 'ac_track_begin_checkout', 5 );
+function ac_track_begin_checkout() {
+    $ads_id  = ac_ads_id();
+    $label   = ac_conv( 'ac_conv_checkout' );
+    if ( ! $ads_id || ! $label ) return;
+    ?>
+    <script>
+        gtag('event', 'conversion', { 'send_to': '<?php echo esc_js( $ads_id . '/' . $label ); ?>' });
+    </script>
+    <?php
+}
+
+/**
+ * Evento de conversión: Registro de usuario nuevo.
+ */
+add_action( 'user_register', 'ac_track_user_register', 10, 1 );
+function ac_track_user_register( $user_id ) {
+    $ads_id  = ac_ads_id();
+    $label   = ac_conv( 'ac_conv_registro' );
+    if ( ! $ads_id || ! $label ) return;
+    // Se guarda en sesión para disparar en el siguiente page load del usuario
+    if ( ! session_id() ) @session_start();
+    $_SESSION['ac_fire_registro'] = $ads_id . '/' . $label;
+}
+add_action( 'wp_footer', 'ac_fire_session_registro' );
+function ac_fire_session_registro() {
+    if ( ! session_id() ) @session_start();
+    if ( empty( $_SESSION['ac_fire_registro'] ) ) return;
+    $send_to = esc_js( $_SESSION['ac_fire_registro'] );
+    unset( $_SESSION['ac_fire_registro'] );
+    echo "<script>gtag('event','conversion',{'send_to':'{$send_to}'});</script>";
+}
+
+/**
+ * Evento de conversión: Compra completada (página thank-you).
+ * Dispara los eventos de compra con transaction_id, value y currency reales.
+ */
+add_action( 'woocommerce_thankyou', 'ac_track_purchase', 10, 1 );
+function ac_track_purchase( $order_id ) {
+    $ads_id  = ac_ads_id();
+    if ( ! $ads_id ) return;
+
+    $order = wc_get_order( $order_id );
+    if ( ! $order ) return;
+
+    // Evitar disparar dos veces si el cliente recarga la página
+    if ( $order->get_meta( '_ac_conversion_fired' ) ) return;
+    $order->update_meta_data( '_ac_conversion_fired', '1' );
+    $order->save();
+
+    $total    = (float) $order->get_total();
+    $currency = get_woocommerce_currency();
+    $tx_id    = (string) $order_id;
+
+    // Etiquetas de compra (puede haber dos: Google for WooCommerce + Compra simple)
+    $labels_raw = ac_conv( 'ac_conv_purchase' );
+    $labels     = array_filter( array_map( 'trim', explode( ',', $labels_raw ) ) );
+
+    $events_js = '';
+    foreach ( $labels as $label ) {
+        $send_to = esc_js( $ads_id . '/' . $label );
+        $events_js .= "gtag('event','conversion',{'send_to':'{$send_to}','value':{$total},'currency':'" . esc_js( $currency ) . "','transaction_id':'{$tx_id}'});\n";
+    }
+
+    if ( ! $events_js ) return;
+    ?>
+    <script>
+        <?php echo $events_js; ?>
+    </script>
+    <?php
+}
+
+/**
+ * Evento de conversión: Añadir al carrito.
+ * Se inyecta JS que escucha el evento nativo de WooCommerce "added_to_cart".
+ */
+add_action( 'wp_footer', 'ac_track_add_to_cart_js' );
+function ac_track_add_to_cart_js() {
+    $ads_id = ac_ads_id();
+    $label  = ac_conv( 'ac_conv_cart' );
+    if ( ! $ads_id || ! $label ) return;
+    $send_to = esc_js( $ads_id . '/' . $label );
+    ?>
+    <script>
+    (function() {
+        // AJAX add-to-cart (grillas de categoría, shortcodes)
+        jQuery(document.body).on('added_to_cart', function() {
+            if (typeof gtag === 'function') {
+                gtag('event', 'conversion', { 'send_to': '<?php echo $send_to; ?>' });
+            }
+        });
+        // Botón clásico en página de producto (form submit)
+        jQuery('.single_add_to_cart_button').on('click', function() {
+            if (typeof gtag === 'function') {
+                gtag('event', 'conversion', { 'send_to': '<?php echo $send_to; ?>' });
+            }
+        });
+    })();
+    </script>
+    <?php
+}
 
 // ── AJAX: búsqueda de productos ──────────────────────────────────────────────
 add_action( 'wp_ajax_nopriv_ac_search_products', 'ac_search_products_handler' );
@@ -594,6 +873,12 @@ function ac_render_modal_and_scripts() {
                 + (phoneVal ? '\n📱 ' + phoneVal : '');
 
             var waURL = 'https://wa.me/' + WA_NUM + '?text=' + encodeURIComponent(waMsg);
+
+            // ── Google Ads: evento Contacto / Cotización ──────────────────
+            var GA_CONV_CONTACT = '<?php echo esc_js( ac_ads_id() && ac_conv('ac_conv_contact') ? ac_ads_id() . '/' . ac_conv('ac_conv_contact') : '' ); ?>';
+            if (GA_CONV_CONTACT && typeof gtag === 'function') {
+                gtag('event', 'conversion', { 'send_to': GA_CONV_CONTACT });
+            }
 
             // Mostrar estado de carga
             form.style.display = 'none';

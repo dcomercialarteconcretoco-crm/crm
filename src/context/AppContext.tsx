@@ -214,12 +214,15 @@ export interface AppSettings {
     blockScreenshots: boolean;
     productionEmails: string[];
     fromEmail: string;
+    businessWhatsapp?: string;
     geminiKey?: string;
     resendKey?: string;
     wooUrl?: string;
     wooKey?: string;
     wooSecret?: string;
     googleClientId?: string;
+    googleAdsId?: string;
+    ga4PropertyId?: string;
     whatsapp: WhatsAppConfig;
     botSettings?: BotSettings;
 }
@@ -476,6 +479,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         blockScreenshots: false,
         productionEmails: [],
         fromEmail: 'ordenes@arteconcreto.co',
+        businessWhatsapp: '573178929477',
         geminiKey: '',
         resendKey: '',
         whatsapp: {

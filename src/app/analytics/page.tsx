@@ -16,7 +16,13 @@ import {
     ExternalLink,
     CheckCircle2,
     Clock,
-    AlertCircle
+    AlertCircle,
+    Globe,
+    ShoppingCart,
+    Users,
+    MousePointerClick,
+    RefreshCw,
+    Settings
 } from 'lucide-react';
 import {
     BarChart,
@@ -28,15 +34,88 @@ import {
     ResponsiveContainer,
     LineChart,
     Line,
-    Cell
+    Cell,
+    PieChart as RePieChart,
+    Pie
 } from 'recharts';
 
 import { useApp } from '@/context/AppContext';
 import { generatePDFReport } from '@/lib/pdf-generator';
 import { PermissionGate } from '@/components/PermissionGate';
 
+// ── Tipos GA4 ─────────────────────────────────────────────────────────────────
+interface GA4Data {
+    period:   string;
+    globals:  {
+        sessions: number; users: number; pageviews: number;
+        conversions: number; revenue: number; purchases: number;
+        addToCarts: number; checkouts: number;
+        bounceRate: number; avgSessionDuration: number;
+    } | null;
+    sources:  { channel: string; sessions: number; conversions: number }[];
+    trend:    { date: string; sessions: number; users: number; purchases: number }[];
+    topPages: { path: string; views: number; avgTime: number }[];
+    devices:  { device: string; sessions: number }[];
+    fetchedAt: string;
+    error?:   string;
+}
+
+const DEVICE_COLORS: Record<string, string> = {
+    mobile:  '#fab510',
+    desktop: '#3b82f6',
+    tablet:  '#8b5cf6',
+};
+
+const CHANNEL_COLORS = ['#fab510','#3b82f6','#10b981','#f97316','#8b5cf6','#ec4899','#14b8a6','#64748b'];
+
+function fmtDuration(secs: number) {
+    const m = Math.floor(secs / 60), s = Math.round(secs % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function fmtCurrency(v: number) {
+    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v);
+}
+
+function fmtDate(raw: string) {
+    // raw = "20240115" → "15 ene"
+    if (raw.length !== 8) return raw;
+    const d = new Date(
+        parseInt(raw.slice(0, 4)),
+        parseInt(raw.slice(4, 6)) - 1,
+        parseInt(raw.slice(6, 8))
+    );
+    return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
+}
+
 export default function AnalyticsPage() {
-    const { clients, tasks, quotes, auditLogs, addNotification } = useApp();
+    const { clients, tasks, quotes, auditLogs, addNotification, settings } = useApp();
+
+    // ── Estado GA4 ────────────────────────────────────────────────────────────
+    const [ga4, setGa4]           = React.useState<GA4Data | null>(null);
+    const [ga4Loading, setGa4Loading] = React.useState(false);
+    const [ga4Error, setGa4Error] = React.useState('');
+
+    const hasGa4Config = !!settings.ga4PropertyId;
+
+    const loadGa4 = React.useCallback(async () => {
+        if (!hasGa4Config) return;
+        setGa4Loading(true);
+        setGa4Error('');
+        try {
+            const params = settings.ga4PropertyId ? `?propertyId=${settings.ga4PropertyId}` : '';
+            const res = await fetch(`/api/metrics/ga4${params}`);
+            const data: GA4Data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.error || 'Error al cargar GA4');
+            setGa4(data);
+        } catch (e) {
+            setGa4Error(e instanceof Error ? e.message : 'Error desconocido');
+        } finally {
+            setGa4Loading(false);
+        }
+    }, [hasGa4Config, settings.ga4PropertyId]);
+
+    React.useEffect(() => { loadGa4(); }, [loadGa4]);
 
     const revenueData = React.useMemo(() => {
         const days = Array.from({ length: 5 }, (_, i) => {
@@ -127,6 +206,201 @@ export default function AnalyticsPage() {
                 </div>
             </div>
 
+            {/* ── SECCIÓN: Sitio Web (GA4) ─────────────────────────────────── */}
+            <div className="bg-white border border-border rounded-2xl p-6 shadow-sm space-y-6">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-blue-500/10 rounded-xl border border-blue-500/20">
+                            <Globe className="w-5 h-5 text-blue-500" />
+                        </div>
+                        <div>
+                            <h3 className="font-black text-base text-foreground tracking-tight">Sitio Web · arteconcreto.co</h3>
+                            <p className="text-xs text-muted-foreground font-bold uppercase tracking-wide">Google Analytics 4 · últimos 30 días</p>
+                        </div>
+                    </div>
+                    {hasGa4Config ? (
+                        <button
+                            onClick={loadGa4}
+                            disabled={ga4Loading}
+                            className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                            <RefreshCw className={`w-3.5 h-3.5 ${ga4Loading ? 'animate-spin' : ''}`} />
+                            {ga4Loading ? 'Cargando...' : 'Actualizar'}
+                        </button>
+                    ) : (
+                        <Link href="/settings" className="flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
+                            <Settings className="w-3.5 h-3.5" />
+                            Configurar GA4
+                        </Link>
+                    )}
+                </div>
+
+                {!hasGa4Config && (
+                    <div className="flex flex-col items-center justify-center py-10 gap-4 text-center">
+                        <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl">
+                            <Globe className="w-10 h-10 text-blue-300 mx-auto mb-3" />
+                            <p className="text-sm font-bold text-foreground mb-1">Conecta Google Analytics 4</p>
+                            <p className="text-xs text-muted-foreground max-w-sm">Agrega tu GA4 Property ID en <strong>Configuración → Integraciones → Google Marketing</strong> y el archivo de cuenta de servicio en <code className="bg-muted px-1 rounded">.env.local</code> para ver métricas del sitio web aquí.</p>
+                        </div>
+                        <Link href="/settings" className="bg-primary text-black font-bold text-xs uppercase tracking-widest px-4 py-2 rounded-xl hover:brightness-105 transition-all">
+                            Ir a Configuración
+                        </Link>
+                    </div>
+                )}
+
+                {hasGa4Config && ga4Error && (
+                    <div className="flex items-start gap-3 p-4 bg-rose-500/5 border border-rose-500/20 rounded-xl">
+                        <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                        <div>
+                            <p className="text-xs font-bold text-rose-600">Error al conectar con GA4</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">{ga4Error}</p>
+                            <p className="text-xs text-muted-foreground mt-1">Verifica que <code className="bg-muted px-1 rounded">GA4_SERVICE_ACCOUNT_JSON</code> esté en <code className="bg-muted px-1 rounded">.env.local</code> y que la cuenta de servicio tenga rol Viewer en la propiedad GA4.</p>
+                        </div>
+                    </div>
+                )}
+
+                {hasGa4Config && ga4Loading && !ga4 && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {[...Array(8)].map((_, i) => (
+                            <div key={i} className="h-20 bg-muted rounded-xl animate-pulse" />
+                        ))}
+                    </div>
+                )}
+
+                {ga4 && ga4.globals && (
+                    <>
+                        {/* KPIs web */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {[
+                                { label: 'Usuarios',         value: ga4.globals.users.toLocaleString('es-CO'),       icon: Users,            color: 'text-blue-500',    bg: 'bg-blue-500/10' },
+                                { label: 'Sesiones',         value: ga4.globals.sessions.toLocaleString('es-CO'),    icon: Activity,         color: 'text-sky-500',     bg: 'bg-sky-500/10' },
+                                { label: 'Compras',          value: ga4.globals.purchases.toLocaleString('es-CO'),   icon: ShoppingCart,     color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+                                { label: 'Ingresos',         value: fmtCurrency(ga4.globals.revenue),                icon: TrendingUp,       color: 'text-primary',     bg: 'bg-primary/10' },
+                                { label: 'Añadir al carrito',value: ga4.globals.addToCarts.toLocaleString('es-CO'),  icon: ShoppingCart,     color: 'text-amber-500',   bg: 'bg-amber-500/10' },
+                                { label: 'Checkouts',        value: ga4.globals.checkouts.toLocaleString('es-CO'),   icon: MousePointerClick,color: 'text-purple-500',  bg: 'bg-purple-500/10' },
+                                { label: 'Tasa de Rebote',   value: (ga4.globals.bounceRate * 100).toFixed(1) + '%', icon: ArrowUpRight,     color: 'text-rose-500',    bg: 'bg-rose-500/10' },
+                                { label: 'Duración media',   value: fmtDuration(ga4.globals.avgSessionDuration),     icon: Clock,            color: 'text-indigo-500',  bg: 'bg-indigo-500/10' },
+                            ].map(s => (
+                                <div key={s.label} className="p-4 bg-muted/50 border border-border rounded-xl">
+                                    <div className={`p-1.5 rounded-lg ${s.bg} w-fit mb-2`}>
+                                        <s.icon className={`w-3.5 h-3.5 ${s.color}`} />
+                                    </div>
+                                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground leading-none mb-1">{s.label}</p>
+                                    <p className="text-xl font-black text-foreground">{s.value}</p>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Embudo de conversión web */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div>
+                                <h4 className="text-sm font-black uppercase tracking-tighter mb-4">Embudo del Sitio Web</h4>
+                                <div className="space-y-3">
+                                    {[
+                                        { label: 'Usuarios únicos',     value: ga4.globals.users,     color: 'bg-blue-500' },
+                                        { label: 'Añadir al carrito',   value: ga4.globals.addToCarts, color: 'bg-amber-500' },
+                                        { label: 'Inicio de compra',    value: ga4.globals.checkouts,  color: 'bg-purple-500' },
+                                        { label: 'Compras completadas', value: ga4.globals.purchases,  color: 'bg-emerald-500' },
+                                    ].map((step, idx, arr) => {
+                                        const pct = arr[0].value > 0 ? Math.min(100, (step.value / arr[0].value) * 100) : 0;
+                                        return (
+                                            <div key={step.label}>
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-xs font-bold text-foreground">{step.label}</span>
+                                                    <span className="text-xs font-black text-primary">{step.value.toLocaleString('es-CO')}</span>
+                                                </div>
+                                                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                                                    <div className={`h-full rounded-full ${step.color}`} style={{ width: `${pct}%` }} />
+                                                </div>
+                                                {idx > 0 && arr[idx - 1].value > 0 && (
+                                                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                                                        {((step.value / arr[idx - 1].value) * 100).toFixed(1)}% del paso anterior
+                                                    </p>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Fuentes de tráfico */}
+                            <div>
+                                <h4 className="text-sm font-black uppercase tracking-tighter mb-4">Canales de Tráfico</h4>
+                                <div className="space-y-2">
+                                    {ga4.sources.slice(0, 6).map((s, i) => {
+                                        const max = ga4.sources[0]?.sessions || 1;
+                                        return (
+                                            <div key={s.channel} className="flex items-center gap-3">
+                                                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: CHANNEL_COLORS[i] }} />
+                                                <span className="text-xs font-bold text-foreground w-36 truncate">{s.channel}</span>
+                                                <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                                                    <div className="h-full rounded-full" style={{ width: `${(s.sessions / max) * 100}%`, backgroundColor: CHANNEL_COLORS[i] }} />
+                                                </div>
+                                                <span className="text-xs font-black text-muted-foreground w-10 text-right">{s.sessions.toLocaleString('es-CO')}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Tendencia 14 días */}
+                        {ga4.trend.length > 0 && (
+                            <div>
+                                <h4 className="text-sm font-black uppercase tracking-tighter mb-4">Tendencia · últimos 14 días</h4>
+                                <div className="h-48">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <LineChart data={ga4.trend.map(t => ({ ...t, dateLabel: fmtDate(t.date) }))}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                                            <XAxis dataKey="dateLabel" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 9 }} interval="preserveStartEnd" />
+                                            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 9 }} />
+                                            <Tooltip contentStyle={{ backgroundColor: '#fff', borderColor: '#e5e7eb', borderRadius: '12px', fontSize: '11px' }} />
+                                            <Line type="monotone" dataKey="sessions"  stroke="#3b82f6" strokeWidth={2} dot={false} name="Sesiones" />
+                                            <Line type="monotone" dataKey="users"     stroke="#fab510" strokeWidth={2} dot={false} name="Usuarios" />
+                                            <Line type="monotone" dataKey="purchases" stroke="#10b981" strokeWidth={2} dot={false} name="Compras" />
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Top páginas */}
+                        {ga4.topPages.length > 0 && (
+                            <div>
+                                <h4 className="text-sm font-black uppercase tracking-tighter mb-3">Top Páginas</h4>
+                                <div className="overflow-x-auto">
+                                    <table className="table-clean text-xs">
+                                        <thead>
+                                            <tr>
+                                                <th>Página</th>
+                                                <th className="text-right">Vistas</th>
+                                                <th className="text-right">T. medio</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {ga4.topPages.slice(0, 8).map(p => (
+                                                <tr key={p.path}>
+                                                    <td className="font-mono text-[10px] text-muted-foreground truncate max-w-[240px]">{p.path}</td>
+                                                    <td className="text-right font-black">{p.views.toLocaleString('es-CO')}</td>
+                                                    <td className="text-right text-muted-foreground">{fmtDuration(p.avgTime)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {ga4.fetchedAt && (
+                            <p className="text-[10px] text-muted-foreground text-right">
+                                Actualizado: {new Date(ga4.fetchedAt).toLocaleString('es-CO')} · Cache 1h
+                            </p>
+                        )}
+                    </>
+                )}
+            </div>
+
+            {/* ── KPI Stats CRM ───────────────────────────────────────────── */}
             {/* KPI Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {statsTop.map((stat) => (
