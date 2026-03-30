@@ -34,17 +34,27 @@ export async function POST(req: NextRequest) {
         const id = `c-bio-${Date.now()}`;
         const today = new Date().toISOString().split('T')[0];
 
-        await pool.query(`
-            INSERT INTO crm_clients
-              (id, name, company, email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date, updated_at)
-            VALUES ($1,$2,$3,$4,$5,'Lead','Por cotizar',0,$6,$7,70,'Tarjeta Digital',$8,NOW())
-            ON CONFLICT (email) DO UPDATE SET
-              name = EXCLUDED.name,
-              phone = COALESCE(NULLIF(EXCLUDED.phone,''), crm_clients.phone),
-              city  = COALESCE(NULLIF(EXCLUDED.city,''),  crm_clients.city),
-              last_contact = EXCLUDED.last_contact,
-              updated_at = NOW()
-        `, [id, name, name, email, phone || '', today, city || 'No especificada', today]);
+        // Check-then-upsert: avoids needing UNIQUE constraint on email
+        const { rows: existing } = await pool.query(
+            `SELECT id FROM crm_clients WHERE email=$1 LIMIT 1`, [email]
+        );
+        if (existing.length > 0) {
+            await pool.query(`
+                UPDATE crm_clients SET
+                  name = $1,
+                  phone = COALESCE(NULLIF($2,''), phone),
+                  city  = COALESCE(NULLIF($3,''), city),
+                  last_contact = $4,
+                  updated_at = NOW()
+                WHERE email = $5
+            `, [name, phone || '', city || '', today, email]);
+        } else {
+            await pool.query(`
+                INSERT INTO crm_clients
+                  (id, name, company, email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date, updated_at)
+                VALUES ($1,$2,$3,$4,$5,'Lead','Por cotizar',0,$6,$7,70,'Tarjeta Digital',$8,NOW())
+            `, [id, name, name, email, phone || '', today, city || 'No especificada', today]);
+        }
 
         // Save a pipeline task tagged with the biolink source
         const { rows: cr } = await pool.query(`SELECT id FROM crm_clients WHERE email=$1 LIMIT 1`, [email]);

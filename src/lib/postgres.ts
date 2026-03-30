@@ -81,13 +81,17 @@ export async function ensureCrmSchema() {
     );
   `);
 
-  // Migrate: add UNIQUE constraint on email so ON CONFLICT (email) works
+  // Migrate: add UNIQUE constraint on email (best-effort — skips if duplicates exist)
   await pool.query(`
     DO $$ BEGIN
       IF NOT EXISTS (
         SELECT 1 FROM pg_constraint WHERE conname = 'crm_clients_email_unique'
       ) THEN
-        ALTER TABLE crm_clients ADD CONSTRAINT crm_clients_email_unique UNIQUE (email);
+        BEGIN
+          ALTER TABLE crm_clients ADD CONSTRAINT crm_clients_email_unique UNIQUE (email);
+        EXCEPTION WHEN OTHERS THEN
+          NULL; -- duplicate data exists, skip; API uses check-then-upsert anyway
+        END;
       END IF;
     END $$;
   `);
