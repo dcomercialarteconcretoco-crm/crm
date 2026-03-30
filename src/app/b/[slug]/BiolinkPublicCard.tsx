@@ -102,7 +102,7 @@ export default function BiolinkPublicCard({ card, settings }: { card: Biolink; s
                 <div style={{ padding: '28px 0 20px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
                         <img
-                            src="https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png"
+                            src="/api/logo"
                             alt="Arte Concreto"
                             style={{ height: 72, objectFit: 'contain', filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? 0.95 : 0.85 }}
                         />
