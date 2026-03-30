@@ -81,6 +81,17 @@ export async function ensureCrmSchema() {
     );
   `);
 
+  // Migrate: add UNIQUE constraint on email so ON CONFLICT (email) works
+  await pool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'crm_clients_email_unique'
+      ) THEN
+        ALTER TABLE crm_clients ADD CONSTRAINT crm_clients_email_unique UNIQUE (email);
+      END IF;
+    END $$;
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_state (
       key TEXT PRIMARY KEY,
