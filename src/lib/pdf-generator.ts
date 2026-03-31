@@ -21,12 +21,23 @@ export interface ProposalData {
     paymentTerms?: string;
     sellerName?: string;
     sellerPhone?: string;
+    isAIU?: boolean;
+    aiuData?: {
+        supply?: string;
+        transport?: string;
+        installation?: string;
+        transportPrice?: number;
+        installationPrice?: number;
+        totalAIU?: number;
+    };
     items: {
         name: string;
         price: number;
         quantity: number;
         unit: string;
         total: number;
+        image?: string;
+        dimensions?: string;
     }[];
     subtotal: number;
     tax: number;
@@ -81,6 +92,7 @@ function fmtDate(dateStr: string): string {
 }
 
 export const generatePDFReport = (data: ReportData): void => {
+    try {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
     doc.setFillColor(...DARK);
@@ -125,7 +137,7 @@ export const generatePDFReport = (data: ReportData): void => {
         margin: { left: LM, right: 18 },
     });
 
-    const y1 = (doc as any).lastAutoTable.finalY + 18;
+    const y1 = ((doc as any).lastAutoTable?.finalY ?? 90) + 18;
     doc.setFontSize(11);
     doc.setTextColor(...DARK);
     doc.text('LEADS DE ALTO VALOR', LM, y1);
@@ -142,6 +154,10 @@ export const generatePDFReport = (data: ReportData): void => {
 
     addAllFooters(doc);
     doc.save(`Reporte_ArteConcreto_${Date.now()}.pdf`);
+    } catch (err) {
+        console.error('generatePDFReport error:', err);
+        alert('Error al generar el reporte PDF. Intenta de nuevo.');
+    }
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -168,6 +184,9 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
     doc.rect(0, 40, PW, 4, 'F');
 
     // Try to load logo via /api/logo proxy
+    // Logo Arte Concreto: 237×96 px → aspect ratio 2.47:1
+    // White pill background so logo (dark ink on transparent) is visible on dark header
+    const LOGO_W = 46, LOGO_H = Math.round(46 / (237 / 96)); // ≈ 18.6 → 19 mm
     try {
         const res = await fetch('/api/logo');
         if (res.ok) {
@@ -178,8 +197,12 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
                 reader.onerror = reject;
                 reader.readAsDataURL(blob);
             });
-            doc.addImage(base64, 'PNG', LM, 6, 50, 28, undefined, 'FAST');
-        }
+            // White rounded background so dark-ink logo shows on dark PDF header
+            doc.setFillColor(...WHITE);
+            doc.roundedRect(LM - 2, 9, LOGO_W + 4, LOGO_H + 4, 3, 3, 'F');
+            const fmt = base64.startsWith('data:image/jpeg') || base64.startsWith('data:image/jpg') ? 'JPEG' : 'PNG';
+            doc.addImage(base64, fmt, LM, 11, LOGO_W, LOGO_H, undefined, 'FAST');
+        } else { throw new Error('logo not ok'); }
     } catch {
         // Fallback: text logo
         doc.setTextColor(...WHITE);
@@ -358,56 +381,153 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
         y += wrapped.length * 4.5 + 1;
     }
 
-    // ── SECTION 5: CANTIDADES Y PRECIOS ───────────────────────────────────────
+    // ── SECTION 5: PRODUCTOS CON FOTO + CANTIDADES Y PRECIOS ─────────────────
     y += 6;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(...DARK);
     doc.text('5. CANTIDADES Y PRECIOS DEL PROYECTO:', LM, y);
-    y += 4;
+    y += 6;
+
+    // ── 5a. Product images block (before the table) ───────────────────────────
+    const itemsWithImages = data.items.filter(i => i.image);
+    if (itemsWithImages.length > 0) {
+        const IMG_SIZE = 32;
+        const IMG_GAP  = 4;
+        const perRow   = Math.floor((RM - LM + IMG_GAP) / (IMG_SIZE + IMG_GAP));
+        let imgX = LM;
+        for (let i = 0; i < itemsWithImages.length; i++) {
+            const item = itemsWithImages[i];
+            if (i > 0 && i % perRow === 0) {
+                y += IMG_SIZE + 14;
+                imgX = LM;
+            }
+            // Check page break
+            if (y + IMG_SIZE + 14 > doc.internal.pageSize.getHeight() - 20) {
+                doc.addPage();
+                y = 25;
+                imgX = LM;
+            }
+            try {
+                // Attempt to embed image from data-url or URL
+                const src = item.image!;
+                if (src.startsWith('data:') || src.startsWith('http')) {
+                    let b64 = src;
+                    if (src.startsWith('http')) {
+                        const r = await fetch(src);
+                        if (r.ok) {
+                            const bl = await r.blob();
+                            b64 = await new Promise<string>((res, rej) => {
+                                const rd = new FileReader();
+                                rd.onload = () => res(rd.result as string);
+                                rd.onerror = rej;
+                                rd.readAsDataURL(bl);
+                            });
+                        } else { throw new Error('fetch failed'); }
+                    }
+                    const imgFmt = b64.includes('data:image/jpeg') || b64.includes('data:image/jpg') ? 'JPEG' : 'PNG';
+                    doc.setFillColor(245, 245, 245);
+                    doc.roundedRect(imgX, y, IMG_SIZE, IMG_SIZE, 2, 2, 'F');
+                    doc.addImage(b64, imgFmt, imgX, y, IMG_SIZE, IMG_SIZE, undefined, 'FAST');
+                }
+            } catch { /* skip image on error */ }
+            // Product name below image
+            doc.setFontSize(6.5);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(...DARK);
+            const nameLines = doc.splitTextToSize(item.name, IMG_SIZE);
+            doc.text(nameLines.slice(0, 2), imgX, y + IMG_SIZE + 4);
+            if (item.dimensions) {
+                doc.setFontSize(6);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(...GRAY);
+                doc.text(item.dimensions, imgX, y + IMG_SIZE + 10);
+            }
+            imgX += IMG_SIZE + IMG_GAP;
+        }
+        y += IMG_SIZE + 16;
+    }
+
+    // ── 5b. Price table ──────────────────────────────────────────────────────
+    // Check page break before table
+    if (y + 30 > doc.internal.pageSize.getHeight() - 20) {
+        doc.addPage();
+        y = 25;
+    }
 
     autoTable(doc, {
         startY: y,
-        head: [['Descripción del Producto / Referencia', 'Unidad', 'Cant.', 'Precio Unitario', 'Total']],
+        head: [['Producto / Referencia', 'Dimensiones', 'Ud.', 'Cant.', 'P. Unitario', 'Total']],
         body: data.items.map(item => [
             item.name,
+            item.dimensions || '—',
             item.unit || 'un',
             String(item.quantity),
             fmt(item.price),
             fmt(item.total),
         ]),
         theme: 'grid',
-        headStyles: {
-            fillColor: DARK,
-            textColor: WHITE,
-            fontStyle: 'bold',
-            fontSize: 8,
-            cellPadding: 4,
-        },
-        bodyStyles: { fontSize: 8, cellPadding: 3, textColor: DARKGRAY },
-        alternateRowStyles: { fillColor: [250, 248, 244] },
+        headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: 'bold', fontSize: 7.5, cellPadding: 3.5 },
+        bodyStyles: { fontSize: 7.5, cellPadding: 2.5, textColor: DARKGRAY },
+        alternateRowStyles: { fillColor: [250, 248, 244] as [number,number,number] },
         columnStyles: {
-            0: { cellWidth: 80 },
-            1: { cellWidth: 18, halign: 'center' },
+            0: { cellWidth: 62 },
+            1: { cellWidth: 32 },
             2: { cellWidth: 14, halign: 'center' },
-            3: { cellWidth: 32, halign: 'right' },
+            3: { cellWidth: 12, halign: 'center' },
             4: { cellWidth: 30, halign: 'right' },
+            5: { cellWidth: 24, halign: 'right' },
         },
         margin: { left: LM, right: 18 },
         foot: [
-            ['', '', '', 'Subtotal:', fmt(data.subtotal)],
-            ['', '', '', 'IVA (19%):', fmt(data.tax)],
+            ['', '', '', '', 'Subtotal:', fmt(data.subtotal)],
+            ['', '', '', '', 'IVA (19%):', fmt(data.tax)],
         ],
-        footStyles: {
-            fillColor: [245, 245, 245],
-            textColor: DARKGRAY,
-            fontStyle: 'bold',
-            fontSize: 8,
-            halign: 'right',
-        },
+        footStyles: { fillColor: [245, 245, 245] as [number,number,number], textColor: DARKGRAY, fontStyle: 'bold', fontSize: 7.5, halign: 'right' },
     });
 
-    let fy = (doc as any).lastAutoTable.finalY + 2;
+    let fy = ((doc as any).lastAutoTable?.finalY ?? y + 40) + 2;
+
+    // ── AIU Section (if applicable) ───────────────────────────────────────────
+    if (data.isAIU && data.aiuData) {
+        fy += 8;
+        if (fy + 50 > doc.internal.pageSize.getHeight() - 20) { doc.addPage(); fy = 25; }
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(...DARK);
+        doc.text('6. SUMINISTRO, TRANSPORTE E INSTALACIÓN (AIU):', LM, fy);
+        fy += 6;
+
+        const aiuRows: [string, string][] = [];
+        if (data.aiuData.supply)       aiuRows.push(['Suministro', data.aiuData.supply]);
+        if (data.aiuData.transport)    aiuRows.push(['Transporte y descargue', data.aiuData.transport]);
+        if (data.aiuData.installation) aiuRows.push(['Instalación en sitio', data.aiuData.installation]);
+        if (data.aiuData.transportPrice)    aiuRows.push(['Precio transporte', fmt(data.aiuData.transportPrice)]);
+        if (data.aiuData.installationPrice) aiuRows.push(['Precio instalación', fmt(data.aiuData.installationPrice)]);
+
+        autoTable(doc, {
+            startY: fy,
+            head: [['Concepto AIU', 'Detalle / Valor']],
+            body: aiuRows,
+            theme: 'grid',
+            headStyles: { fillColor: PRIMARY, textColor: [0,0,0] as [number,number,number], fontStyle: 'bold', fontSize: 8 },
+            bodyStyles: { fontSize: 8, textColor: DARKGRAY },
+            columnStyles: { 0: { cellWidth: 60, fontStyle: 'bold' }, 1: { cellWidth: 114 } },
+            margin: { left: LM, right: 18 },
+        });
+        fy = ((doc as any).lastAutoTable?.finalY ?? fy + 30) + 4;
+
+        if (data.aiuData.totalAIU) {
+            doc.setFillColor(...PRIMARY);
+            doc.roundedRect(LM + 108, fy, 66, 10, 2, 2, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.setTextColor(0, 0, 0);
+            doc.text('TOTAL AIU:', LM + 111, fy + 6.5);
+            doc.text(fmt(data.aiuData.totalAIU), RM, fy + 6.5, { align: 'right' });
+            fy += 14;
+        }
+    }
 
     // TOTAL highlight box
     doc.setFillColor(...PRIMARY);

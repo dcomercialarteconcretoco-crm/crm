@@ -67,6 +67,10 @@ export interface QuoteItem {
     quantity: number;
     unit: string;
     total: number;
+    productId?: string;    // WooCommerce product ID
+    image?: string;        // product image URL or base64
+    dimensions?: string;   // e.g. "120×60×5 cm"
+    isCustom?: boolean;    // manually typed, not from catalog
 }
 
 export interface Quote {
@@ -101,6 +105,19 @@ export interface Quote {
     requestedBy?: string;
     requestedByName?: string;
     requestedAt?: string;
+    // Numeración ART-XXX-YYYY + versioning
+    quoteNumber?: string;   // e.g. "ART-250-2026" or "ART-250-2026-V2" or "ART-250-2026-V3-AIU"
+    baseNumber?: string;    // base without version: "ART-250-2026"
+    version?: number;       // 1=original (no suffix), 2=V2, 3=V3...
+    isAIU?: boolean;        // final AIU version
+    aiuData?: {
+        supply?: string;
+        transport?: string;
+        installation?: string;
+        transportPrice?: number;
+        installationPrice?: number;
+        totalAIU?: number;
+    };
 }
 
 export interface Seller {
@@ -225,6 +242,10 @@ export interface AppSettings {
     ga4PropertyId?: string;
     whatsapp: WhatsAppConfig;
     botSettings?: BotSettings;
+    // Quote numbering
+    quotePrefix?: string;       // default 'ART'
+    quoteNextNumber?: number;   // next sequential number, starts at 250
+    quoteYear?: number;         // current year for numbering
 }
 
 export interface BotScheduleDay {
@@ -340,6 +361,11 @@ interface AppContextType {
     addClient: (client: Omit<Client, 'id'>) => string;
     addTask: (task: Omit<Task, 'id'>) => string;
     addQuote: (quote: Omit<Quote, 'id'>) => string;
+    createQuoteVersion: (quoteId: string) => string;
+    createAIUVersion: (quoteId: string) => string;
+    importClients: (rows: Omit<Client, 'id'>[]) => void;
+    importQuotes: (rows: Omit<Quote, 'id'>[]) => void;
+    clearTestData: () => void;
     addSeller: (seller: Omit<Seller, 'id'>) => string;
     addNotification: (notification: Omit<Notification, 'id' | 'time' | 'read'>) => void;
     addAuditLog: (log: Omit<AuditLog, 'id' | 'timestamp'>) => void;
@@ -480,6 +506,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         productionEmails: [],
         fromEmail: 'ordenes@arteconcreto.co',
         businessWhatsapp: '573178929477',
+        quotePrefix: 'ART',
+        quoteNextNumber: 250,
+        quoteYear: new Date().getFullYear(),
         geminiKey: '',
         resendKey: '',
         whatsapp: {
@@ -850,6 +879,23 @@ REGLAS DE ORO:
         const quoteId = `q-${Date.now()}`;
         const taskId = `t-qt-${quoteId}`;
 
+        // Auto-generate quote number ART-XXX-YYYY if not already provided
+        let quoteNumber = quote.quoteNumber;
+        let baseNumber  = quote.baseNumber;
+        if (!quoteNumber) {
+            const prefix  = settings.quotePrefix  || 'ART';
+            const year    = settings.quoteYear    || new Date().getFullYear();
+            const num     = settings.quoteNextNumber ?? 250;
+            quoteNumber = `${prefix}-${num}-${year}`;
+            baseNumber  = quoteNumber;
+            // Increment counter
+            setSettings(prev => {
+                const next = { ...prev, quoteNextNumber: (prev.quoteNextNumber ?? 250) + 1 };
+                persistSharedState({ settings: sanitizeSettingsForStorage(next) });
+                return next;
+            });
+        }
+
         // Auto-create a pipeline task in "Propuesta Enviada" stage
         const autoTask: Task = {
             id: taskId,
@@ -868,7 +914,7 @@ REGLAS DE ORO:
             activities: [{
                 id: `act-${Date.now()}`,
                 type: 'system',
-                content: `Cotización ${quote.number || quoteId} generada en el CRM.`,
+                content: `Cotización ${quoteNumber} generada en el CRM.`,
                 timestamp: new Date(),
             }],
             quoteId: quoteId,
@@ -882,12 +928,95 @@ REGLAS DE ORO:
         });
 
         setQuotes(prev => {
-            const next = [...prev, { ...quote, id: quoteId, taskId }];
+            const next = [...prev, { ...quote, id: quoteId, taskId, quoteNumber, baseNumber: baseNumber || quoteNumber, version: quote.version || 1 }];
             persistSharedState({ quotes: next });
             return next;
         });
 
         return quoteId;
+    };
+
+    // Create a new version of an existing quote (V2, V3, ...)
+    const createQuoteVersion = (quoteId: string): string => {
+        const original = quotes.find(q => q.id === quoteId);
+        if (!original) return '';
+        const base = original.baseNumber || original.quoteNumber || original.number;
+        const nextV = (original.version || 1) + 1;
+        const vSuffix = nextV > 1 ? `-V${nextV}` : '';
+        const newNumber = `${base}${vSuffix}`;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { id: _id, ...rest } = original;
+        return addQuote({
+            ...rest,
+            quoteNumber: newNumber,
+            baseNumber: base,
+            version: nextV,
+            isAIU: false,
+            status: 'Draft',
+            date: new Date().toISOString().split('T')[0],
+            taskId: undefined,
+        });
+    };
+
+    // Create AIU version from an approved/sent quote
+    const createAIUVersion = (quoteId: string): string => {
+        const original = quotes.find(q => q.id === quoteId);
+        if (!original) return '';
+        const base = original.baseNumber || original.quoteNumber || original.number;
+        const v = original.version || 1;
+        const vSuffix = v > 1 ? `-V${v}` : '';
+        const newNumber = `${base}${vSuffix}-AIU`;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { id: _id, ...rest } = original;
+        return addQuote({
+            ...rest,
+            quoteNumber: newNumber,
+            baseNumber: base,
+            version: v,
+            isAIU: true,
+            aiuData: original.aiuData || {},
+            status: 'Draft',
+            date: new Date().toISOString().split('T')[0],
+            taskId: undefined,
+        });
+    };
+
+    // Bulk import clients (retroactive)
+    const importClients = (rows: Omit<Client, 'id'>[]) => {
+        setClients(prev => {
+            const newClients = rows.map((r, i) => ({ ...r, id: `c-import-${Date.now()}-${i}` }));
+            const next = [...prev, ...newClients];
+            persistSharedState({ clients: next });
+            return next;
+        });
+    };
+
+    // Bulk import quotes (retroactive)
+    const importQuotes = (rows: Omit<Quote, 'id'>[]) => {
+        setQuotes(prev => {
+            const newQuotes = rows.map((r, i) => ({
+                ...r,
+                id: `q-import-${Date.now()}-${i}`,
+                quoteNumber: r.quoteNumber || r.number,
+                baseNumber: r.baseNumber || r.quoteNumber || r.number,
+                version: r.version || 1,
+            }));
+            const next = [...prev, ...newQuotes];
+            persistSharedState({ quotes: next });
+            return next;
+        });
+    };
+
+    // Clear all test/demo data (keep sellers, settings, products)
+    const clearTestData = () => {
+        setClients([]);
+        setTasks([]);
+        setQuotes([]);
+        setAuditLogs([]);
+        setNotifications([]);
+        setAnomalies([]);
+        setEvents([]);
+        persistSharedState({ clients: [], tasks: [], quotes: [], auditLogs: [], notifications: [], anomalies: [], events: [] });
     };
 
     const addSeller = (sellerData: Omit<Seller, 'id'>) => {
@@ -1195,7 +1324,8 @@ REGLAS DE ORO:
 
     const contextValue = useMemo(() => ({
             clients, tasks, quotes, sellers, notifications, settings, events, forms,
-            addClient, addTask, addQuote, addSeller, addNotification, addEvent, addForm,
+            addClient, addTask, addQuote, createQuoteVersion, createAIUVersion, importClients, importQuotes, clearTestData,
+            addSeller, addNotification, addEvent, addForm,
             updateClient, deleteClient,
             updateTask, deleteTask,
             updateQuote, deleteQuote,

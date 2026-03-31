@@ -17,7 +17,8 @@ import {
   FilePlus2,
   Loader2,
   FolderOpen,
-  CreditCard
+  CreditCard,
+  Upload
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -59,8 +60,9 @@ const navGroups = [
 ] as const;
 
 const systemItems = [
-  { name: 'Auditoría',     href: '/audit',    icon: Shield,   permission: 'audit.view'    },
-  { name: 'Configuración', href: '/settings', icon: Settings, permission: 'settings.view' },
+  { name: 'Importar Datos', href: '/import',   icon: Upload,   permission: 'settings.view' },
+  { name: 'Auditoría',      href: '/audit',    icon: Shield,   permission: 'audit.view'    },
+  { name: 'Configuración',  href: '/settings', icon: Settings, permission: 'settings.view' },
 ] as const;
 
 interface SidebarProps {

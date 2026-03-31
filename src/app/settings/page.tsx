@@ -31,7 +31,9 @@ import {
     X,
     Key,
     Zap,
-    Mail
+    Mail,
+    Hash,
+    AlertTriangle
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useApp } from '@/context/AppContext';
@@ -49,7 +51,10 @@ const categories = [
 ];
 
 export default function SettingsPage() {
-    const { settings, updateSettings, currentUser } = useApp();
+    const { settings, updateSettings, currentUser, clearTestData } = useApp();
+    const [clearConfirm, setClearConfirm] = useState(false);
+    const [quotePrefix, setQuotePrefix] = useState('');
+    const [quoteNextNum, setQuoteNextNum] = useState('');
     const allowClientSecrets = process.env.NODE_ENV !== 'production';
     const [activeTab, setActiveTab] = useState('profile');
     const [showPassword, setShowPassword] = useState(false);
@@ -1276,6 +1281,109 @@ export default function SettingsPage() {
                                                 <span className="text-sm font-bold">Limpiar Cache y Logs Temporales</span>
                                             </div>
                                         </button>
+                                    </div>
+                                </div>
+
+                                {/* ── Numeración de Cotizaciones ── */}
+                                <div className="pt-6 border-t border-border space-y-4">
+                                    <div className="flex items-center gap-3">
+                                        <Hash className="w-5 h-5 text-primary" />
+                                        <h4 className="text-sm font-black text-foreground">Numeración de Cotizaciones</h4>
+                                    </div>
+                                    <div className="bg-white border border-border rounded-2xl p-5 shadow-sm space-y-4">
+                                        <p className="text-xs text-muted-foreground">
+                                            Las cotizaciones se numeran automáticamente en formato <strong className="text-foreground font-black">{settings.quotePrefix || 'ART'}-{settings.quoteNextNumber ?? 250}-{settings.quoteYear || new Date().getFullYear()}</strong>.
+                                            La próxima cotización usará el número <strong className="text-primary">{settings.quoteNextNumber ?? 250}</strong>.
+                                        </p>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Prefijo</label>
+                                                <input
+                                                    type="text"
+                                                    value={quotePrefix || settings.quotePrefix || 'ART'}
+                                                    onChange={e => setQuotePrefix(e.target.value.toUpperCase())}
+                                                    className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm font-black outline-none focus:border-primary focus:bg-white transition-all uppercase"
+                                                    maxLength={6}
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Próximo #</label>
+                                                <input
+                                                    type="number"
+                                                    value={quoteNextNum || String(settings.quoteNextNumber ?? 250)}
+                                                    onChange={e => setQuoteNextNum(e.target.value)}
+                                                    className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm font-black outline-none focus:border-primary focus:bg-white transition-all"
+                                                    min={1}
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Año</label>
+                                                <input
+                                                    type="number"
+                                                    value={settings.quoteYear || new Date().getFullYear()}
+                                                    onChange={e => updateSettings({ quoteYear: parseInt(e.target.value) || new Date().getFullYear() })}
+                                                    className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm font-black outline-none focus:border-primary focus:bg-white transition-all"
+                                                    min={2020}
+                                                    max={2099}
+                                                />
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                const updates: Record<string, unknown> = {};
+                                                if (quotePrefix) updates.quotePrefix = quotePrefix;
+                                                if (quoteNextNum && parseInt(quoteNextNum) > 0) updates.quoteNextNumber = parseInt(quoteNextNum);
+                                                if (Object.keys(updates).length > 0) {
+                                                    updateSettings(updates as Parameters<typeof updateSettings>[0]);
+                                                    setQuotePrefix('');
+                                                    setQuoteNextNum('');
+                                                }
+                                            }}
+                                            className="w-full py-2.5 bg-primary text-black font-black text-[10px] uppercase tracking-widest rounded-xl hover:brightness-105 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <Save className="w-3.5 h-3.5" />
+                                            Guardar Numeración
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* ── Limpiar datos de prueba ── */}
+                                <div className="pt-6 border-t border-border space-y-4">
+                                    <div className="flex items-center gap-3">
+                                        <AlertTriangle className="w-5 h-5 text-rose-500" />
+                                        <h4 className="text-sm font-black text-foreground">Limpiar Datos de Prueba</h4>
+                                    </div>
+                                    <div className="bg-rose-500/5 border border-rose-500/20 rounded-2xl p-5 space-y-3">
+                                        <p className="text-xs text-muted-foreground">
+                                            Elimina <strong className="text-foreground">todos los clientes, cotizaciones y tareas</strong> del sistema. Úsalo cuando estés listo para empezar con datos reales. Esta acción <strong className="text-rose-600">no se puede deshacer</strong>.
+                                        </p>
+                                        {!clearConfirm ? (
+                                            <button
+                                                onClick={() => setClearConfirm(true)}
+                                                className="w-full py-2.5 bg-rose-500/10 text-rose-600 font-black text-[10px] uppercase tracking-widest rounded-xl border border-rose-500/30 hover:bg-rose-500 hover:text-white hover:border-rose-500 transition-all flex items-center justify-center gap-2"
+                                            >
+                                                <Trash className="w-3.5 h-3.5" />
+                                                Limpiar todos los datos de prueba
+                                            </button>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                <p className="text-xs font-black text-rose-600 text-center">¿Estás seguro? Esta acción borra TODO y no se puede revertir.</p>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => { clearTestData(); setClearConfirm(false); }}
+                                                        className="flex-1 py-2.5 bg-rose-500 text-white font-black text-[10px] uppercase tracking-widest rounded-xl hover:bg-rose-600 transition-all"
+                                                    >
+                                                        Sí, borrar todo
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setClearConfirm(false)}
+                                                        className="flex-1 py-2.5 bg-white text-muted-foreground font-black text-[10px] uppercase tracking-widest rounded-xl border border-border hover:bg-muted transition-all"
+                                                    >
+                                                        Cancelar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 

@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
     Plus, Minus, Trash2, Search,
     CheckCircle, UserPlus, Box, RefreshCw, ShoppingCart,
-    Building2, Package, Eye, X, FileText, Send
+    Building2, Package, Eye, X, FileText, Send, GitBranch, Wrench, Hash
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { generateProposalPDF } from '@/lib/pdf-generator';
@@ -18,6 +18,8 @@ interface QuoteItem {
     unit: string;
     productId?: string;
     image?: string;
+    dimensions?: string;
+    isCustom?: boolean;
 }
 
 interface QuoteEngineProps {
@@ -26,10 +28,15 @@ interface QuoteEngineProps {
 }
 
 export default function QuoteEngine({ defaultClientId = '', editQuoteId }: QuoteEngineProps) {
-    const { products, clients, addClient, refreshProducts, addQuote, updateQuote, quotes, currentUser, settings, addNotification, addAuditLog } = useApp();
+    const { products, clients, addClient, refreshProducts, addQuote, createQuoteVersion, createAIUVersion, updateQuote, quotes, currentUser, settings, addNotification, addAuditLog } = useApp();
     const isEditMode = !!editQuoteId;
+    const editQuote = editQuoteId ? quotes.find(q => q.id === editQuoteId) : undefined;
     const genId = () => `${Date.now().toString(36)}-${Math.round(Math.random() * 1e4)}`;
-    const genQuoteNumber = () => `AC-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`;
+    // Returns the next expected quote number (for display/WhatsApp/email subject)
+    const genQuoteNumber = () => previewNumber;
+    // Preview of the next quote number (will be assigned by addQuote)
+    const previewNumber = editQuote?.quoteNumber
+        || `${settings.quotePrefix || 'ART'}-${settings.quoteNextNumber ?? 250}-${settings.quoteYear || new Date().getFullYear()}`;
 
     const [selectedClientId, setSelectedClientId] = useState(defaultClientId);
     const [items, setItems] = useState<QuoteItem[]>([]);
@@ -77,6 +84,8 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 unit: (i as any).unit || 'un',
                 productId: (i as any).productId,
                 image: (i as any).image,
+                dimensions: (i as any).dimensions,
+                isCustom: (i as any).isCustom,
             })));
         }
         // Load commercial fields
@@ -107,6 +116,22 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         ).slice(0, 15);
     }, [clients, clientSearch]);
 
+    // Add a fully custom product (no catalog)
+    const addCustomProduct = () => {
+        setItems(prev => [...prev, {
+            id: genId(),
+            name: 'Producto personalizado',
+            price: 0,
+            quantity: 1,
+            unit: 'un',
+            isCustom: true,
+        }]);
+    };
+
+    const updateItemName = (id: string, name: string) => setItems(prev => prev.map(i => i.id === id ? { ...i, name } : i));
+    const updateItemDimensions = (id: string, dimensions: string) => setItems(prev => prev.map(i => i.id === id ? { ...i, dimensions } : i));
+    const updateItemUnit = (id: string, unit: string) => setItems(prev => prev.map(i => i.id === id ? { ...i, unit } : i));
+
     const addProductToQuote = (product: Product) => {
         setItems(prev => {
             const existing = prev.find(i => i.productId === product.id);
@@ -121,6 +146,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 unit: 'un',
                 productId: product.id,
                 image: product.image,
+                dimensions: product.dimensions || '',
             }];
         });
     };
@@ -153,7 +179,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         clientEmail: client.email || '', clientCompany: client.company || '',
         date: new Date().toLocaleDateString('es-CO'),
         total: formatCurrency(total), numericTotal: total, subtotal, tax,
-        items: mappedItems.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity })),
+        items: mappedItems.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity, productId: i.productId, image: i.image, dimensions: i.dimensions, isCustom: i.isCustom })),
         notes: '', sellerId: currentUser?.id || '', sellerName: currentUser?.name || '',
         referencia, validUntil, deliveryTime, paymentTerms,
         sellerPhone: currentUser?.phone || '',
@@ -176,7 +202,6 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
 
         setIsSaving(true);
         try {
-            const mappedItems = items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity }));
             let quoteNumber: string;
             if (isEditMode && editQuoteId) {
                 const existing = quotes.find(q => q.id === editQuoteId);
@@ -329,15 +354,56 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
 
     return (
         <>
-        {isEditMode && editQuoteId && (() => {
+        {/* Quote number badge */}
+        {!isEditMode ? (
+            <div className="mb-4 flex items-center gap-3 px-5 py-3 rounded-2xl bg-primary/10 border border-primary/30">
+                <Hash className="w-4 h-4 text-primary shrink-0" />
+                <p className="text-sm font-black text-foreground">
+                    Nueva cotización: <span className="text-primary">{previewNumber}</span>
+                </p>
+            </div>
+        ) : editQuoteId && (() => {
             const editingQuote = quotes.find(q => q.id === editQuoteId);
             return editingQuote ? (
-                <div className="mb-4 flex items-center gap-3 px-5 py-3 rounded-2xl bg-amber-500/10 border border-amber-400/30">
-                    <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                    <p className="text-sm font-black text-amber-700">
-                        Editando cotización <span className="text-amber-900">{editingQuote.number}</span>
-                        {editingQuote.client && <span className="font-medium text-amber-600"> — {editingQuote.client}</span>}
-                    </p>
+                <div className="mb-4 space-y-2">
+                    <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-amber-500/10 border border-amber-400/30">
+                        <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                        <p className="text-sm font-black text-amber-700">
+                            Editando <span className="text-amber-900">{editingQuote.number}</span>
+                            {editingQuote.version && editingQuote.version > 1 && <span className="ml-2 text-[10px] font-black bg-amber-400/30 text-amber-800 px-2 py-0.5 rounded-full uppercase">V{editingQuote.version}</span>}
+                            {editingQuote.isAIU && <span className="ml-2 text-[10px] font-black bg-blue-400/20 text-blue-700 px-2 py-0.5 rounded-full uppercase">AIU</span>}
+                            {editingQuote.client && <span className="font-medium text-amber-600"> — {editingQuote.client}</span>}
+                        </p>
+                    </div>
+                    {/* Version / AIU action buttons */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (!editingQuote) return;
+                                const newId = createQuoteVersion(editingQuote.id);
+                                if (newId) addNotification({ title: 'Nueva versión creada', description: `Se creó ${editingQuote.baseNumber || editingQuote.number}-V${(editingQuote.version || 1) + 1}`, type: 'success' });
+                            }}
+                            className="flex items-center gap-1.5 px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl bg-white border border-border/60 text-foreground hover:bg-accent/50 hover:border-primary/30 transition-all"
+                        >
+                            <GitBranch className="w-3.5 h-3.5 text-primary" />
+                            Crear V{(editingQuote.version || 1) + 1}
+                        </button>
+                        {!editingQuote.isAIU && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (!editingQuote) return;
+                                    const newId = createAIUVersion(editingQuote.id);
+                                    if (newId) addNotification({ title: 'Versión AIU creada', description: `Cotización con AIU lista para editar`, type: 'success' });
+                                }}
+                                className="flex items-center gap-1.5 px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl bg-white border border-border/60 text-blue-700 hover:bg-blue-50 hover:border-blue-300 transition-all"
+                            >
+                                <Wrench className="w-3.5 h-3.5" />
+                                Crear versión AIU
+                            </button>
+                        )}
+                    </div>
                 </div>
             ) : null;
         })()}
@@ -484,8 +550,20 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                         </div>
                     </div>
 
+                    {/* Custom product button */}
+                    <div className="px-4 pt-3 pb-1">
+                        <button
+                            type="button"
+                            onClick={addCustomProduct}
+                            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-dashed border-primary/40 bg-primary/5 text-primary font-black text-[10px] uppercase tracking-widest hover:bg-primary/10 hover:border-primary/60 transition-all"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            Agregar producto personalizado (sin catálogo)
+                        </button>
+                    </div>
+
                     {/* Product grid */}
-                    <div className="p-4 max-h-[520px] overflow-y-auto custom-scrollbar">
+                    <div className="p-4 max-h-[480px] overflow-y-auto custom-scrollbar">
                         {filteredProducts.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-16 text-center">
                                 <Box className="w-12 h-12 text-muted-foreground/30 mb-3" />
@@ -616,50 +694,84 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                     </div>
 
                     {/* Items list */}
-                    <div className="max-h-[320px] overflow-y-auto custom-scrollbar divide-y divide-border/30">
+                    <div className="max-h-[420px] overflow-y-auto custom-scrollbar divide-y divide-border/30">
                         {items.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
                                 <ShoppingCart className="w-8 h-8 text-muted-foreground/20 mb-2" />
                                 <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">
-                                    Agrega productos del catálogo
+                                    Agrega productos del catálogo o personalizados
                                 </p>
                             </div>
                         ) : (
                             items.map(item => (
-                                <div key={item.id} className="px-4 py-3 flex items-center gap-3 bg-white/20 hover:bg-white/40 transition-colors">
-                                    {/* Thumbnail */}
-                                    <div className="w-10 h-10 rounded-xl bg-accent/40 border border-border/40 overflow-hidden shrink-0">
-                                        {item.image
-                                            ? <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-                                            : <Box className="w-4 h-4 text-muted-foreground m-auto mt-3" />
-                                        }
+                                <div key={item.id} className="px-4 py-3 bg-white/20 hover:bg-white/40 transition-colors">
+                                    <div className="flex items-start gap-3">
+                                        {/* Thumbnail */}
+                                        <div className="w-10 h-10 rounded-xl bg-accent/40 border border-border/40 overflow-hidden shrink-0 mt-0.5">
+                                            {item.image
+                                                ? <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                                                : <Box className="w-4 h-4 text-muted-foreground m-auto mt-3" />
+                                            }
+                                        </div>
+                                        <div className="flex-1 min-w-0 space-y-1">
+                                            {/* Name — editable if custom */}
+                                            {item.isCustom ? (
+                                                <input
+                                                    type="text"
+                                                    value={item.name}
+                                                    onChange={e => updateItemName(item.id, e.target.value)}
+                                                    placeholder="Nombre del producto"
+                                                    className="w-full bg-white border border-primary/30 rounded-lg px-2 py-1 text-[10px] font-black text-foreground uppercase outline-none focus:border-primary transition-all"
+                                                />
+                                            ) : (
+                                                <p className="text-[10px] font-black text-foreground uppercase leading-tight line-clamp-2">{item.name}</p>
+                                            )}
+                                            {/* Dimensions */}
+                                            <input
+                                                type="text"
+                                                value={item.dimensions || ''}
+                                                onChange={e => updateItemDimensions(item.id, e.target.value)}
+                                                placeholder="Dimensiones (ej: 60×40×45 cm)"
+                                                className="w-full bg-transparent text-[10px] font-bold text-muted-foreground outline-none border-b border-transparent focus:border-primary/40 placeholder:text-muted-foreground/50 transition-all"
+                                            />
+                                            {/* Unit + Price row */}
+                                            <div className="flex items-center gap-2">
+                                                <select
+                                                    value={item.unit}
+                                                    onChange={e => updateItemUnit(item.id, e.target.value)}
+                                                    className="bg-transparent text-[10px] font-bold text-muted-foreground outline-none border-b border-transparent focus:border-primary/40 transition-all cursor-pointer"
+                                                >
+                                                    {['un','m²','m³','ml','kg','gl','lt','set','hr'].map(u => <option key={u} value={u}>{u}</option>)}
+                                                </select>
+                                                <span className="text-muted-foreground/40 text-[9px]">·</span>
+                                                <input
+                                                    type="number"
+                                                    value={item.price}
+                                                    onChange={e => updatePrice(item.id, parseFloat(e.target.value) || 0)}
+                                                    className="flex-1 bg-transparent text-[11px] font-black text-primary outline-none border-b border-transparent focus:border-primary/40 transition-all"
+                                                />
+                                            </div>
+                                        </div>
+                                        {/* Qty stepper + delete */}
+                                        <div className="flex flex-col items-center gap-1 shrink-0">
+                                            <div className="flex items-center gap-1">
+                                                <button onClick={() => updateQty(item.id, -1)}
+                                                    className="w-6 h-6 rounded-lg bg-white border border-border/60 flex items-center justify-center hover:bg-rose-50 hover:border-rose-300 transition-all">
+                                                    <Minus className="w-3 h-3" />
+                                                </button>
+                                                <span className="w-6 text-center text-xs font-black">{item.quantity}</span>
+                                                <button onClick={() => updateQty(item.id, 1)}
+                                                    className="w-6 h-6 rounded-lg bg-white border border-border/60 flex items-center justify-center hover:bg-primary/10 hover:border-primary/40 transition-all">
+                                                    <Plus className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                            <p className="text-[9px] font-black text-foreground/70">{formatCurrency(item.price * item.quantity)}</p>
+                                            <button onClick={() => removeItem(item.id)}
+                                                className="p-1 text-muted-foreground hover:text-rose-500 transition-colors">
+                                                <Trash2 className="w-3 h-3" />
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-[10px] font-black text-foreground uppercase truncate leading-tight">{item.name}</p>
-                                        {/* Editable price */}
-                                        <input
-                                            type="number"
-                                            value={item.price}
-                                            onChange={e => updatePrice(item.id, parseFloat(e.target.value) || 0)}
-                                            className="mt-0.5 w-full bg-transparent text-[11px] font-black text-primary outline-none border-b border-transparent focus:border-primary/40 transition-all"
-                                        />
-                                    </div>
-                                    {/* Qty stepper */}
-                                    <div className="flex items-center gap-1 shrink-0">
-                                        <button onClick={() => updateQty(item.id, -1)}
-                                            className="w-6 h-6 rounded-lg bg-white border border-border/60 flex items-center justify-center hover:bg-rose-50 hover:border-rose-300 transition-all">
-                                            <Minus className="w-3 h-3" />
-                                        </button>
-                                        <span className="w-6 text-center text-xs font-black">{item.quantity}</span>
-                                        <button onClick={() => updateQty(item.id, 1)}
-                                            className="w-6 h-6 rounded-lg bg-white border border-border/60 flex items-center justify-center hover:bg-primary/10 hover:border-primary/40 transition-all">
-                                            <Plus className="w-3 h-3" />
-                                        </button>
-                                    </div>
-                                    <button onClick={() => removeItem(item.id)}
-                                        className="p-1 text-muted-foreground hover:text-rose-500 transition-colors shrink-0">
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
                                 </div>
                             ))
                         )}
@@ -721,7 +833,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         {/* ── PREVIEW MODAL ── */}
         {showPreview && (() => {
             const client = clients.find(c => c.id === selectedClientId);
-            const qNum = `AC-${new Date().getFullYear()}-PREVIEW`;
+            const qNum = isEditMode && editQuoteId ? (quotes.find(q => q.id === editQuoteId)?.number || previewNumber) : previewNumber;
             const today = new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
             return (
                 <div className="fixed inset-0 z-[500] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
@@ -752,7 +864,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                 </div>
                                 <div className="text-right">
                                     <p className="text-xs text-gray-400 uppercase tracking-widest">Cotización No.</p>
-                                    <p className="font-black text-[#fab510] text-lg">{isEditMode && editQuoteId ? (quotes.find(q => q.id === editQuoteId)?.number || qNum) : qNum}</p>
+                                    <p className="font-black text-[#fab510] text-lg">{qNum}</p>
                                 </div>
                             </div>
 
@@ -799,7 +911,8 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                     <thead>
                                         <tr className="bg-[#1a1a1d] text-white">
                                             <th className="text-left px-3 py-2 font-black uppercase tracking-wide">Descripción</th>
-                                            <th className="text-center px-2 py-2 font-black uppercase tracking-wide">Unidad</th>
+                                            <th className="text-left px-2 py-2 font-black uppercase tracking-wide">Dimensiones</th>
+                                            <th className="text-center px-2 py-2 font-black uppercase tracking-wide">Un.</th>
                                             <th className="text-center px-2 py-2 font-black uppercase tracking-wide">Cant.</th>
                                             <th className="text-right px-3 py-2 font-black uppercase tracking-wide">P. Unit.</th>
                                             <th className="text-right px-3 py-2 font-black uppercase tracking-wide">Total</th>
@@ -809,6 +922,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                         {items.map((item, idx) => (
                                             <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#faf7f0]'}>
                                                 <td className="px-3 py-2 font-semibold">{item.name}</td>
+                                                <td className="px-2 py-2 text-gray-500 text-[10px]">{item.dimensions || '—'}</td>
                                                 <td className="px-2 py-2 text-center text-gray-500">{item.unit}</td>
                                                 <td className="px-2 py-2 text-center font-bold text-[#fab510]">{item.quantity}</td>
                                                 <td className="px-3 py-2 text-right text-gray-600">{formatCurrency(item.price)}</td>

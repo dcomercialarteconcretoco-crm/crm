@@ -88,8 +88,42 @@ function fmtDate(raw: string) {
     return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
 }
 
+type Period = 'week' | 'month' | 'Q1' | 'Q2' | 'Q3' | 'Q4' | 'all';
+
+const PERIOD_LABELS: Record<Period, string> = {
+    week:  'Esta Semana',
+    month: 'Este Mes',
+    Q1:    'T1 Ene–Mar',
+    Q2:    'T2 Abr–Jun',
+    Q3:    'T3 Jul–Sep',
+    Q4:    'T4 Oct–Dic',
+    all:   'Todo',
+};
+
+function getPeriodRange(period: Period): { start: Date; end: Date } {
+    const now = new Date();
+    const y = now.getFullYear();
+    switch (period) {
+        case 'week': {
+            const d = new Date(now);
+            d.setDate(d.getDate() - d.getDay());
+            d.setHours(0,0,0,0);
+            const e = new Date(d); e.setDate(e.getDate() + 6); e.setHours(23,59,59,999);
+            return { start: d, end: e };
+        }
+        case 'month': return { start: new Date(y, now.getMonth(), 1), end: new Date(y, now.getMonth() + 1, 0, 23,59,59) };
+        case 'Q1':   return { start: new Date(y, 0, 1), end: new Date(y, 2, 31, 23,59,59) };
+        case 'Q2':   return { start: new Date(y, 3, 1), end: new Date(y, 5, 30, 23,59,59) };
+        case 'Q3':   return { start: new Date(y, 6, 1), end: new Date(y, 8, 30, 23,59,59) };
+        case 'Q4':   return { start: new Date(y, 9, 1), end: new Date(y, 11, 31, 23,59,59) };
+        default:     return { start: new Date(2000, 0, 1), end: new Date(2099, 11, 31) };
+    }
+}
+
 export default function AnalyticsPage() {
     const { clients, tasks, quotes, auditLogs, addNotification, settings } = useApp();
+
+    const [period, setPeriod] = React.useState<Period>('month');
 
     // ── Estado GA4 ────────────────────────────────────────────────────────────
     const [ga4, setGa4]           = React.useState<GA4Data | null>(null);
@@ -117,45 +151,89 @@ export default function AnalyticsPage() {
 
     React.useEffect(() => { loadGa4(); }, [loadGa4]);
 
-    const revenueData = React.useMemo(() => {
-        const days = Array.from({ length: 5 }, (_, i) => {
-            const d = new Date();
-            d.setDate(d.getDate() - (4 - i));
-            return {
-                month: d.toLocaleDateString('es-CO', { weekday: 'short' }),
-                fullDate: d.toDateString(),
-                sales: 0,
-                quotes: 0
-            };
-        });
+    const periodRange = React.useMemo(() => getPeriodRange(period), [period]);
 
-        auditLogs.forEach(log => {
-            const logDateStr = new Date(log.timestamp).toDateString();
-            const day = days.find(d => d.fullDate === logDateStr);
-            if (day) {
-                if (log.action === 'SALE_REGISTERED') day.sales += 10;
-                if (log.action === 'QUOTE_SENT') day.quotes += 15;
+    // Filter quotes and logs to the selected period
+    const filteredQuotes = React.useMemo(() =>
+        quotes.filter(q => {
+            const d = new Date(q.date || q.sentAt || '');
+            return !isNaN(d.getTime()) && d >= periodRange.start && d <= periodRange.end;
+        }),
+    [quotes, periodRange]);
+
+    const filteredLogs = React.useMemo(() =>
+        auditLogs.filter(l => {
+            const d = new Date(l.timestamp);
+            return !isNaN(d.getTime()) && d >= periodRange.start && d <= periodRange.end;
+        }),
+    [auditLogs, periodRange]);
+
+    const filteredClients = React.useMemo(() =>
+        clients.filter(c => {
+            const d = new Date(c.registrationDate || '');
+            return !isNaN(d.getTime()) ? (d >= periodRange.start && d <= periodRange.end) : true;
+        }),
+    [clients, periodRange]);
+
+    const revenueData = React.useMemo(() => {
+        // Build daily buckets within the period (max 30 points)
+        const { start, end } = periodRange;
+        const diffDays = Math.round((end.getTime() - start.getTime()) / 86400000);
+        const bucketCount = Math.min(diffDays + 1, 30);
+        const step = Math.max(1, Math.ceil(diffDays / bucketCount));
+
+        const buckets: { label: string; startDate: Date; endDate: Date; sales: number; quotes: number }[] = [];
+        let cur = new Date(start);
+        while (cur <= end) {
+            const bucketEnd = new Date(cur);
+            bucketEnd.setDate(bucketEnd.getDate() + step - 1);
+            if (bucketEnd > end) bucketEnd.setTime(end.getTime());
+            const label = bucketCount <= 7
+                ? cur.toLocaleDateString('es-CO', { weekday: 'short' })
+                : bucketCount <= 31
+                    ? cur.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
+                    : cur.toLocaleDateString('es-CO', { month: 'short' });
+            buckets.push({ label, startDate: new Date(cur), endDate: new Date(bucketEnd), sales: 0, quotes: 0 });
+            cur.setDate(cur.getDate() + step);
+        }
+
+        filteredLogs.forEach(log => {
+            const d = new Date(log.timestamp);
+            const bucket = buckets.find(b => d >= b.startDate && d <= b.endDate);
+            if (bucket) {
+                if (log.action === 'SALE_REGISTERED') bucket.sales += 1;
+                if (log.action === 'QUOTE_SENT') bucket.quotes += 1;
             }
         });
 
-        return days.map(d => ({ month: d.month, sales: d.sales || 0, quotes: d.quotes || 0 }));
-    }, [auditLogs]);
+        // Also count quotes by date
+        filteredQuotes.forEach(q => {
+            const d = new Date(q.date || q.sentAt || '');
+            if (!isNaN(d.getTime())) {
+                const bucket = buckets.find(b => d >= b.startDate && d <= b.endDate);
+                if (bucket) bucket.quotes = Math.max(bucket.quotes, bucket.quotes); // already counted from logs
+            }
+        });
+
+        return buckets.map(b => ({ month: b.label, sales: b.sales, quotes: b.quotes }));
+    }, [filteredLogs, filteredQuotes, periodRange]);
 
     const conversionData = React.useMemo(() => {
+        const fq = filteredQuotes;
         return [
-            { name: 'Leads', value: clients.length, color: '#fab510' },
+            { name: 'Leads', value: filteredClients.length || clients.length, color: '#fab510' },
             { name: 'Negocios', value: tasks.length, color: '#fab510dd' },
-            { name: 'Cotizados', value: quotes.length, color: '#fab510aa' },
-            { name: 'Ganados', value: quotes.filter(q => q.status === 'Approved').length, color: '#fab51077' },
+            { name: 'Cotizados', value: fq.length, color: '#fab510aa' },
+            { name: 'Ganados', value: fq.filter(q => q.status === 'Approved').length, color: '#fab51077' },
         ];
-    }, [clients, tasks, quotes]);
+    }, [filteredClients, clients, tasks, filteredQuotes]);
 
     const activeClients = clients.filter(c => c.status === 'Active').length;
     const statsTop = [
-        { label: 'Leads Totales', value: clients.length.toString(), icon: Activity, color: 'text-sky-500' },
+        { label: 'Leads del Período', value: (filteredClients.length || clients.length).toString(), icon: Activity, color: 'text-sky-500' },
         { label: 'Negocios Activos', value: tasks.length.toString(), icon: Zap, color: 'text-orange-500' },
-        { label: 'Tasa Ganada', value: quotes.length ? ((quotes.filter(q => q.status === 'Approved').length / quotes.length) * 100).toFixed(0) + '%' : '0%', icon: Target, color: 'text-primary' },
-        { label: 'Cierres Exitosos', value: auditLogs.filter(a => a.action === 'SALE_REGISTERED').length.toString(), icon: TrendingUp, color: 'text-emerald-500' },
+        { label: 'Tasa Ganada', value: filteredQuotes.length ? ((filteredQuotes.filter(q => q.status === 'Approved').length / filteredQuotes.length) * 100).toFixed(0) + '%' : '0%', icon: Target, color: 'text-primary' },
+        { label: 'Cierres Exitosos', value: filteredLogs.filter(a => a.action === 'SALE_REGISTERED').length.toString(), icon: TrendingUp, color: 'text-emerald-500' },
     ];
 
     return (
@@ -167,14 +245,23 @@ export default function AnalyticsPage() {
                     <h1 className="page-title">Inteligencia de Negocio</h1>
                     <p className="page-subtitle">Análisis avanzado de rendimiento, conversión y proyecciones.</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => addNotification({ title: 'Filtros de fecha', description: 'Selecciona un rango de fechas para filtrar las analíticas.', type: 'ai' })}
-                        className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted flex items-center gap-2 text-xs font-bold uppercase tracking-widest"
-                    >
-                        <Calendar className="w-4 h-4" />
-                        Últimos 6 Meses
-                    </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                    {/* Period filter buttons */}
+                    <div className="flex items-center gap-1 bg-muted/60 border border-border/60 rounded-xl p-1">
+                        {(Object.keys(PERIOD_LABELS) as Period[]).map(p => (
+                            <button
+                                key={p}
+                                onClick={() => setPeriod(p)}
+                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                                    period === p
+                                        ? 'bg-primary text-black shadow-sm'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/60'
+                                }`}
+                            >
+                                {p.startsWith('Q') ? p : PERIOD_LABELS[p].split(' ')[0]}
+                            </button>
+                        ))}
+                    </div>
                     <button
                         onClick={() => {
                             const totalCotizado = quotes.reduce((s, q) => s + (q.numericTotal || 0), 0);
