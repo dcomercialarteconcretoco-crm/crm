@@ -90,64 +90,31 @@ export default function PublicFormPage() {
         e.preventDefault();
         setStatus('loading');
 
-        await new Promise(r => setTimeout(r, 2000));
-
-        const newClient = {
-            id: `c-${Date.now()}`,
-            name: formData.name || 'Anónimo',
-            company: formData.company || 'N/A',
-            email: formData.email || '',
-            phone: formData.phone || '',
-            status: 'Lead',
-            value: '$0',
-            ltv: 0,
-            lastContact: 'Registro QR Premium',
-            city: formData.city || 'Desconocida',
-            score: 75,
-            category: 'QR Lead',
-            registrationDate: new Date().toISOString().split('T')[0],
-            interestedProducts: selectedProducts.map(p => ({ id: p.id, name: p.name, sku: p.sku }))
-        };
-
-        await fetch('/api/clients', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newClient),
-        });
-
-        const auditEntry = {
-            id: `log-${Date.now()}`,
-            userId: 'SYSTEM',
-            userName: 'Formulario Publico',
-            userRole: 'IA',
-            action: 'LEAD_CREATED',
-            targetId: newClient.id,
-            targetName: newClient.name,
-            timestamp: new Date(),
-            details: `Nuevo lead interesado en: ${selectedProducts.map(p => p.name).join(', ') || 'Consultoria General'}`,
-            verified: true
-        };
-
-        const stateRes = await fetch('/api/state?keys=forms,auditLogs', { cache: 'no-store' });
-        if (stateRes.ok) {
-            const state = await stateRes.json();
-            const auditLogs = Array.isArray(state.auditLogs) ? state.auditLogs : [];
-            const forms = Array.isArray(state.forms) ? state.forms : [];
-            const updatedForms = forms.map((f: any) =>
-                f.id === params.id ? { ...f, submissions: (f.submissions || 0) + 1 } : f
-            );
-
-            await fetch('/api/state', {
-                method: 'PUT',
+        try {
+            // Use the public endpoint so the form works from anywhere (no auth required).
+            // Server-side it applies round-robin seller assignment, creates the pipeline
+            // task with the products of interest, and bumps the form's submission counter.
+            const res = await fetch('/api/public/form-submit', {
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    auditLogs: [auditEntry, ...auditLogs],
-                    forms: updatedForms,
+                    formId: params.id,
+                    name: formData.name || 'Anónimo',
+                    email: formData.email || '',
+                    phone: formData.phone || '',
+                    city: formData.city || '',
+                    company: formData.company || '',
+                    interestedProducts: selectedProducts.map(p => ({ id: p.id, name: p.name, sku: p.sku })),
                 }),
             });
+            if (!res.ok) {
+                setStatus('error');
+                return;
+            }
+            setStatus('success');
+        } catch {
+            setStatus('error');
         }
-
-        setStatus('success');
     };
 
     if (!form) return (
