@@ -18,6 +18,7 @@ import { clsx } from "clsx";
 import { useApp, Quote } from "@/context/AppContext";
 import { generatePDFReport } from "@/lib/pdf-generator";
 import { canSeeAll, ownsRecord } from "@/lib/scope";
+import { aggregateSellerActivity, getPresetRange, type PeriodPreset } from "@/lib/seller-activity";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("es-CO", {
@@ -36,38 +37,21 @@ const QUOTE_STATUS_LABEL: Record<string, string> = {
 };
 
 export default function Home() {
-  const { clients, tasks, quotes, sellers, settings, currentUser, updateQuote, addNotification, addAuditLog } = useApp();
+  const { clients, tasks, quotes, sellers, settings, currentUser, updateQuote, addNotification, addAuditLog, auditLogs, events } = useApp();
   const isLeadership = canSeeAll(currentUser);
+  // ⚠️ Top vendedores SOLO SuperAdmin/Admin — nunca Manager ni Vendedor
+  const canSeePerformance = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
+  const [topSellersPreset, setTopSellersPreset] = useState<Exclude<PeriodPreset, 'custom'>>('today');
 
-  // Per-seller progress — only visible to SuperAdmin/Admin/Manager
-  const sellerProgress = useMemo(() => {
-    if (!isLeadership) return [];
-    const rows = sellers
-      .filter(s => s.role === 'Vendedor' || s.role === 'Manager')
-      .map(s => {
-        const matchesSeller = (owner: string | null | undefined) => {
-          if (!owner) return false;
-          const o = owner.toLowerCase();
-          return o === s.id.toLowerCase() || o === (s.name || '').toLowerCase() || o === (s.username || '').toLowerCase();
-        };
-        const myClients = clients.filter(c => matchesSeller(c.assignedTo) || matchesSeller(c.assignedToName));
-        const myQuotes = quotes.filter(q => matchesSeller(q.sellerId) || matchesSeller(q.sellerName));
-        const approved = myQuotes.filter(q => q.status === 'Approved');
-        const sent = myQuotes.filter(q => q.status === 'Sent').length;
-        const revenue = approved.reduce((sum, q) => sum + (q.numericTotal || 0), 0);
-        return {
-          id: s.id,
-          name: s.name,
-          avatar: s.avatar,
-          role: s.role,
-          clients: myClients.length,
-          sent,
-          approved: approved.length,
-          revenue,
-        };
-      });
-    return rows.sort((a, b) => b.revenue - a.revenue);
-  }, [isLeadership, sellers, clients, quotes]);
+  // Top sellers widget — usa el mismo motor de /team/performance y del correo diario
+  const topSellers = useMemo(() => {
+    if (!canSeePerformance) return [];
+    const { from, to } = getPresetRange(topSellersPreset);
+    const acts = aggregateSellerActivity({
+      sellers, clients, quotes, auditLogs, events, from, to,
+    });
+    return [...acts].sort((a, b) => b.score - a.score).slice(0, 5);
+  }, [canSeePerformance, sellers, clients, quotes, auditLogs, events, topSellersPreset]);
 
   const userIsSuperAdmin = currentUser?.role === "SuperAdmin" || currentUser?.role === "Admin";
   const isAdmin = userIsSuperAdmin;
@@ -663,53 +647,90 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Per-seller progress — leadership only */}
-          {isLeadership && sellerProgress.length > 0 && (
+          {/* Top vendedores — widget con filtros día/semana/mes · SOLO SuperAdmin/Admin */}
+          {canSeePerformance && topSellers.length > 0 && (
             <div className="surface-card p-6">
-              <div className="flex items-start justify-between mb-5">
+              <div className="flex items-start justify-between mb-3">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Equipo Comercial</p>
-                  <h3 className="section-title mt-1">Progreso por vendedor</h3>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Top Vendedores</p>
+                  <h3 className="section-title mt-1">Ranking del equipo</h3>
                 </div>
-                <Link href="/team" className="text-xs font-bold text-primary hover:underline shrink-0">
-                  Ver equipo →
+                <Link href="/team/performance" className="text-xs font-bold text-primary hover:underline shrink-0">
+                  Ver todo →
                 </Link>
               </div>
-              <div className="space-y-3">
+
+              {/* Selector de periodo */}
+              <div className="flex gap-1.5 mb-4 bg-muted rounded-xl p-1">
+                {([
+                  { key: 'today', label: 'Hoy' },
+                  { key: 'week',  label: 'Semana' },
+                  { key: 'month', label: 'Mes' },
+                ] as const).map((p) => (
+                  <button
+                    key={p.key}
+                    onClick={() => setTopSellersPreset(p.key)}
+                    className={clsx(
+                      'flex-1 px-3 py-1.5 rounded-lg text-[11px] font-black transition-all',
+                      topSellersPreset === p.key
+                        ? 'bg-white text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="space-y-2.5">
                 {(() => {
-                  const topRevenue = sellerProgress[0]?.revenue || 0;
-                  return sellerProgress.map((s, idx) => {
-                    const pct = topRevenue > 0 ? Math.max(6, Math.round((s.revenue / topRevenue) * 100)) : 6;
+                  const topScore = topSellers[0]?.score || 0;
+                  return topSellers.map((act, idx) => {
+                    const pct = topScore > 0 ? Math.max(6, Math.round((act.score / topScore) * 100)) : 6;
+                    const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}`;
                     return (
-                      <div key={s.id} className="p-3 rounded-xl bg-muted/30 border border-border space-y-2">
+                      <Link
+                        key={act.seller.id}
+                        href="/team/performance"
+                        className="block p-3 rounded-xl bg-muted/30 border border-border space-y-2 hover:border-primary/30 hover:bg-primary/5 transition-all"
+                      >
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-xs font-black text-primary shrink-0">
-                            {idx + 1}
+                          <div className="w-9 h-9 rounded-xl bg-white border border-border flex items-center justify-center text-sm font-black shrink-0">
+                            {medal}
                           </div>
-                          {s.avatar ? (
-                            <img src={s.avatar} alt={s.name} className="w-8 h-8 rounded-full object-cover border border-border shrink-0" />
+                          {act.seller.avatar ? (
+                            <img src={act.seller.avatar} alt={act.seller.name} className="w-9 h-9 rounded-full object-cover border border-border shrink-0" />
                           ) : (
-                            <div className="w-8 h-8 rounded-full bg-muted border border-border flex items-center justify-center text-[10px] font-black text-muted-foreground shrink-0">
-                              {s.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()}
+                            <div className="w-9 h-9 rounded-full bg-muted border border-border flex items-center justify-center text-[10px] font-black text-muted-foreground shrink-0">
+                              {act.seller.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()}
                             </div>
                           )}
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-bold text-foreground truncate">{s.name}</p>
-                            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">{s.role}</p>
+                            <p className="text-sm font-bold text-foreground truncate">{act.seller.name}</p>
+                            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">{act.seller.role}</p>
                           </div>
-                          <p className="text-sm font-black text-emerald-600 shrink-0">{formatCurrency(s.revenue)}</p>
+                          <div className="text-right shrink-0">
+                            <p className="text-sm font-black text-primary leading-none">{act.score}</p>
+                            <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest mt-1">Score</p>
+                          </div>
                         </div>
                         <div className="progress-track">
                           <div className="progress-fill" style={{ width: `${pct}%` }} />
                         </div>
-                        <div className="flex items-center gap-3 text-[10px] font-bold text-muted-foreground">
-                          <span>{s.clients} clientes</span>
+                        <div className="flex items-center gap-2.5 text-[10px] font-bold text-muted-foreground flex-wrap">
+                          <span>{act.clientsAdded.length + act.leadsCreated.length} nuevos</span>
                           <span className="text-muted-foreground/40">·</span>
-                          <span>{s.sent} enviadas</span>
+                          <span>{act.callsMade.length + act.whatsappsSent.length} contactos</span>
                           <span className="text-muted-foreground/40">·</span>
-                          <span className="text-emerald-600">{s.approved} ganadas</span>
+                          <span>{act.quotesSent.length} cotiz.</span>
+                          {act.totalRevenue > 0 && (
+                            <>
+                              <span className="text-muted-foreground/40">·</span>
+                              <span className="text-emerald-600">{formatCurrency(act.totalRevenue)}</span>
+                            </>
+                          )}
                         </div>
-                      </div>
+                      </Link>
                     );
                   });
                 })()}

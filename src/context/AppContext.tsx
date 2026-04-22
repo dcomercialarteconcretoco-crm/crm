@@ -293,6 +293,17 @@ export interface AppSettings {
     autoSendCopyEmail?: string;
     // Cálculo de envío para cotizaciones finales
     shipping?: ShippingSettings;
+    // Informe Diario — correo automático con resumen de actividad por vendedor
+    dailyReport?: DailyReportSettings;
+}
+
+export interface DailyReportSettings {
+    enabled: boolean;               // master switch
+    recipients: string[];           // sellerIds que reciben el correo (además de los emails extra)
+    extraEmails: string[];          // emails externos que NO están en la lista de vendedores
+    sendTime: string;               // "HH:MM" en hora Colombia, default "19:00"
+    weekdaysOnly: boolean;          // true = lun-vie, false = todos los días
+    lastSentAt?: string;            // ISO — última vez que se envió automáticamente
 }
 
 export interface ShippingCityRate {
@@ -577,6 +588,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         quoteYear: new Date().getFullYear(),
         geminiKey: '',
         resendKey: '',
+        dailyReport: {
+            enabled: false,
+            recipients: [],
+            extraEmails: [],
+            sendTime: '19:00',
+            weekdaysOnly: true,
+        },
         shipping: {
             enabled: true,
             defaultRatePerKg: 3500,        // COP/kg fallback nacional

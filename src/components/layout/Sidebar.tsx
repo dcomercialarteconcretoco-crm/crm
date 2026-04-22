@@ -14,6 +14,7 @@ import {
   Workflow,
   Bot,
   Shield,
+  Trophy,
   FilePlus2,
   Loader2,
   FolderOpen,
@@ -47,6 +48,7 @@ const navGroups = [
       { name: 'Agenda',        href: '/scheduler', icon: Calendar,  permission: 'scheduler.view'  },
       { name: 'Analíticas',    href: '/analytics', icon: BarChart3, permission: 'analytics.view'  },
       { name: 'Equipo',        href: '/team',      icon: Users,     permission: 'team.view'       },
+      { name: 'Rendimiento',   href: '/team/performance', icon: Trophy,  permission: 'team.view', superAdminOnly: true },
     ],
   },
   {
@@ -74,9 +76,13 @@ export function Sidebar({ isCompact }: SidebarProps) {
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const { currentUser } = useApp();
 
+  const isSuperAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
+
   /** Hides nav items the user has no permission for */
-  const canSee = (permission: string | null) =>
-    !permission || hasPermission(currentUser, permission as PermissionKey);
+  const canSee = (item: { permission: string | null; superAdminOnly?: boolean }) => {
+    if (item.superAdminOnly && !isSuperAdmin) return false;
+    return !item.permission || hasPermission(currentUser, item.permission as PermissionKey);
+  };
   const displayName =
     currentUser?.name === 'Administrador Principal' || currentUser?.name === 'Acceso Alternativo'
       ? 'Juan Sierra'
@@ -125,7 +131,7 @@ export function Sidebar({ isCompact }: SidebarProps) {
                 {group.label}
               </div>
             )}
-            {group.items.filter(item => canSee(item.permission)).map((item) => {
+            {group.items.filter(item => canSee(item)).map((item) => {
               const isActive = pathname === item.href;
               return (
                 <Link
@@ -167,7 +173,7 @@ export function Sidebar({ isCompact }: SidebarProps) {
         {!isCompact && (
           <div className="mt-2 mb-1 px-3 text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em]">Sistema</div>
         )}
-        {systemItems.filter(item => canSee(item.permission)).map((item) => {
+        {systemItems.filter(item => canSee(item)).map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link

@@ -55,6 +55,7 @@ const categories = [
     { id: 'biolinks', name: 'Tarjetas Digitales', icon: CreditCard },
     { id: 'intelligence', name: 'Cerebro IA (MiWibi)', icon: Activity },
     { id: 'autosend', name: 'Cotizaciones automáticas', icon: Zap, superAdminOnly: true },
+    { id: 'dailyreport', name: 'Informe Diario', icon: Mail, superAdminOnly: true },
     { id: 'notifications', name: 'Notificaciones', icon: Bell },
     { id: 'security', name: 'Seguridad y Acceso', icon: Shield },
     { id: 'integrations', name: 'Integraciones API', icon: LinkIcon },
@@ -64,7 +65,9 @@ const categories = [
 ];
 
 export default function SettingsPage() {
-    const { settings, updateSettings: rawUpdateSettings, currentUser, clearTestData, addNotification } = useApp();
+    const { settings, updateSettings: rawUpdateSettings, currentUser, clearTestData, addNotification, sellers } = useApp();
+    const [dailyReportTesting, setDailyReportTesting] = useState(false);
+    const [newExtraEmail, setNewExtraEmail] = useState('');
     const canManageSettings = hasPermission(currentUser, 'settings.manage');
     const isSuperAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
     const visibleCategories = useMemo(
@@ -95,7 +98,7 @@ export default function SettingsPage() {
 
     // Prevent deep-linking into a tab the user can't see.
     useEffect(() => {
-        if (activeTab === 'autosend' && !isSuperAdmin) setActiveTab('profile');
+        if ((activeTab === 'autosend' || activeTab === 'dailyreport') && !isSuperAdmin) setActiveTab('profile');
     }, [activeTab, isSuperAdmin]);
     const [showPassword, setShowPassword] = useState(false);
     const [aiActive, setAiActive] = useState(true);
@@ -580,7 +583,7 @@ export default function SettingsPage() {
                                             aria-label="Toggle envío automático maestro"
                                         >
                                             <div className={clsx(
-                                                "w-4 h-4 bg-white rounded-full absolute transition-all",
+                                                "w-4 h-4 bg-white rounded-full absolute top-1 transition-all shadow-sm",
                                                 settings.autoSendPublicQuotes ? "right-1" : "left-1"
                                             )}></div>
                                         </button>
@@ -641,7 +644,7 @@ export default function SettingsPage() {
                                                     aria-label={`Toggle auto-envío ${ch.label}`}
                                                 >
                                                     <div className={clsx(
-                                                        "w-4 h-4 bg-white rounded-full absolute transition-all",
+                                                        "w-4 h-4 bg-white rounded-full absolute top-1 transition-all shadow-sm",
                                                         enabled ? "right-1" : "left-1"
                                                     )}></div>
                                                 </button>
@@ -677,6 +680,324 @@ export default function SettingsPage() {
                             </div>
                         )}
 
+                        {/* Tab: Informe Diario (SuperAdmin only) */}
+                        {activeTab === 'dailyreport' && isSuperAdmin && (() => {
+                            const dr = settings.dailyReport || {
+                                enabled: false,
+                                recipients: [],
+                                extraEmails: [],
+                                sendTime: '19:00',
+                                weekdaysOnly: true,
+                            };
+                            const toggleRecipient = (sellerId: string) => {
+                                const current = dr.recipients || [];
+                                const next = current.includes(sellerId)
+                                    ? current.filter((id) => id !== sellerId)
+                                    : [...current, sellerId];
+                                updateSettings({ dailyReport: { ...dr, recipients: next } });
+                            };
+                            const removeExtraEmail = (email: string) => {
+                                updateSettings({
+                                    dailyReport: {
+                                        ...dr,
+                                        extraEmails: (dr.extraEmails || []).filter((e) => e !== email),
+                                    },
+                                });
+                            };
+                            const addExtraEmail = () => {
+                                const e = newExtraEmail.trim().toLowerCase();
+                                if (!e || !/.+@.+\..+/.test(e)) {
+                                    addNotification({ title: 'Email inválido', description: 'Ingresa un correo con formato válido.', type: 'alert' });
+                                    return;
+                                }
+                                if ((dr.extraEmails || []).includes(e)) return;
+                                updateSettings({
+                                    dailyReport: {
+                                        ...dr,
+                                        extraEmails: [...(dr.extraEmails || []), e],
+                                    },
+                                });
+                                setNewExtraEmail('');
+                            };
+                            const sendDemo = async () => {
+                                setDailyReportTesting(true);
+                                try {
+                                    const recipientIds = dr.recipients || [];
+                                    const extraEmails = dr.extraEmails || [];
+                                    if (recipientIds.length === 0 && extraEmails.length === 0) {
+                                        addNotification({
+                                            title: 'Agrega destinatarios',
+                                            description: 'Selecciona al menos un vendedor o agrega un correo externo para probar el envío.',
+                                            type: 'alert',
+                                        });
+                                        return;
+                                    }
+                                    const res = await fetch('/api/daily-report/send', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ demo: true, recipientIds, extraEmails }),
+                                    });
+                                    const data = await res.json();
+                                    if (res.ok) {
+                                        addNotification({
+                                            title: '✅ Informe demo enviado',
+                                            description: `Se envió a: ${data.sentTo.join(', ')}`,
+                                            type: 'success',
+                                        });
+                                    } else {
+                                        addNotification({
+                                            title: 'Error enviando demo',
+                                            description: data.error || 'Revisa RESEND_API_KEY',
+                                            type: 'alert',
+                                        });
+                                    }
+                                } catch (err) {
+                                    addNotification({
+                                        title: 'Error de red',
+                                        description: String(err),
+                                        type: 'alert',
+                                    });
+                                } finally {
+                                    setDailyReportTesting(false);
+                                }
+                            };
+
+                            return (
+                                <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+                                    <div>
+                                        <h3 className="text-xl font-black text-foreground tracking-tight flex items-center gap-2">
+                                            <Mail className="w-5 h-5 text-primary" />
+                                            Informe Diario por Email
+                                        </h3>
+                                        <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+                                            Resumen automático al final del día con toda la actividad del equipo comercial:
+                                            horario de entrada/salida, clientes y leads nuevos, llamadas, WhatsApps,
+                                            cotizaciones enviadas y agenda del día — <strong>por vendedor</strong>.
+                                        </p>
+                                    </div>
+
+                                    {/* Master toggle */}
+                                    <div className={clsx(
+                                        "bg-white border rounded-2xl p-6 shadow-sm transition-all",
+                                        dr.enabled ? "border-emerald-500/40" : "border-amber-500/30"
+                                    )}>
+                                        <div className="flex items-start gap-4">
+                                            <div className={clsx(
+                                                "p-3 rounded-xl shrink-0",
+                                                dr.enabled ? "bg-emerald-500/10" : "bg-amber-500/10"
+                                            )}>
+                                                <Mail className={clsx(
+                                                    "w-5 h-5",
+                                                    dr.enabled ? "text-emerald-500" : "text-amber-500"
+                                                )} />
+                                            </div>
+                                            <div className="flex-1 space-y-1">
+                                                <h4 className="text-sm font-black text-foreground">Envío automático del informe</h4>
+                                                {dr.enabled ? (
+                                                    <p className="text-xs text-emerald-600 font-semibold">
+                                                        ACTIVADO — se envía automáticamente a las <strong>{dr.sendTime}</strong> ({dr.weekdaysOnly ? 'lunes a viernes' : 'todos los días'}).
+                                                    </p>
+                                                ) : (
+                                                    <p className="text-xs text-amber-600 font-semibold">
+                                                        DESACTIVADO — no se envía ningún informe automático.
+                                                    </p>
+                                                )}
+                                                <p className="text-xs text-muted-foreground/70 italic pt-1">
+                                                    El envío automático usa Vercel Cron. El envío manual (botón &ldquo;Enviar ahora&rdquo;) funciona siempre.
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() => updateSettings({ dailyReport: { ...dr, enabled: !dr.enabled } })}
+                                                className={clsx(
+                                                    "w-12 h-6 rounded-full relative p-1 transition-all shrink-0",
+                                                    dr.enabled ? "bg-emerald-500" : "bg-gray-300"
+                                                )}
+                                                aria-label="Toggle informe diario"
+                                            >
+                                                <div className={clsx(
+                                                    "w-4 h-4 bg-white rounded-full absolute top-1 transition-all shadow-sm",
+                                                    dr.enabled ? "right-1" : "left-1"
+                                                )}></div>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Hora + weekdays */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="bg-white border border-border rounded-2xl p-5 shadow-sm space-y-3">
+                                            <div className="flex items-center gap-2">
+                                                <Calendar className="w-4 h-4 text-primary" />
+                                                <h4 className="text-sm font-black text-foreground">Hora de envío</h4>
+                                            </div>
+                                            <input
+                                                type="time"
+                                                value={dr.sendTime || '19:00'}
+                                                onChange={(e) => updateSettings({ dailyReport: { ...dr, sendTime: e.target.value } })}
+                                                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
+                                            />
+                                            <p className="text-xs text-muted-foreground">Zona horaria: America/Bogota</p>
+                                        </div>
+                                        <div className="bg-white border border-border rounded-2xl p-5 shadow-sm space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <Calendar className="w-4 h-4 text-primary" />
+                                                    <h4 className="text-sm font-black text-foreground">Solo días hábiles</h4>
+                                                </div>
+                                                <button
+                                                    onClick={() => updateSettings({ dailyReport: { ...dr, weekdaysOnly: !dr.weekdaysOnly } })}
+                                                    className={clsx(
+                                                        "w-12 h-6 rounded-full relative p-1 transition-all",
+                                                        dr.weekdaysOnly ? "bg-primary" : "bg-gray-300"
+                                                    )}
+                                                >
+                                                    <div className={clsx("w-4 h-4 bg-white rounded-full absolute top-1 transition-all shadow-sm", dr.weekdaysOnly ? "right-1" : "left-1")}></div>
+                                                </button>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground">
+                                                {dr.weekdaysOnly
+                                                    ? 'Lunes a Viernes (no se envía sábados ni domingos)'
+                                                    : 'Todos los días incluidos sábado y domingo'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Destinatarios — lista de vendedores */}
+                                    <div className="bg-white border border-border rounded-2xl p-6 shadow-sm space-y-4">
+                                        <div className="flex items-center gap-3">
+                                            <User className="w-4 h-4 text-primary" />
+                                            <h4 className="text-sm font-black text-foreground">Destinatarios del equipo</h4>
+                                            <span className="text-[10px] uppercase tracking-wider bg-primary/10 text-primary border border-primary/20 rounded-full px-2 py-0.5 font-black">
+                                                {(dr.recipients || []).length} seleccionado{(dr.recipients || []).length === 1 ? '' : 's'}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Marca a quién del equipo le debe llegar el correo cada día.
+                                        </p>
+                                        {sellers.length === 0 ? (
+                                            <p className="text-xs text-muted-foreground italic text-center py-4">No hay vendedores registrados todavía.</p>
+                                        ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                {sellers.map((s) => {
+                                                    const checked = (dr.recipients || []).includes(s.id);
+                                                    return (
+                                                        <label
+                                                            key={s.id}
+                                                            className={clsx(
+                                                                "flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all",
+                                                                checked
+                                                                    ? "bg-primary/5 border-primary/40"
+                                                                    : "bg-muted border-border hover:border-primary/20"
+                                                            )}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={checked}
+                                                                onChange={() => toggleRecipient(s.id)}
+                                                                className="w-4 h-4 rounded accent-primary"
+                                                            />
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="text-sm font-bold text-foreground truncate">{s.name}</div>
+                                                                <div className="text-[11px] text-muted-foreground truncate">
+                                                                    {s.role} · {s.email || 'sin email'}
+                                                                </div>
+                                                            </div>
+                                                        </label>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Correos externos */}
+                                    <div className="bg-white border border-border rounded-2xl p-6 shadow-sm space-y-4">
+                                        <div className="flex items-center gap-3">
+                                            <Mail className="w-4 h-4 text-primary" />
+                                            <h4 className="text-sm font-black text-foreground">Correos externos adicionales</h4>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Agrega correos de personas que no están en el equipo (dueño, gerencia, contadores…).
+                                        </p>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="email"
+                                                value={newExtraEmail}
+                                                onChange={(e) => setNewExtraEmail(e.target.value)}
+                                                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addExtraEmail(); } }}
+                                                placeholder="correo@empresa.com"
+                                                className="flex-1 bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
+                                            />
+                                            <button
+                                                onClick={addExtraEmail}
+                                                className="bg-primary text-black font-black rounded-xl px-4 py-2.5 hover:opacity-90 transition-opacity text-sm flex items-center gap-1"
+                                            >
+                                                <Plus className="w-4 h-4" />
+                                                Agregar
+                                            </button>
+                                        </div>
+                                        {(dr.extraEmails || []).length > 0 && (
+                                            <div className="flex flex-wrap gap-2 pt-1">
+                                                {(dr.extraEmails || []).map((email) => (
+                                                    <span key={email} className="inline-flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 rounded-full px-3 py-1 text-xs font-bold">
+                                                        {email}
+                                                        <button
+                                                            onClick={() => removeExtraEmail(email)}
+                                                            className="hover:bg-primary/20 rounded-full w-4 h-4 flex items-center justify-center"
+                                                            aria-label={`Quitar ${email}`}
+                                                        >
+                                                            <X className="w-3 h-3" />
+                                                        </button>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Test / enviar ahora */}
+                                    <div className="bg-gradient-to-br from-primary/5 to-amber-50 border border-primary/20 rounded-2xl p-6 space-y-4">
+                                        <div className="flex items-center gap-3">
+                                            <Zap className="w-5 h-5 text-primary" />
+                                            <div>
+                                                <h4 className="text-sm font-black text-foreground">Probar el correo</h4>
+                                                <p className="text-xs text-muted-foreground mt-0.5">
+                                                    Envía un informe DEMO (con datos de ejemplo) a los destinatarios configurados para ver cómo se ve.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={sendDemo}
+                                            disabled={dailyReportTesting}
+                                            className="w-full bg-primary text-black font-black rounded-xl px-5 py-3 hover:opacity-90 transition-opacity text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {dailyReportTesting ? (
+                                                <>
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                    Enviando informe demo…
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Mail className="w-4 h-4" />
+                                                    Enviar informe DEMO ahora
+                                                </>
+                                            )}
+                                        </button>
+                                        {dr.lastSentAt && (
+                                            <p className="text-xs text-muted-foreground text-center">
+                                                Último envío automático: {new Date(dr.lastSentAt).toLocaleString('es-CO', { dateStyle: 'long', timeStyle: 'short', timeZone: 'America/Bogota' })}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3">
+                                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                        <div className="text-xs text-amber-800 leading-relaxed space-y-1">
+                                            <p><strong>¿Cómo funciona?</strong> Cada día hábil a la hora configurada, Vercel Cron llama al endpoint del CRM, que lee toda la actividad del día desde la base de datos y manda el correo.</p>
+                                            <p>El informe demo usa datos ficticios — no toca la base de datos. Úsalo para ver el diseño antes de activar.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
                         {/* Tab: Notificaciones */}
                         {activeTab === 'notifications' && (
                             <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
@@ -703,7 +1024,7 @@ export default function SettingsPage() {
                                                     onClick={() => setNotifEnabled(prev => prev.map((v, idx) => idx === i ? !v : v))}
                                                     className={clsx("w-12 h-6 rounded-full relative p-1 transition-all duration-300", notifEnabled[i] ? "bg-primary" : "bg-gray-300")}
                                                 >
-                                                    <div className={clsx("w-4 h-4 bg-white rounded-full absolute transition-all", notifEnabled[i] ? "right-1" : "left-1")}></div>
+                                                    <div className={clsx("w-4 h-4 bg-white rounded-full absolute top-1 transition-all shadow-sm", notifEnabled[i] ? "right-1" : "left-1")}></div>
                                                 </button>
                                             </div>
                                         </div>
@@ -784,7 +1105,7 @@ export default function SettingsPage() {
                                             )}
                                         >
                                             <div className={clsx(
-                                                "w-4 h-4 bg-white rounded-full absolute transition-all",
+                                                "w-4 h-4 bg-white rounded-full absolute top-1 transition-all shadow-sm",
                                                 settings.allowExports ? "right-1" : "left-1"
                                             )}></div>
                                         </button>
@@ -811,7 +1132,7 @@ export default function SettingsPage() {
                                             )}
                                         >
                                             <div className={clsx(
-                                                "w-4 h-4 bg-white rounded-full absolute transition-all",
+                                                "w-4 h-4 bg-white rounded-full absolute top-1 transition-all shadow-sm",
                                                 settings.blockScreenshots ? "right-1" : "left-1"
                                             )}></div>
                                         </button>
