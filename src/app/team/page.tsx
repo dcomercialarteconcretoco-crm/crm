@@ -81,18 +81,10 @@ export default function TeamPage() {
     const canManageTeam = hasPermission(currentUser, 'team.manage');
 
     const teamSellers = useMemo(() => {
-        const normalizedCurrentIdentity = (
-            currentUser?.email ||
-            currentUser?.username ||
-            ''
-        ).trim().toLowerCase();
-
-        const sanitized = sellers.filter((seller) => {
-            if (seller.role !== 'SuperAdmin') return true;
-            if (!normalizedCurrentIdentity) return false;
-            const sellerIdentity = (seller.email || seller.username || '').trim().toLowerCase();
-            return sellerIdentity === normalizedCurrentIdentity || seller.id === currentUser?.id;
-        });
+        // Show every member regardless of role. Previously SuperAdmins other than the
+        // current user were hidden, which caused legit additional admins to "disappear"
+        // when their role was changed to SuperAdmin.
+        const sanitized = [...sellers];
 
         if (!currentUser) return sanitized;
 
