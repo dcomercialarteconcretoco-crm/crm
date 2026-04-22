@@ -76,7 +76,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
 
     // Live preview of the quote number. Reacts to isAIU toggle.
     const versionForDisplay = editQuote?.version || 1;
-    const newQuoteBase = `${settings.quotePrefix || 'ART'}-${settings.quoteNextNumber ?? 250}-${settings.quoteYear || new Date().getFullYear()}`;
+    const newQuoteBase = `${settings.quotePrefix || 'ART'}-${settings.quoteNextNumber ?? 300}-${settings.quoteYear || new Date().getFullYear()}`;
     const previewNumber = (() => {
         if (editQuote?.baseNumber) return formatQuoteNumber(editQuote.baseNumber, versionForDisplay, isAIU);
         if (editQuote?.quoteNumber) {
