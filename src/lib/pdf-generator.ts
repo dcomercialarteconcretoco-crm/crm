@@ -27,6 +27,7 @@ export interface ProposalData {
         transport?: string;
         installation?: string;
         transportPrice?: number;
+        unloadPrice?: number;
         installationPrice?: number;
         totalAIU?: number;
     };
@@ -42,6 +43,8 @@ export interface ProposalData {
     subtotal: number;
     tax: number;
     total: number;
+    shipping?: number;        // COP — se muestra como línea separada antes del total
+    shippingCity?: string;    // ciudad usada para el cálculo (display)
 }
 
 const PRIMARY = [250, 181, 16] as [number, number, number];
@@ -482,6 +485,9 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
         foot: [
             ['', '', '', '', 'Subtotal:', fmt(data.subtotal)],
             ['', '', '', '', 'IVA (19%):', fmt(data.tax)],
+            ...(data.shipping && data.shipping > 0
+                ? [['', '', '', '', `Envío${data.shippingCity ? ` (${data.shippingCity})` : ''}:`, fmt(data.shipping)] as string[]]
+                : []),
         ],
         footStyles: { fillColor: [245, 245, 245] as [number,number,number], textColor: DARKGRAY, fontStyle: 'bold', fontSize: 7.5, halign: 'right' },
     });
@@ -500,10 +506,11 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
 
         const aiuRows: [string, string][] = [];
         if (data.aiuData.supply)       aiuRows.push(['Suministro', data.aiuData.supply]);
-        if (data.aiuData.transport)    aiuRows.push(['Transporte y descargue', data.aiuData.transport]);
+        if (data.aiuData.transport)    aiuRows.push(['Transporte', data.aiuData.transport]);
         if (data.aiuData.installation) aiuRows.push(['Instalación en sitio', data.aiuData.installation]);
-        if (data.aiuData.transportPrice)    aiuRows.push(['Precio transporte', fmt(data.aiuData.transportPrice)]);
-        if (data.aiuData.installationPrice) aiuRows.push(['Precio instalación', fmt(data.aiuData.installationPrice)]);
+        if (data.aiuData.transportPrice)    aiuRows.push(['Valor transporte', fmt(data.aiuData.transportPrice)]);
+        if (data.aiuData.unloadPrice)       aiuRows.push(['Valor descarga', fmt(data.aiuData.unloadPrice)]);
+        if (data.aiuData.installationPrice) aiuRows.push(['Valor instalación', fmt(data.aiuData.installationPrice)]);
 
         autoTable(doc, {
             startY: fy,

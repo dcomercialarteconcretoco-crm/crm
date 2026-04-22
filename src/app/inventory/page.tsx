@@ -43,6 +43,10 @@ export default function InventoryPage() {
         salePrice: 0,
         shortDescription: '',
         dimensions: '',
+        weight: undefined,
+        length: undefined,
+        width: undefined,
+        height: undefined,
         status: 'In Stock',
         image: ''
     });
@@ -88,11 +92,18 @@ export default function InventoryPage() {
         if (product) {
             setEditingProduct(product);
             setForm(product);
-            const d = parseDims(product.dimensions || '');
-            setDimH(d.h); setDimW(d.w); setDimD(d.d);
+            // Prefer structured fields from WooCommerce; fall back to parsing the string
+            if (typeof product.height === 'number' || typeof product.width === 'number' || typeof product.length === 'number') {
+                setDimH(product.height ? String(product.height) : '');
+                setDimW(product.width ? String(product.width) : '');
+                setDimD(product.length ? String(product.length) : '');
+            } else {
+                const d = parseDims(product.dimensions || '');
+                setDimH(d.h); setDimW(d.w); setDimD(d.d);
+            }
         } else {
             setEditingProduct(null);
-            setForm({ name: '', category: 'Urban', sku: '', stock: 0, isStockTracked: false, price: 0, salePrice: 0, shortDescription: '', dimensions: '', status: 'In Stock', image: '', gallery: [] });
+            setForm({ name: '', category: 'Urban', sku: '', stock: 0, isStockTracked: false, price: 0, salePrice: 0, shortDescription: '', dimensions: '', weight: undefined, length: undefined, width: undefined, height: undefined, status: 'In Stock', image: '', gallery: [] });
             setDimH(''); setDimW(''); setDimD('');
         }
         setIsModalOpen(true);
@@ -147,7 +158,7 @@ export default function InventoryPage() {
     const handleSave = async () => {
         setIsSyncing(true);
         try {
-            const payload = {
+            const payload: Record<string, unknown> = {
                 name: form.name,
                 regular_price: form.price?.toString(),
                 sale_price: form.salePrice?.toString(),
@@ -155,6 +166,13 @@ export default function InventoryPage() {
                 manage_stock: form.isStockTracked,
                 stock_quantity: form.stock,
                 sku: form.sku,
+                // Peso y dimensiones — se sincronizan con WooCommerce > Envío
+                weight: form.weight ? String(form.weight) : '',
+                dimensions: {
+                    length: form.length ? String(form.length) : '',
+                    width: form.width ? String(form.width) : '',
+                    height: form.height ? String(form.height) : '',
+                },
             };
 
             if (editingProduct && editingProduct.wooId) {
@@ -304,7 +322,7 @@ export default function InventoryPage() {
             return;
         }
 
-        const headers = ['ID', 'Nombre', 'Categoria', 'SKU', 'Stock', 'Maneja Stock', 'Precio', 'Precio Rebajado', 'Descripcion', 'Dimensiones', 'Estado', 'WooID', 'Imagen'];
+        const headers = ['ID', 'Nombre', 'Categoria', 'SKU', 'Stock', 'Maneja Stock', 'Precio', 'Precio Rebajado', 'Descripcion', 'Dimensiones', 'Largo(cm)', 'Ancho(cm)', 'Alto(cm)', 'Peso(kg)', 'Estado', 'WooID', 'Imagen'];
         const rows = products.filter(p => viewMode === 'deleted' ? p.isDeleted : !p.isDeleted).map(p => [
             p.id,
             `"${p.name.replace(/"/g, '""')}"`,
@@ -316,6 +334,10 @@ export default function InventoryPage() {
             p.salePrice || '',
             `"${(p.shortDescription || '').replace(/"/g, '""')}"`,
             `"${(p.dimensions || '').replace(/"/g, '""')}"`,
+            p.length ?? '',
+            p.width ?? '',
+            p.height ?? '',
+            p.weight ?? '',
             p.status,
             p.wooId || '',
             `"${(p.image || '').replace(/"/g, '""')}"`
@@ -713,6 +735,9 @@ export default function InventoryPage() {
                                             <Ruler className="w-3.5 h-3.5 shrink-0" />
                                             {product.dimensions || '—'}
                                         </div>
+                                        {typeof product.weight === 'number' && (
+                                            <p className="text-[10px] text-muted-foreground/80 mt-0.5 font-semibold">{product.weight} kg</p>
+                                        )}
                                     </td>
                                     <td className="px-4 py-4">
                                         <div className="flex items-center gap-1.5 text-sm font-bold text-foreground">
@@ -1016,24 +1041,38 @@ export default function InventoryPage() {
                                 </div>
                             </div>
 
-                            {/* Dimensions + Status row */}
+                            {/* Dimensions + Weight + Status row */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 pt-1">
                                 <div>
-                                    <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Dimensiones (cm)</label>
+                                    <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Dimensiones (cm) — sincroniza con WooCommerce › Envío</label>
                                     <div className="grid grid-cols-3 gap-2">
-                                        {[{ label: 'Alto', val: dimH, set: setDimH }, { label: 'Ancho', val: dimW, set: setDimW }, { label: 'Largo', val: dimD, set: setDimD }].map(({ label, val, set }) => (
+                                        {[
+                                            { label: 'Alto', key: 'height' as const, val: dimH, set: setDimH },
+                                            { label: 'Ancho', key: 'width' as const, val: dimW, set: setDimW },
+                                            { label: 'Largo', key: 'length' as const, val: dimD, set: setDimD },
+                                        ].map(({ label, key, val, set }) => (
                                             <div key={label} className="space-y-1">
                                                 <span className="text-xs text-muted-foreground font-bold">{label}</span>
                                                 <input
                                                     type="number"
                                                     min="0"
+                                                    step="0.1"
                                                     value={val}
                                                     onChange={(e) => {
-                                                        set(e.target.value);
-                                                        const newH = label === 'Alto' ? e.target.value : dimH;
-                                                        const newW = label === 'Ancho' ? e.target.value : dimW;
-                                                        const newD = label === 'Largo' ? e.target.value : dimD;
-                                                        if (newH || newW || newD) setForm(f => ({ ...f, dimensions: `${newH || 0}x${newW || 0}x${newD || 0}cm` }));
+                                                        const raw = e.target.value;
+                                                        set(raw);
+                                                        const numeric = raw === '' ? undefined : parseFloat(raw);
+                                                        const newH = label === 'Alto' ? raw : dimH;
+                                                        const newW = label === 'Ancho' ? raw : dimW;
+                                                        const newD = label === 'Largo' ? raw : dimD;
+                                                        const dimsStr = (newH || newW || newD)
+                                                            ? `${newH || 0}x${newW || 0}x${newD || 0}cm`
+                                                            : '';
+                                                        setForm(f => ({
+                                                            ...f,
+                                                            [key]: (numeric && Number.isFinite(numeric) && numeric > 0) ? numeric : undefined,
+                                                            dimensions: dimsStr,
+                                                        }));
                                                     }}
                                                     className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all text-center font-bold"
                                                     placeholder="0"
@@ -1044,17 +1083,36 @@ export default function InventoryPage() {
                                     <p className="text-xs text-muted-foreground mt-1">{form.dimensions || 'Sin dimensiones'}</p>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Estado de Producción</label>
-                                    <select
-                                        value={form.status}
-                                        onChange={(e) => setForm({ ...form, status: e.target.value as any })}
-                                        className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
-                                    >
-                                        <option value="In Stock">Disponible Stock</option>
-                                        <option value="Production">En Producción</option>
-                                        <option value="Out of Stock">No Disponible</option>
-                                    </select>
+                                    <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Peso (kg) — usado para calcular envío</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={form.weight ?? ''}
+                                        onChange={(e) => {
+                                            const raw = e.target.value;
+                                            const n = raw === '' ? undefined : parseFloat(raw);
+                                            setForm(f => ({ ...f, weight: (n && Number.isFinite(n) && n > 0) ? n : undefined }));
+                                        }}
+                                        className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all font-bold"
+                                        placeholder="Ej: 45.5"
+                                    />
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        {form.weight ? `${form.weight} kg` : 'Sin peso registrado'}
+                                    </p>
                                 </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Estado de Producción</label>
+                                <select
+                                    value={form.status}
+                                    onChange={(e) => setForm({ ...form, status: e.target.value as any })}
+                                    className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
+                                >
+                                    <option value="In Stock">Disponible Stock</option>
+                                    <option value="Production">En Producción</option>
+                                    <option value="Out of Stock">No Disponible</option>
+                                </select>
                             </div>
                         </div>
 

@@ -22,6 +22,8 @@ export async function POST(request: NextRequest) {
     subtotal,
     tax,
     total,
+    shipping,
+    shippingCity,
     sentAt,
     sentByName,
     sentById,
@@ -177,6 +179,10 @@ export async function POST(request: NextRequest) {
         <td style="font-size:13px;color:#999;padding:5px 0;">IVA (19%)</td>
         <td style="font-size:13px;color:#444;font-weight:700;text-align:right;padding:5px 0;">${formatCOP(tax)}</td>
       </tr>
+      ${typeof shipping === 'number' && shipping > 0 ? `<tr>
+        <td style="font-size:13px;color:#999;padding:5px 0;">Envío${shippingCity ? ` (${shippingCity})` : ''}</td>
+        <td style="font-size:13px;color:#444;font-weight:700;text-align:right;padding:5px 0;">${formatCOP(shipping)}</td>
+      </tr>` : ''}
       <tr>
         <td colspan="2"><div style="height:1px;background:#e0d9cc;margin:12px 0;"></div></td>
       </tr>

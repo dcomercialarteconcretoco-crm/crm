@@ -2,6 +2,20 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 
+// Build the displayed quote number from base + version + AIU flag.
+// base: "ART-250-2026" (prefix-number-year).
+// version 1 → "ART-250-2026", version 2 → "ART-250-V1-2026", version 3 → "ART-250-V2-2026", ...
+// isAIU appends "-AIU" at the end.
+export function formatQuoteNumber(base: string, version: number, isAIU: boolean): string {
+    if (!base) return '';
+    const match = base.match(/^(.+)-(\d{4})$/);
+    const [stem, year] = match ? [match[1], match[2]] : [base, ''];
+    const v = Math.max(1, version || 1);
+    const vSuffix = v > 1 ? `-V${v - 1}` : '';
+    const aiuSuffix = isAIU ? '-AIU' : '';
+    return year ? `${stem}${vSuffix}-${year}${aiuSuffix}` : `${base}${vSuffix}${aiuSuffix}`;
+}
+
 // --- Interfaces ---
 
 export interface Activity {
@@ -71,6 +85,10 @@ export interface QuoteItem {
     image?: string;        // product image URL or base64
     dimensions?: string;   // e.g. "120×60×5 cm"
     isCustom?: boolean;    // manually typed, not from catalog
+    weight?: number;       // kg por unidad (snapshot del producto al cotizar)
+    length?: number;       // cm
+    width?: number;        // cm
+    height?: number;       // cm
 }
 
 export interface Quote {
@@ -87,6 +105,11 @@ export interface Quote {
     tax?: number;
     items?: QuoteItem[];
     notes?: string;
+    shipping?: number;          // Costo de envío en COP (sumado antes del IVA)
+    shippingCity?: string;      // Ciudad usada para calcular el envío
+    shippingMode?: 'auto' | 'manual';  // 'auto' = calculado por reglas, 'manual' = override del vendedor
+    totalWeight?: number;       // kg total del carrito (snapshot)
+    totalVolume?: number;       // cm³ total del carrito (snapshot)
     // Campos comerciales (Word format)
     referencia?: string;        // REFERENCIA: descripción del proyecto
     validUntil?: string;        // Vigencia: "15 de Abril de 2026"
@@ -106,15 +129,16 @@ export interface Quote {
     requestedByName?: string;
     requestedAt?: string;
     // Numeración ART-XXX-YYYY + versioning
-    quoteNumber?: string;   // e.g. "ART-250-2026" or "ART-250-2026-V2" or "ART-250-2026-V3-AIU"
+    quoteNumber?: string;   // e.g. "ART-250-2026" (v1), "ART-250-V1-2026" (v2), "ART-250-V2-2026-AIU" (final)
     baseNumber?: string;    // base without version: "ART-250-2026"
-    version?: number;       // 1=original (no suffix), 2=V2, 3=V3...
-    isAIU?: boolean;        // final AIU version
+    version?: number;       // 1=original (no V suffix), 2=V1, 3=V2...
+    isAIU?: boolean;        // final AIU version (appends "-AIU")
     aiuData?: {
         supply?: string;
         transport?: string;
         installation?: string;
         transportPrice?: number;
+        unloadPrice?: number;
         installationPrice?: number;
         totalAIU?: number;
     };
@@ -190,7 +214,11 @@ export interface Product {
     shortDescription?: string;
     image?: string;
     gallery?: string[];
-    dimensions: string;
+    dimensions: string;          // Formato display "LxWxH cm" (retrocompatible)
+    length?: number;             // cm — viene de WooCommerce dimensions.length
+    width?: number;              // cm — viene de WooCommerce dimensions.width
+    height?: number;             // cm — viene de WooCommerce dimensions.height
+    weight?: number;             // kg — viene de WooCommerce weight
     status: 'In Stock' | 'Low Stock' | 'Out of Stock' | 'Production';
     wooId?: number;
     slug?: string;
@@ -249,6 +277,22 @@ export interface AppSettings {
     // When true, public-form leads receive the auto-generated quote email.
     // When false (default), the lead is only assigned to the next vendor in rotation and they reach out personally.
     autoSendPublicQuotes?: boolean;
+    // Cálculo de envío para cotizaciones finales
+    shipping?: ShippingSettings;
+}
+
+export interface ShippingCityRate {
+    city: string;           // nombre de la ciudad (match con client.city, case-insensitive)
+    ratePerKg: number;      // COP por kg en esta ciudad
+    minimumCharge?: number; // cargo mínimo si el peso calculado da muy bajo
+}
+
+export interface ShippingSettings {
+    enabled: boolean;              // si false, no se muestra línea de envío
+    defaultRatePerKg: number;      // COP/kg para ciudades no listadas (fallback)
+    defaultMinimumCharge: number;  // cargo mínimo global (COP)
+    volumetricDivisor: number;     // cm³ por kg volumétrico (estándar 5000 para terrestre)
+    cityRates: ShippingCityRate[]; // override por ciudad
 }
 
 export interface BotScheduleDay {
@@ -517,6 +561,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         quoteYear: new Date().getFullYear(),
         geminiKey: '',
         resendKey: '',
+        shipping: {
+            enabled: true,
+            defaultRatePerKg: 3500,        // COP/kg fallback nacional
+            defaultMinimumCharge: 80000,   // cargo mínimo COP
+            volumetricDivisor: 5000,       // estándar terrestre: 1 kg volumétrico = 5000 cm³
+            cityRates: [
+                { city: 'Bucaramanga', ratePerKg: 1500, minimumCharge: 40000 },
+                { city: 'Floridablanca', ratePerKg: 1500, minimumCharge: 40000 },
+                { city: 'Girón', ratePerKg: 1500, minimumCharge: 40000 },
+                { city: 'Piedecuesta', ratePerKg: 1500, minimumCharge: 40000 },
+                { city: 'Bogotá', ratePerKg: 2800, minimumCharge: 70000 },
+                { city: 'Medellín', ratePerKg: 2800, minimumCharge: 70000 },
+                { city: 'Cali', ratePerKg: 3200, minimumCharge: 80000 },
+            ],
+        },
         whatsapp: {
             accessToken: '',
             phoneNumberId: '',
@@ -623,25 +682,43 @@ REGLAS DE ORO:
                 throw new Error(msg);
             }
 
-            const mapped: Product[] = data.map((wooP: any) => ({
-                id: wooP.id.toString(),
-                name: wooP.name,
-                category: wooP.categories?.[0]?.name || 'Urban',
-                sku: wooP.sku || `SKU-${wooP.id}`,
-                stock: wooP.stock_quantity || 0,
-                isStockTracked: wooP.manage_stock,
-                price: parseFloat(wooP.regular_price || wooP.price || '0'),
-                salePrice: wooP.sale_price ? parseFloat(wooP.sale_price) : undefined,
-                shortDescription: wooP.short_description?.replace(/<[^>]+>/g, '') || '',
-                dimensions: wooP.dimensions ? (wooP.dimensions.length ? `${wooP.dimensions.length}x${wooP.dimensions.width}x${wooP.dimensions.height}` : '') : '',
-                status: wooP.stock_status === 'instock' ? 'In Stock' : (wooP.stock_status === 'onbackorder' ? 'Production' : 'Out of Stock'),
-                image: wooP.images?.[0]?.src || '',
-                gallery: wooP.images?.map((img: any) => img.src) || [],
-                wooId: wooP.id,
-                slug: wooP.slug,
-                isActive: wooP.status === 'publish',
-                isDeleted: false
-            }));
+            const mapped: Product[] = data.map((wooP: any) => {
+                // WooCommerce returns dimensions as strings ("0" si está vacío) — parsear a number o undefined
+                const toNum = (v: any): number | undefined => {
+                    if (v === undefined || v === null || v === '') return undefined;
+                    const n = parseFloat(v);
+                    return Number.isFinite(n) && n > 0 ? n : undefined;
+                };
+                const len = toNum(wooP.dimensions?.length);
+                const wid = toNum(wooP.dimensions?.width);
+                const hei = toNum(wooP.dimensions?.height);
+                const wgt = toNum(wooP.weight);
+                const dimsStr = (len && wid && hei) ? `${len}x${wid}x${hei}cm` : '';
+
+                return {
+                    id: wooP.id.toString(),
+                    name: wooP.name,
+                    category: wooP.categories?.[0]?.name || 'Urban',
+                    sku: wooP.sku || `SKU-${wooP.id}`,
+                    stock: wooP.stock_quantity || 0,
+                    isStockTracked: wooP.manage_stock,
+                    price: parseFloat(wooP.regular_price || wooP.price || '0'),
+                    salePrice: wooP.sale_price ? parseFloat(wooP.sale_price) : undefined,
+                    shortDescription: wooP.short_description?.replace(/<[^>]+>/g, '') || '',
+                    dimensions: dimsStr,
+                    length: len,
+                    width: wid,
+                    height: hei,
+                    weight: wgt,
+                    status: wooP.stock_status === 'instock' ? 'In Stock' : (wooP.stock_status === 'onbackorder' ? 'Production' : 'Out of Stock'),
+                    image: wooP.images?.[0]?.src || '',
+                    gallery: wooP.images?.map((img: any) => img.src) || [],
+                    wooId: wooP.id,
+                    slug: wooP.slug,
+                    isActive: wooP.status === 'publish',
+                    isDeleted: false
+                };
+            });
 
             if (mapped.length > 0) {
                 setProducts(mapped);
@@ -1010,14 +1087,13 @@ REGLAS DE ORO:
         return quoteId;
     };
 
-    // Create a new version of an existing quote (V2, V3, ...)
+    // Create a new version of an existing quote (V1, V2, ... — inserted before the year)
     const createQuoteVersion = (quoteId: string): string => {
         const original = quotes.find(q => q.id === quoteId);
         if (!original) return '';
-        const base = original.baseNumber || original.quoteNumber || original.number;
+        const base = original.baseNumber || original.quoteNumber || original.number || '';
         const nextV = (original.version || 1) + 1;
-        const vSuffix = nextV > 1 ? `-V${nextV}` : '';
-        const newNumber = `${base}${vSuffix}`;
+        const newNumber = formatQuoteNumber(base, nextV, false);
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { id: _id, ...rest } = original;
         return addQuote({
@@ -1032,21 +1108,20 @@ REGLAS DE ORO:
         });
     };
 
-    // Create AIU version from an approved/sent quote
+    // Create AIU version from an approved/sent quote — bumps V to the next consecutive
     const createAIUVersion = (quoteId: string): string => {
         const original = quotes.find(q => q.id === quoteId);
         if (!original) return '';
-        const base = original.baseNumber || original.quoteNumber || original.number;
-        const v = original.version || 1;
-        const vSuffix = v > 1 ? `-V${v}` : '';
-        const newNumber = `${base}${vSuffix}-AIU`;
+        const base = original.baseNumber || original.quoteNumber || original.number || '';
+        const nextV = (original.version || 1) + 1;
+        const newNumber = formatQuoteNumber(base, nextV, true);
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { id: _id, ...rest } = original;
         return addQuote({
             ...rest,
             quoteNumber: newNumber,
             baseNumber: base,
-            version: v,
+            version: nextV,
             isAIU: true,
             aiuData: original.aiuData || {},
             status: 'Draft',

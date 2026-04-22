@@ -1413,6 +1413,213 @@ export default function SettingsPage() {
                                     </div>
                                 </div>
 
+                                {/* ── Envío / Logística ── */}
+                                <div className="pt-6 border-t border-border space-y-4">
+                                    <div className="flex items-center gap-3">
+                                        <Database className="w-5 h-5 text-primary" />
+                                        <h4 className="text-sm font-black text-foreground">Envío y Logística (Cotizaciones)</h4>
+                                    </div>
+                                    <div className="bg-white border border-border rounded-2xl p-5 shadow-sm space-y-5">
+                                        <p className="text-xs text-muted-foreground">
+                                            El cotizador calcula el <strong className="text-foreground">envío automáticamente</strong> usando el peso y las dimensiones de los productos (sincronizados desde WooCommerce). El vendedor puede sobrescribir el valor en cada cotización.
+                                        </p>
+
+                                        {/* Toggle enabled */}
+                                        <label className="flex items-center justify-between gap-3 p-3 rounded-xl bg-muted/60 border border-border cursor-pointer">
+                                            <div>
+                                                <p className="text-sm font-black text-foreground">Activar cálculo automático de envío</p>
+                                                <p className="text-[11px] text-muted-foreground">Si está desactivado, no se muestra la línea de envío en el cotizador.</p>
+                                            </div>
+                                            <input
+                                                type="checkbox"
+                                                checked={settings.shipping?.enabled ?? true}
+                                                onChange={(e) => updateSettings({
+                                                    shipping: {
+                                                        enabled: e.target.checked,
+                                                        defaultRatePerKg: settings.shipping?.defaultRatePerKg ?? 3500,
+                                                        defaultMinimumCharge: settings.shipping?.defaultMinimumCharge ?? 80000,
+                                                        volumetricDivisor: settings.shipping?.volumetricDivisor ?? 5000,
+                                                        cityRates: settings.shipping?.cityRates ?? [],
+                                                    },
+                                                })}
+                                                className="w-5 h-5 accent-primary"
+                                            />
+                                        </label>
+
+                                        {/* Defaults */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Tarifa por defecto (COP/kg)</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={settings.shipping?.defaultRatePerKg ?? 3500}
+                                                    onChange={(e) => updateSettings({
+                                                        shipping: {
+                                                            enabled: settings.shipping?.enabled ?? true,
+                                                            defaultRatePerKg: parseFloat(e.target.value) || 0,
+                                                            defaultMinimumCharge: settings.shipping?.defaultMinimumCharge ?? 80000,
+                                                            volumetricDivisor: settings.shipping?.volumetricDivisor ?? 5000,
+                                                            cityRates: settings.shipping?.cityRates ?? [],
+                                                        },
+                                                    })}
+                                                    className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm font-black outline-none focus:border-primary focus:bg-white transition-all"
+                                                />
+                                                <p className="text-[10px] text-muted-foreground">Ciudades no listadas usan esta tarifa.</p>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cargo mínimo (COP)</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={settings.shipping?.defaultMinimumCharge ?? 80000}
+                                                    onChange={(e) => updateSettings({
+                                                        shipping: {
+                                                            enabled: settings.shipping?.enabled ?? true,
+                                                            defaultRatePerKg: settings.shipping?.defaultRatePerKg ?? 3500,
+                                                            defaultMinimumCharge: parseFloat(e.target.value) || 0,
+                                                            volumetricDivisor: settings.shipping?.volumetricDivisor ?? 5000,
+                                                            cityRates: settings.shipping?.cityRates ?? [],
+                                                        },
+                                                    })}
+                                                    className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm font-black outline-none focus:border-primary focus:bg-white transition-all"
+                                                />
+                                                <p className="text-[10px] text-muted-foreground">Valor mínimo a cobrar siempre.</p>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Divisor volumétrico (cm³/kg)</label>
+                                                <input
+                                                    type="number"
+                                                    min="1000"
+                                                    value={settings.shipping?.volumetricDivisor ?? 5000}
+                                                    onChange={(e) => updateSettings({
+                                                        shipping: {
+                                                            enabled: settings.shipping?.enabled ?? true,
+                                                            defaultRatePerKg: settings.shipping?.defaultRatePerKg ?? 3500,
+                                                            defaultMinimumCharge: settings.shipping?.defaultMinimumCharge ?? 80000,
+                                                            volumetricDivisor: parseFloat(e.target.value) || 5000,
+                                                            cityRates: settings.shipping?.cityRates ?? [],
+                                                        },
+                                                    })}
+                                                    className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm font-black outline-none focus:border-primary focus:bg-white transition-all"
+                                                />
+                                                <p className="text-[10px] text-muted-foreground">Estándar terrestre: 5000. Aéreo: 6000.</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Per-city rates */}
+                                        <div className="space-y-2 pt-3 border-t border-border">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-xs font-black text-foreground uppercase tracking-widest">Tarifas por ciudad</p>
+                                                    <p className="text-[11px] text-muted-foreground">Override por ciudad. Si la ciudad del cliente está aquí, se usa esta tarifa en lugar de la por defecto.</p>
+                                                </div>
+                                                <button
+                                                    onClick={() => updateSettings({
+                                                        shipping: {
+                                                            enabled: settings.shipping?.enabled ?? true,
+                                                            defaultRatePerKg: settings.shipping?.defaultRatePerKg ?? 3500,
+                                                            defaultMinimumCharge: settings.shipping?.defaultMinimumCharge ?? 80000,
+                                                            volumetricDivisor: settings.shipping?.volumetricDivisor ?? 5000,
+                                                            cityRates: [...(settings.shipping?.cityRates ?? []), { city: '', ratePerKg: 0, minimumCharge: 0 }],
+                                                        },
+                                                    })}
+                                                    className="px-3 py-1.5 bg-primary/10 text-primary border border-primary/30 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-black transition-all"
+                                                >+ Agregar ciudad</button>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {(settings.shipping?.cityRates ?? []).length === 0 ? (
+                                                    <p className="text-xs text-muted-foreground italic text-center py-4">Sin tarifas por ciudad. Todas usan la tarifa por defecto.</p>
+                                                ) : (settings.shipping?.cityRates ?? []).map((rate, idx) => (
+                                                    <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                                                        <input
+                                                            type="text"
+                                                            list="settings-city-options"
+                                                            placeholder="Ciudad"
+                                                            value={rate.city}
+                                                            onChange={(e) => {
+                                                                const next = [...(settings.shipping?.cityRates ?? [])];
+                                                                next[idx] = { ...next[idx], city: e.target.value };
+                                                                updateSettings({
+                                                                    shipping: {
+                                                                        enabled: settings.shipping?.enabled ?? true,
+                                                                        defaultRatePerKg: settings.shipping?.defaultRatePerKg ?? 3500,
+                                                                        defaultMinimumCharge: settings.shipping?.defaultMinimumCharge ?? 80000,
+                                                                        volumetricDivisor: settings.shipping?.volumetricDivisor ?? 5000,
+                                                                        cityRates: next,
+                                                                    },
+                                                                });
+                                                            }}
+                                                            className="col-span-5 bg-muted border border-border rounded-xl px-3 py-2 text-sm outline-none focus:border-primary focus:bg-white"
+                                                        />
+                                                        <input
+                                                            type="number"
+                                                            placeholder="COP/kg"
+                                                            value={rate.ratePerKg}
+                                                            onChange={(e) => {
+                                                                const next = [...(settings.shipping?.cityRates ?? [])];
+                                                                next[idx] = { ...next[idx], ratePerKg: parseFloat(e.target.value) || 0 };
+                                                                updateSettings({
+                                                                    shipping: {
+                                                                        enabled: settings.shipping?.enabled ?? true,
+                                                                        defaultRatePerKg: settings.shipping?.defaultRatePerKg ?? 3500,
+                                                                        defaultMinimumCharge: settings.shipping?.defaultMinimumCharge ?? 80000,
+                                                                        volumetricDivisor: settings.shipping?.volumetricDivisor ?? 5000,
+                                                                        cityRates: next,
+                                                                    },
+                                                                });
+                                                            }}
+                                                            className="col-span-3 bg-muted border border-border rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-primary focus:bg-white"
+                                                        />
+                                                        <input
+                                                            type="number"
+                                                            placeholder="Mín COP"
+                                                            value={rate.minimumCharge ?? 0}
+                                                            onChange={(e) => {
+                                                                const next = [...(settings.shipping?.cityRates ?? [])];
+                                                                next[idx] = { ...next[idx], minimumCharge: parseFloat(e.target.value) || 0 };
+                                                                updateSettings({
+                                                                    shipping: {
+                                                                        enabled: settings.shipping?.enabled ?? true,
+                                                                        defaultRatePerKg: settings.shipping?.defaultRatePerKg ?? 3500,
+                                                                        defaultMinimumCharge: settings.shipping?.defaultMinimumCharge ?? 80000,
+                                                                        volumetricDivisor: settings.shipping?.volumetricDivisor ?? 5000,
+                                                                        cityRates: next,
+                                                                    },
+                                                                });
+                                                            }}
+                                                            className="col-span-3 bg-muted border border-border rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-primary focus:bg-white"
+                                                        />
+                                                        <button
+                                                            onClick={() => {
+                                                                const next = (settings.shipping?.cityRates ?? []).filter((_, i) => i !== idx);
+                                                                updateSettings({
+                                                                    shipping: {
+                                                                        enabled: settings.shipping?.enabled ?? true,
+                                                                        defaultRatePerKg: settings.shipping?.defaultRatePerKg ?? 3500,
+                                                                        defaultMinimumCharge: settings.shipping?.defaultMinimumCharge ?? 80000,
+                                                                        volumetricDivisor: settings.shipping?.volumetricDivisor ?? 5000,
+                                                                        cityRates: next,
+                                                                    },
+                                                                });
+                                                            }}
+                                                            className="col-span-1 p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                                            title="Eliminar"
+                                                        >
+                                                            <Trash className="w-4 h-4 mx-auto" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                <datalist id="settings-city-options">
+                                                    {settings.cities.map(c => (
+                                                        <option key={c.name} value={c.name} />
+                                                    ))}
+                                                </datalist>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* ── Limpiar datos de prueba ── */}
                                 <div className="pt-6 border-t border-border space-y-4">
                                     <div className="flex items-center gap-3">

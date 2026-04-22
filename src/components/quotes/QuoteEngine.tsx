@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { generateProposalPDF } from '@/lib/pdf-generator';
-import { useApp, Product } from '@/context/AppContext';
+import { useApp, Product, formatQuoteNumber } from '@/context/AppContext';
 
 interface QuoteItem {
     id: string;
@@ -20,6 +20,10 @@ interface QuoteItem {
     image?: string;
     dimensions?: string;
     isCustom?: boolean;
+    weight?: number;   // kg por unidad
+    length?: number;   // cm
+    width?: number;    // cm
+    height?: number;   // cm
 }
 
 interface QuoteEngineProps {
@@ -28,19 +32,18 @@ interface QuoteEngineProps {
 }
 
 export default function QuoteEngine({ defaultClientId = '', editQuoteId }: QuoteEngineProps) {
-    const { products, clients, addClient, refreshProducts, addQuote, createQuoteVersion, createAIUVersion, updateQuote, quotes, currentUser, settings, addNotification, addAuditLog } = useApp();
+    const { products, clients, addClient, refreshProducts, addQuote, createQuoteVersion, updateQuote, quotes, currentUser, settings, addNotification, addAuditLog } = useApp();
     const isEditMode = !!editQuoteId;
     const editQuote = editQuoteId ? quotes.find(q => q.id === editQuoteId) : undefined;
     const genId = () => `${Date.now().toString(36)}-${Math.round(Math.random() * 1e4)}`;
-    // Returns the next expected quote number (for display/WhatsApp/email subject)
-    const genQuoteNumber = () => previewNumber;
-    // Preview of the next quote number (will be assigned by addQuote)
-    const previewNumber = editQuote?.quoteNumber
-        || `${settings.quotePrefix || 'ART'}-${settings.quoteNextNumber ?? 250}-${settings.quoteYear || new Date().getFullYear()}`;
 
     const [selectedClientId, setSelectedClientId] = useState(defaultClientId);
     const [items, setItems] = useState<QuoteItem[]>([]);
     const [taxRate] = useState(0.19);
+    // AIU toggle + prices (transport and descarga as separate values)
+    const [isAIU, setIsAIU] = useState<boolean>(!!editQuote?.isAIU);
+    const [transportPrice, setTransportPrice] = useState<number>(editQuote?.aiuData?.transportPrice || 0);
+    const [unloadPrice, setUnloadPrice] = useState<number>(editQuote?.aiuData?.unloadPrice || 0);
     const [isSaving, setIsSaving] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [isSendingEmail, setIsSendingEmail] = useState(false);
@@ -60,6 +63,25 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     // Preview modal
     const [showPreview, setShowPreview] = useState(false);
     const [pendingAction, setPendingAction] = useState<'pdf' | 'email' | 'whatsapp' | null>(null);
+
+    // Envío: modo 'auto' calcula desde peso/dims + ciudad. 'manual' usa shippingOverride.
+    const [shippingMode, setShippingMode] = useState<'auto' | 'manual'>(editQuote?.shippingMode || 'auto');
+    const [shippingOverride, setShippingOverride] = useState<number>(
+        editQuote?.shippingMode === 'manual' ? (editQuote?.shipping ?? 0) : 0
+    );
+
+    // Live preview of the quote number. Reacts to isAIU toggle.
+    const versionForDisplay = editQuote?.version || 1;
+    const newQuoteBase = `${settings.quotePrefix || 'ART'}-${settings.quoteNextNumber ?? 250}-${settings.quoteYear || new Date().getFullYear()}`;
+    const previewNumber = (() => {
+        if (editQuote?.baseNumber) return formatQuoteNumber(editQuote.baseNumber, versionForDisplay, isAIU);
+        if (editQuote?.quoteNumber) {
+            const stripped = editQuote.quoteNumber.replace(/-AIU$/, '');
+            return isAIU ? `${stripped}-AIU` : stripped;
+        }
+        return formatQuoteNumber(newQuoteBase, 1, isAIU);
+    })();
+    const genQuoteNumber = () => previewNumber;
 
     useEffect(() => {
         const doSync = async () => {
@@ -86,6 +108,10 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 image: (i as any).image,
                 dimensions: (i as any).dimensions,
                 isCustom: (i as any).isCustom,
+                weight: (i as any).weight,
+                length: (i as any).length,
+                width: (i as any).width,
+                height: (i as any).height,
             })));
         }
         // Load commercial fields
@@ -93,6 +119,10 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         if (existing.validUntil) setValidUntil(existing.validUntil);
         if (existing.deliveryTime) setDeliveryTime(existing.deliveryTime);
         if (existing.paymentTerms) setPaymentTerms(existing.paymentTerms);
+        // Load AIU state
+        setIsAIU(!!existing.isAIU);
+        setTransportPrice(existing.aiuData?.transportPrice || 0);
+        setUnloadPrice(existing.aiuData?.unloadPrice || 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editQuoteId]);
 
@@ -147,6 +177,10 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 productId: product.id,
                 image: product.image,
                 dimensions: product.dimensions || '',
+                weight: product.weight,
+                length: product.length,
+                width: product.width,
+                height: product.height,
             }];
         });
     };
@@ -169,7 +203,42 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
 
     const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
     const tax = subtotal * taxRate;
-    const total = subtotal + tax;
+    const aiuTotal = isAIU ? (transportPrice + unloadPrice) : 0;
+
+    // ── Cálculo de envío (peso real vs volumétrico × tarifa por ciudad) ──────
+    const selectedClient = clients.find(c => c.id === selectedClientId);
+    const shippingEnabled = settings.shipping?.enabled ?? true;
+
+    const shippingMetrics = useMemo(() => {
+        const totalWeight = items.reduce((s, i) => s + ((i.weight || 0) * i.quantity), 0);
+        const totalVolume = items.reduce((s, i) => {
+            const v = (i.length || 0) * (i.width || 0) * (i.height || 0);
+            return s + (v * i.quantity);
+        }, 0);
+        const divisor = settings.shipping?.volumetricDivisor || 5000;
+        const volumetricWeight = totalVolume > 0 ? totalVolume / divisor : 0;
+        const billableWeight = Math.max(totalWeight, volumetricWeight);
+        // ¿Algún item con datos? Si ninguno tiene peso ni volumen, no calculamos.
+        const hasShippingData = items.some(i => (i.weight || 0) > 0 || ((i.length || 0) * (i.width || 0) * (i.height || 0)) > 0);
+        return { totalWeight, totalVolume, volumetricWeight, billableWeight, hasShippingData };
+    }, [items, settings.shipping?.volumetricDivisor]);
+
+    const autoShipping = useMemo(() => {
+        if (!shippingEnabled) return 0;
+        if (!shippingMetrics.hasShippingData) return 0;
+        const cityRates = settings.shipping?.cityRates ?? [];
+        const clientCity = (selectedClient?.city || '').trim().toLowerCase();
+        const cityRate = clientCity
+            ? cityRates.find(r => (r.city || '').trim().toLowerCase() === clientCity)
+            : undefined;
+        const ratePerKg = cityRate?.ratePerKg ?? settings.shipping?.defaultRatePerKg ?? 0;
+        const minCharge = cityRate?.minimumCharge ?? settings.shipping?.defaultMinimumCharge ?? 0;
+        const computed = shippingMetrics.billableWeight * ratePerKg;
+        return Math.round(Math.max(computed, minCharge));
+    }, [shippingEnabled, shippingMetrics, selectedClient?.city, settings.shipping?.cityRates, settings.shipping?.defaultRatePerKg, settings.shipping?.defaultMinimumCharge]);
+
+    const shipping = shippingMode === 'manual' ? Math.max(0, shippingOverride) : autoShipping;
+    const total = subtotal + tax + aiuTotal + shipping;
 
     const formatCurrency = (v: number) =>
         new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v);
@@ -179,10 +248,29 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         clientEmail: client.email || '', clientCompany: client.company || '',
         date: new Date().toLocaleDateString('es-CO'),
         total: formatCurrency(total), numericTotal: total, subtotal, tax,
-        items: mappedItems.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity, productId: i.productId, image: i.image, dimensions: i.dimensions, isCustom: i.isCustom })),
+        items: mappedItems.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity, productId: i.productId, image: i.image, dimensions: i.dimensions, isCustom: i.isCustom, weight: i.weight, length: i.length, width: i.width, height: i.height })),
         notes: '', sellerId: currentUser?.id || '', sellerName: currentUser?.name || '',
         referencia, validUntil, deliveryTime, paymentTerms,
         sellerPhone: currentUser?.phone || '',
+        // Envío (snapshot)
+        shipping: shipping > 0 ? shipping : undefined,
+        shippingCity: client.city || undefined,
+        shippingMode,
+        totalWeight: shippingMetrics.totalWeight || undefined,
+        totalVolume: shippingMetrics.totalVolume || undefined,
+        // Numbering + AIU persistence
+        quoteNumber,
+        baseNumber: editQuote?.baseNumber || (editQuote ? undefined : newQuoteBase),
+        version: versionForDisplay,
+        isAIU,
+        aiuData: isAIU
+            ? {
+                ...(editQuote?.aiuData || {}),
+                transportPrice: transportPrice || undefined,
+                unloadPrice: unloadPrice || undefined,
+                totalAIU: aiuTotal || undefined,
+            }
+            : undefined,
     });
 
     const executeGeneratePDF = async () => {
@@ -205,7 +293,8 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             let quoteNumber: string;
             if (isEditMode && editQuoteId) {
                 const existing = quotes.find(q => q.id === editQuoteId);
-                quoteNumber = existing?.number || genQuoteNumber();
+                // Recompute number so AIU toggle is reflected on the stored quote
+                quoteNumber = genQuoteNumber();
                 updateQuote(editQuoteId, { ...getCommonQuoteFields(client, quoteNumber, items), status: existing?.status || 'Draft' as const });
             } else {
                 quoteNumber = genQuoteNumber();
@@ -219,6 +308,12 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 sellerPhone: currentUser?.phone || '',
                 items: items.map(i => ({ ...i, total: i.price * i.quantity })),
                 subtotal, tax, total,
+                shipping: shipping > 0 ? shipping : undefined,
+                shippingCity: client.city,
+                isAIU,
+                aiuData: isAIU
+                    ? { transportPrice: transportPrice || undefined, unloadPrice: unloadPrice || undefined, totalAIU: aiuTotal || undefined }
+                    : undefined,
             });
             addAuditLog({ userId: currentUser?.id || '', userName: currentUser?.name || 'Sistema', userRole: currentUser?.role || 'Vendedor', action: 'QUOTE_SENT', targetId: client.id, targetName: client.company || client.name, details: `Cotización ${quoteNumber} ${isEditMode ? 'editada' : 'generada'} · Total: ${formatCurrency(total)}`, verified: true });
             addNotification({ title: `Cotización ${quoteNumber} lista`, description: 'PDF descargado.', type: 'success' });
@@ -265,6 +360,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             ``,
             `Subtotal: ${formatCurrency(subtotal)}`,
             `IVA (19%): ${formatCurrency(tax)}`,
+            shipping > 0 ? `Envío${client.city ? ` (${client.city})` : ''}: ${formatCurrency(shipping)}` : '',
             `*TOTAL: ${formatCurrency(total)}*`,
             ``,
             vigencia,
@@ -313,6 +409,8 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                     sellerId: currentUser?.id || '', sentAt, sentByName: currentUser?.name || '', sentById: currentUser?.id || '',
                     items: items.map(i => ({ name: i.name, price: i.price, quantity: i.quantity, unit: i.unit })),
                     subtotal, tax, total,
+                    shipping: shipping > 0 ? shipping : 0,
+                    shippingCity: client.city || '',
                     referencia, validUntil, deliveryTime, paymentTerms,
                     sellerPhone: currentUser?.phone || '',
                 }),
@@ -369,40 +467,26 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                     <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-amber-500/10 border border-amber-400/30">
                         <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                         <p className="text-sm font-black text-amber-700">
-                            Editando <span className="text-amber-900">{editingQuote.number}</span>
-                            {editingQuote.version && editingQuote.version > 1 && <span className="ml-2 text-[10px] font-black bg-amber-400/30 text-amber-800 px-2 py-0.5 rounded-full uppercase">V{editingQuote.version}</span>}
-                            {editingQuote.isAIU && <span className="ml-2 text-[10px] font-black bg-blue-400/20 text-blue-700 px-2 py-0.5 rounded-full uppercase">AIU</span>}
+                            Editando <span className="text-amber-900">{previewNumber}</span>
+                            {editingQuote.version && editingQuote.version > 1 && <span className="ml-2 text-[10px] font-black bg-amber-400/30 text-amber-800 px-2 py-0.5 rounded-full uppercase">V{editingQuote.version - 1}</span>}
+                            {isAIU && <span className="ml-2 text-[10px] font-black bg-blue-400/20 text-blue-700 px-2 py-0.5 rounded-full uppercase">AIU</span>}
                             {editingQuote.client && <span className="font-medium text-amber-600"> — {editingQuote.client}</span>}
                         </p>
                     </div>
-                    {/* Version / AIU action buttons */}
+                    {/* Version action button */}
                     <div className="flex items-center gap-2 flex-wrap">
                         <button
                             type="button"
                             onClick={() => {
                                 if (!editingQuote) return;
                                 const newId = createQuoteVersion(editingQuote.id);
-                                if (newId) addNotification({ title: 'Nueva versión creada', description: `Se creó ${editingQuote.baseNumber || editingQuote.number}-V${(editingQuote.version || 1) + 1}`, type: 'success' });
+                                if (newId) addNotification({ title: 'Nueva versión creada', description: `Se creó V${editingQuote.version || 1} (revisión) para seguir editando`, type: 'success' });
                             }}
                             className="flex items-center gap-1.5 px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl bg-white border border-border/60 text-foreground hover:bg-accent/50 hover:border-primary/30 transition-all"
                         >
                             <GitBranch className="w-3.5 h-3.5 text-primary" />
-                            Crear V{(editingQuote.version || 1) + 1}
+                            Crear V{(editingQuote.version || 1)} (nueva revisión)
                         </button>
-                        {!editingQuote.isAIU && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (!editingQuote) return;
-                                    const newId = createAIUVersion(editingQuote.id);
-                                    if (newId) addNotification({ title: 'Versión AIU creada', description: `Cotización con AIU lista para editar`, type: 'success' });
-                                }}
-                                className="flex items-center gap-1.5 px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl bg-white border border-border/60 text-blue-700 hover:bg-blue-50 hover:border-blue-300 transition-all"
-                            >
-                                <Wrench className="w-3.5 h-3.5" />
-                                Crear versión AIU
-                            </button>
-                        )}
                     </div>
                 </div>
             ) : null;
@@ -777,6 +861,51 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                         )}
                     </div>
 
+                    {/* AIU Toggle + Transport/Unload inputs */}
+                    <div className="px-5 py-4 border-t border-border/40 bg-blue-50/30 space-y-3">
+                        <label className="flex items-start gap-3 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={isAIU}
+                                onChange={e => setIsAIU(e.target.checked)}
+                                className="mt-0.5 w-4 h-4 rounded border-border/60 text-primary focus:ring-primary/40 cursor-pointer"
+                            />
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                    <Wrench className="w-3.5 h-3.5 text-blue-700" />
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-700">Cotización final (AIU)</span>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">Incluye valor de transporte y descarga. Agrega <strong>-AIU</strong> al número.</p>
+                            </div>
+                        </label>
+                        {isAIU && (
+                            <div className="space-y-2 pt-1">
+                                <div>
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Valor transporte</label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        value={transportPrice || ''}
+                                        onChange={e => setTransportPrice(parseFloat(e.target.value) || 0)}
+                                        placeholder="0"
+                                        className="w-full px-3 py-2 rounded-xl border border-border/60 bg-white text-xs font-bold text-foreground outline-none focus:border-primary/60"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Valor descarga</label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        value={unloadPrice || ''}
+                                        onChange={e => setUnloadPrice(parseFloat(e.target.value) || 0)}
+                                        placeholder="0"
+                                        className="w-full px-3 py-2 rounded-xl border border-border/60 bg-white text-xs font-bold text-foreground outline-none focus:border-primary/60"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
                     {/* Totals */}
                     <div className="px-5 py-4 border-t border-border/40 bg-white/20 space-y-2">
                         <div className="flex justify-between text-[10px] font-black text-muted-foreground uppercase tracking-widest">
@@ -787,6 +916,69 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                             <span>IVA 19%</span>
                             <span>{formatCurrency(tax)}</span>
                         </div>
+                        {isAIU && aiuTotal > 0 && (
+                            <div className="flex justify-between text-[10px] font-black text-blue-700 uppercase tracking-widest">
+                                <span>Transporte + Descarga</span>
+                                <span>{formatCurrency(aiuTotal)}</span>
+                            </div>
+                        )}
+                        {/* ── Envío ───────────────────────────────── */}
+                        {shippingEnabled && items.length > 0 && (
+                            <div className="space-y-1.5 pt-2 border-t border-border/40">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Envío</span>
+                                        {selectedClient?.city && (
+                                            <span className="text-[8px] font-bold text-muted-foreground/70 uppercase tracking-wide">· {selectedClient.city}</span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => {
+                                                if (shippingMode === 'auto') {
+                                                    setShippingOverride(autoShipping);
+                                                    setShippingMode('manual');
+                                                } else {
+                                                    setShippingMode('auto');
+                                                }
+                                            }}
+                                            className={clsx(
+                                                "text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded transition-colors",
+                                                shippingMode === 'manual'
+                                                    ? "bg-amber-100 text-amber-700 border border-amber-300"
+                                                    : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                            )}
+                                            title={shippingMode === 'manual' ? 'Valor manual · click para volver al cálculo automático' : 'Calculado automáticamente · click para editar manualmente'}
+                                        >
+                                            {shippingMode === 'manual' ? 'Manual' : 'Auto'}
+                                        </button>
+                                        {shippingMode === 'manual' ? (
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={shippingOverride}
+                                                onChange={e => setShippingOverride(parseFloat(e.target.value) || 0)}
+                                                className="w-24 text-right text-[10px] font-black bg-white border border-amber-300 rounded px-1.5 py-0.5 outline-none focus:border-amber-500"
+                                            />
+                                        ) : (
+                                            <span className="text-[10px] font-black text-muted-foreground">{formatCurrency(shipping)}</span>
+                                        )}
+                                    </div>
+                                </div>
+                                {shippingMetrics.hasShippingData && (
+                                    <p className="text-[9px] text-muted-foreground/80 text-right">
+                                        Peso real: {shippingMetrics.totalWeight.toFixed(1)} kg ·
+                                        Volumétrico: {shippingMetrics.volumetricWeight.toFixed(1)} kg ·
+                                        Facturable: {shippingMetrics.billableWeight.toFixed(1)} kg
+                                    </p>
+                                )}
+                                {!shippingMetrics.hasShippingData && items.length > 0 && (
+                                    <p className="text-[9px] text-amber-600 text-right">
+                                        ⚠ Ningún producto tiene peso/dimensiones. Sincroniza el catálogo o edita manualmente.
+                                    </p>
+                                )}
+                            </div>
+                        )}
                         <div className="flex justify-between items-baseline pt-2 border-t border-border/40">
                             <span className="text-[10px] font-black uppercase tracking-widest text-primary">Total</span>
                             <span className="text-2xl font-black text-foreground tracking-tighter">{formatCurrency(total)}</span>
@@ -935,6 +1127,11 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                     <div className="text-right space-y-1">
                                         <div className="text-gray-500">Subtotal: <strong className="text-gray-800">{formatCurrency(subtotal)}</strong></div>
                                         <div className="text-gray-500">IVA (19%): <strong className="text-gray-800">{formatCurrency(tax)}</strong></div>
+                                        {shipping > 0 && (
+                                            <div className="text-gray-500">
+                                                Envío{client?.city ? ` (${client.city})` : ''}: <strong className="text-gray-800">{formatCurrency(shipping)}</strong>
+                                            </div>
+                                        )}
                                         <div className="bg-[#fab510] text-black font-black px-4 py-2 rounded-lg text-sm mt-1">TOTAL: {formatCurrency(total)}</div>
                                     </div>
                                 </div>
