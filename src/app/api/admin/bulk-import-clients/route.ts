@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     const ids: string[] = [];
     const names: string[] = [];
     const companies: string[] = [];
-    const emails: string[] = [];
+    const emails: (string | null)[] = [];
     const phones: string[] = [];
     const statuses: string[] = [];
     const values: string[] = [];
@@ -47,7 +47,8 @@ export async function POST(request: NextRequest) {
         ids.push(c.id);
         names.push(c.name || '');
         companies.push(c.company || '');
-        emails.push(c.email || '');
+        // Email vacío → NULL para que el UNIQUE constraint no trate strings vacíos como duplicados.
+        emails.push(c.email && String(c.email).trim() ? String(c.email).trim() : null);
         phones.push(c.phone || '');
         statuses.push(c.status || 'Lead');
         values.push(c.value || '$0');
