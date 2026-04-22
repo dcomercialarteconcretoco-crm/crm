@@ -852,7 +852,24 @@ REGLAS DE ORO:
                 if (stateRes.ok) {
                     const stateData = await stateRes.json();
                     if (Array.isArray(stateData.tasks)) setTasks(stateData.tasks);
-                    if (Array.isArray(stateData.quotes)) setQuotes(stateData.quotes);
+                    if (Array.isArray(stateData.quotes)) {
+                        // Dedup por quoteNumber: si hay duplicadas históricas,
+                        // conservamos la más reciente (id más alto = creada después).
+                        // Evita que duplicadas viejas sigan apareciendo en la cola
+                        // de aprobaciones o en cotizaciones.
+                        const byNumber = new Map<string, Quote>();
+                        for (const q of stateData.quotes as Quote[]) {
+                            const key = q.quoteNumber || q.id;
+                            const prev = byNumber.get(key);
+                            if (!prev || (q.id || '') > (prev.id || '')) byNumber.set(key, q);
+                        }
+                        const deduped = Array.from(byNumber.values());
+                        setQuotes(deduped);
+                        // Si hubo reducción, persistir para limpiar la DB también.
+                        if (deduped.length !== stateData.quotes.length) {
+                            persistSharedState({ quotes: deduped });
+                        }
+                    }
                     if (Array.isArray(stateData.notifications)) setNotifications(stateData.notifications);
                     if (Array.isArray(stateData.auditLogs)) setAuditLogs(stateData.auditLogs);
                     if (Array.isArray(stateData.anomalies)) setAnomalies(stateData.anomalies);
@@ -1089,6 +1106,20 @@ REGLAS DE ORO:
     };
 
     const addQuote = (quote: Omit<Quote, 'id'>) => {
+        // ── DEDUP GUARD ─────────────────────────────────────────────────────
+        // Si llega con un quoteNumber que YA existe en memoria, significa que
+        // alguien clickeó el botón dos veces o está re-entrando desde un
+        // estado stale. En vez de crear duplicado, actualizamos el existente
+        // y devolvemos su id. Esto arregla el bug histórico donde un mismo
+        // ART-XXX aparecía varias veces en la cola de aprobaciones.
+        if (quote.quoteNumber) {
+            const dup = quotes.find(q => q.quoteNumber === quote.quoteNumber);
+            if (dup) {
+                updateQuote(dup.id, quote);
+                return dup.id;
+            }
+        }
+
         const quoteId = `q-${Date.now()}`;
         const taskId = `t-qt-${quoteId}`;
 
