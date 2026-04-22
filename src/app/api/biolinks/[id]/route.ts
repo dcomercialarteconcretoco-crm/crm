@@ -6,7 +6,23 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
     if (!hasDatabase()) return NextResponse.json({ error: 'DB not configured' }, { status: 503 });
     await ensureCrmSchema();
     const pool = getPool();
-    const { rows } = await pool.query(`SELECT * FROM crm_biolinks WHERE id=$1 LIMIT 1`, [id]);
+    const { rows } = await pool.query(`
+        SELECT
+          b.id, b.seller_id, b.slug,
+          COALESCE(NULLIF(b.photo, ''), u.avatar)  AS photo,
+          b.name,
+          COALESCE(NULLIF(b.title, ''), u.role)    AS title,
+          COALESCE(NULLIF(b.phone, ''), u.phone)   AS phone,
+          COALESCE(NULLIF(b.email, ''), u.email)   AS email,
+          b.instagram, b.facebook, b.linkedin, b.whatsapp, b.website,
+          b.youtube_url, b.maps_url, b.active,
+          b.created_at, b.updated_at
+        FROM crm_biolinks b
+        LEFT JOIN crm_users u
+          ON u.id = b.seller_id
+          OR (b.seller_id IS NULL AND LOWER(TRIM(u.name)) = LOWER(TRIM(b.name)))
+        WHERE b.id=$1 LIMIT 1
+    `, [id]);
     if (!rows.length) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     return NextResponse.json(rows[0]);
 }

@@ -12,7 +12,25 @@ export async function GET() {
     if (!hasDatabase()) return NextResponse.json({ error: 'DB not configured' }, { status: 503 });
     await ensureCrmSchema();
     const pool = getPool();
-    const { rows } = await pool.query(`SELECT * FROM crm_biolinks ORDER BY created_at DESC`);
+    // Join with crm_users so missing photo/email/phone/title inherit from the seller record
+    // (match by seller_id first, fall back to case-insensitive name match).
+    const { rows } = await pool.query(`
+        SELECT
+          b.id, b.seller_id, b.slug,
+          COALESCE(NULLIF(b.photo, ''), u.avatar)  AS photo,
+          b.name,
+          COALESCE(NULLIF(b.title, ''), u.role)    AS title,
+          COALESCE(NULLIF(b.phone, ''), u.phone)   AS phone,
+          COALESCE(NULLIF(b.email, ''), u.email)   AS email,
+          b.instagram, b.facebook, b.linkedin, b.whatsapp, b.website,
+          b.youtube_url, b.maps_url, b.active,
+          b.created_at, b.updated_at
+        FROM crm_biolinks b
+        LEFT JOIN crm_users u
+          ON u.id = b.seller_id
+          OR (b.seller_id IS NULL AND LOWER(TRIM(u.name)) = LOWER(TRIM(b.name)))
+        ORDER BY b.created_at DESC
+    `);
     return NextResponse.json(rows);
 }
 
