@@ -81,8 +81,8 @@ interface WidgetConversation {
 
 const DEFAULT_BOT_SETTINGS = {
     deliveryTimes: '10 a 15 días hábiles',
-    shippingCost: 'Gratis en Medellín y Bogotá. Resto del país: Cotización personalizada.',
-    coverageArea: 'Despachamos a nivel nacional. Instalación en sitio disponible según volumen de compra.',
+    shippingCost: 'Despacho desde nuestra planta en Floridablanca, Santander. Flete y transporte se cotizan por separado según destino.',
+    coverageArea: 'Planta de producción en Km 1+800, Anillo Vial, Floridablanca, Santander. Despachamos a todo Colombia desde esa sede.',
     faqs: [
         '¿Fabrican diseños a medida?',
         '¿Tienen descuentos por volumen?',

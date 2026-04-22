@@ -22,7 +22,26 @@ function formatCOP(value: number) {
     return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(value);
 }
 
-interface QuoteItem { name: string; sku: string; price: number; image: string; quantity: number; }
+interface QuoteItem {
+    name: string;
+    sku: string;
+    price: number;
+    image: string;
+    quantity: number;
+    isCustom?: boolean;
+    customDescription?: string;
+}
+
+// Cap the inbound image payload (data URL or regular URL) to keep the JSONB row sane.
+// Client already resizes/compresses to JPEG ~1200px so this is just a safety net.
+const MAX_IMAGE_LENGTH = 900_000; // ~650KB binary after base64 decode
+function sanitizeItemImage(raw: unknown): string {
+    if (typeof raw !== 'string' || !raw) return '';
+    if (raw.length > MAX_IMAGE_LENGTH) return '';
+    if (raw.startsWith('data:image/')) return raw;
+    if (/^https?:\/\//i.test(raw)) return raw;
+    return '';
+}
 
 function buildEmail(data: {
     quoteNumber: string; clientName: string; sentAt: string;
@@ -115,7 +134,7 @@ function buildEmail(data: {
 
   <!-- Footer -->
   <div style="background:#111;padding:24px 36px;text-align:center;">
-    <p style="margin:0 0 4px;font-size:11px;color:#666;text-transform:uppercase;letter-spacing:2px;">ArteConcreto S.A.S · Bogotá · Medellín · Cartagena</p>
+    <p style="margin:0 0 4px;font-size:11px;color:#666;text-transform:uppercase;letter-spacing:2px;">ArteConcreto S.A.S · Km 1+800, Anillo Vial · Floridablanca, Santander</p>
     <p style="margin:0;font-size:10px;color:#444;">cotizaciones&#64;arteconcreto&#46;co · arteconcreto.co</p>
   </div>
 </div>
@@ -147,23 +166,31 @@ export async function POST(req: NextRequest) {
         // Normalize items — accept either items[] (new) or single product fields (legacy)
         let items: QuoteItem[];
         if (Array.isArray(body.items) && body.items.length > 0) {
-            items = body.items.map((i: any) => ({
-                name:     i.name     || 'Producto',
-                sku:      i.sku      || '',
-                price:    Number(i.price)    || 0,
-                image:    i.image    || '',
-                quantity: Number(i.quantity) || 1,
-            }));
+            items = body.items.map((i: any) => {
+                const isCustom = Boolean(i.isCustom);
+                const customDescription = isCustom ? String(i.customDescription || '').trim().slice(0, 2000) : '';
+                return {
+                    name:     i.name     || (isCustom ? 'Producto personalizado' : 'Producto'),
+                    sku:      i.sku      || (isCustom ? 'CUSTOM' : ''),
+                    price:    Number(i.price)    || 0,
+                    image:    sanitizeItemImage(i.image),
+                    quantity: Number(i.quantity) || 1,
+                    ...(isCustom ? { isCustom: true, customDescription } : {}),
+                };
+            });
         } else {
             // Legacy single-product
             items = [{
                 name:     body.productName  || 'Producto',
                 sku:      body.productSku   || '',
                 price:    Number(body.productPrice) || 0,
-                image:    body.productImage || '',
+                image:    sanitizeItemImage(body.productImage),
                 quantity: Number(body.quantity) || 1,
             }];
         }
+
+        // Separate custom items so the seller gets a visible activity with the full description.
+        const customItems = items.filter(i => i.isCustom && i.customDescription);
 
         const subtotal    = items.reduce((s, i) => s + i.price * i.quantity, 0);
         const tax         = Math.round(subtotal * 0.19);
@@ -228,6 +255,8 @@ export async function POST(req: NextRequest) {
                 items: items.map((it, idx) => ({
                     id: String(idx + 1), name: it.name, price: it.price,
                     quantity: it.quantity, unit: 'un', total: it.price * it.quantity,
+                    image: it.image || undefined,
+                    ...(it.isCustom ? { isCustom: true, customDescription: it.customDescription } : {}),
                 })),
                 // If auto-send is off, the quote stays as Draft until the seller sends it manually.
                 status: autoSend ? 'Sent' : 'Draft',
@@ -244,17 +273,35 @@ export async function POST(req: NextRequest) {
 
             const { rows: tr } = await pool.query(`SELECT value FROM crm_state WHERE key='tasks'`);
             const existingTasks = tr[0]?.value || [];
+
+            // Build activities — surface custom-product descriptions so the seller sees them on open.
+            const activities: any[] = [];
+            customItems.forEach((c, idx) => {
+                activities.push({
+                    id: `act-custom-${Date.now()}-${idx}`,
+                    type: 'system',
+                    content: `✨ Producto personalizado (x${c.quantity}): ${c.customDescription}${c.image ? ' — incluye imagen de referencia' : ''}`,
+                    timestamp: new Date().toISOString(),
+                    ...(c.image ? { attachmentImage: c.image } : {}),
+                });
+            });
+
+            const hasCustom = customItems.length > 0;
             const newTask = {
                 id: `t-pub-${Date.now()}`,
-                title: `Solicitud web: ${items.map(i => i.name).join(', ').slice(0, 80)}`,
+                title: hasCustom
+                    ? `✨ Personalizado: ${customItems[0].customDescription!.slice(0, 70)}`
+                    : `Solicitud web: ${items.map(i => i.name).join(', ').slice(0, 80)}`,
                 client: company || name, clientId: realClientId,
                 contactName: name, value: formatCOP(total), numericValue: total,
-                priority: 'High', tags: ['Web', 'Auto-Cotización'],
-                aiScore: 80, source: 'Cotizador Web',
+                priority: hasCustom ? 'High' : 'High',
+                tags: hasCustom ? ['Web', 'Personalizado'] : ['Web', 'Auto-Cotización'],
+                aiScore: hasCustom ? 85 : 80,
+                source: hasCustom ? 'Cotizador Web — Personalizado' : 'Cotizador Web',
                 assignedTo: effectiveOwnerId,
                 assignedToName: effectiveOwnerName,
                 email, phone: phone || '', city: city || '',
-                activities: [], stageId: 'stage-1',
+                activities, stageId: 'stage-1',
             };
             await pool.query(`
                 INSERT INTO crm_state (key,value,updated_at) VALUES ('tasks',$1::jsonb,NOW())
