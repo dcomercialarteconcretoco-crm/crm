@@ -277,18 +277,125 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             : undefined,
     });
 
+    // ── Helper único para enviar cotización a aprobación ────────────────────
+    // Reemplaza el patrón anterior (3 variantes por acción) por un solo flujo
+    // por cotización. Si la cotización ya existe y estaba en Approved/Sent, al
+    // ser editada vuelve a PendingApproval automáticamente.
+    const requestApproval = () => {
+        const client = clients.find(c => c.id === selectedClientId);
+        if (!client) { addNotification({ title: 'Cliente requerido', description: 'Selecciona un cliente.', type: 'alert' }); return; }
+        if (items.length === 0) { addNotification({ title: 'Sin productos', description: 'Agrega al menos un producto.', type: 'alert' }); return; }
+
+        const quoteNumber = genQuoteNumber();
+        const requestedAt = new Date().toISOString();
+        const commonFields = getCommonQuoteFields(client, quoteNumber, items);
+
+        if (isEditMode && editQuoteId) {
+            // Re-enviar a aprobación (después de correcciones o editando una aprobada)
+            updateQuote(editQuoteId, {
+                ...commonFields,
+                status: 'PendingApproval',
+                requestedBy: currentUser?.id || '',
+                requestedByName: currentUser?.name || '',
+                requestedAt,
+                // Limpiar estado de entrega previo — es una nueva revisión
+                approvedBy: undefined,
+                approvedByName: undefined,
+                approvedAt: undefined,
+                sentAt: undefined,
+                sentByName: undefined,
+                sentById: undefined,
+                deliveryFailed: false,
+                deliveryError: undefined,
+                pendingAction: undefined,
+            });
+        } else {
+            addQuote({
+                ...commonFields,
+                status: 'PendingApproval',
+                requestedBy: currentUser?.id || '',
+                requestedByName: currentUser?.name || '',
+                requestedAt,
+            });
+        }
+
+        addNotification({
+            title: '⏳ Enviada a aprobación',
+            description: `El SuperAdmin revisará ${quoteNumber} y al aprobar, el sistema enviará el correo automáticamente.`,
+            type: 'success',
+        });
+        addNotification({
+            title: '🔔 Nueva cotización por aprobar',
+            description: `${currentUser?.name} solicita aprobación — ${quoteNumber} para ${client.name} · ${formatCurrency(total)}`,
+            type: 'alert',
+            forAdmin: true,
+        });
+        addAuditLog({
+            userId: currentUser?.id || '',
+            userName: currentUser?.name || 'Vendedor',
+            userRole: currentUser?.role || 'Vendedor',
+            action: 'QUOTE_APPROVAL_REQUESTED',
+            targetId: client.id,
+            targetName: client.company || client.name,
+            details: `Cotización ${quoteNumber} enviada a aprobación · Total: ${formatCurrency(total)}`,
+            verified: true,
+        });
+        setSentConfirm({ quoteNumber, email: '', pending: true });
+        setShowPreview(false);
+    };
+
+    // Reintentar el envío del email después de una aprobación donde Resend falló.
+    // El vendedor lo dispara sin pasar de nuevo por aprobación.
+    const retryDelivery = async () => {
+        const client = clients.find(c => c.id === selectedClientId);
+        if (!editQuote || !client?.email) return;
+        setIsSendingEmail(true);
+        try {
+            const sentAt = new Date().toISOString();
+            const res = await fetch('/api/quotes/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    quoteNumber: editQuote.quoteNumber || editQuote.number,
+                    clientName: client.name, clientEmail: client.email, clientCompany: client.company || '',
+                    sellerName: editQuote.sellerName || 'ArteConcreto', sellerId: editQuote.sellerId || '',
+                    sentAt, sentByName: editQuote.approvedByName || currentUser?.name || '', sentById: editQuote.approvedBy || currentUser?.id || '',
+                    items: items.map(i => ({ name: i.name, price: i.price, quantity: i.quantity, unit: i.unit })),
+                    subtotal, tax, total,
+                    shipping: shipping > 0 ? shipping : 0,
+                    shippingCity: client.city || '',
+                    referencia, validUntil, deliveryTime, paymentTerms,
+                    sellerPhone: currentUser?.phone || '',
+                }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                updateQuote(editQuote.id, {
+                    status: 'Sent', sentAt: data.sentAt || sentAt,
+                    sentByName: editQuote.approvedByName || currentUser?.name || '',
+                    sentById: editQuote.approvedBy || currentUser?.id || '',
+                    deliveryFailed: false, deliveryError: undefined,
+                });
+                addNotification({ title: 'Email enviado', description: `Cotización ${editQuote.quoteNumber || editQuote.number} entregada.`, type: 'success' });
+            } else {
+                updateQuote(editQuote.id, { deliveryError: data.error || `HTTP ${res.status}` });
+                addNotification({ title: 'Reintentar falló', description: data.error || 'Verifica la configuración de Resend.', type: 'alert' });
+            }
+        } catch (err: any) {
+            updateQuote(editQuote.id, { deliveryError: String(err?.message || err) });
+            addNotification({ title: 'Error de red', description: 'No se pudo enviar. Intenta otra vez.', type: 'alert' });
+        } finally {
+            setIsSendingEmail(false);
+        }
+    };
+
     const executeGeneratePDF = async () => {
         const client = clients.find(c => c.id === selectedClientId);
         if (!client) return;
         const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
 
         if (!isAdmin) {
-            const quoteNumber = genQuoteNumber();
-            addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'PENDING_APPROVAL' as const, pendingAction: 'generate_pdf', requestedBy: currentUser?.id || '', requestedByName: currentUser?.name || '', requestedAt: new Date().toISOString() });
-            addNotification({ title: 'Solicitud enviada', description: 'Enviada al administrador para aprobación.', type: 'alert' });
-            addNotification({ title: '⏳ Aprobación requerida', description: `${currentUser?.name} solicita generar PDF — ${quoteNumber} para ${client.name} · ${formatCurrency(total)}`, type: 'alert', forAdmin: true });
-            setSentConfirm({ quoteNumber, email: '', pending: true, pendingAction: 'generate_pdf' });
-            setShowPreview(false);
+            requestApproval();
             return;
         }
 
@@ -449,12 +556,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         if (!client?.phone) return;
         const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
         if (!isAdmin) {
-            const quoteNumber = genQuoteNumber();
-            addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'PENDING_APPROVAL' as const, pendingAction: 'send_whatsapp', requestedBy: currentUser?.id || '', requestedByName: currentUser?.name || '', requestedAt: new Date().toISOString() });
-            addNotification({ title: 'Solicitud enviada', description: 'Enviada al administrador para aprobación.', type: 'alert' });
-            addNotification({ title: '⏳ Aprobación requerida', description: `${currentUser?.name} solicita enviar WhatsApp — ${genQuoteNumber()} para ${client.name} · ${formatCurrency(total)}`, type: 'alert', forAdmin: true });
-            setSentConfirm({ quoteNumber, email: client.phone || '', pending: true, pendingAction: 'send_whatsapp' });
-            setShowPreview(false);
+            requestApproval();
             return;
         }
         const quoteNumber = genQuoteNumber();
@@ -499,12 +601,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
 
         if (!isAdmin) {
-            const quoteNumber = genQuoteNumber();
-            addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'PENDING_APPROVAL' as const, pendingAction: 'send_email', requestedBy: currentUser?.id || '', requestedByName: currentUser?.name || '', requestedAt: new Date().toISOString() });
-            addNotification({ title: 'Solicitud enviada', description: 'Enviada al administrador para aprobación.', type: 'alert' });
-            addNotification({ title: '⏳ Aprobación requerida', description: `${currentUser?.name} solicita enviar email — para ${client.name} · ${formatCurrency(total)}`, type: 'alert', forAdmin: true });
-            setSentConfirm({ quoteNumber, email: client.email, pending: true, pendingAction: 'send_email' });
-            setShowPreview(false);
+            requestApproval();
             return;
         }
 
@@ -1098,39 +1195,105 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                         </div>
                     </div>
 
-                    {/* Actions */}
-                    <div className="px-5 pb-5 space-y-2.5">
-                        {/* Preview button */}
-                        <button
-                            onClick={() => { setPendingAction(null); setShowPreview(true); }}
-                            disabled={items.length === 0}
-                            className="w-full bg-muted/60 border border-border/60 text-foreground font-black py-3.5 rounded-2xl flex items-center justify-center gap-2.5 hover:bg-accent/40 transition-all text-[10px] uppercase tracking-widest disabled:opacity-40"
-                        >
-                            <Eye className="w-4 h-4 text-primary" />
-                            Previsualizar Cotización
-                        </button>
+                    {/* Actions — lógica de bloqueo por flujo de aprobación ────────── */}
+                    {(() => {
+                        const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
+                        const st = editQuote?.status;
+                        // Admin tiene acceso directo siempre. Vendedor SOLO puede enviar/descargar
+                        // cuando la cotización está Approved o Sent (= aprobada por SuperAdmin).
+                        const isUnlocked   = isAdmin || st === 'Approved' || st === 'Sent';
+                        const isPending    = st === 'PendingApproval' || st === 'PENDING_APPROVAL';
+                        const hasChanges   = st === 'ChangesRequested';
+                        // Vendedor en cotización aprobada pero el email falló → botón reintentar
+                        const canRetry     = !isAdmin && st === 'Approved' && editQuote?.deliveryFailed;
+                        // Vendedor en Draft o nueva cotización → CTA "Solicitar aprobación"
+                        const needsRequest = !isAdmin && (!editQuote || st === 'Draft');
 
-                        <button onClick={handleSaveAndGenerate} disabled={isSaving}
-                            className="w-full bg-primary text-black font-black py-4 rounded-2xl flex items-center justify-center gap-3 hover:scale-[1.02] transition-all shadow-lg shadow-primary/20 text-[10px] uppercase tracking-widest disabled:opacity-60">
-                            {isSaving
-                                ? <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
-                                : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>}
-                            {isSaving ? (isEditMode ? 'Guardando...' : 'Generando...') : (isEditMode ? 'Guardar Cambios' : 'Guardar y Generar PDF')}
-                        </button>
+                        return (
+                            <div className="px-5 pb-5 space-y-2.5">
+                                {/* Banner: SuperAdmin pidió cambios */}
+                                {hasChanges && editQuote?.reviewNotes && editQuote.reviewNotes.length > 0 && (() => {
+                                    const last = [...editQuote.reviewNotes].reverse().find(n => n.action === 'changes_requested');
+                                    if (!last) return null;
+                                    return (
+                                        <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 space-y-2">
+                                            <div className="flex items-center gap-2">
+                                                <svg className="w-4 h-4 text-amber-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                                <p className="text-xs font-black uppercase tracking-widest text-amber-900">{last.byName} pidió cambios</p>
+                                            </div>
+                                            {last.comment && <p className="text-sm text-amber-900 leading-relaxed whitespace-pre-wrap">{last.comment}</p>}
+                                            <p className="text-[10px] text-amber-700">Corrige lo que indicó y vuelve a "Re-enviar a aprobación".</p>
+                                        </div>
+                                    );
+                                })()}
 
-                        <div className="grid grid-cols-2 gap-2">
-                            <button onClick={handleSendWhatsApp}
-                                className="bg-[#25D366] text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-[#1fba58] transition-all shadow-lg shadow-green-500/20 text-[10px] uppercase tracking-widest">
-                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                                WhatsApp
-                            </button>
-                            <button onClick={handleSendEmail} disabled={isSendingEmail}
-                                className="bg-white border border-border/70 text-foreground font-black py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-accent/40 transition-all text-[10px] uppercase tracking-widest disabled:opacity-60">
-                                <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                                {isSendingEmail ? 'Enviando...' : 'Email'}
-                            </button>
-                        </div>
-                    </div>
+                                {/* Banner: envío falló después de aprobación */}
+                                {canRetry && (
+                                    <div className="rounded-2xl border-2 border-rose-300 bg-rose-50 p-4 space-y-2">
+                                        <p className="text-xs font-black uppercase tracking-widest text-rose-900">⚠️ El envío falló</p>
+                                        <p className="text-sm text-rose-900">La cotización ya está aprobada pero el correo no se entregó. {editQuote?.deliveryError && (<span className="opacity-75">({editQuote.deliveryError})</span>)}</p>
+                                        <button onClick={retryDelivery} disabled={isSendingEmail}
+                                            className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest disabled:opacity-50">
+                                            {isSendingEmail ? 'Reintentando...' : '🔄 Reintentar envío al cliente'}
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Preview button — siempre disponible */}
+                                <button
+                                    onClick={() => { setPendingAction(null); setShowPreview(true); }}
+                                    disabled={items.length === 0}
+                                    className="w-full bg-muted/60 border border-border/60 text-foreground font-black py-3.5 rounded-2xl flex items-center justify-center gap-2.5 hover:bg-accent/40 transition-all text-[10px] uppercase tracking-widest disabled:opacity-40"
+                                >
+                                    <Eye className="w-4 h-4 text-primary" />
+                                    Previsualizar Cotización
+                                </button>
+
+                                {/* Flujo vendedor: "Solicitar aprobación" en Draft o ChangesRequested */}
+                                {(needsRequest || hasChanges) && (
+                                    <button onClick={requestApproval} disabled={items.length === 0 || !selectedClientId}
+                                        className="w-full bg-primary text-black font-black py-4 rounded-2xl flex items-center justify-center gap-3 hover:scale-[1.02] transition-all shadow-lg shadow-primary/20 text-[10px] uppercase tracking-widest disabled:opacity-60">
+                                        <Send className="w-4 h-4" />
+                                        {hasChanges ? 'Re-enviar a aprobación' : 'Solicitar aprobación'}
+                                    </button>
+                                )}
+
+                                {/* Flujo vendedor: Pending → botón inhabilitado */}
+                                {!isAdmin && isPending && (
+                                    <div className="w-full bg-sky-50 border-2 border-sky-200 text-sky-900 font-black py-4 rounded-2xl flex items-center justify-center gap-3 text-[10px] uppercase tracking-widest">
+                                        <svg className="w-4 h-4 animate-pulse" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"/></svg>
+                                        Esperando aprobación del SuperAdmin
+                                    </div>
+                                )}
+
+                                {/* Admin siempre ve las acciones directas. Vendedor solo cuando está Approved/Sent */}
+                                {isUnlocked && (
+                                    <>
+                                        <button onClick={handleSaveAndGenerate} disabled={isSaving}
+                                            className="w-full bg-primary text-black font-black py-4 rounded-2xl flex items-center justify-center gap-3 hover:scale-[1.02] transition-all shadow-lg shadow-primary/20 text-[10px] uppercase tracking-widest disabled:opacity-60">
+                                            {isSaving
+                                                ? <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                                                : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>}
+                                            {isSaving ? (isEditMode ? 'Guardando...' : 'Generando...') : (isEditMode ? 'Guardar Cambios' : 'Guardar y Generar PDF')}
+                                        </button>
+
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button onClick={handleSendWhatsApp}
+                                                className="bg-[#25D366] text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-[#1fba58] transition-all shadow-lg shadow-green-500/20 text-[10px] uppercase tracking-widest">
+                                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                                                WhatsApp
+                                            </button>
+                                            <button onClick={handleSendEmail} disabled={isSendingEmail}
+                                                className="bg-white border border-border/70 text-foreground font-black py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-accent/40 transition-all text-[10px] uppercase tracking-widest disabled:opacity-60">
+                                                <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                                {isSendingEmail ? 'Enviando...' : 'Email'}
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        );
+                    })()}
                 </div>
             </div>
         </div>

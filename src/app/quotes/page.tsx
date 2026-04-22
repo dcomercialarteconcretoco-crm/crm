@@ -14,10 +14,13 @@ import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
 import { ownsRecord } from '@/lib/scope';
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
-    'Draft':    { label: 'Borrador',  className: 'bg-muted/40 text-muted-foreground' },
-    'Sent':     { label: 'Visto',     className: 'bg-sky-500/10 text-sky-600' },
-    'Approved': { label: 'Ganado',    className: 'bg-emerald-500/10 text-emerald-600' },
-    'Rejected': { label: 'Perdido',   className: 'bg-rose-500/10 text-rose-500' },
+    'Draft':             { label: 'Borrador',           className: 'bg-muted/40 text-muted-foreground' },
+    'PendingApproval':   { label: 'Por aprobar',        className: 'bg-sky-500/10 text-sky-600 border border-sky-500/20' },
+    'PENDING_APPROVAL':  { label: 'Por aprobar',        className: 'bg-sky-500/10 text-sky-600 border border-sky-500/20' },
+    'ChangesRequested':  { label: 'Cambios pedidos',    className: 'bg-amber-500/10 text-amber-700 border border-amber-500/20' },
+    'Approved':          { label: 'Aprobada',           className: 'bg-emerald-500/10 text-emerald-600' },
+    'Sent':              { label: 'Enviada',            className: 'bg-blue-500/10 text-blue-600' },
+    'Rejected':          { label: 'Perdida',            className: 'bg-rose-500/10 text-rose-500' },
 };
 
 function ScoreBar({ score }: { score: number }) {

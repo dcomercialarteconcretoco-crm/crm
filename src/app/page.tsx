@@ -15,7 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { clsx } from "clsx";
-import { useApp, Quote } from "@/context/AppContext";
+import { useApp } from "@/context/AppContext";
 import { generatePDFReport } from "@/lib/pdf-generator";
 import { canSeeAll, ownsRecord } from "@/lib/scope";
 import { aggregateSellerActivity, getPresetRange, type PeriodPreset } from "@/lib/seller-activity";
@@ -33,11 +33,13 @@ const QUOTE_STATUS_LABEL: Record<string, string> = {
   Sent: 'Enviado',
   Approved: 'Aprobado',
   Rejected: 'Rechazado',
-  PENDING_APPROVAL: 'Pend. Aprobación',
+  PendingApproval: 'Por aprobar',
+  ChangesRequested: 'Cambios solicitados',
+  PENDING_APPROVAL: 'Por aprobar',  // legacy
 };
 
 export default function Home() {
-  const { clients, tasks, quotes, sellers, settings, currentUser, updateQuote, addNotification, addAuditLog, auditLogs, events } = useApp();
+  const { clients, tasks, quotes, sellers, settings, currentUser, auditLogs, events } = useApp();
   const isLeadership = canSeeAll(currentUser);
   // ⚠️ Top vendedores SOLO SuperAdmin/Admin — nunca Manager ni Vendedor
   const canSeePerformance = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
@@ -61,82 +63,9 @@ export default function Home() {
   const [carouselDir, setCarouselDir] = useState<'up' | 'down'>('up');
 
   const pendingQuotes = useMemo(
-    () => quotes.filter((q) => q.status === "PENDING_APPROVAL"),
+    () => quotes.filter((q) => q.status === 'PendingApproval' || q.status === 'PENDING_APPROVAL' || q.status === 'ChangesRequested'),
     [quotes]
   );
-
-  const handleApproveQuote = async (q: Quote) => {
-    if (q.pendingAction === 'send_email') {
-      // Actually send the email
-      try {
-        const res = await fetch('/api/quotes/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            quoteNumber: q.number,
-            clientName: q.client,
-            clientEmail: q.clientEmail,
-            clientCompany: q.clientCompany || '',
-            sellerName: q.sellerName || 'ArteConcreto',
-            sellerId: q.sellerId || '',
-            sentAt: new Date().toISOString(),
-            sentByName: currentUser?.name || '',
-            sentById: currentUser?.id || '',
-            items: q.items || [],
-            subtotal: q.subtotal || q.numericTotal,
-            tax: q.tax || 0,
-            total: q.numericTotal,
-          }),
-        });
-        if (res.ok) {
-          updateQuote(q.id, { status: 'Sent', pendingAction: undefined, requestedBy: undefined, requestedByName: undefined, requestedAt: undefined });
-        } else {
-          updateQuote(q.id, { status: 'Draft', pendingAction: undefined, requestedBy: undefined, requestedByName: undefined, requestedAt: undefined });
-        }
-      } catch {
-        updateQuote(q.id, { status: 'Draft', pendingAction: undefined, requestedBy: undefined, requestedByName: undefined, requestedAt: undefined });
-      }
-    } else {
-      // generate_pdf or send_whatsapp: revert to Draft so seller can proceed
-      updateQuote(q.id, { status: 'Draft', pendingAction: undefined, requestedBy: undefined, requestedByName: undefined, requestedAt: undefined });
-    }
-    addAuditLog({
-      userId: currentUser?.id || '',
-      userName: currentUser?.name || 'Admin',
-      userRole: currentUser?.role || 'Admin',
-      action: 'QUOTE_APPROVED',
-      targetId: q.id,
-      targetName: q.client,
-      details: `Admin ${currentUser?.name} aprobó cotización ${q.number} para ${q.client} solicitada por ${q.requestedByName}`,
-      verified: true,
-    });
-    addNotification({
-      title: `Cotización ${q.number} aprobada`,
-      description: `Aprobada por ${currentUser?.name}. ${q.pendingAction === 'generate_pdf' ? 'El vendedor puede descargar el PDF.' : 'El email fue enviado al cliente.'}`,
-      type: 'success',
-      targetUserId: q.requestedBy,
-    });
-  };
-
-  const handleRejectQuote = (q: Quote) => {
-    updateQuote(q.id, { status: 'Draft', pendingAction: undefined, requestedBy: undefined, requestedByName: undefined, requestedAt: undefined });
-    addAuditLog({
-      userId: currentUser?.id || '',
-      userName: currentUser?.name || 'Admin',
-      userRole: currentUser?.role || 'Admin',
-      action: 'QUOTE_REJECTED',
-      targetId: q.id,
-      targetName: q.client,
-      details: `Admin ${currentUser?.name} rechazó cotización ${q.number} para ${q.client} solicitada por ${q.requestedByName}`,
-      verified: true,
-    });
-    addNotification({
-      title: `Cotización ${q.number} rechazada`,
-      description: `Rechazada por el administrador. Contacta al admin para más detalles.`,
-      type: 'alert',
-      targetUserId: q.requestedBy,
-    });
-  };
 
   // Ownership scoping: Vendedores only get stats for their own clients/quotes/tasks.
   // Leadership (SuperAdmin/Admin/Manager) sees the whole business.
@@ -360,45 +289,66 @@ export default function Home() {
         </Link>
       </div>
 
-      {/* ── PENDING APPROVALS PANEL (admins only) ── */}
+      {/* ── PENDING APPROVALS SHORTCUT (SuperAdmin only) ── */}
       {isAdmin && pendingQuotes.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 space-y-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-amber-500/20 flex items-center justify-center">
-              <Clock className="w-3.5 h-3.5 text-amber-600" />
+        <Link
+          href="/autorizaciones"
+          className="block bg-gradient-to-r from-rose-50 to-amber-50 border-2 border-rose-200 rounded-2xl p-5 hover:border-rose-400 hover:shadow-lg transition-all group"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-rose-500 flex items-center justify-center shrink-0 animate-pulse">
+              <Clock className="w-5 h-5 text-white" />
             </div>
-            <h2 className="font-bold text-amber-800 text-sm">
-              {pendingQuotes.length} Aprobación{pendingQuotes.length > 1 ? 'es' : ''} Pendiente{pendingQuotes.length > 1 ? 's' : ''}
-            </h2>
+            <div className="flex-1 min-w-0">
+              <h2 className="font-black text-rose-900 text-base">
+                {pendingQuotes.length} cotización{pendingQuotes.length > 1 ? 'es' : ''} esperando tu decisión
+              </h2>
+              <p className="text-xs text-rose-800/70 mt-1">
+                Vendedores: {[...new Set(pendingQuotes.map(q => q.requestedByName).filter(Boolean))].slice(0, 3).join(', ')}
+                {' · '}Total en revisión: {formatCurrency(pendingQuotes.reduce((s, q) => s + (q.numericTotal || 0), 0))}
+              </p>
+            </div>
+            <div className="text-rose-600 font-black text-sm group-hover:translate-x-1 transition-transform">
+              Revisar →
+            </div>
           </div>
-          <div className="space-y-2">
-            {pendingQuotes.map(q => (
-              <div key={q.id} className="bg-white border border-amber-100 rounded-xl p-3.5 flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground">{q.number} — {q.client}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {q.requestedByName} solicita {q.pendingAction === 'send_email' ? 'enviar email' : q.pendingAction === 'send_whatsapp' ? 'enviar WhatsApp' : 'generar PDF'} · {q.total}
-                  </p>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    onClick={() => handleApproveQuote(q)}
-                    className="px-3 py-1.5 bg-emerald-500 text-white text-xs font-semibold rounded-lg hover:bg-emerald-400 transition-all"
-                  >
-                    Aprobar
-                  </button>
-                  <button
-                    onClick={() => handleRejectQuote(q)}
-                    className="px-3 py-1.5 bg-rose-50 text-rose-600 text-xs font-semibold rounded-lg hover:bg-rose-100 transition-all border border-rose-200"
-                  >
-                    Rechazar
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        </Link>
       )}
+
+      {/* ── WIDGET para vendedor: sus cotizaciones con cambios pedidos ── */}
+      {!isAdmin && (() => {
+        const myChangesRequested = quotes.filter(q =>
+          q.status === 'ChangesRequested' && q.requestedBy === currentUser?.id
+        );
+        if (myChangesRequested.length === 0) return null;
+        return (
+          <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-5">
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="w-7 h-7 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                <svg className="w-3.5 h-3.5 text-amber-700" fill="currentColor" viewBox="0 0 20 20"><path d="M18 13a3 3 0 01-3 3H7l-4 4V5a3 3 0 013-3h9a3 3 0 013 3v8z"/></svg>
+              </div>
+              <h2 className="font-bold text-amber-900 text-sm">
+                El SuperAdmin pidió cambios en {myChangesRequested.length} cotizaci{myChangesRequested.length > 1 ? 'ones' : 'ón'}
+              </h2>
+            </div>
+            <ul className="space-y-1.5">
+              {myChangesRequested.map(q => (
+                <li key={q.id}>
+                  <Link href={`/quotes/${q.id}`} className="block bg-white border border-amber-100 rounded-xl p-3 hover:border-amber-300 transition-all">
+                    <p className="text-sm font-semibold text-foreground">{q.quoteNumber || q.number} — {q.client}</p>
+                    {q.reviewNotes && q.reviewNotes.length > 0 && (() => {
+                      const last = [...q.reviewNotes].reverse().find(n => n.action === 'changes_requested');
+                      return last?.comment ? (
+                        <p className="text-xs text-amber-800 mt-1 line-clamp-2">💬 {last.comment}</p>
+                      ) : null;
+                    })()}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })()}
 
       {/* ── KPI STAT CARDS ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

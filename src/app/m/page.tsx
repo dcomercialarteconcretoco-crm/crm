@@ -21,11 +21,15 @@ const STATUS_PILL: Record<string, string> = {
     Sent:             'bg-sky-100 text-sky-700',
     Approved:         'bg-emerald-100 text-emerald-700',
     Rejected:         'bg-rose-100 text-rose-700',
-    PENDING_APPROVAL: 'bg-amber-100 text-amber-700',
+    PendingApproval:  'bg-sky-100 text-sky-700',
+    ChangesRequested: 'bg-amber-100 text-amber-700',
+    PENDING_APPROVAL: 'bg-sky-100 text-sky-700', // legacy
 };
 const STATUS_LABEL: Record<string, string> = {
     Draft: 'Borrador', Sent: 'Enviada', Approved: 'Aprobada',
-    Rejected: 'Rechazada', PENDING_APPROVAL: 'Por aprobar',
+    Rejected: 'Rechazada',
+    PendingApproval: 'Por aprobar', ChangesRequested: 'Cambios pedidos',
+    PENDING_APPROVAL: 'Por aprobar',
 };
 
 export default function MobileDashboard() {
@@ -37,7 +41,7 @@ export default function MobileDashboard() {
     const stats = useMemo(() => {
         const activeLeads  = tasks.filter(t => t.stageId !== 'closed_won' && t.stageId !== 'closed_lost').length;
         const pipelineVal  = tasks.reduce((s, t) => s + (t.numericValue || 0), 0);
-        const pendingQ     = quotes.filter(q => q.status === 'PENDING_APPROVAL').length;
+        const pendingQ     = quotes.filter(q => q.status === 'PendingApproval' || q.status === 'PENDING_APPROVAL' || q.status === 'ChangesRequested').length;
         const todayEvents  = events.filter(ev => {
             const d = new Date(ev.date ?? '');
             d.setHours(0, 0, 0, 0);

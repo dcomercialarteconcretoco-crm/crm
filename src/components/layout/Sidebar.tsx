@@ -14,6 +14,7 @@ import {
   Workflow,
   Bot,
   Shield,
+  ShieldCheck,
   Trophy,
   FilePlus2,
   Loader2,
@@ -34,11 +35,12 @@ const navGroups = [
   {
     label: 'Comercial',
     items: [
-      { name: 'Dashboard',     href: '/',         icon: LayoutDashboard, permission: null              },
-      { name: 'ConcreBOT',     href: '/bot',       icon: Bot,             permission: 'bot.use'         },
-      { name: 'Cotizaciones',  href: '/quotes',    icon: FileText,        permission: 'quotes.view'     },
-      { name: 'Pipeline',      href: '/pipeline',  icon: Workflow,        permission: 'pipeline.view'   },
-      { name: 'Clientes',      href: '/clients',   icon: Users,           permission: 'clients.view'    },
+      { name: 'Dashboard',      href: '/',              icon: LayoutDashboard, permission: null              },
+      { name: 'ConcreBOT',      href: '/bot',           icon: Bot,             permission: 'bot.use'         },
+      { name: 'Cotizaciones',   href: '/quotes',        icon: FileText,        permission: 'quotes.view'     },
+      { name: 'Autorizaciones', href: '/autorizaciones',icon: ShieldCheck,     permission: null,             superAdminOnly: true },
+      { name: 'Pipeline',       href: '/pipeline',      icon: Workflow,        permission: 'pipeline.view'   },
+      { name: 'Clientes',       href: '/clients',       icon: Users,           permission: 'clients.view'    },
     ],
   },
   {
@@ -74,9 +76,15 @@ interface SidebarProps {
 export function Sidebar({ isCompact }: SidebarProps) {
   const pathname = usePathname();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
-  const { currentUser } = useApp();
+  const { currentUser, quotes } = useApp();
 
   const isSuperAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
+
+  // Conteo de cotizaciones esperando decisión del SuperAdmin (pendientes + con cambios sin
+  // resolver). Se muestra como badge en el item "Autorizaciones".
+  const pendingApprovalsCount = isSuperAdmin
+    ? quotes.filter(q => q.status === 'PendingApproval' || q.status === 'PENDING_APPROVAL').length
+    : 0;
 
   /** Hides nav items the user has no permission for */
   const canSee = (item: { permission: string | null; superAdminOnly?: boolean }) => {
@@ -160,7 +168,20 @@ export function Sidebar({ isCompact }: SidebarProps) {
                   )}
                   {!isCompact && <span className="truncate">{item.name}</span>}
 
-                  {isActive && !isCompact && (
+                  {/* Badge de pendientes en "Autorizaciones" */}
+                  {item.name === 'Autorizaciones' && pendingApprovalsCount > 0 && (
+                    isCompact ? (
+                      <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center">
+                        {pendingApprovalsCount > 9 ? '9+' : pendingApprovalsCount}
+                      </span>
+                    ) : (
+                      <span className="ml-auto min-w-[20px] h-[18px] px-1.5 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center">
+                        {pendingApprovalsCount > 99 ? '99+' : pendingApprovalsCount}
+                      </span>
+                    )
+                  )}
+
+                  {isActive && !isCompact && item.name !== 'Autorizaciones' && (
                     <div className="absolute right-3 w-1.5 h-1.5 bg-primary rounded-full" />
                   )}
                 </Link>

@@ -118,16 +118,39 @@ export interface Quote {
     sellerPhone?: string;       // Teléfono del asesor
     sellerId?: string;
     sellerName?: string;
-    status: 'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'PENDING_APPROVAL';
+    // Ciclo de vida de aprobación:
+    //   Draft → PendingApproval → Approved → Sent → Won/Lost
+    //              │                 │
+    //              ▼                 ▼ (si Resend falla: deliveryFailed=true)
+    //         ChangesRequested    Sent (deliveryFailed? → retry)
+    status: 'Draft' | 'PendingApproval' | 'ChangesRequested' | 'Approved' | 'Sent' | 'Rejected' | 'PENDING_APPROVAL';
     taskId?: string;
     opens?: number;
     sentAt?: string;
     sentByName?: string;
     sentById?: string;
+    // Legacy (fase anterior donde cada acción pedía aprobación individual). Se mantiene
+    // para no romper datos históricos pero el flujo nuevo usa el `status` por cotización.
     pendingAction?: 'send_email' | 'send_whatsapp' | 'generate_pdf';
     requestedBy?: string;
     requestedByName?: string;
     requestedAt?: string;
+    // ── Aprobación por cotización (flujo nuevo) ──────────────────────────────
+    reviewNotes?: Array<{
+        id: string;
+        by: string;              // id del SuperAdmin
+        byName: string;
+        at: string;              // ISO timestamp
+        action: 'approved' | 'changes_requested';
+        comment?: string;        // obligatorio si action === 'changes_requested'
+    }>;
+    approvedBy?: string;
+    approvedByName?: string;
+    approvedAt?: string;
+    // Si Resend falló después de aprobar, el vendedor ve botón "Reintentar envío"
+    // sin tener que pasar de nuevo por aprobación.
+    deliveryFailed?: boolean;
+    deliveryError?: string;
     // Numeración ART-XXX-YYYY + versioning
     quoteNumber?: string;   // e.g. "ART-250-2026" (v1), "ART-250-V1-2026" (v2), "ART-250-V2-2026-AIU" (final)
     baseNumber?: string;    // base without version: "ART-250-2026"
@@ -861,7 +884,9 @@ REGLAS DE ORO:
 
                 const stageMap: Record<string, string> = {
                     Draft: 'proposal', Sent: 'proposal', Viewed: 'contacted',
-                    Approved: 'won', Rejected: 'won', PENDING_APPROVAL: 'proposal',
+                    Approved: 'won', Rejected: 'won',
+                    PendingApproval: 'proposal', ChangesRequested: 'proposal',
+                    PENDING_APPROVAL: 'proposal', // legacy
                 };
 
                 const newTasks: Task[] = orphanQuotes.map(q => ({
@@ -1418,6 +1443,8 @@ REGLAS DE ORO:
         if (updates.status) {
             const stageMap: Record<string, string> = {
                 'Draft': 'proposal',
+                'PendingApproval': 'proposal',
+                'ChangesRequested': 'proposal',
                 'Sent': 'proposal',
                 'Viewed': 'contacted', // Client opened/viewed the quote → move to Contactado
                 'Approved': 'won',
