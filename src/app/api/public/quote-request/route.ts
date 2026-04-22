@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { hasDatabase, getPool, ensureCrmSchema } from '@/lib/postgres';
 import { rateLimit } from '@/lib/rate-limit';
 import { pickNextSeller } from '@/lib/round-robin';
-import { isAutoSendPublicQuotesEnabled } from '@/lib/system-settings';
+import { isAutoSendEnabledForChannel, getAutoSendCopyEmail } from '@/lib/system-settings';
 
 const FROM_EMAIL = process.env.FROM_EMAIL || 'cotizaciones@arteconcreto.co';
 const CC_EMAIL   = 'marketing@arteconcreto.co';
@@ -180,8 +180,10 @@ export async function POST(req: NextRequest) {
         const assignedSellerName = assignedSeller?.name || '';
 
         // Auto-send toggle — default OFF: lead gets assigned, seller reaches out personally.
-        // Admin can flip this in /settings → Perfil → Auto-enviar cotizaciones públicas.
-        const autoSend = await isAutoSendPublicQuotesEnabled();
+        // Admin can flip this in /settings → Cotizaciones automáticas (superadmin only).
+        // Channel-aware: respects both the master toggle and the per-channel 'web' override.
+        const autoSend = await isAutoSendEnabledForChannel('web');
+        const ccEmailOverride = await getAutoSendCopyEmail();
 
         // --- Save to DB ---
         if (hasDatabase()) {
@@ -270,7 +272,7 @@ export async function POST(req: NextRequest) {
                 body: JSON.stringify({
                     from: FROM_EMAIL,
                     to: [email],
-                    cc: [CC_EMAIL],
+                    cc: [ccEmailOverride || CC_EMAIL],
                     subject: `📋 Cotización ${quoteNumber} — ArteConcreto`,
                     html,
                 }),

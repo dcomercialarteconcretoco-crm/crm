@@ -19,3 +19,32 @@ export async function isAutoSendPublicQuotesEnabled(): Promise<boolean> {
     const s = await readSystemSettings();
     return Boolean(s.autoSendPublicQuotes);
 }
+
+export type AutoSendChannel = 'web' | 'woo' | 'whatsapp' | 'bot';
+
+/**
+ * Channel-aware auto-send check. Auto-send fires only when:
+ *   (a) the master toggle `autoSendPublicQuotes` is ON, AND
+ *   (b) the specific channel is not explicitly disabled in `autoSendChannels`.
+ * A missing per-channel flag is treated as enabled (conservative default when
+ * master is already ON — the admin opted in globally).
+ */
+export async function isAutoSendEnabledForChannel(channel: AutoSendChannel): Promise<boolean> {
+    const s = await readSystemSettings();
+    if (!s.autoSendPublicQuotes) return false;
+    const channels = (s.autoSendChannels && typeof s.autoSendChannels === 'object')
+        ? (s.autoSendChannels as Record<string, unknown>)
+        : {};
+    const val = channels[channel];
+    return val === undefined ? true : Boolean(val);
+}
+
+/**
+ * Returns the optional internal CC address set by the admin for auto-sent quotes.
+ * Endpoints should fall back to their hardcoded default when this is empty.
+ */
+export async function getAutoSendCopyEmail(): Promise<string> {
+    const s = await readSystemSettings();
+    const raw = typeof s.autoSendCopyEmail === 'string' ? s.autoSendCopyEmail.trim() : '';
+    return raw;
+}

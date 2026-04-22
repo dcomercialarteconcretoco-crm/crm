@@ -233,11 +233,12 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
     doc.setTextColor(...PRIMARY);
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
+    const quoteNumWidth = doc.getTextWidth(data.quoteNumber);
     doc.text(data.quoteNumber, RM, 36, { align: 'right' });
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(160, 160, 160);
-    doc.text('Cotización No.', RM - doc.getTextWidth(data.quoteNumber) - 2, 36, { align: 'right' });
+    doc.text('Cotización No.', RM - quoteNumWidth - 2, 36, { align: 'right' });
 
     // ── LOCATION + DATE ───────────────────────────────────────────────────────
     let y = 56;
@@ -291,108 +292,15 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
     doc.setFillColor(230, 230, 230);
     doc.rect(LM, y, 174, 0.3, 'F');
 
-    // ── SECTION 1: ALCANCE ────────────────────────────────────────────────────
+    // ── SECTION 1: PRODUCTOS CON FOTO + CANTIDADES Y PRECIOS ─────────────────
     y += 8;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(...DARK);
-    doc.text('1. ALCANCE DE LA PROPUESTA:', LM, y);
-
-    y += 6;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(...DARKGRAY);
-
-    const alcanceText = 'La presente oferta de los elementos en concreto se entrega en la planta de producción, Anillo Vial Km 1 + 800 Floridablanca – Girón, basado en la solicitud del cliente.';
-    const alcanceLines = doc.splitTextToSize(alcanceText, 174);
-    doc.text(alcanceLines, LM, y);
-    y += alcanceLines.length * 4.5 + 3;
-
-    const noIncluyeItems = [
-        'La oferta No incluye el transporte de los elementos al sitio de entrega.',
-        'La oferta No incluye el descargue del producto que corresponde a los productos en concreto.',
-        'La oferta No incluye la instalación de las piezas cotizadas.',
-    ];
-    for (const item of noIncluyeItems) {
-        const lines = doc.splitTextToSize(item, 168);
-        // Bold "No incluye"
-        doc.setFont('helvetica', 'normal');
-        doc.text('La oferta ', LM + 3, y);
-        const x1 = LM + 3 + doc.getTextWidth('La oferta ');
-        doc.setFont('helvetica', 'bold');
-        doc.text('No incluye', x1, y);
-        const x2 = x1 + doc.getTextWidth('No incluye');
-        doc.setFont('helvetica', 'normal');
-        const rest = item.replace('La oferta No incluye', '');
-        const restLines = doc.splitTextToSize(rest, 174 - (x2 - LM));
-        doc.text(restLines[0] || '', x2, y);
-        if (restLines.length > 1) {
-            y += 4.5;
-            doc.text(restLines.slice(1), LM + 3, y);
-        }
-        y += 5;
-    }
-
-    // ── SECTION 2: VIGENCIA ───────────────────────────────────────────────────
-    y += 3;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...DARK);
-    doc.text('2. VIGENCIA DE LA OFERTA:', LM, y);
-
-    y += 6;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(...DARKGRAY);
-    doc.text(`La cotización tiene vigencia hasta el ${validUntil}.`, LM, y);
-
-    // ── SECTION 3: PLAZO DE ENTREGA ───────────────────────────────────────────
-    y += 10;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...DARK);
-    doc.text('3. PLAZO DE ENTREGA:', LM, y);
-
-    y += 6;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(...DARKGRAY);
-    const deliveryLines = doc.splitTextToSize(deliveryTime, 174);
-    doc.text(deliveryLines, LM, y);
-    y += deliveryLines.length * 4.5;
-
-    // ── SECTION 4: FORMA DE PAGO ──────────────────────────────────────────────
-    y += 6;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...DARK);
-    doc.text('4. FORMA DE PAGO:', LM, y);
-
-    y += 6;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(...DARKGRAY);
-    const pagoLabel = 'La forma de pago pactada es de la siguiente manera:';
-    doc.text(pagoLabel, LM, y);
-    y += 5.5;
-
-    const pagoLines = paymentTerms.split('\n');
-    for (const line of pagoLines) {
-        if (!line.trim()) continue;
-        const wrapped = doc.splitTextToSize(line.trim(), 174);
-        doc.text(wrapped, LM, y);
-        y += wrapped.length * 4.5 + 1;
-    }
-
-    // ── SECTION 5: PRODUCTOS CON FOTO + CANTIDADES Y PRECIOS ─────────────────
-    y += 6;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...DARK);
-    doc.text('5. CANTIDADES Y PRECIOS DEL PROYECTO:', LM, y);
+    doc.text('1. CANTIDADES Y PRECIOS DEL PROYECTO:', LM, y);
     y += 6;
 
-    // ── 5a. Product images block (before the table) ───────────────────────────
+    // ── 1a. Product images block (before the table) ───────────────────────────
     const itemsWithImages = data.items.filter(i => i.image);
     if (itemsWithImages.length > 0) {
         const IMG_SIZE = 32;
@@ -501,7 +409,7 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
         doc.setTextColor(...DARK);
-        doc.text('6. SUMINISTRO, TRANSPORTE E INSTALACIÓN (AIU):', LM, fy);
+        doc.text('SUMINISTRO, TRANSPORTE E INSTALACIÓN (AIU):', LM, fy);
         fy += 6;
 
         const aiuRows: [string, string][] = [];
@@ -547,9 +455,103 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
 
     fy += 18;
 
+    // ── CONDICIONES (después de precios) ──────────────────────────────────────
+    const pageH = doc.internal.pageSize.getHeight();
+    const ensureSpace = (need: number) => {
+        if (fy + need > pageH - 20) { doc.addPage(); fy = 25; }
+    };
+
+    // Section 2: ALCANCE
+    ensureSpace(40);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...DARK);
+    doc.text('2. ALCANCE DE LA PROPUESTA:', LM, fy);
+    fy += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...DARKGRAY);
+    const alcanceText = 'La presente oferta de los elementos en concreto se entrega en la planta de producción, Anillo Vial Km 1 + 800 Floridablanca – Girón, basado en la solicitud del cliente.';
+    const alcanceLines = doc.splitTextToSize(alcanceText, 174);
+    doc.text(alcanceLines, LM, fy);
+    fy += alcanceLines.length * 4.5 + 3;
+
+    const noIncluyeItems = [
+        'La oferta No incluye el transporte de los elementos al sitio de entrega.',
+        'La oferta No incluye el descargue del producto que corresponde a los productos en concreto.',
+        'La oferta No incluye la instalación de las piezas cotizadas.',
+    ];
+    for (const item of noIncluyeItems) {
+        ensureSpace(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text('La oferta ', LM + 3, fy);
+        const x1 = LM + 3 + doc.getTextWidth('La oferta ');
+        doc.setFont('helvetica', 'bold');
+        doc.text('No incluye', x1, fy);
+        const x2 = x1 + doc.getTextWidth('No incluye');
+        doc.setFont('helvetica', 'normal');
+        const rest = item.replace('La oferta No incluye', '');
+        const restLines = doc.splitTextToSize(rest, 174 - (x2 - LM));
+        doc.text(restLines[0] || '', x2, fy);
+        if (restLines.length > 1) {
+            fy += 4.5;
+            doc.text(restLines.slice(1), LM + 3, fy);
+        }
+        fy += 5;
+    }
+
+    // Section 3: VIGENCIA
+    fy += 3;
+    ensureSpace(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...DARK);
+    doc.text('3. VIGENCIA DE LA OFERTA:', LM, fy);
+    fy += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...DARKGRAY);
+    doc.text(`La cotización tiene vigencia hasta el ${validUntil}.`, LM, fy);
+
+    // Section 4: PLAZO DE ENTREGA
+    fy += 10;
+    ensureSpace(20);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...DARK);
+    doc.text('4. PLAZO DE ENTREGA:', LM, fy);
+    fy += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...DARKGRAY);
+    const deliveryLines = doc.splitTextToSize(deliveryTime, 174);
+    doc.text(deliveryLines, LM, fy);
+    fy += deliveryLines.length * 4.5;
+
+    // Section 5: FORMA DE PAGO
+    fy += 6;
+    ensureSpace(30);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...DARK);
+    doc.text('5. FORMA DE PAGO:', LM, fy);
+    fy += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...DARKGRAY);
+    doc.text('La forma de pago pactada es de la siguiente manera:', LM, fy);
+    fy += 5.5;
+    for (const line of paymentTerms.split('\n')) {
+        if (!line.trim()) continue;
+        const wrapped = doc.splitTextToSize(line.trim(), 174);
+        ensureSpace(wrapped.length * 4.5 + 2);
+        doc.text(wrapped, LM, fy);
+        fy += wrapped.length * 4.5 + 1;
+    }
+
     // ── CLOSING ───────────────────────────────────────────────────────────────
-    // Check if we need a new page
-    if (fy > 230) {
+    fy += 8;
+    if (fy > pageH - 50) {
         doc.addPage();
         fy = 25;
     }

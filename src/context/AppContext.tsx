@@ -274,9 +274,23 @@ export interface AppSettings {
     quotePrefix?: string;       // default 'ART'
     quoteNextNumber?: number;   // next sequential number, starts at 250
     quoteYear?: number;         // current year for numbering
-    // When true, public-form leads receive the auto-generated quote email.
-    // When false (default), the lead is only assigned to the next vendor in rotation and they reach out personally.
+    // Master ON/OFF for automatic quote sending across public digital channels.
+    // OFF (default): every incoming quote stays as 'Draft', the lead is assigned to the next
+    //                vendor in rotation, and the seller reviews + sends manually.
+    // ON: quotes are created as 'Sent' AND the email is dispatched automatically.
+    // Granular per-channel overrides live in `autoSendChannels`.
     autoSendPublicQuotes?: boolean;
+    // Per-channel toggles. Only take effect when `autoSendPublicQuotes` is true.
+    // Missing/undefined channel = treated as true (auto-send when master is ON).
+    autoSendChannels?: {
+        web?: boolean;          // cotizador web (/api/public/quote-request)
+        woo?: boolean;          // WooCommerce (/api/woo-quote)
+        whatsapp?: boolean;     // reservado — hoy WhatsApp solo crea leads
+        bot?: boolean;          // reservado — hoy ConcreBOT solo crea leads
+    };
+    // CC interno que recibe copia cuando se dispara un envío automático.
+    // Si queda vacío, se usa el default hardcoded del endpoint (marketing@arteconcreto.co).
+    autoSendCopyEmail?: string;
     // Cálculo de envío para cotizaciones finales
     shipping?: ShippingSettings;
 }
@@ -553,6 +567,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         allowExports: false,
         blockScreenshots: false,
         autoSendPublicQuotes: false,
+        autoSendChannels: { web: true, woo: true, whatsapp: true, bot: true },
+        autoSendCopyEmail: '',
         productionEmails: [],
         fromEmail: 'ordenes@arteconcreto.co',
         businessWhatsapp: '573178929477',

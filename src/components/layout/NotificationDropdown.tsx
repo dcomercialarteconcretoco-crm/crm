@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState } from 'react';
+import React from 'react';
 import {
     Bell,
-    X,
     MessageCircle,
     Zap,
     AlertTriangle,
@@ -11,11 +10,11 @@ import {
     Bot,
     Calendar,
     ArrowRight,
-    Search,
-    Filter
+    Filter,
+    X,
 } from 'lucide-react';
 import { clsx } from 'clsx';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 interface Notification {
     id: string;
@@ -24,9 +23,10 @@ interface Notification {
     time: string;
     type: 'lead' | 'ai' | 'alert' | 'success' | 'task' | 'order';
     read: boolean;
+    quoteId?: string;
+    targetUserId?: string;
+    clientId?: string;
 }
-
-
 
 interface NotificationDropdownProps {
     isOpen: boolean;
@@ -36,7 +36,24 @@ interface NotificationDropdownProps {
     onSelectNotification: (notification: Notification) => void;
 }
 
+// Heuristic: given a notification, figure out the best URL to take the user to
+function notificationHref(n: Notification): string {
+    if (n.clientId) return `/leads/${n.clientId}`;
+    if (n.quoteId) return `/quotes`;
+    if (n.targetUserId) return `/team`;
+    switch (n.type) {
+        case 'lead': return '/clients';
+        case 'task': return '/pipeline';
+        case 'order': return '/quotes';
+        case 'ai': return '/bot';
+        case 'alert': return '/audit';
+        case 'success': return '/quotes';
+        default: return '/';
+    }
+}
+
 export function NotificationDropdown({ isOpen, onClose, notifications, setNotifications, onSelectNotification }: NotificationDropdownProps) {
+    const router = useRouter();
     if (!isOpen) return null;
 
     const markAllRead = () => {
@@ -55,6 +72,8 @@ export function NotificationDropdown({ isOpen, onClose, notifications, setNotifi
     const handleNotificationClick = (n: Notification) => {
         markAsRead(n.id);
         onSelectNotification(n);
+        onClose();
+        router.push(notificationHref(n));
     };
 
     const getIcon = (type: Notification['type']) => {
@@ -71,12 +90,17 @@ export function NotificationDropdown({ isOpen, onClose, notifications, setNotifi
 
     return (
         <React.Fragment>
-            {/* Backdrop for closing */}
-            <div className="fixed inset-0 z-40" onClick={onClose} />
+            {/* Backdrop for closing — full-viewport so clicks outside close the panel */}
+            <div className="fixed inset-0 z-40 bg-black/10" onClick={onClose} />
 
-            <div className="absolute top-full right-0 mt-4 w-[450px] bg-[linear-gradient(180deg,rgba(255,253,248,0.98),rgba(244,237,225,0.96))] border border-border/70 rounded-[2.5rem] shadow-[0_24px_60px_rgba(23,23,23,0.14)] z-50 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+            {/*
+              Fixed-position anchor so the panel always drops from the header's bell,
+              no matter where it's mounted in the DOM tree. On mobile it spans near full
+              width with a margin; on desktop it sits under the top-right bell.
+            */}
+            <div className="fixed top-[72px] right-3 left-3 lg:left-auto lg:right-6 w-auto lg:w-[450px] max-h-[80vh] bg-[linear-gradient(180deg,rgba(255,253,248,0.98),rgba(244,237,225,0.96))] border border-border/70 rounded-[2rem] lg:rounded-[2.5rem] shadow-[0_24px_60px_rgba(23,23,23,0.14)] z-50 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300 flex flex-col">
                 {/* Header */}
-                <div className="p-8 border-b border-border/60 flex items-center justify-between bg-white/35">
+                <div className="p-4 lg:p-8 border-b border-border/60 flex items-center justify-between bg-white/35">
                     <div className="flex items-center gap-3">
                         <div className="p-3 bg-primary/10 rounded-2xl">
                             <Bell className="w-5 h-5 text-primary" />
@@ -95,7 +119,7 @@ export function NotificationDropdown({ isOpen, onClose, notifications, setNotifi
                             </p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3 lg:gap-4">
                         <button
                             onClick={markAllRead}
                             className="text-[10px] font-black uppercase tracking-widest text-primary hover:opacity-70 transition-opacity"
@@ -107,6 +131,13 @@ export function NotificationDropdown({ isOpen, onClose, notifications, setNotifi
                             className="text-[10px] font-black uppercase tracking-widest text-rose-500/60 hover:text-rose-500 transition-colors"
                         >
                             Borrar Todo
+                        </button>
+                        <button
+                            onClick={onClose}
+                            className="p-1.5 rounded-lg hover:bg-black/5 text-muted-foreground hover:text-foreground transition-colors lg:hidden"
+                            aria-label="Cerrar"
+                        >
+                            <X className="w-4 h-4" />
                         </button>
                     </div>
                 </div>
@@ -127,7 +158,7 @@ export function NotificationDropdown({ isOpen, onClose, notifications, setNotifi
                 </div>
 
                 {/* Notifications List */}
-                <div className="max-h-[500px] overflow-y-auto custom-scrollbar divide-y divide-border/50">
+                <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar divide-y divide-border/50">
                     {notifications.length > 0 ? (
                         notifications.map((n) => (
                             <div

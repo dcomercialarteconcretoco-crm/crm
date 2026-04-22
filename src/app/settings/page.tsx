@@ -49,10 +49,12 @@ import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
 import { hasPermission } from '@/lib/permissions';
 import { BiolinkGlobalSettings } from '@/components/settings/BiolinkGlobalSettings';
 
+// `superAdminOnly: true` hides the tab unless currentUser.role is SuperAdmin/Admin.
 const categories = [
     { id: 'profile', name: 'Perfil de Usuario', icon: User },
     { id: 'biolinks', name: 'Tarjetas Digitales', icon: CreditCard },
     { id: 'intelligence', name: 'Cerebro IA (MiWibi)', icon: Activity },
+    { id: 'autosend', name: 'Cotizaciones automáticas', icon: Zap, superAdminOnly: true },
     { id: 'notifications', name: 'Notificaciones', icon: Bell },
     { id: 'security', name: 'Seguridad y Acceso', icon: Shield },
     { id: 'integrations', name: 'Integraciones API', icon: LinkIcon },
@@ -64,6 +66,11 @@ const categories = [
 export default function SettingsPage() {
     const { settings, updateSettings: rawUpdateSettings, currentUser, clearTestData, addNotification } = useApp();
     const canManageSettings = hasPermission(currentUser, 'settings.manage');
+    const isSuperAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
+    const visibleCategories = useMemo(
+        () => categories.filter((c) => !(c as any).superAdminOnly || isSuperAdmin),
+        [isSuperAdmin]
+    );
     const updateSettings: typeof rawUpdateSettings = canManageSettings
         ? rawUpdateSettings
         : (() => {
@@ -85,6 +92,11 @@ export default function SettingsPage() {
         const t = searchParams?.get('tab');
         if (t) setActiveTab(t);
     }, [searchParams]);
+
+    // Prevent deep-linking into a tab the user can't see.
+    useEffect(() => {
+        if (activeTab === 'autosend' && !isSuperAdmin) setActiveTab('profile');
+    }, [activeTab, isSuperAdmin]);
     const [showPassword, setShowPassword] = useState(false);
     const [aiActive, setAiActive] = useState(true);
     const [notifEnabled, setNotifEnabled] = useState([true, true, true, true]);
@@ -249,7 +261,7 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 {/* Side Navigation */}
                 <div className="lg:col-span-3 flex lg:flex-col overflow-x-auto lg:overflow-x-visible items-center lg:items-stretch gap-1 pb-4 lg:pb-0">
-                    {categories.map((cat) => (
+                    {visibleCategories.map((cat) => (
                         <button
                             key={cat.id}
                             onClick={() => setActiveTab(cat.id)}
@@ -515,6 +527,156 @@ export default function SettingsPage() {
                             </div>
                         )}
 
+                        {/* Tab: Cotizaciones automáticas (SuperAdmin only) */}
+                        {activeTab === 'autosend' && isSuperAdmin && (
+                            <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+                                <div>
+                                    <h3 className="text-xl font-black text-foreground tracking-tight flex items-center gap-2">
+                                        <Zap className="w-5 h-5 text-primary" />
+                                        Cotizaciones automáticas
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+                                        Controla si las cotizaciones generadas desde canales digitales se envían automáticamente al cliente
+                                        o quedan en borrador para que el vendedor asignado las revise y envíe manualmente.
+                                    </p>
+                                </div>
+
+                                {/* Master toggle */}
+                                <div className={clsx(
+                                    "bg-white border rounded-2xl p-6 shadow-sm transition-all",
+                                    settings.autoSendPublicQuotes ? "border-emerald-500/40" : "border-amber-500/30"
+                                )}>
+                                    <div className="flex items-start gap-4">
+                                        <div className={clsx(
+                                            "p-3 rounded-xl shrink-0",
+                                            settings.autoSendPublicQuotes ? "bg-emerald-500/10" : "bg-amber-500/10"
+                                        )}>
+                                            <Mail className={clsx(
+                                                "w-5 h-5",
+                                                settings.autoSendPublicQuotes ? "text-emerald-500" : "text-amber-500"
+                                            )} />
+                                        </div>
+                                        <div className="flex-1 space-y-1">
+                                            <h4 className="text-sm font-black text-foreground">Envío automático maestro</h4>
+                                            {settings.autoSendPublicQuotes ? (
+                                                <p className="text-xs text-emerald-600 font-semibold">
+                                                    ACTIVADO — las cotizaciones entrantes se envían solas al cliente por email, y se marcan como <code>Sent</code>.
+                                                </p>
+                                            ) : (
+                                                <p className="text-xs text-amber-600 font-semibold">
+                                                    DESACTIVADO — las cotizaciones entrantes se guardan como <code>Draft</code>. El lead se asigna al siguiente vendedor en rotación y él decide cuándo enviarla.
+                                                </p>
+                                            )}
+                                            <p className="text-xs text-muted-foreground/70 italic pt-1">
+                                                Recomendado: mantener DESACTIVADO en etapa temprana para que cada cotización pase por revisión humana. Activar solo cuando el catálogo y precios estén 100% estables.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => updateSettings({ autoSendPublicQuotes: !settings.autoSendPublicQuotes })}
+                                            className={clsx(
+                                                "w-12 h-6 rounded-full relative p-1 transition-all shrink-0",
+                                                settings.autoSendPublicQuotes ? "bg-emerald-500" : "bg-gray-300"
+                                            )}
+                                            aria-label="Toggle envío automático maestro"
+                                        >
+                                            <div className={clsx(
+                                                "w-4 h-4 bg-white rounded-full absolute transition-all",
+                                                settings.autoSendPublicQuotes ? "right-1" : "left-1"
+                                            )}></div>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Per-channel toggles — only meaningful when master is ON */}
+                                <div className={clsx(
+                                    "space-y-3 transition-opacity",
+                                    settings.autoSendPublicQuotes ? "opacity-100" : "opacity-50"
+                                )}>
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-sm font-black text-foreground">Control por canal</h4>
+                                        {!settings.autoSendPublicQuotes && (
+                                            <span className="text-xs text-muted-foreground italic">Activa el maestro para usar</span>
+                                        )}
+                                    </div>
+
+                                    {([
+                                        { key: 'web',      label: 'Cotizador Web',         desc: 'Formulario público /public/cotizar y widget embebido.', active: true },
+                                        { key: 'woo',      label: 'WooCommerce',            desc: 'Productos del catálogo WooCommerce (botón “Solicitar cotización”).', active: true },
+                                        { key: 'whatsapp', label: 'WhatsApp',               desc: 'Hoy solo crea leads — no genera cotizaciones automáticas aún.', active: false },
+                                        { key: 'bot',      label: 'ConcreBOT',              desc: 'Hoy solo crea leads — no genera cotizaciones automáticas aún.', active: false },
+                                    ] as const).map((ch) => {
+                                        const enabled = settings.autoSendChannels?.[ch.key] !== false;
+                                        return (
+                                            <div
+                                                key={ch.key}
+                                                className={clsx(
+                                                    "bg-muted border border-border rounded-xl p-4 flex items-center justify-between gap-4",
+                                                    !ch.active && "opacity-60"
+                                                )}
+                                            >
+                                                <div className="space-y-0.5 flex-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <h5 className="text-sm font-bold text-foreground">{ch.label}</h5>
+                                                        {!ch.active && (
+                                                            <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground bg-background border border-border rounded px-1.5 py-0.5">
+                                                                Reservado
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-xs text-muted-foreground">{ch.desc}</p>
+                                                </div>
+                                                <button
+                                                    disabled={!settings.autoSendPublicQuotes}
+                                                    onClick={() => updateSettings({
+                                                        autoSendChannels: {
+                                                            ...settings.autoSendChannels,
+                                                            [ch.key]: !enabled,
+                                                        },
+                                                    })}
+                                                    className={clsx(
+                                                        "w-12 h-6 rounded-full relative p-1 transition-all shrink-0",
+                                                        enabled && settings.autoSendPublicQuotes ? "bg-emerald-500" : "bg-gray-300",
+                                                        !settings.autoSendPublicQuotes && "cursor-not-allowed"
+                                                    )}
+                                                    aria-label={`Toggle auto-envío ${ch.label}`}
+                                                >
+                                                    <div className={clsx(
+                                                        "w-4 h-4 bg-white rounded-full absolute transition-all",
+                                                        enabled ? "right-1" : "left-1"
+                                                    )}></div>
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* CC email */}
+                                <div className="bg-white border border-border rounded-2xl p-6 shadow-sm space-y-3">
+                                    <div className="flex items-center gap-3">
+                                        <Hash className="w-4 h-4 text-primary" />
+                                        <h4 className="text-sm font-black text-foreground">Copia interna (CC)</h4>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        Correo que recibe copia de cada cotización enviada automáticamente. Útil para auditoría o seguimiento de equipo de marketing. Si lo dejas vacío, se usa <code>marketing@arteconcreto.co</code>.
+                                    </p>
+                                    <input
+                                        type="email"
+                                        placeholder="marketing@arteconcreto.co"
+                                        value={settings.autoSendCopyEmail || ''}
+                                        onChange={(e) => updateSettings({ autoSendCopyEmail: e.target.value })}
+                                        className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white transition-all"
+                                    />
+                                </div>
+
+                                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3">
+                                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                    <p className="text-xs text-amber-800 leading-relaxed">
+                                        <strong>Importante:</strong> cuando el envío automático está desactivado, la cotización sigue creándose y el lead sigue asignándose al vendedor en rotación — simplemente queda como borrador hasta que el vendedor la envíe manualmente desde la vista del lead.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Tab: Notificaciones */}
                         {activeTab === 'notifications' && (
                             <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
@@ -624,37 +786,6 @@ export default function SettingsPage() {
                                             <div className={clsx(
                                                 "w-4 h-4 bg-white rounded-full absolute transition-all",
                                                 settings.allowExports ? "right-1" : "left-1"
-                                            )}></div>
-                                        </button>
-                                    </div>
-
-                                    <div className="bg-muted border border-border rounded-xl p-5 flex items-center justify-between">
-                                        <div className="flex items-center gap-4">
-                                            <div className="p-2.5 bg-primary/10 rounded-xl">
-                                                <Mail className="w-4 h-4 text-primary" />
-                                            </div>
-                                            <div className="space-y-0.5">
-                                                <h4 className="text-sm font-black text-foreground">Auto-enviar cotización a leads públicos</h4>
-                                                <p className="text-xs text-muted-foreground font-semibold">
-                                                    {settings.autoSendPublicQuotes
-                                                        ? <span className="text-emerald-600">(ACTIVO — el sistema envía email automático con la cotización)</span>
-                                                        : <span className="text-amber-600">(DESACTIVADO — el lead se asigna al siguiente vendedor en rotación, él contacta)</span>}
-                                                </p>
-                                                <p className="text-xs text-muted-foreground/60 italic">
-                                                    Aplica a cotizador web, formulario de tarjeta digital, WhatsApp y Concrebot.
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={() => updateSettings({ autoSendPublicQuotes: !settings.autoSendPublicQuotes })}
-                                            className={clsx(
-                                                "w-12 h-6 rounded-full relative p-1 transition-all shrink-0",
-                                                settings.autoSendPublicQuotes ? "bg-emerald-500" : "bg-gray-300"
-                                            )}
-                                        >
-                                            <div className={clsx(
-                                                "w-4 h-4 bg-white rounded-full absolute transition-all",
-                                                settings.autoSendPublicQuotes ? "right-1" : "left-1"
                                             )}></div>
                                         </button>
                                     </div>

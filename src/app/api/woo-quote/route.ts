@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
 import { pickNextSeller } from '@/lib/round-robin';
+import { isAutoSendEnabledForChannel } from '@/lib/system-settings';
 
 // CORS headers so the WooCommerce site (arteconcreto.co) can call this endpoint
 const CORS = {
@@ -59,6 +60,11 @@ export async function POST(req: NextRequest) {
     const assignedSellerId = assignedSeller?.id || '';
     const assignedSellerName = assignedSeller?.name || '';
 
+    // Honor the admin's auto-send setting. When OFF, the quote stays as 'Draft'
+    // so the seller reviews and sends it manually from the CRM.
+    const autoSend = await isAutoSendEnabledForChannel('woo');
+    const sentAtIso = now.toISOString();
+
     const newClient = {
         id: clientId,
         name,
@@ -78,7 +84,7 @@ export async function POST(req: NextRequest) {
         assignedToName: assignedSellerName,
     };
 
-    const newQuote = {
+    const newQuote: Record<string, unknown> = {
         id: quoteId,
         number: quoteNumber,
         client: name,
@@ -91,7 +97,10 @@ export async function POST(req: NextRequest) {
         tax,
         total,
         numericTotal: total,
-        status: 'Sent',
+        status: autoSend ? 'Sent' : 'Draft',
+        sentAt: autoSend ? sentAtIso : undefined,
+        sentByName: autoSend ? 'WooCommerce (auto)' : undefined,
+        sentById: autoSend ? 'woo-webhook' : undefined,
         date: dateStr,
         sellerId: assignedSellerId,
         sellerName: assignedSellerName || 'Sin asignar',
@@ -132,9 +141,9 @@ export async function POST(req: NextRequest) {
             },
         ],
         quoteId,
-        stageId: 'sent',
+        stageId: autoSend ? 'sent' : 'stage-1',
         openedAt: null,
-        sentAt: dateStr,
+        sentAt: autoSend ? dateStr : null,
     };
 
     if (hasDatabase()) {

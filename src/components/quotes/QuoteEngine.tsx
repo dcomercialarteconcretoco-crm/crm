@@ -64,6 +64,10 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     const [showPreview, setShowPreview] = useState(false);
     const [pendingAction, setPendingAction] = useState<'pdf' | 'email' | 'whatsapp' | null>(null);
 
+    // Post-PDF reminder: después de generar el PDF, recordamos al vendedor que AÚN debe enviárselo al cliente.
+    const [postGenReminder, setPostGenReminder] = useState<{ quoteNumber: string; quoteId: string } | null>(null);
+    const [reminderBusy, setReminderBusy] = useState<'wa' | 'email' | 'download' | null>(null);
+
     // Envío: modo 'auto' calcula desde peso/dims + ciudad. 'manual' usa shippingOverride.
     const [shippingMode, setShippingMode] = useState<'auto' | 'manual'>(editQuote?.shippingMode || 'auto');
     const [shippingOverride, setShippingOverride] = useState<number>(
@@ -291,14 +295,16 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         setIsSaving(true);
         try {
             let quoteNumber: string;
+            let quoteId: string;
             if (isEditMode && editQuoteId) {
                 const existing = quotes.find(q => q.id === editQuoteId);
                 // Recompute number so AIU toggle is reflected on the stored quote
                 quoteNumber = genQuoteNumber();
                 updateQuote(editQuoteId, { ...getCommonQuoteFields(client, quoteNumber, items), status: existing?.status || 'Draft' as const });
+                quoteId = editQuoteId;
             } else {
                 quoteNumber = genQuoteNumber();
-                addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Draft' as const });
+                quoteId = addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Draft' as const });
             }
             await generateProposalPDF({
                 quoteNumber, date: new Date().toLocaleDateString('es-CO'),
@@ -316,7 +322,9 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                     : undefined,
             });
             addAuditLog({ userId: currentUser?.id || '', userName: currentUser?.name || 'Sistema', userRole: currentUser?.role || 'Vendedor', action: 'QUOTE_SENT', targetId: client.id, targetName: client.company || client.name, details: `Cotización ${quoteNumber} ${isEditMode ? 'editada' : 'generada'} · Total: ${formatCurrency(total)}`, verified: true });
-            addNotification({ title: `Cotización ${quoteNumber} lista`, description: 'PDF descargado.', type: 'success' });
+            addNotification({ title: `Cotización ${quoteNumber} lista`, description: 'PDF descargado. Recuerda enviársela al cliente.', type: 'success' });
+            // El PDF ya se descargó pero aún no se envió al cliente — disparamos el recordatorio.
+            setPostGenReminder({ quoteNumber, quoteId });
         } finally {
             setIsSaving(false);
             setShowPreview(false);
@@ -329,6 +337,111 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         if (items.length === 0) { addNotification({ title: 'Sin productos', description: 'Agrega al menos un producto.', type: 'alert' }); return; }
         setPendingAction('pdf');
         setShowPreview(true);
+    };
+
+    // ── Acciones del recordatorio post-PDF (la cotización YA existe, solo enviamos/re-descargamos) ──
+    const reminderRedownloadPDF = async () => {
+        const client = clients.find(c => c.id === selectedClientId);
+        if (!client || !postGenReminder) return;
+        setReminderBusy('download');
+        try {
+            await generateProposalPDF({
+                quoteNumber: postGenReminder.quoteNumber, date: new Date().toLocaleDateString('es-CO'),
+                leadName: client.name, leadCompany: client.company, leadEmail: client.email, leadCity: client.city,
+                referencia, validUntil, deliveryTime, paymentTerms,
+                sellerName: currentUser?.name || 'ArteConcreto',
+                sellerPhone: currentUser?.phone || '',
+                items: items.map(i => ({ ...i, total: i.price * i.quantity })),
+                subtotal, tax, total,
+                shipping: shipping > 0 ? shipping : undefined,
+                shippingCity: client.city,
+                isAIU,
+                aiuData: isAIU
+                    ? { transportPrice: transportPrice || undefined, unloadPrice: unloadPrice || undefined, totalAIU: aiuTotal || undefined }
+                    : undefined,
+            });
+            addNotification({ title: 'PDF re-descargado', description: `Cotización ${postGenReminder.quoteNumber}`, type: 'success' });
+        } finally {
+            setReminderBusy(null);
+        }
+    };
+
+    const reminderSendWhatsApp = () => {
+        const client = clients.find(c => c.id === selectedClientId);
+        if (!client || !postGenReminder) return;
+        if (!client.phone) { addNotification({ title: 'Teléfono requerido', description: 'El cliente no tiene número registrado.', type: 'alert' }); return; }
+        setReminderBusy('wa');
+        try {
+            const quoteNumber = postGenReminder.quoteNumber;
+            const phone = client.phone.replace(/\D/g, '');
+            const intlPhone = phone.startsWith('57') ? phone : `57${phone}`;
+            const itemsList = items.map(i => `  • ${i.name} x${i.quantity} → ${formatCurrency(i.price * i.quantity)}`).join('\n');
+            const vigencia = validUntil ? `Vigencia hasta: ${validUntil}` : 'Vigencia: 15 días calendario';
+            const msg = [
+                `Hola ${client.name.split(' ')[0]} 👋`,
+                ``,
+                `Adjunto encontrará la cotización *${quoteNumber}* de *ArteConcreto S.A.S*:`,
+                referencia ? `📋 ${referencia}` : '',
+                ``,
+                itemsList,
+                ``,
+                `Subtotal: ${formatCurrency(subtotal)}`,
+                `IVA (19%): ${formatCurrency(tax)}`,
+                shipping > 0 ? `Envío${client.city ? ` (${client.city})` : ''}: ${formatCurrency(shipping)}` : '',
+                `*TOTAL: ${formatCurrency(total)}*`,
+                ``,
+                vigencia,
+                `📍 Km 1+800, Anillo Vial, Floridablanca, Santander`,
+                currentUser?.phone ? `📞 ${currentUser.phone}` : '',
+            ].filter(l => l !== '').join('\n');
+            window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+            // Marcar la cotización como enviada (actualizamos en lugar de crear duplicado)
+            updateQuote(postGenReminder.quoteId, { status: 'Sent', sentAt: new Date().toISOString(), sentByName: currentUser?.name || '', sentById: currentUser?.id || '' });
+            addAuditLog({ userId: currentUser?.id || '', userName: currentUser?.name || 'Sistema', userRole: currentUser?.role || 'Vendedor', action: 'WHATSAPP_SENT', targetId: client.id, targetName: client.company || client.name, details: `WhatsApp enviado con cotización ${quoteNumber} · Total: ${formatCurrency(total)} → ${client.phone}`, verified: true });
+            addNotification({ title: 'WhatsApp abierto', description: 'Revisa el mensaje y envíalo desde WhatsApp.', type: 'success' });
+            setPostGenReminder(null);
+        } finally {
+            setReminderBusy(null);
+        }
+    };
+
+    const reminderSendEmail = async () => {
+        const client = clients.find(c => c.id === selectedClientId);
+        if (!client || !postGenReminder) return;
+        if (!client.email) { addNotification({ title: 'Email requerido', description: 'El cliente no tiene email.', type: 'alert' }); return; }
+        setReminderBusy('email');
+        try {
+            const sentAt = new Date().toISOString();
+            const quoteNumber = postGenReminder.quoteNumber;
+            const res = await fetch('/api/quotes/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    quoteNumber, clientName: client.name, clientEmail: client.email,
+                    clientCompany: client.company || '', sellerName: currentUser?.name || 'ArteConcreto',
+                    sellerId: currentUser?.id || '', sentAt, sentByName: currentUser?.name || '', sentById: currentUser?.id || '',
+                    items: items.map(i => ({ name: i.name, price: i.price, quantity: i.quantity, unit: i.unit })),
+                    subtotal, tax, total,
+                    shipping: shipping > 0 ? shipping : 0,
+                    shippingCity: client.city || '',
+                    referencia, validUntil, deliveryTime, paymentTerms,
+                    sellerPhone: currentUser?.phone || '',
+                }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                updateQuote(postGenReminder.quoteId, { status: 'Sent', sentAt: data.sentAt || sentAt, sentByName: data.sentByName || currentUser?.name || '', sentById: data.sentById || currentUser?.id || '' });
+                addAuditLog({ userId: currentUser?.id || '', userName: currentUser?.name || 'Sistema', userRole: currentUser?.role || 'Vendedor', action: 'QUOTE_SENT', targetId: client.id, targetName: client.company || client.name, details: `Email enviado con cotización ${quoteNumber} → ${client.email}`, verified: true });
+                addNotification({ title: `Cotización ${quoteNumber} enviada`, description: `Enviada a ${client.email}`, type: 'success' });
+                setPostGenReminder(null);
+            } else {
+                addNotification({ title: 'Error al enviar', description: data.error || 'Verifica la clave Resend.', type: 'alert' });
+            }
+        } catch {
+            addNotification({ title: 'Error de conexión', description: 'No se pudo enviar.', type: 'alert' });
+        } finally {
+            setReminderBusy(null);
+        }
     };
 
     const executeWhatsApp = () => {
@@ -1175,6 +1288,108 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                         : 'Confirmar y Enviar WhatsApp'}
                                 </button>
                             )}
+                        </div>
+                    </div>
+                </div>
+            );
+        })()}
+
+        {/* ── POST-PDF REMINDER MODAL ───────────────────────────────────────── */}
+        {postGenReminder && (() => {
+            const client = clients.find(c => c.id === selectedClientId);
+            const hasEmail = !!client?.email;
+            const hasPhone = !!client?.phone;
+            return (
+                <div className="fixed inset-0 z-[600] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                        {/* Header con acento amarillo */}
+                        <div className="bg-gradient-to-br from-amber-400 to-primary px-6 pt-6 pb-5 relative">
+                            <button
+                                onClick={() => setPostGenReminder(null)}
+                                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/10 hover:bg-black/20 text-black/70 hover:text-black flex items-center justify-center transition-colors"
+                                title="Cerrar"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                            <div className="w-12 h-12 rounded-2xl bg-white/30 border border-black/10 flex items-center justify-center mb-3">
+                                <CheckCircle className="w-6 h-6 text-black" />
+                            </div>
+                            <h3 className="text-lg font-black text-black tracking-tight">Cotización creada y descargada</h3>
+                            <p className="text-xs font-black text-black/70 mt-1 tracking-widest uppercase">{postGenReminder.quoteNumber}</p>
+                        </div>
+
+                        {/* Cuerpo: recordatorio */}
+                        <div className="px-6 pt-5 pb-4 space-y-4">
+                            <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4">
+                                <p className="text-sm font-black text-amber-900">
+                                    ⚠️ La cotización aún NO se ha enviado al cliente.
+                                </p>
+                                <p className="text-xs text-amber-800 mt-1.5 leading-relaxed">
+                                    El PDF se descargó en tu equipo. Revísalo antes de enviárselo a <strong>{client?.name || 'el cliente'}</strong>.
+                                </p>
+                            </div>
+
+                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">
+                                ¿Qué quieres hacer?
+                            </p>
+
+                            {/* Acciones */}
+                            <div className="space-y-2.5">
+                                {/* WhatsApp */}
+                                <button
+                                    onClick={reminderSendWhatsApp}
+                                    disabled={!hasPhone || reminderBusy !== null}
+                                    className={clsx(
+                                        "w-full font-black py-3.5 rounded-2xl flex items-center justify-center gap-3 transition-all text-xs uppercase tracking-widest",
+                                        hasPhone
+                                            ? "bg-[#25D366] text-white hover:bg-[#1fba58] shadow-lg shadow-green-500/20"
+                                            : "bg-muted text-muted-foreground cursor-not-allowed",
+                                        reminderBusy === 'wa' && "opacity-60"
+                                    )}
+                                    title={!hasPhone ? 'El cliente no tiene teléfono registrado' : 'Enviar por WhatsApp'}
+                                >
+                                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                                    {reminderBusy === 'wa' ? 'Abriendo...' : (hasPhone ? `Enviar por WhatsApp${client?.phone ? ` · ${client.phone}` : ''}` : 'Sin teléfono')}
+                                </button>
+
+                                {/* Email */}
+                                <button
+                                    onClick={reminderSendEmail}
+                                    disabled={!hasEmail || reminderBusy !== null}
+                                    className={clsx(
+                                        "w-full font-black py-3.5 rounded-2xl flex items-center justify-center gap-3 transition-all text-xs uppercase tracking-widest border",
+                                        hasEmail
+                                            ? "bg-white border-border text-foreground hover:bg-muted"
+                                            : "bg-muted border-border text-muted-foreground cursor-not-allowed",
+                                        reminderBusy === 'email' && "opacity-60"
+                                    )}
+                                    title={!hasEmail ? 'El cliente no tiene email registrado' : 'Enviar por email'}
+                                >
+                                    <Send className="w-4 h-4 text-primary" />
+                                    {reminderBusy === 'email' ? 'Enviando...' : (hasEmail ? `Enviar por Email${client?.email ? ` · ${client.email}` : ''}` : 'Sin email')}
+                                </button>
+
+                                {/* Descargar otra vez */}
+                                <button
+                                    onClick={reminderRedownloadPDF}
+                                    disabled={reminderBusy !== null}
+                                    className={clsx(
+                                        "w-full bg-muted/60 border border-border text-foreground font-black py-3 rounded-2xl flex items-center justify-center gap-2.5 hover:bg-muted transition-all text-xs uppercase tracking-widest",
+                                        reminderBusy === 'download' && "opacity-60"
+                                    )}
+                                >
+                                    <FileText className="w-4 h-4 text-primary" />
+                                    {reminderBusy === 'download' ? 'Generando...' : 'Descargar PDF de nuevo'}
+                                </button>
+                            </div>
+
+                            {/* Cerrar más adelante */}
+                            <button
+                                onClick={() => setPostGenReminder(null)}
+                                className="w-full text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors pt-1"
+                            >
+                                La enviaré más tarde, cerrar
+                            </button>
                         </div>
                     </div>
                 </div>
