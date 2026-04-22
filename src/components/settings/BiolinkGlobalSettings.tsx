@@ -144,6 +144,31 @@ export function BiolinkGlobalSettings() {
         }
     };
 
+    const [refreshingImages, setRefreshingImages] = useState(false);
+    const handleRefreshProductImages = async () => {
+        setRefreshingImages(true);
+        try {
+            const res = await fetch('/api/biolinks/settings/refresh-products', { method: 'POST' });
+            const data = await res.json();
+            if (res.ok) {
+                setSettings(s => ({ ...s, featured_products: Array.isArray(data.products) ? data.products : s.featured_products }));
+                addNotification({
+                    title: 'Imágenes actualizadas',
+                    description: `${data.updated || 0} de ${data.total || 0} productos enriquecidos desde WooCommerce.`,
+                    type: 'success',
+                });
+            } else {
+                addNotification({
+                    title: 'No se pudo actualizar',
+                    description: data.error || 'Revisa la conexión a WooCommerce.',
+                    type: 'alert',
+                });
+            }
+        } finally {
+            setRefreshingImages(false);
+        }
+    };
+
     const addProduct = (p: { id: string | number; name: string; image?: string; price?: string; url?: string }) => {
         const id = String(p.id);
         if (settings.featured_products.some(fp => fp.id === id)) return;
@@ -334,11 +359,19 @@ export function BiolinkGlobalSettings() {
                             Se muestran como tarjetas al final del biolink. Sincronizados con WooCommerce.
                         </p>
                     </div>
-                    <button onClick={handleSyncWoo} disabled={syncing}
-                        className="flex items-center gap-2 bg-white border border-border text-foreground font-semibold rounded-xl px-3 py-2 hover:bg-muted text-xs disabled:opacity-60">
-                        {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                        Sync WooCommerce
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <button onClick={handleRefreshProductImages} disabled={refreshingImages}
+                            title="Busca en WooCommerce por nombre y llena foto + link de cada producto destacado"
+                            className="flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary font-bold rounded-xl px-3 py-2 hover:bg-primary/20 text-xs disabled:opacity-60">
+                            {refreshingImages ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                            Autocompletar imágenes
+                        </button>
+                        <button onClick={handleSyncWoo} disabled={syncing}
+                            className="flex items-center gap-2 bg-white border border-border text-foreground font-semibold rounded-xl px-3 py-2 hover:bg-muted text-xs disabled:opacity-60">
+                            {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                            Sync catálogo
+                        </button>
+                    </div>
                 </div>
 
                 <Field label="Título del catálogo">

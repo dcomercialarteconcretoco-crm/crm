@@ -46,13 +46,23 @@ function getYoutubeEmbedUrl(url: string) {
     } catch { return null; }
 }
 
-function downloadVCard(card: Biolink) {
+function escapeVCard(text: string): string {
+    return text.replace(/\\/g, '\\\\').replace(/,/g, '\\,').replace(/;/g, '\\;').replace(/\n/g, '\\n');
+}
+
+function downloadVCard(card: Biolink, companyName: string) {
+    const nameParts = card.name.trim().split(/\s+/);
+    // N: Family;Given;Middle;Prefix;Suffix — macOS and iOS rely on N for the big display name
+    const family = nameParts.length >= 3 ? nameParts.slice(-2).join(' ') : (nameParts[nameParts.length - 1] || '');
+    const given = nameParts.length >= 3 ? nameParts.slice(0, -2).join(' ') : (nameParts.slice(0, -1).join(' ') || nameParts[0] || '');
     const vcf = [
-        'BEGIN:VCARD', 'VERSION:3.0',
-        `FN:${card.name}`,
-        card.title ? `TITLE:${card.title}` : '',
-        'ORG:ArteConcreto S.A.S',
-        card.phone  ? `TEL;TYPE=WORK,VOICE:${card.phone}` : '',
+        'BEGIN:VCARD',
+        'VERSION:3.0',
+        `N:${escapeVCard(family)};${escapeVCard(given)};;;`,
+        `FN:${escapeVCard(card.name)}`,
+        card.title ? `TITLE:${escapeVCard(card.title)}` : '',
+        `ORG:${escapeVCard(companyName || 'Arte Concreto S.A.S')}`,
+        card.phone  ? `TEL;TYPE=CELL,VOICE:${card.phone}` : '',
         card.email  ? `EMAIL;TYPE=WORK:${card.email}` : '',
         card.website ? `URL:${card.website}` : '',
         card.instagram ? `X-SOCIALPROFILE;TYPE=instagram:${card.instagram}` : '',
@@ -151,6 +161,11 @@ export default function BiolinkPublicCard({ card, settings }: { card: Biolink; s
                     </div>
                     <h1 style={{ margin: 0, fontSize: 26, fontWeight: 900, color: txtMain, letterSpacing: '-0.5px' }}>{card.name}</h1>
                     {card.title && <p style={{ margin: '6px 0 0', fontSize: 14, color: txtSub, fontWeight: 500 }}>{card.title}</p>}
+                    {settings.company_description && (
+                        <p style={{ margin: '14px 0 0', fontSize: 13, color: txtSub, lineHeight: 1.55 }}>
+                            {settings.company_description}
+                        </p>
+                    )}
                 </div>
 
                 {/* Social links */}
@@ -224,7 +239,7 @@ export default function BiolinkPublicCard({ card, settings }: { card: Biolink; s
                         </div>
                     )}
 
-                    <button onClick={() => downloadVCard(card)}
+                    <button onClick={() => downloadVCard(card, settings.company_name || 'Arte Concreto S.A.S')}
                         style={{ width: '100%', padding: '16px 24px', borderRadius: 16, background: cardBg, color: txtMain, fontWeight: 900, fontSize: 14, border: `1px solid ${border}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', letterSpacing: '0.02em' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                             <Download size={16} style={{ color: pc }} />
@@ -314,12 +329,6 @@ export default function BiolinkPublicCard({ card, settings }: { card: Biolink; s
                     </div>
                 )}
 
-                {/* Company description */}
-                {settings.company_description && (
-                    <div style={{ padding: '14px 16px', borderRadius: 16, background: cardBg, border: `1px solid ${border}`, marginBottom: 24 }}>
-                        <p style={{ margin: 0, fontSize: 12.5, color: txtSub, lineHeight: 1.55 }}>{settings.company_description}</p>
-                    </div>
-                )}
 
                 {/* Footer */}
                 <div style={{ textAlign: 'center', paddingTop: 16 }}>
