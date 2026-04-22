@@ -2262,7 +2262,7 @@ export default function SettingsPage() {
                                             <h5 className="text-xs font-black uppercase text-emerald-600 tracking-widest">Producto Original</h5>
                                             <p className="text-xs text-muted-foreground font-bold uppercase tracking-wide">Registrado para ArteConcreto S.A.S</p>
                                             <div className="pt-3">
-                                                <span className="text-xs text-muted-foreground/60 bg-muted px-3 py-1 rounded-full border border-border">Expira en: 312 días</span>
+                                                <span className="text-xs text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 font-bold">♾ Licencia eterna · Otorgada por MiWibi</span>
                                             </div>
                                         </div>
                                     </div>

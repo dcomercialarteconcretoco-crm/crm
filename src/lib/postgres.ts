@@ -61,6 +61,12 @@ export async function ensureCrmSchema() {
     ALTER TABLE crm_users ADD COLUMN IF NOT EXISTS permissions JSONB;
   `);
 
+  // Onboarding wizard — increments on each completion (0 never ran, 1 ran once = mandatory done,
+  // 2 ran twice = skippable done, >=2 never shown again).
+  await pool.query(`
+    ALTER TABLE crm_users ADD COLUMN IF NOT EXISTS onboarding_count INTEGER NOT NULL DEFAULT 0;
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_clients (
       id TEXT PRIMARY KEY,

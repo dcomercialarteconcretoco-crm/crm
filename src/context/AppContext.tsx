@@ -157,6 +157,11 @@ export interface Seller {
     commission?: string;
     password?: string;
     permissions?: Record<string, boolean>;
+    // Onboarding wizard progression:
+    //   0 → never ran (next login triggers MANDATORY run — no skip button)
+    //   1 → ran once (next login triggers OPTIONAL run — skip allowed)
+    //   2+ → done forever, never shown again
+    onboardingCount?: number;
 }
 
 export interface Notification {
@@ -468,6 +473,8 @@ interface AppContextType {
     updateProduct: (id: string, updates: Partial<Product>) => void;
     deleteProduct: (id: string) => void;
     purgeOldAuditLogs: () => void;
+    // Onboarding wizard — persists the user's run count to the server and updates local state.
+    incrementOnboardingCount: () => Promise<number>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -1574,6 +1581,27 @@ REGLAS DE ORO:
         });
     };
 
+    const incrementOnboardingCount = async (): Promise<number> => {
+        // Best-effort server persistence — the wizard still progresses locally if this fails,
+        // but the user will see the wizard again on next login (which is acceptable).
+        try {
+            const res = await fetch('/api/users/me/onboarding', { method: 'POST' });
+            if (res.ok) {
+                const data = await res.json();
+                const newCount: number = typeof data?.onboardingCount === 'number'
+                    ? data.onboardingCount
+                    : (currentUser?.onboardingCount ?? 0) + 1;
+                setCurrentUser(prev => prev ? { ...prev, onboardingCount: newCount } : prev);
+                return newCount;
+            }
+        } catch {
+            // swallow — fall through to local-only update
+        }
+        const fallback = (currentUser?.onboardingCount ?? 0) + 1;
+        setCurrentUser(prev => prev ? { ...prev, onboardingCount: fallback } : prev);
+        return fallback;
+    };
+
     const contextValue = useMemo(() => ({
             clients, tasks, quotes, sellers, notifications, settings, events, forms,
             addClient, addTask, addQuote, createQuoteVersion, createAIUVersion, importClients, importQuotes, clearTestData,
@@ -1587,7 +1615,8 @@ REGLAS DE ORO:
             markNotificationAsRead, clearNotifications, removeNotification, setNotifications,
             auditLogs, addAuditLog, purgeOldAuditLogs, anomalies, addAnomaly, updateAnomaly, deleteAnomaly,
             products, productSyncStatus, refreshProducts, updateProduct, deleteProduct,
-            currentUser, isHydrating, login, logout
+            currentUser, isHydrating, login, logout,
+            incrementOnboardingCount,
         }), [
             clients, tasks, quotes, sellers, notifications, settings, events, forms,
             auditLogs, anomalies, products, productSyncStatus, currentUser, isHydrating
