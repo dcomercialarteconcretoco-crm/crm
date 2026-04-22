@@ -394,6 +394,8 @@ interface AppContextType {
     removeNotification: (id: string) => void;
     setNotifications: React.Dispatch<React.SetStateAction<Notification[]>>;
     addAnomaly: (anomaly: Omit<Anomaly, 'id' | 'timestamp' | 'status'>) => void;
+    updateAnomaly: (anomalyId: string, updates: Partial<Anomaly>) => void;
+    deleteAnomaly: (anomalyId: string) => void;
     updateProduct: (id: string, updates: Partial<Product>) => void;
     deleteProduct: (id: string) => void;
     purgeOldAuditLogs: () => void;
@@ -1177,6 +1179,22 @@ REGLAS DE ORO:
         });
     };
 
+    const updateAnomaly = (anomalyId: string, updates: Partial<Anomaly>) => {
+        setAnomalies(prev => {
+            const next = prev.map(a => a.id === anomalyId ? { ...a, ...updates } : a);
+            persistSharedState({ anomalies: next });
+            return next;
+        });
+    };
+
+    const deleteAnomaly = (anomalyId: string) => {
+        setAnomalies(prev => {
+            const next = prev.filter(a => a.id !== anomalyId);
+            persistSharedState({ anomalies: next });
+            return next;
+        });
+    };
+
     const updateClient = (clientId: string, updates: Partial<Client>) => {
         let mergedClient: Client | null = null;
         setClients(prev => prev.map(c => {
@@ -1425,7 +1443,7 @@ REGLAS DE ORO:
             updateSeller, deleteSeller, updateSettings,
             updateForm, deleteForm,
             markNotificationAsRead, clearNotifications, removeNotification, setNotifications,
-            auditLogs, addAuditLog, purgeOldAuditLogs, anomalies, addAnomaly,
+            auditLogs, addAuditLog, purgeOldAuditLogs, anomalies, addAnomaly, updateAnomaly, deleteAnomaly,
             products, productSyncStatus, refreshProducts, updateProduct, deleteProduct,
             currentUser, isHydrating, login, logout
         }), [

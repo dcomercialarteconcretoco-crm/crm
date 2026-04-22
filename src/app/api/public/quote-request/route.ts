@@ -140,6 +140,9 @@ export async function POST(req: NextRequest) {
         if (!name || !email) {
             return NextResponse.json({ error: 'name y email son requeridos' }, { status: 400, headers: CORS_HEADERS });
         }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(email).trim())) {
+            return NextResponse.json({ error: 'Correo electrónico no válido.' }, { status: 400, headers: CORS_HEADERS });
+        }
 
         // Normalize items — accept either items[] (new) or single product fields (legacy)
         let items: QuoteItem[];

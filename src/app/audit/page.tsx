@@ -35,7 +35,7 @@ import { es } from 'date-fns/locale';
 const PAGE_SIZE = 20;
 
 export default function AuditPage() {
-    const { auditLogs, sellers, anomalies, purgeOldAuditLogs } = useApp();
+    const { auditLogs, sellers, anomalies, purgeOldAuditLogs, updateAnomaly, deleteAnomaly, addNotification, currentUser } = useApp();
     const [activeView, setActiveView] = useState<'logs' | 'anomalies'>('logs');
     const [searchTerm, setSearchTerm] = useState('');
     const [filterAction, setFilterAction] = useState<string>('all');
@@ -564,13 +564,27 @@ export default function AuditPage() {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0">
-                                        <button className="bg-white border border-border text-foreground font-semibold rounded-xl px-4 py-2.5 hover:bg-muted transition-all text-sm">
+                                        <button
+                                            onClick={() => {
+                                                if (confirm('¿Descartar esta anomalía? Se eliminará del listado.')) {
+                                                    deleteAnomaly(anom.id);
+                                                    addNotification({ title: 'Anomalía descartada', description: anom.description || 'Anomalía eliminada del registro.', type: 'success' });
+                                                }
+                                            }}
+                                            className="bg-white border border-border text-foreground font-semibold rounded-xl px-4 py-2.5 hover:bg-muted transition-all text-sm"
+                                        >
                                             Descartar
                                         </button>
-                                        <button className={clsx(
-                                            "font-bold rounded-xl px-4 py-2.5 transition-all text-sm",
-                                            anom.severity === 'high' ? "bg-red-600 text-white hover:brightness-105" : "bg-primary text-black hover:brightness-105"
-                                        )}>
+                                        <button
+                                            onClick={() => {
+                                                updateAnomaly(anom.id, { status: 'reviewed' });
+                                                addNotification({ title: 'Anomalía en investigación', description: `${anom.description || 'Anomalía'} marcada como revisada por ${currentUser?.name || 'admin'}.`, type: 'alert' });
+                                            }}
+                                            className={clsx(
+                                                "font-bold rounded-xl px-4 py-2.5 transition-all text-sm",
+                                                anom.severity === 'high' ? "bg-red-600 text-white hover:brightness-105" : "bg-primary text-black hover:brightness-105"
+                                            )}
+                                        >
                                             Investigar
                                         </button>
                                     </div>
@@ -686,8 +700,31 @@ export default function AuditPage() {
                             >
                                 Cerrar
                             </button>
-                            <button className="bg-primary text-black font-bold rounded-xl px-4 py-2.5 hover:brightness-105 transition-all flex items-center gap-2 text-sm">
-                                <Download className="w-4 h-4" /> Descargar PDF Firmado
+                            <button
+                                onClick={() => {
+                                    // Export signed audit log as CSV (jsPDF isn't wired into this page — CSV is enough for compliance review)
+                                    const rows = [['Fecha', 'Usuario', 'Rol', 'Acción', 'Objetivo', 'Detalles', 'Verificado']]
+                                        .concat(auditLogs.slice(0, 500).map(l => [
+                                            new Date(l.timestamp).toLocaleString('es-CO'),
+                                            l.userName || '',
+                                            l.userRole || '',
+                                            l.action || '',
+                                            l.targetName || '',
+                                            (l.details || '').replace(/"/g, '""'),
+                                            l.verified ? 'Sí' : 'No',
+                                        ]));
+                                    const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+                                    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+                                    const a = document.createElement('a');
+                                    a.href = URL.createObjectURL(blob);
+                                    a.download = `reporte-auditoria-${new Date().toISOString().split('T')[0]}.csv`;
+                                    a.click();
+                                    URL.revokeObjectURL(a.href);
+                                    addNotification({ title: 'Reporte descargado', description: `${auditLogs.length} eventos exportados.`, type: 'success' });
+                                }}
+                                className="bg-primary text-black font-bold rounded-xl px-4 py-2.5 hover:brightness-105 transition-all flex items-center gap-2 text-sm"
+                            >
+                                <Download className="w-4 h-4" /> Descargar Reporte CSV
                             </button>
                         </div>
                     </div>

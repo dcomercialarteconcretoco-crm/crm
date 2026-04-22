@@ -3,6 +3,7 @@ import { ensureCrmSchema, getPool, hasDatabase } from "@/lib/postgres";
 import { hashPassword, isBcryptHash } from "@/lib/password";
 import { isGodUser, isCurrentUserGod } from "@/lib/god-user";
 import { parseSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth-session";
+import { hasPermission } from "@/lib/permissions";
 
 async function loadSession(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
@@ -24,8 +25,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   await ensureCrmSchema();
   const pool = getPool();
 
-  // Guard: god's row is immutable to everyone except god themselves.
   const session = await loadSession(request);
+  if (!session) {
+    return NextResponse.json({ error: 'Sesión requerida.' }, { status: 401 });
+  }
+  if (!hasPermission({ role: session.role, permissions: session.permissions }, 'team.manage')) {
+    return NextResponse.json({ error: 'No tienes permiso para editar miembros del equipo.' }, { status: 403 });
+  }
+
+  // Guard: god's row is immutable to everyone except god themselves.
   const target = await loadTarget(pool, id);
   const targetIsGod = isGodUser(target || { id, email: payload.email });
   if (targetIsGod && !isCurrentUserGod(session)) {
@@ -96,18 +104,21 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   await ensureCrmSchema();
   const pool = getPool();
 
-  // Guard: god can never be deleted — not by other SuperAdmins, not by Admins, not by anyone.
   const session = await loadSession(request);
+  if (!session) {
+    return NextResponse.json({ error: 'Sesión requerida.' }, { status: 401 });
+  }
+  if (!hasPermission({ role: session.role, permissions: session.permissions }, 'team.delete')) {
+    return NextResponse.json({ error: 'No tienes permiso para eliminar miembros del equipo.' }, { status: 403 });
+  }
+
+  // Guard: god can never be deleted — not by other SuperAdmins, not by Admins, not by anyone.
   const target = await loadTarget(pool, id);
   if (isGodUser(target || { id })) {
-    // Even god themselves shouldn't be able to accidentally delete the root account.
     return NextResponse.json(
       { error: 'La cuenta principal del sistema no puede ser eliminada.' },
       { status: 403 }
     );
-  }
-  if (!session) {
-    return NextResponse.json({ error: 'Sesión requerida.' }, { status: 401 });
   }
 
   await pool.query(`DELETE FROM crm_users WHERE id = $1`, [id]);

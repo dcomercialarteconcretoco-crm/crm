@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
+import { pickNextSeller } from '@/lib/round-robin';
 
 // CORS headers so the WooCommerce site (arteconcreto.co) can call this endpoint
 const CORS = {
@@ -53,6 +54,11 @@ export async function POST(req: NextRequest) {
         total: subtotal,
     };
 
+    // Round-robin assign so WooCommerce leads land in a seller's queue instead of "Sin asignar"
+    const assignedSeller = await pickNextSeller();
+    const assignedSellerId = assignedSeller?.id || '';
+    const assignedSellerName = assignedSeller?.name || '';
+
     const newClient = {
         id: clientId,
         name,
@@ -68,6 +74,8 @@ export async function POST(req: NextRequest) {
         category: 'WooCommerce Lead',
         source: 'WooCommerce',
         registrationDate: dateStr,
+        assignedTo: assignedSellerId,
+        assignedToName: assignedSellerName,
     };
 
     const newQuote = {
@@ -85,7 +93,8 @@ export async function POST(req: NextRequest) {
         numericTotal: total,
         status: 'Sent',
         date: dateStr,
-        sellerName: 'Sin asignar',
+        sellerId: assignedSellerId,
+        sellerName: assignedSellerName || 'Sin asignar',
         source,
         productSku: product.sku || '',
         productImage: product.image || '',
@@ -105,7 +114,8 @@ export async function POST(req: NextRequest) {
         tags: ['cotización', 'woocommerce'],
         aiScore: 65,
         source,
-        assignedTo: '',
+        assignedTo: assignedSellerId,
+        assignedToName: assignedSellerName,
         email,
         activities: [
             ...(message ? [{
@@ -132,17 +142,33 @@ export async function POST(req: NextRequest) {
             await ensureCrmSchema();
             const pool = getPool();
 
-            // Upsert client — get real ID (existing or new)
+            // Upsert client with round-robin seller assignment (preserving existing owner if any).
             const { rows: upsertRows } = await pool.query(`
-                INSERT INTO crm_clients (id, name, company, email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date, updated_at)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
+                INSERT INTO crm_clients (
+                    id, name, company, email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date,
+                    assigned_to, assigned_to_name, source, updated_at
+                )
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW())
                 ON CONFLICT (email) DO UPDATE SET
                     name = EXCLUDED.name, phone = EXCLUDED.phone, city = EXCLUDED.city,
-                    last_contact = EXCLUDED.last_contact, updated_at = NOW()
-                RETURNING id
+                    last_contact = EXCLUDED.last_contact,
+                    assigned_to = COALESCE(crm_clients.assigned_to, EXCLUDED.assigned_to),
+                    assigned_to_name = COALESCE(crm_clients.assigned_to_name, EXCLUDED.assigned_to_name),
+                    source = COALESCE(crm_clients.source, EXCLUDED.source),
+                    updated_at = NOW()
+                RETURNING id, assigned_to, assigned_to_name
             `, [newClient.id, newClient.name, newClient.company, newClient.email, newClient.phone,
                 newClient.status, newClient.value, newClient.ltv, newClient.lastContact,
-                newClient.city, newClient.score, newClient.category, newClient.registrationDate]);
+                newClient.city, newClient.score, newClient.category, newClient.registrationDate,
+                assignedSellerId || null, assignedSellerName || null, 'WooCommerce']);
+
+            // Honor existing seller if the client was already there
+            const effectiveSellerId: string = upsertRows[0]?.assigned_to || assignedSellerId || '';
+            const effectiveSellerName: string = upsertRows[0]?.assigned_to_name || assignedSellerName || '';
+            newQuote.sellerId = effectiveSellerId;
+            newQuote.sellerName = effectiveSellerName || 'Sin asignar';
+            (newTask as any).assignedTo = effectiveSellerId;
+            (newTask as any).assignedToName = effectiveSellerName;
 
             // Use the real existing client ID (avoids creating orphan quotes/tasks)
             const realClientId: string = upsertRows[0]?.id || newClient.id;

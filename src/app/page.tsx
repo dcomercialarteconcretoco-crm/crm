@@ -17,7 +17,7 @@ import {
 import { clsx } from "clsx";
 import { useApp, Quote } from "@/context/AppContext";
 import { generatePDFReport } from "@/lib/pdf-generator";
-import { canSeeAll } from "@/lib/scope";
+import { canSeeAll, ownsRecord } from "@/lib/scope";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("es-CO", {
@@ -154,38 +154,53 @@ export default function Home() {
     });
   };
 
-  const totalForecast = useMemo(
-    () => tasks.reduce((sum, task) => sum + task.numericValue, 0),
-    [tasks]
+  // Ownership scoping: Vendedores only get stats for their own clients/quotes/tasks.
+  // Leadership (SuperAdmin/Admin/Manager) sees the whole business.
+  const scopedClients = useMemo(
+    () => clients.filter(c => ownsRecord(currentUser, c)),
+    [clients, currentUser]
+  );
+  const scopedQuotes = useMemo(
+    () => quotes.filter(q => ownsRecord(currentUser, q)),
+    [quotes, currentUser]
+  );
+  const scopedTasks = useMemo(
+    () => tasks.filter(t => ownsRecord(currentUser, t)),
+    [tasks, currentUser]
   );
 
-  const approvedQuotes = quotes.filter((quote) => quote.status === "Approved").length;
+  const totalForecast = useMemo(
+    () => scopedTasks.reduce((sum, task) => sum + task.numericValue, 0),
+    [scopedTasks]
+  );
+
+  const approvedQuotes = scopedQuotes.filter((quote) => quote.status === "Approved").length;
   const conversionRate =
-    quotes.length > 0 ? ((approvedQuotes / quotes.length) * 100).toFixed(1) : "0.0";
+    scopedQuotes.length > 0 ? ((approvedQuotes / scopedQuotes.length) * 100).toFixed(1) : "0.0";
 
   // Top buyers: only clients with at least one Approved quote, sorted by their total approved revenue
   const topClients = useMemo(() => {
     const approvedByClient = new Map<string, number>();
-    quotes
+    scopedQuotes
       .filter(q => q.status === 'Approved' && q.clientId)
       .forEach(q => {
         const prev = approvedByClient.get(q.clientId!) || 0;
         approvedByClient.set(q.clientId!, prev + (q.numericTotal || 0));
       });
-    return clients
+    return scopedClients
       .filter(c => (approvedByClient.get(c.id) || 0) > 0)
       .map(c => ({ ...c, ltv: approvedByClient.get(c.id) || c.ltv }))
       .sort((a, b) => b.ltv - a.ltv)
       .slice(0, 4);
-  }, [clients, quotes]);
-  const recentQuotes = quotes.slice(0, 5);
-  const liveTasks = tasks.slice(0, 4);
+  }, [scopedClients, scopedQuotes]);
+  const recentQuotes = scopedQuotes.slice(0, 5);
+  const liveTasks = scopedTasks.slice(0, 4);
 
   // Returns up to 5 insight cards — all same importance, rotated in banner
   const allInsightCards = useMemo(() => {
     const cards: { label: string; title: string; body: string; href: string; cta: string }[] = [];
 
-    if (clients.length === 0) {
+    if (scopedClients.length === 0) {
       cards.push({
         label: "Alerta Prioritaria",
         title: "Aún no tienes clientes cargados.",
@@ -203,7 +218,7 @@ export default function Home() {
       return cards;
     }
 
-    if (quotes.length === 0) {
+    if (scopedQuotes.length === 0) {
       cards.push({
         label: "Oportunidad Detectada",
         title: "Hay clientes, pero no hay propuestas activas.",
@@ -213,7 +228,7 @@ export default function Home() {
       });
       cards.push({
         label: "Cobertura",
-        title: `${clients.length} cliente${clients.length > 1 ? 's' : ''} listo${clients.length > 1 ? 's' : ''} para cotizar.`,
+        title: `${scopedClients.length} cliente${scopedClients.length > 1 ? 's' : ''} listo${scopedClients.length > 1 ? 's' : ''} para cotizar.`,
         body: "Cada cliente registrado es una oportunidad de negocio. Activa el pipeline para no perder ninguna.",
         href: "/clients",
         cta: "Ver directorio",
@@ -233,10 +248,10 @@ export default function Home() {
     });
 
     // Conversion alert
-    if (approvedQuotes === 0 && quotes.length > 0) {
+    if (approvedQuotes === 0 && scopedQuotes.length > 0) {
       cards.push({
         label: "Alerta de Conversión",
-        title: `${quotes.length} cotizaciones emitidas, ninguna cerrada.`,
+        title: `${scopedQuotes.length} cotizaciones emitidas, ninguna cerrada.`,
         body: "El embudo está activo pero sin cierres. Prioriza las propuestas de mayor valor para destrabar el pipeline.",
         href: "/quotes",
         cta: "Revisar cotizaciones",
@@ -271,14 +286,14 @@ export default function Home() {
       cards.push({
         label: "Lectura del Día",
         title: `${approvedQuotes} cierre${approvedQuotes > 1 ? 's' : ''} aprobado${approvedQuotes > 1 ? 's' : ''}. Repite el patrón.`,
-        body: `Llevas ${approvedQuotes} de ${quotes.length} cotizaciones convertidas. Analiza qué tienen en común los cierres exitosos.`,
+        body: `Llevas ${approvedQuotes} de ${scopedQuotes.length} cotizaciones convertidas. Analiza qué tienen en común los cierres exitosos.`,
         href: "/analytics",
         cta: "Ver analíticas",
       });
     }
 
     return cards.slice(0, 5);
-  }, [approvedQuotes, clients.length, clients, liveTasks, quotes.length, recentQuotes, tasks.length, topClients]);
+  }, [approvedQuotes, scopedClients, liveTasks, scopedQuotes, recentQuotes, scopedTasks, topClients]);
 
   // Auto-rotate every 6s
   useEffect(() => {
@@ -299,10 +314,10 @@ export default function Home() {
     generatePDFReport({
       title: "Informe de Inteligencia Operacional",
       stats: [
-        { label: "Propuestas Activas", value: tasks.length.toString(), change: "" },
+        { label: "Propuestas Activas", value: scopedTasks.length.toString(), change: "" },
         { label: "Ingresos Proyectados", value: formatCurrency(totalForecast), change: "" },
         { label: "Tasa Conversión", value: `${conversionRate}%`, change: "" },
-        { label: "Leads Activos", value: clients.length.toString(), change: "" },
+        { label: "Leads Activos", value: scopedClients.length.toString(), change: "" },
       ],
       topLeads: topClients.map((client) => ({
         name: client.name,
@@ -316,7 +331,7 @@ export default function Home() {
     {
       label: "Proyección Comercial",
       value: formatCurrency(totalForecast),
-      note: `${tasks.length} propuestas activas`,
+      note: `${scopedTasks.length} propuestas activas`,
       icon: TrendingUp,
       tone: "bg-primary/14 text-primary border-primary/20",
     },
@@ -329,14 +344,14 @@ export default function Home() {
     },
     {
       label: "Base de Clientes",
-      value: clients.length.toString(),
+      value: scopedClients.length.toString(),
       note: "seguimiento en vivo",
       icon: Users,
       tone: "bg-white text-foreground border-border/70",
     },
     {
       label: "Cotizaciones",
-      value: quotes.length.toString(),
+      value: scopedQuotes.length.toString(),
       note: "pipeline activo",
       icon: FileText,
       tone: "bg-accent/45 text-foreground border-primary/15",
@@ -415,14 +430,14 @@ export default function Home() {
               )}>
                 {formatCurrency(totalForecast)}
               </p>
-              <p className="mt-2 text-xs text-white/50">{tasks.length} propuestas activas</p>
+              <p className="mt-2 text-xs text-white/50">{scopedTasks.length} propuestas activas</p>
             </div>
             <div className="shrink-0 w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center">
               <TrendingUp className="w-4 h-4 text-primary" />
             </div>
           </div>
           <div className="mt-4 progress-track" style={{ background: 'rgba(255,255,255,0.1)' }}>
-            <div className="progress-fill" style={{ width: `${Math.min(100, tasks.length * 10)}%` }} />
+            <div className="progress-fill" style={{ width: `${Math.min(100, scopedTasks.length * 10)}%` }} />
           </div>
         </div>
 
@@ -627,11 +642,11 @@ export default function Home() {
             <h3 className="section-title mt-1 mb-5">Conversión por etapa</h3>
             <div className="space-y-5">
               {(() => {
-                const maxVal = Math.max(clients.length, quotes.length, tasks.length, approvedQuotes, 1);
+                const maxVal = Math.max(scopedClients.length, scopedQuotes.length, scopedTasks.length, approvedQuotes, 1);
                 return [
-                  { label: "Leads totales", value: clients.length || 0 },
-                  { label: "Cotizaciones", value: quotes.length || 0 },
-                  { label: "Propuestas activas", value: tasks.length || 0 },
+                  { label: "Leads totales", value: scopedClients.length || 0 },
+                  { label: "Cotizaciones", value: scopedQuotes.length || 0 },
+                  { label: "Propuestas activas", value: scopedTasks.length || 0 },
                   { label: "Cierres", value: approvedQuotes || 0 },
                 ].map((item) => (
                   <div key={item.label} className="space-y-2">
@@ -739,11 +754,11 @@ export default function Home() {
             <h3 className="section-title mt-1 mb-5">Distribución comercial</h3>
             <div className="space-y-4">
               {(() => {
-                const newLeads = clients.filter(c => c.status === 'Lead').length;
-                const distMax = Math.max(newLeads, tasks.length, approvedQuotes, 1);
+                const newLeads = scopedClients.filter(c => c.status === 'Lead').length;
+                const distMax = Math.max(newLeads, scopedTasks.length, approvedQuotes, 1);
                 return [
                   { label: "Nuevos leads", value: newLeads },
-                  { label: "En seguimiento", value: tasks.length },
+                  { label: "En seguimiento", value: scopedTasks.length },
                   { label: "Ganado", value: approvedQuotes },
                 ].map((item) => (
                   <div key={item.label} className="space-y-2">

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { ensureCrmSchema, getPool, hasDatabase } from "@/lib/postgres";
 import { hashPassword, isBcryptHash } from "@/lib/password";
 import { isGodUser } from "@/lib/god-user";
+import { parseSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth-session";
+import { hasPermission } from "@/lib/permissions";
 
 export async function GET() {
   if (!hasDatabase()) {
@@ -23,6 +25,15 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   if (!hasDatabase()) {
     return NextResponse.json({ error: "Database is not configured" }, { status: 503 });
+  }
+
+  // Permission guard: only users with team.manage can create/edit sellers via this endpoint.
+  const session = await parseSessionToken(request.cookies.get(SESSION_COOKIE_NAME)?.value);
+  if (!session) {
+    return NextResponse.json({ error: 'Sesión requerida.' }, { status: 401 });
+  }
+  if (!hasPermission({ role: session.role, permissions: session.permissions }, 'team.manage')) {
+    return NextResponse.json({ error: 'No tienes permiso para crear o editar miembros del equipo.' }, { status: 403 });
   }
 
   await ensureCrmSchema();

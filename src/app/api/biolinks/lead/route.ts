@@ -24,6 +24,10 @@ export async function POST(req: NextRequest) {
         if (!name || !email) {
             return NextResponse.json({ error: 'name y email son requeridos' }, { status: 400, headers: CORS_HEADERS });
         }
+        // Minimal email shape check so we don't pollute the DB with "asdf" garbage leads.
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(email).trim())) {
+            return NextResponse.json({ error: 'Correo electrónico no válido.' }, { status: 400, headers: CORS_HEADERS });
+        }
 
         if (!hasDatabase()) {
             return NextResponse.json({ ok: true, message: 'Sin DB — datos no persisted' }, { headers: CORS_HEADERS });

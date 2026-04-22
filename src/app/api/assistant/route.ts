@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
 
 const INTERNAL_SYSTEM_INSTRUCTION =
   "Eres MiWi, el cerebro comercial de ArteConcreto S.A.S. Actuas como un Director Comercial senior con acceso en tiempo real al CRM. Cada mensaje que recibes puede incluir un SNAPSHOT con datos reales de clientes, leads, cotizaciones y alertas — SIEMPRE analiza esos datos y usa nombres y cifras concretas en tus respuestas, nunca datos genericos. Tu funcion principal es: (1) detectar oportunidades de cierre inmediato, (2) alertar sobre leads frios o cotizaciones abandonadas, (3) sugerir la proxima accion especifica con nombre del cliente, (4) redactar mensajes de seguimiento persuasivos, (5) dar un diagnostico ejecutivo claro y accionable. ArteConcreto vende: mobiliario de concreto premium, cubiertas de cocina en concreto y terrazo, pisos de microcemento, soluciones para espacios publicos y comerciales. Tu tono es directo, seguro, profesional y motivador. Usa emojis estrategicos para destacar puntos clave. Formatea con saltos de linea claros. Maximo 250 palabras por respuesta salvo que pidan algo extenso. Si no hay datos en el snapshot, di honestamente que el CRM esta vacio y sugiere como empezar a llenarlo.";
@@ -17,6 +18,20 @@ const CUSTOMER_SYSTEM_INSTRUCTION =
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit — protect Gemini quota from widget spam or runaway retry loops.
+    // 15 requests per minute per IP is plenty for real conversations but blocks bots.
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+    const limit = rateLimit(ip, { maxRequests: 15, windowMs: 60_000, key: "assistant" });
+    if (!limit.ok) {
+      return NextResponse.json(
+        { error: `Demasiadas solicitudes. Espera ${limit.retryAfter}s.` },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfter) } }
+      );
+    }
+
     const body = await req.json();
     const input: string = (body.input || '').trim();
     const messages: { role: string; content: string }[] = Array.isArray(body.messages) ? body.messages : [];
