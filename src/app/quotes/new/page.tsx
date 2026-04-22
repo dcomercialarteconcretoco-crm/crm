@@ -3,6 +3,7 @@
 import React, { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import QuoteEngine from '@/components/quotes/QuoteEngine';
+import { PermissionGate } from '@/components/PermissionGate';
 
 function NewQuoteContent() {
     const searchParams = useSearchParams();
@@ -22,8 +23,10 @@ function NewQuoteContent() {
 
 export default function NewQuotePage() {
     return (
-        <Suspense fallback={<div className="p-8 text-muted-foreground">Cargando...</div>}>
-            <NewQuoteContent />
-        </Suspense>
+        <PermissionGate require="quotes.create">
+            <Suspense fallback={<div className="p-8 text-muted-foreground">Cargando...</div>}>
+                <NewQuoteContent />
+            </Suspense>
+        </PermissionGate>
     );
 }

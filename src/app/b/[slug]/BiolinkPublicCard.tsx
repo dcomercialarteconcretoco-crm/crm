@@ -1,7 +1,21 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Send, Download, Phone, Mail, Globe, Instagram, Facebook, Linkedin, MessageCircle, CheckCircle2, X, MapPin, ChevronDown } from 'lucide-react';
+import { Send, Download, Phone, Mail, Globe, Instagram, Facebook, Linkedin, MessageCircle, CheckCircle2, MapPin, ChevronDown, ShoppingBag } from 'lucide-react';
+
+interface FeaturedProduct {
+    id: string;
+    name: string;
+    image?: string;
+    price?: string;
+    url?: string;
+}
+
+interface VideoEntry {
+    id: string;
+    title: string;
+    url: string;
+}
 
 interface Biolink {
     id: string; slug: string; name: string; title?: string; photo?: string;
@@ -12,6 +26,14 @@ interface Biolink {
 interface Settings {
     form_fields: Record<string, boolean>; theme: string;
     primary_color: string; show_youtube: boolean; show_map: boolean;
+    company_name?: string;
+    company_tagline?: string;
+    company_description?: string;
+    company_logo?: string;
+    tiktok?: string;
+    featured_products?: FeaturedProduct[];
+    catalog_title?: string;
+    videos?: VideoEntry[];
 }
 
 function getYoutubeEmbedUrl(url: string) {
@@ -82,17 +104,29 @@ export default function BiolinkPublicCard({ card, settings }: { card: Biolink; s
         }
     };
 
+    // Personal WhatsApp goes to the seller's number; corporate socials come from global settings
     const socials = [
+        card.phone     && { label: 'Llamar',    href: `tel:${card.phone}`, icon: <Phone size={20}/>, color: pc },
+        card.whatsapp  && { label: 'WhatsApp',  href: `https://wa.me/${card.whatsapp.replace(/\D/g,'')}`, icon: <MessageCircle size={20}/>, color: '#25D366' },
+        card.email     && { label: 'Email',     href: `mailto:${card.email}`, icon: <Mail size={20}/>, color: pc },
         card.instagram && { label: 'Instagram', href: card.instagram.startsWith('http') ? card.instagram : `https://instagram.com/${card.instagram.replace('@','')}`, icon: <Instagram size={20}/>, color: '#E1306C' },
         card.facebook  && { label: 'Facebook',  href: card.facebook.startsWith('http')  ? card.facebook  : `https://facebook.com/${card.facebook}`,  icon: <Facebook size={20}/>,  color: '#1877F2' },
         card.linkedin  && { label: 'LinkedIn',  href: card.linkedin.startsWith('http')  ? card.linkedin  : `https://linkedin.com/in/${card.linkedin}`, icon: <Linkedin size={20}/>, color: '#0A66C2' },
-        card.whatsapp  && { label: 'WhatsApp',  href: `https://wa.me/${card.whatsapp.replace(/\D/g,'')}`, icon: <MessageCircle size={20}/>, color: '#25D366' },
+        settings.tiktok && { label: 'TikTok',   href: settings.tiktok.startsWith('http') ? settings.tiktok : `https://tiktok.com/@${settings.tiktok.replace('@','')}`, icon: <Globe size={20}/>, color: pc },
         card.website   && { label: 'Web',       href: card.website,  icon: <Globe size={20}/>,    color: pc },
-        card.phone     && { label: 'Llamar',    href: `tel:${card.phone}`, icon: <Phone size={20}/>, color: pc },
-        card.email     && { label: 'Email',     href: `mailto:${card.email}`, icon: <Mail size={20}/>, color: pc },
     ].filter(Boolean) as { label: string; href: string; icon: React.ReactNode; color: string }[];
 
-    const youtubeEmbed = (settings.show_youtube && card.youtube_url) ? getYoutubeEmbedUrl(card.youtube_url) : null;
+    const legacyEmbed = (settings.show_youtube && card.youtube_url) ? getYoutubeEmbedUrl(card.youtube_url) : null;
+    const videoList: Array<{ id: string; title: string; embed: string | null }> =
+        (settings.show_youtube && Array.isArray(settings.videos))
+            ? settings.videos
+                .map(v => ({ id: v.id, title: v.title, embed: getYoutubeEmbedUrl(v.url) }))
+                .filter(v => !!v.embed)
+            : [];
+    // If the array is empty but the card had a legacy youtube_url, fall back to it
+    if (videoList.length === 0 && legacyEmbed) {
+        videoList.push({ id: 'legacy', title: '', embed: legacyEmbed });
+    }
 
     return (
         <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 16px 48px', fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}>
@@ -200,11 +234,24 @@ export default function BiolinkPublicCard({ card, settings }: { card: Biolink; s
                     </button>
                 </div>
 
-                {/* YouTube embed */}
-                {youtubeEmbed && (
-                    <div style={{ marginBottom: 24, borderRadius: 16, overflow: 'hidden', background: '#000', border: `1px solid ${border}` }}>
-                        <iframe src={youtubeEmbed} title="Video" allowFullScreen
-                            style={{ width: '100%', aspectRatio: '16/9', border: 'none', display: 'block' }} />
+                {/* YouTube embeds (multiple supported) */}
+                {videoList.length > 0 && (
+                    <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {videoList.map(v => (
+                            <div key={v.id} style={{ borderRadius: 16, overflow: 'hidden', background: '#000', border: `1px solid ${border}` }}>
+                                {v.title && (
+                                    <p style={{ margin: 0, padding: '10px 14px', background: cardBg, borderBottom: `1px solid ${border}`, fontSize: 12, fontWeight: 700, color: txtSub, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                        {v.title}
+                                    </p>
+                                )}
+                                <iframe
+                                    src={v.embed!}
+                                    title={v.title || 'Video'}
+                                    allowFullScreen
+                                    style={{ width: '100%', aspectRatio: '16/9', border: 'none', display: 'block' }}
+                                />
+                            </div>
+                        ))}
                     </div>
                 )}
 
@@ -217,6 +264,60 @@ export default function BiolinkPublicCard({ card, settings }: { card: Biolink; s
                         </div>
                         <iframe src={card.maps_url} title="Mapa" loading="lazy" referrerPolicy="no-referrer-when-downgrade"
                             style={{ width: '100%', height: 220, border: 'none', display: 'block' }} />
+                    </div>
+                )}
+
+                {/* Featured products (global) */}
+                {settings.featured_products && settings.featured_products.length > 0 && (
+                    <div style={{ marginBottom: 24 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                            <ShoppingBag size={14} style={{ color: pc }} />
+                            <span style={{ fontSize: 12, fontWeight: 800, color: txtSub, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                                {settings.catalog_title || 'Productos destacados'}
+                            </span>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+                            {settings.featured_products.map(p => {
+                                const Wrapper: React.ElementType = p.url ? 'a' : 'div';
+                                const wrapperProps = p.url ? { href: p.url, target: '_blank', rel: 'noopener noreferrer' } : {};
+                                return (
+                                    <Wrapper
+                                        key={p.id}
+                                        {...wrapperProps}
+                                        style={{
+                                            background: cardBg,
+                                            border: `1px solid ${border}`,
+                                            borderRadius: 14,
+                                            overflow: 'hidden',
+                                            textDecoration: 'none',
+                                            color: txtMain,
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            cursor: p.url ? 'pointer' : 'default',
+                                        }}
+                                    >
+                                        {p.image && (
+                                            <div style={{ width: '100%', aspectRatio: '1/1', background: '#fff', overflow: 'hidden' }}>
+                                                <img src={p.image} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                            </div>
+                                        )}
+                                        <div style={{ padding: '10px 12px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                            <p style={{ margin: 0, fontSize: 12, fontWeight: 700, lineHeight: 1.2 }}>{p.name}</p>
+                                            {p.price && (
+                                                <p style={{ margin: 0, fontSize: 13, fontWeight: 900, color: pc }}>{p.price}</p>
+                                            )}
+                                        </div>
+                                    </Wrapper>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* Company description */}
+                {settings.company_description && (
+                    <div style={{ padding: '14px 16px', borderRadius: 16, background: cardBg, border: `1px solid ${border}`, marginBottom: 24 }}>
+                        <p style={{ margin: 0, fontSize: 12.5, color: txtSub, lineHeight: 1.55 }}>{settings.company_description}</p>
                     </div>
                 )}
 

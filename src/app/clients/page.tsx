@@ -29,6 +29,7 @@ import { useApp, Client } from '@/context/AppContext';
 import SearchableSelect from '@/components/SearchableSelect';
 import { hasPermission } from '@/lib/permissions';
 import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
+import { ownsRecord, canSeeAll } from '@/lib/scope';
 
 export default function ClientsPage() {
     const { clients, addClient, deleteClient, addNotification, settings, sellers, quotes, currentUser: ctxUser } = useApp();
@@ -126,13 +127,14 @@ export default function ClientsPage() {
             return;
         }
 
-        if (clients.length === 0) {
+        const exportableClients = clients.filter(c => ownsRecord(currentUser, c));
+        if (exportableClients.length === 0) {
             addNotification({ title: 'Error', description: 'No hay clientes para exportar.', type: 'alert' });
             return;
         }
 
         const headers = ['Nombre', 'Empresa', 'Email', 'Telefono', 'Ciudad', 'Categoria', 'Estado', 'Score', 'LTV', 'Fecha de Registro', 'Ultimo Contacto'];
-        const rows = clients.map(client => [
+        const rows = exportableClients.map(client => [
             `"${client.name.replace(/"/g, '""')}"`,
             `"${client.company.replace(/"/g, '""')}"`,
             `"${client.email.replace(/"/g, '""')}"`,
@@ -155,11 +157,55 @@ export default function ClientsPage() {
         a.click();
         URL.revokeObjectURL(url);
 
-        addNotification({ title: 'Exportación Exitosa', description: `Se exportaron ${clients.length} clientes.`, type: 'success' });
+        addNotification({ title: 'Exportación Exitosa', description: `Se exportaron ${exportableClients.length} clientes.`, type: 'success' });
     };
 
     const handleImportClick = () => {
         fileInputRef.current?.click();
+    };
+
+    const handleDownloadTemplate = () => {
+        const headers = [
+            'Nombre',
+            'Empresa',
+            'Email',
+            'Telefono',
+            'Ciudad',
+            'Categoria',
+            'Estado',
+            'Score',
+            'LTV',
+            'Fecha de Registro',
+            'Ultimo Contacto',
+        ];
+        const exampleRow = [
+            'Juan Perez',
+            'Constructora XYZ',
+            'juan@xyz.co',
+            '3001234567',
+            'Bogotá',
+            'Infraestructura',
+            'Lead',
+            '75',
+            '0',
+            new Date().toISOString().split('T')[0],
+            'Recién importado',
+        ];
+        const csv =
+            headers.join(',') + '\n' +
+            exampleRow.map(v => `"${v}"`).join(',') + '\n';
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'plantilla-clientes-arteconcreto.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+        addNotification({
+            title: 'Plantilla descargada',
+            description: 'Edita el archivo con tus clientes y súbelo con el botón "Importar".',
+            type: 'success',
+        });
     };
 
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -226,6 +272,9 @@ export default function ClientsPage() {
 
         return [...clients]
             .filter(client => {
+                // Ownership scoping: Vendedores only see clients assigned to them
+                if (!ownsRecord(currentUser, client)) return false;
+
                 const matchesSearch = normalizedSearch.length === 0 ||
                     client.name.toLowerCase().includes(normalizedSearch) ||
                     client.company.toLowerCase().includes(normalizedSearch) ||
@@ -255,7 +304,7 @@ export default function ClientsPage() {
                 }
                 return 0;
             });
-    }, [clients, filters, searchTerm, sortConfig]);
+    }, [clients, filters, searchTerm, sortConfig, currentUser]);
 
     const SortIndicator = ({ column }: { column: keyof Client }) => {
         if (sortConfig.key !== column) return <div className="w-3 h-3 opacity-10 group-hover:opacity-30 ml-auto transition-opacity"><MoreVertical className="w-full h-full" /></div>;
@@ -286,22 +335,35 @@ export default function ClientsPage() {
                             <span className="sm:hidden">Exportar Clientes</span>
                         </button>
                     )}
-                    <button
-                        onClick={handleImportClick}
-                        className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted transition-colors flex items-center justify-center gap-2 w-full sm:w-auto"
-                    >
-                        <Upload className="w-4 h-4" />
-                        <span className="hidden sm:inline">Importar</span>
-                        <span className="sm:hidden">Importar Clientes</span>
-                    </button>
-                    <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                    <button
-                        onClick={() => setIsNewClientModalOpen(true)}
-                        className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 transition-all shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center justify-center gap-2 w-full sm:w-auto"
-                    >
-                        <Plus className="w-4 h-4" />
-                        <span>Registrar</span>
-                    </button>
+                    <PermissionHide require="clients.create">
+                        <button
+                            onClick={handleDownloadTemplate}
+                            title="Descargar plantilla CSV con los headers correctos"
+                            className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted transition-colors flex items-center justify-center gap-2 w-full sm:w-auto"
+                        >
+                            <Download className="w-4 h-4" />
+                            <span className="hidden sm:inline">Plantilla CSV</span>
+                            <span className="sm:hidden">Descargar plantilla</span>
+                        </button>
+                        <button
+                            onClick={handleImportClick}
+                            className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted transition-colors flex items-center justify-center gap-2 w-full sm:w-auto"
+                        >
+                            <Upload className="w-4 h-4" />
+                            <span className="hidden sm:inline">Importar</span>
+                            <span className="sm:hidden">Importar Clientes</span>
+                        </button>
+                        <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                    </PermissionHide>
+                    <PermissionHide require="clients.create">
+                        <button
+                            onClick={() => setIsNewClientModalOpen(true)}
+                            className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 transition-all shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center justify-center gap-2 w-full sm:w-auto"
+                        >
+                            <Plus className="w-4 h-4" />
+                            <span>Registrar</span>
+                        </button>
+                    </PermissionHide>
                 </div>
             </div>
 
@@ -590,7 +652,7 @@ export default function ClientsPage() {
                             </div>
 
                             {/* Action Footer */}
-                            <div className="grid grid-cols-3 gap-2 mt-4">
+                            <div className="grid grid-cols-2 gap-2 mt-4">
                                 <button
                                     onClick={() => window.open(`https://wa.me/${client.phone.replace(/\D/g, '')}`, '_blank')}
                                     className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white font-medium text-xs transition-all border border-emerald-100"
@@ -602,10 +664,22 @@ export default function ClientsPage() {
                                     <Clock className="w-3.5 h-3.5" />
                                     Historial
                                 </Link>
-                                <button className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-white hover:bg-muted text-muted-foreground hover:text-foreground font-medium text-xs transition-all border border-border">
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                    Editar
-                                </button>
+                                <Link
+                                    href={`/leads/${client.id}?tab=Archivos`}
+                                    className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-amber-50 hover:bg-primary text-amber-700 hover:text-black font-medium text-xs transition-all border border-amber-200"
+                                >
+                                    <Upload className="w-3.5 h-3.5" />
+                                    Archivos
+                                </Link>
+                                <PermissionHide require="clients.create">
+                                    <Link
+                                        href={`/leads/${client.id}`}
+                                        className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-white hover:bg-muted text-muted-foreground hover:text-foreground font-medium text-xs transition-all border border-border"
+                                    >
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                        Editar
+                                    </Link>
+                                </PermissionHide>
                                 <PermissionHide require="clients.delete">
                                     <button
                                         onClick={() => { if (confirm('¿Eliminar este cliente?')) deleteClient(client.id); }}

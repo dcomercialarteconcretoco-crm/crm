@@ -104,7 +104,7 @@ export function Sidebar({ isCompact }: SidebarProps) {
       <div className={cn("flex flex-col items-center shrink-0 border-b border-border", isCompact ? "p-4" : "px-5 pt-5 pb-4")}>
         <div className={cn("flex items-center justify-center", isCompact ? "w-9 h-9" : "w-full h-14")}>
           <img
-            src="https://cuantium.com/wp-content/uploads/2026/02/logo.png"
+            src="/logo-arteconcreto.png"
             alt="ArteConcreto"
             className="w-full h-full object-contain"
           />

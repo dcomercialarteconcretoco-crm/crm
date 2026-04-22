@@ -13,7 +13,10 @@ export async function GET() {
       id, name, company, email, phone, status,
       value_text AS value,
       ltv, last_contact AS "lastContact",
-      city, score, category, registration_date AS "registrationDate"
+      city, score, category, registration_date AS "registrationDate",
+      assigned_to AS "assignedTo",
+      assigned_to_name AS "assignedToName",
+      source
     FROM crm_clients
     ORDER BY created_at DESC
   `);
@@ -33,8 +36,9 @@ export async function POST(request: NextRequest) {
   await pool.query(
     `
       INSERT INTO crm_clients (
-        id, name, company, email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
+        id, name, company, email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date,
+        assigned_to, assigned_to_name, source, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW())
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         company = EXCLUDED.company,
@@ -48,6 +52,9 @@ export async function POST(request: NextRequest) {
         score = EXCLUDED.score,
         category = EXCLUDED.category,
         registration_date = EXCLUDED.registration_date,
+        assigned_to = COALESCE(EXCLUDED.assigned_to, crm_clients.assigned_to),
+        assigned_to_name = COALESCE(EXCLUDED.assigned_to_name, crm_clients.assigned_to_name),
+        source = COALESCE(EXCLUDED.source, crm_clients.source),
         updated_at = NOW()
     `,
     [
@@ -64,6 +71,9 @@ export async function POST(request: NextRequest) {
       payload.score || 0,
       payload.category || 'General',
       payload.registrationDate || new Date().toISOString().split('T')[0],
+      payload.assignedTo || null,
+      payload.assignedToName || null,
+      payload.source || null,
     ]
   );
 

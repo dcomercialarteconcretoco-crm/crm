@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hasDatabase, getPool, ensureCrmSchema } from '@/lib/postgres';
 import { rateLimit } from '@/lib/rate-limit';
+import { pickNextSeller } from '@/lib/round-robin';
+import { isAutoSendPublicQuotesEnabled } from '@/lib/system-settings';
 
 const FROM_EMAIL = process.env.FROM_EMAIL || 'cotizaciones@arteconcreto.co';
 const CC_EMAIL   = 'marketing@arteconcreto.co';
@@ -169,23 +171,46 @@ export async function POST(req: NextRequest) {
         const clientId    = `c-pub-${Date.now()}`;
         const quoteId     = `q-pub-${Date.now()}`;
 
+        // Assign the lead to the next seller in rotation
+        const assignedSeller = await pickNextSeller();
+        const assignedSellerId = assignedSeller?.id || '';
+        const assignedSellerName = assignedSeller?.name || '';
+
+        // Auto-send toggle — default OFF: lead gets assigned, seller reaches out personally.
+        // Admin can flip this in /settings → Perfil → Auto-enviar cotizaciones públicas.
+        const autoSend = await isAutoSendPublicQuotesEnabled();
+
         // --- Save to DB ---
         if (hasDatabase()) {
             await ensureCrmSchema();
             const pool = getPool();
 
             await pool.query(`
-                INSERT INTO crm_clients (id,name,company,email,phone,status,value_text,ltv,last_contact,city,score,category,registration_date,updated_at)
-                VALUES ($1,$2,$3,$4,$5,'Lead',$6,0,$7,$8,60,'Web Lead',$9,NOW())
+                INSERT INTO crm_clients (
+                    id,name,company,email,phone,status,value_text,ltv,last_contact,city,score,category,registration_date,
+                    assigned_to, assigned_to_name, source, updated_at
+                )
+                VALUES ($1,$2,$3,$4,$5,'Lead',$6,0,$7,$8,60,'Web Lead',$9,$10,$11,'Cotizador Web',NOW())
                 ON CONFLICT (email) DO UPDATE SET
                     name = EXCLUDED.name,
                     phone = COALESCE(NULLIF(EXCLUDED.phone,''), crm_clients.phone),
                     city  = COALESCE(NULLIF(EXCLUDED.city,''),  crm_clients.city),
-                    last_contact = EXCLUDED.last_contact, updated_at = NOW()
-            `, [clientId, name, company || name, email, phone || '', formatCOP(total), today, city || 'No especificada', today]);
+                    last_contact = EXCLUDED.last_contact,
+                    assigned_to = COALESCE(crm_clients.assigned_to, EXCLUDED.assigned_to),
+                    assigned_to_name = COALESCE(crm_clients.assigned_to_name, EXCLUDED.assigned_to_name),
+                    source = COALESCE(crm_clients.source, EXCLUDED.source),
+                    updated_at = NOW()
+            `, [
+                clientId, name, company || name, email, phone || '',
+                formatCOP(total), today, city || 'No especificada', today,
+                assignedSellerId || null, assignedSellerName || null,
+            ]);
 
-            const { rows: cr } = await pool.query(`SELECT id FROM crm_clients WHERE email=$1 LIMIT 1`, [email]);
+            const { rows: cr } = await pool.query(`SELECT id, assigned_to, assigned_to_name FROM crm_clients WHERE email=$1 LIMIT 1`, [email]);
             const realClientId = cr[0]?.id || clientId;
+            // If the client already existed, honor the previous owner instead of forcing the RR pick.
+            const effectiveOwnerId = cr[0]?.assigned_to || assignedSellerId || '';
+            const effectiveOwnerName = cr[0]?.assigned_to_name || assignedSellerName || '';
 
             const { rows: sr } = await pool.query(`SELECT value FROM crm_state WHERE key='quotes'`);
             const existingQuotes = sr[0]?.value || [];
@@ -199,7 +224,13 @@ export async function POST(req: NextRequest) {
                     id: String(idx + 1), name: it.name, price: it.price,
                     quantity: it.quantity, unit: 'un', total: it.price * it.quantity,
                 })),
-                status: 'Sent', sentAt, sentByName: 'Cotizador Web', sentById: 'web-widget',
+                // If auto-send is off, the quote stays as Draft until the seller sends it manually.
+                status: autoSend ? 'Sent' : 'Draft',
+                sentAt: autoSend ? sentAt : undefined,
+                sentByName: autoSend ? 'Cotizador Web' : undefined,
+                sentById: autoSend ? 'web-widget' : undefined,
+                sellerId: effectiveOwnerId,
+                sellerName: effectiveOwnerName,
             };
             await pool.query(`
                 INSERT INTO crm_state (key,value,updated_at) VALUES ('quotes',$1::jsonb,NOW())
@@ -215,7 +246,9 @@ export async function POST(req: NextRequest) {
                 contactName: name, value: formatCOP(total), numericValue: total,
                 priority: 'High', tags: ['Web', 'Auto-Cotización'],
                 aiScore: 80, source: 'Cotizador Web',
-                assignedTo: '', email, phone: phone || '', city: city || '',
+                assignedTo: effectiveOwnerId,
+                assignedToName: effectiveOwnerName,
+                email, phone: phone || '', city: city || '',
                 activities: [], stageId: 'stage-1',
             };
             await pool.query(`
@@ -224,9 +257,9 @@ export async function POST(req: NextRequest) {
             `, [JSON.stringify([newTask, ...existingTasks])]);
         }
 
-        // --- Send email ---
+        // --- Send email only when the admin has enabled auto-send ---
         const apiKey = process.env.RESEND_API_KEY;
-        if (apiKey) {
+        if (autoSend && apiKey) {
             const html = buildEmail({ quoteNumber, clientName: name, sentAt, items, subtotal, tax, total });
             await fetch('https://api.resend.com/emails', {
                 method: 'POST',
@@ -241,7 +274,13 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        return NextResponse.json({ ok: true, quoteNumber, total: formatCOP(total) }, { headers: CORS_HEADERS });
+        return NextResponse.json({
+            ok: true,
+            quoteNumber,
+            total: formatCOP(total),
+            assignedTo: assignedSellerName || undefined,
+            autoSent: autoSend,
+        }, { headers: CORS_HEADERS });
 
     } catch (error: any) {
         console.error('quote-request error:', error);

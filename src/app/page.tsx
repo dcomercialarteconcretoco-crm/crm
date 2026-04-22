@@ -17,6 +17,7 @@ import {
 import { clsx } from "clsx";
 import { useApp, Quote } from "@/context/AppContext";
 import { generatePDFReport } from "@/lib/pdf-generator";
+import { canSeeAll } from "@/lib/scope";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("es-CO", {
@@ -35,7 +36,38 @@ const QUOTE_STATUS_LABEL: Record<string, string> = {
 };
 
 export default function Home() {
-  const { clients, tasks, quotes, settings, currentUser, updateQuote, addNotification, addAuditLog } = useApp();
+  const { clients, tasks, quotes, sellers, settings, currentUser, updateQuote, addNotification, addAuditLog } = useApp();
+  const isLeadership = canSeeAll(currentUser);
+
+  // Per-seller progress — only visible to SuperAdmin/Admin/Manager
+  const sellerProgress = useMemo(() => {
+    if (!isLeadership) return [];
+    const rows = sellers
+      .filter(s => s.role === 'Vendedor' || s.role === 'Manager')
+      .map(s => {
+        const matchesSeller = (owner: string | null | undefined) => {
+          if (!owner) return false;
+          const o = owner.toLowerCase();
+          return o === s.id.toLowerCase() || o === (s.name || '').toLowerCase() || o === (s.username || '').toLowerCase();
+        };
+        const myClients = clients.filter(c => matchesSeller(c.assignedTo) || matchesSeller(c.assignedToName));
+        const myQuotes = quotes.filter(q => matchesSeller(q.sellerId) || matchesSeller(q.sellerName));
+        const approved = myQuotes.filter(q => q.status === 'Approved');
+        const sent = myQuotes.filter(q => q.status === 'Sent').length;
+        const revenue = approved.reduce((sum, q) => sum + (q.numericTotal || 0), 0);
+        return {
+          id: s.id,
+          name: s.name,
+          avatar: s.avatar,
+          role: s.role,
+          clients: myClients.length,
+          sent,
+          approved: approved.length,
+          revenue,
+        };
+      });
+    return rows.sort((a, b) => b.revenue - a.revenue);
+  }, [isLeadership, sellers, clients, quotes]);
 
   const userIsSuperAdmin = currentUser?.role === "SuperAdmin" || currentUser?.role === "Admin";
   const isAdmin = userIsSuperAdmin;
@@ -615,6 +647,60 @@ export default function Home() {
               })()}
             </div>
           </div>
+
+          {/* Per-seller progress — leadership only */}
+          {isLeadership && sellerProgress.length > 0 && (
+            <div className="surface-card p-6">
+              <div className="flex items-start justify-between mb-5">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Equipo Comercial</p>
+                  <h3 className="section-title mt-1">Progreso por vendedor</h3>
+                </div>
+                <Link href="/team" className="text-xs font-bold text-primary hover:underline shrink-0">
+                  Ver equipo →
+                </Link>
+              </div>
+              <div className="space-y-3">
+                {(() => {
+                  const topRevenue = sellerProgress[0]?.revenue || 0;
+                  return sellerProgress.map((s, idx) => {
+                    const pct = topRevenue > 0 ? Math.max(6, Math.round((s.revenue / topRevenue) * 100)) : 6;
+                    return (
+                      <div key={s.id} className="p-3 rounded-xl bg-muted/30 border border-border space-y-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-xs font-black text-primary shrink-0">
+                            {idx + 1}
+                          </div>
+                          {s.avatar ? (
+                            <img src={s.avatar} alt={s.name} className="w-8 h-8 rounded-full object-cover border border-border shrink-0" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-muted border border-border flex items-center justify-center text-[10px] font-black text-muted-foreground shrink-0">
+                              {s.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-bold text-foreground truncate">{s.name}</p>
+                            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">{s.role}</p>
+                          </div>
+                          <p className="text-sm font-black text-emerald-600 shrink-0">{formatCurrency(s.revenue)}</p>
+                        </div>
+                        <div className="progress-track">
+                          <div className="progress-fill" style={{ width: `${pct}%` }} />
+                        </div>
+                        <div className="flex items-center gap-3 text-[10px] font-bold text-muted-foreground">
+                          <span>{s.clients} clientes</span>
+                          <span className="text-muted-foreground/40">·</span>
+                          <span>{s.sent} enviadas</span>
+                          <span className="text-muted-foreground/40">·</span>
+                          <span className="text-emerald-600">{s.approved} ganadas</span>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          )}
 
           {/* Top clients */}
           <div className="surface-card p-6">

@@ -195,11 +195,11 @@ export default function BiolinksPage() {
                     <p className="page-subtitle">BioLinks profesionales por empleado con QR y vCard</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button onClick={() => { setSettingsDraft(settings); setShowSettings(true); }}
+                    <a href="/settings?tab=biolinks"
                         className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted flex items-center gap-2">
                         <Settings className="w-4 h-4" />
-                        Plantilla global
-                    </button>
+                        Configuración global
+                    </a>
                     {canManage && (
                         <button onClick={openCreate}
                             className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2">
@@ -400,16 +400,26 @@ export default function BiolinksPage() {
                                     </div>
                                 </div>
 
-                                {/* Social links */}
-                                <div>
-                                    <p className={labelCls}>Redes sociales de la empresa</p>
-                                    <div className="space-y-3">
+                                <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 flex items-start gap-2 text-xs">
+                                    <Settings className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
+                                    <p className="text-muted-foreground">
+                                        <strong className="text-foreground">Redes sociales de la empresa, video y productos destacados</strong> se configuran <strong>una sola vez</strong> en <a href="/settings?tab=biolinks" className="text-primary underline">Configuración → Tarjetas Digitales</a> y se aplican a todas las tarjetas. Los campos de abajo son <strong>opcionales</strong> y solo sirven si este vendedor quiere sobreescribir lo global con su cuenta personal.
+                                    </p>
+                                </div>
+
+                                {/* Optional personal overrides */}
+                                <details className="group">
+                                    <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-wide text-muted-foreground hover:text-foreground transition-colors py-2 flex items-center gap-1">
+                                        <span className="group-open:rotate-90 transition-transform inline-block">▶</span>
+                                        Sobreescribir redes personales (opcional)
+                                    </summary>
+                                    <div className="space-y-3 pt-3">
                                         {[
-                                            { icon: <Instagram className="w-4 h-4 text-pink-500" />, key: 'instagram' as keyof Biolink, placeholder: '@arteconcreto o URL completa' },
-                                            { icon: <Facebook  className="w-4 h-4 text-blue-500" />,  key: 'facebook'  as keyof Biolink, placeholder: 'arteconcreto o URL completa' },
-                                            { icon: <Linkedin  className="w-4 h-4 text-sky-600" />,   key: 'linkedin'  as keyof Biolink, placeholder: 'company/arteconcreto o URL' },
-                                            { icon: <MessageCircle className="w-4 h-4 text-emerald-500" />, key: 'whatsapp' as keyof Biolink, placeholder: '573001234567 (sin + ni guiones)' },
-                                            { icon: <Globe     className="w-4 h-4 text-primary" />,   key: 'website'   as keyof Biolink, placeholder: 'https://arteconcreto.co' },
+                                            { icon: <Instagram className="w-4 h-4 text-pink-500" />, key: 'instagram' as keyof Biolink, placeholder: '(deja vacío para usar la global)' },
+                                            { icon: <Facebook  className="w-4 h-4 text-blue-500" />,  key: 'facebook'  as keyof Biolink, placeholder: '(deja vacío para usar la global)' },
+                                            { icon: <Linkedin  className="w-4 h-4 text-sky-600" />,   key: 'linkedin'  as keyof Biolink, placeholder: '(deja vacío para usar la global)' },
+                                            { icon: <MessageCircle className="w-4 h-4 text-emerald-500" />, key: 'whatsapp' as keyof Biolink, placeholder: '573001234567 (WhatsApp personal del vendedor)' },
+                                            { icon: <Globe     className="w-4 h-4 text-primary" />,   key: 'website'   as keyof Biolink, placeholder: '(deja vacío para usar la global)' },
                                         ].map(s => (
                                             <div key={s.key} className="flex items-center gap-3">
                                                 <div className="w-8 h-8 rounded-xl bg-muted border border-border flex items-center justify-center shrink-0">{s.icon}</div>
@@ -417,26 +427,7 @@ export default function BiolinksPage() {
                                             </div>
                                         ))}
                                     </div>
-                                </div>
-
-                                {/* YouTube & Maps */}
-                                <div>
-                                    <p className={clsx(labelCls, "mb-3")}>Contenido multimedia (opcional)</p>
-                                    <div className="space-y-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-xl bg-muted border border-border flex items-center justify-center shrink-0">
-                                                <Youtube className="w-4 h-4 text-red-500" />
-                                            </div>
-                                            <input type="url" placeholder="https://youtube.com/watch?v=..." value={form.youtube_url || ''} onChange={e => f('youtube_url', e.target.value)} className={clsx(inputCls, "flex-1")} />
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-xl bg-muted border border-border flex items-center justify-center shrink-0">
-                                                <MapPin className="w-4 h-4 text-red-400" />
-                                            </div>
-                                            <input type="url" placeholder="URL de embed de Google Maps (iframe src=...)" value={form.maps_url || ''} onChange={e => f('maps_url', e.target.value)} className={clsx(inputCls, "flex-1")} />
-                                        </div>
-                                    </div>
-                                </div>
+                                </details>
 
                                 {/* Active toggle */}
                                 <div className="flex items-center justify-between py-3 px-4 bg-muted border border-border rounded-xl">
@@ -579,7 +570,7 @@ function BiolinkPreview({ form, settings }: { form: Partial<Biolink>; settings: 
             {/* Header: logo left + photo right */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
                 <img
-                    src="https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png"
+                    src="/api/logo"
                     alt="Arte Concreto"
                     style={{ height: 68, objectFit: 'contain', filter: isDark ? 'brightness(0) invert(1)' : 'none', opacity: isDark ? 0.9 : 0.85 }}
                 />

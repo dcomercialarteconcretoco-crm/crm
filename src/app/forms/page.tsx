@@ -26,11 +26,13 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useApp, FormDefinition } from '@/context/AppContext';
-import { PermissionGate } from '@/components/PermissionGate';
+import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
+import { hasPermission } from '@/lib/permissions';
 
 export default function FormsPage() {
-    const { forms, addForm, deleteForm, updateForm, refreshProducts, addNotification } = useApp();
-    const [view, setView] = useState<'editor' | 'list'>('editor');
+    const { forms, addForm, deleteForm, updateForm, refreshProducts, addNotification, currentUser } = useApp();
+    const canManageForms = hasPermission(currentUser, 'forms.manage');
+    const [view, setView] = useState<'editor' | 'list'>(canManageForms ? 'editor' : 'list');
 
     // Form Creation State
     const [captureFields, setCaptureFields] = useState({
@@ -155,13 +157,15 @@ export default function FormsPage() {
                         <h1 className="text-2xl font-black text-foreground tracking-tight">Mis Formularios</h1>
                         <p className="text-sm text-muted-foreground mt-1">Gestión de puntos de captura de leads</p>
                     </div>
-                    <button
-                        onClick={() => setView('editor')}
-                        className="bg-primary text-black font-bold rounded-xl px-4 py-2.5 hover:brightness-105 transition-all flex items-center gap-2"
-                    >
-                        <Plus className="w-4 h-4" />
-                        <span>Crear Otro</span>
-                    </button>
+                    <PermissionHide require="forms.manage">
+                        <button
+                            onClick={() => setView('editor')}
+                            className="bg-primary text-black font-bold rounded-xl px-4 py-2.5 hover:brightness-105 transition-all flex items-center gap-2"
+                        >
+                            <Plus className="w-4 h-4" />
+                            <span>Crear Otro</span>
+                        </button>
+                    </PermissionHide>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -189,12 +193,14 @@ export default function FormsPage() {
                                     >
                                         <Eye className="w-4 h-4" />
                                     </button>
-                                    <button
-                                        onClick={() => deleteForm(f.id)}
-                                        className="p-2.5 bg-white border border-border rounded-xl hover:bg-rose-500 hover:text-white hover:border-rose-500 transition-all text-muted-foreground"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
+                                    <PermissionHide require="forms.manage">
+                                        <button
+                                            onClick={() => deleteForm(f.id)}
+                                            className="p-2.5 bg-white border border-border rounded-xl hover:bg-rose-500 hover:text-white hover:border-rose-500 transition-all text-muted-foreground"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </PermissionHide>
                                 </div>
                             </div>
                             <div>
@@ -218,7 +224,7 @@ export default function FormsPage() {
     }
 
     return (
-        <PermissionGate require="forms.view">
+        <PermissionGate require="forms.manage">
         <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* Header Section */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

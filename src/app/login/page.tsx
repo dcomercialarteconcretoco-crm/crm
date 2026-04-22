@@ -65,7 +65,7 @@ export default function LoginPage() {
                 <div className="text-center mb-8">
                     <div className="flex justify-center mb-5">
                         <img
-                            src="https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png"
+                            src="/logo-arteconcreto.png"
                             alt="Arte Concreto"
                             className="h-16 w-auto object-contain"
                         />
@@ -214,9 +214,9 @@ export default function LoginPage() {
                     <div className="flex items-center gap-2">
                         <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Powered by</span>
                         <img
-                            src="https://cuantium.com/wp-content/uploads/2025/12/wibicrmblanco@4x.png"
+                            src="/miwibilogo_1@4x.png"
                             alt="MiWibi"
-                            className="h-3.5 object-contain brightness-0"
+                            className="h-3.5 object-contain opacity-40 brightness-0"
                         />
                     </div>
                     <p className="text-[9px] text-muted-foreground">V 2.0.4 · © 2026 ArteConcreto Intelligence</p>

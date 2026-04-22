@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FileText, Upload, Trash2, Eye, Search } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
-import { PermissionGate } from '@/components/PermissionGate';
+import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
+import { hasPermission } from '@/lib/permissions';
 
 interface DocumentRecord {
   id: string;
@@ -35,6 +36,7 @@ function formatDate(iso: string): string {
 
 export default function DocumentsPage() {
   const { currentUser } = useApp();
+  const canManageDocuments = hasPermission(currentUser, 'documents.manage');
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -142,18 +144,20 @@ export default function DocumentsPage() {
           <h1 className="page-title">Documentos Esenciales</h1>
           <p className="page-subtitle">Centraliza RUT, Cámara de Comercio, certificaciones y más</p>
         </div>
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="flex items-center gap-2 bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] disabled:opacity-60 shrink-0"
-        >
-          {uploading ? (
-            <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-          ) : (
-            <Upload className="w-4 h-4" />
-          )}
-          {uploading ? 'Subiendo...' : 'Subir Documento'}
-        </button>
+        <PermissionHide require="documents.manage">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center gap-2 bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] disabled:opacity-60 shrink-0"
+          >
+            {uploading ? (
+              <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+            ) : (
+              <Upload className="w-4 h-4" />
+            )}
+            {uploading ? 'Subiendo...' : 'Subir Documento'}
+          </button>
+        </PermissionHide>
         <input
           ref={fileInputRef}
           type="file"
@@ -200,7 +204,7 @@ export default function DocumentsPage() {
                 ? 'Intenta con otro término de búsqueda.'
                 : 'Sube documentos frecuentes como RUT, Cámara de Comercio, certificaciones y contratos para tenerlos siempre a mano.'}
             </p>
-            {!search && (
+            {!search && canManageDocuments && (
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="mt-2 flex items-center gap-2 bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)]"
@@ -258,13 +262,15 @@ export default function DocumentsPage() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => handleDelete(doc)}
-                          title="Eliminar"
-                          className="p-2 rounded-xl hover:bg-red-50 text-red-500 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <PermissionHide require="documents.manage">
+                          <button
+                            onClick={() => handleDelete(doc)}
+                            title="Eliminar"
+                            className="p-2 rounded-xl hover:bg-red-50 text-red-500 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </PermissionHide>
                       </div>
                     </td>
                   </tr>

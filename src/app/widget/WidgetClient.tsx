@@ -80,43 +80,13 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
     }
   };
 
-  // Create client in CRM
-  const createCrmClient = async () => {
-    if (clientSaved) return;
-    try {
-      const clientId = `widget-${sessionId}`;
-      await fetch("/api/clients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: clientId,
-          name: lead.name || "Lead Web",
-          company: lead.company || "",
-          email: lead.email || "",
-          phone: lead.phone || "",
-          city: lead.city || "",
-          status: "Lead",
-          value: "$0",
-          ltv: 0,
-          lastContact: new Date().toISOString().split("T")[0],
-          score: 15,
-          category: "Widget Lead",
-          registrationDate: new Date().toISOString().split("T")[0],
-        }),
-      });
-      setClientSaved(true);
-    } catch (e) {
-      console.error("Widget: failed to create client", e);
-    }
-  };
-
   const startConversation = async () => {
     const missing = requiredFields.some((field) => !lead[field as keyof typeof lead].trim());
     if (missing) return;
 
     const welcomeMsg: ChatMessage = {
       role: "assistant",
-      content: `Perfecto ${lead.name ? lead.name.split(" ")[0] : ""}. Ya registré tus datos. Cuéntame qué producto o proyecto necesitas y te ayudo.`,
+      content: `Perfecto ${lead.name ? lead.name.split(" ")[0] : ""}. Ya registré tus datos. Cuéntame qué producto o proyecto necesitas. Un asesor se pondrá en contacto contigo con la cotización oficial.`,
       timestamp: new Date().toISOString(),
     };
 
@@ -124,8 +94,8 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
     setMessages(newMessages);
     setStarted(true);
 
-    // Save to DB in background
-    await createCrmClient();
+    // The conversations endpoint handles client upsert + round-robin seller assignment server-side
+    setClientSaved(true);
     await saveConversation(newMessages);
   };
 
@@ -145,6 +115,7 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           input,
+          mode: "customer",
           messages: nextMessages.slice(0, -1).map(m => ({ role: m.role, content: m.content })),
         }),
       });

@@ -46,7 +46,7 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
             {/* Top Header */}
             <header className="sticky top-0 z-50 bg-white border-b border-border px-4 py-3 flex items-center justify-between shadow-sm">
                 <img
-                    src="https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png"
+                    src="/logo-arteconcreto.png"
                     alt="ArteConcreto"
                     className="h-7 object-contain"
                 />

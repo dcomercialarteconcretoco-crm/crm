@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
+import { pickNextSeller } from '@/lib/round-robin';
 
 export interface WidgetConversation {
   id: string;
@@ -59,6 +60,9 @@ export async function GET() {
 }
 
 // POST /api/conversations — upsert a conversation
+// When a widget session first submits a lead with email/phone, we:
+//   1. Upsert a crm_clients row with round-robin seller assignment
+//   2. Stamp the conversation.clientId so the seller's file shows the full chat
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -67,17 +71,115 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing conversation.id' }, { status: 400 });
     }
 
+    if (!hasDatabase()) {
+      return NextResponse.json({ error: 'Base de datos no configurada' }, { status: 503 });
+    }
+
+    await ensureCrmSchema();
+    const pool = getPool();
+
     const existing = await readConversations();
+    const previous = existing.find(c => c.id === conversation.id);
+
+    // Lead capture + seller assignment — only when we have enough info and no client yet
+    let clientId = conversation.clientId || previous?.clientId || '';
+    const lead = conversation.lead || {};
+    const hasLeadInfo = Boolean((lead.email || '').trim() || (lead.phone || '').replace(/\D/g, '').length >= 7);
+    if (!clientId && hasLeadInfo) {
+      const rr = await pickNextSeller();
+      const ownerId = rr?.id || null;
+      const ownerName = rr?.name || null;
+
+      // Check-then-upsert by email (fallback to phone if no email)
+      const { rows: existingClient } = lead.email
+        ? await pool.query(`SELECT id, assigned_to, assigned_to_name FROM crm_clients WHERE email = $1 LIMIT 1`, [lead.email])
+        : await pool.query(`SELECT id, assigned_to, assigned_to_name FROM crm_clients WHERE phone = $1 LIMIT 1`, [lead.phone]);
+
+      const today = new Date().toISOString().split('T')[0];
+      if (existingClient.length > 0) {
+        clientId = existingClient[0].id;
+        // Don't steal ownership from an existing owner
+        await pool.query(
+          `UPDATE crm_clients SET
+             name = COALESCE(NULLIF($1, ''), name),
+             phone = COALESCE(NULLIF($2, ''), phone),
+             city = COALESCE(NULLIF($3, ''), city),
+             company = COALESCE(NULLIF($4, ''), company),
+             last_contact = $5,
+             assigned_to = COALESCE(assigned_to, $6),
+             assigned_to_name = COALESCE(assigned_to_name, $7),
+             source = COALESCE(source, 'ConcreBOT Widget'),
+             updated_at = NOW()
+           WHERE id = $8`,
+          [lead.name || '', lead.phone || '', lead.city || '', lead.company || '', today, ownerId, ownerName, clientId]
+        );
+      } else {
+        clientId = `c-bot-${Date.now()}`;
+        await pool.query(
+          `INSERT INTO crm_clients (
+             id, name, company, email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date,
+             assigned_to, assigned_to_name, source, updated_at
+           ) VALUES ($1,$2,$3,$4,$5,'Lead','Por cotizar',0,$6,$7,55,'ConcreBOT Widget',$8,$9,$10,'ConcreBOT Widget',NOW())`,
+          [
+            clientId,
+            lead.name || 'Lead Bot',
+            lead.company || lead.name || 'Sin empresa',
+            lead.email || '',
+            lead.phone || '',
+            today,
+            lead.city || 'No especificada',
+            today,
+            ownerId,
+            ownerName,
+          ]
+        );
+
+        // Also drop a pipeline task so the seller sees it in their board
+        const { rows: tr } = await pool.query(`SELECT value FROM crm_state WHERE key = 'tasks'`);
+        const existingTasks = Array.isArray(tr[0]?.value) ? tr[0].value : [];
+        const newTask = {
+          id: `t-bot-${Date.now()}`,
+          title: `ConcreBOT: ${lead.name || 'Lead'}`,
+          client: lead.company || lead.name || 'Sin empresa',
+          clientId,
+          contactName: lead.name || '',
+          value: 'Por definir', numericValue: 0,
+          priority: 'Medium', tags: ['ConcreBOT', 'Widget'],
+          aiScore: 60, source: 'ConcreBOT Widget',
+          assignedTo: ownerId || '',
+          assignedToName: ownerName || '',
+          email: lead.email || '',
+          phone: lead.phone || '',
+          city: lead.city || '',
+          activities: [{
+            id: `act-${Date.now()}`,
+            type: 'system',
+            content: `Lead capturado por ConcreBOT. Revisa el chat completo en la ficha del cliente → pestaña ConcreBOT.`,
+            timestamp: new Date().toISOString(),
+          }],
+          stageId: 'stage-1',
+        };
+        await pool.query(
+          `INSERT INTO crm_state (key, value, updated_at) VALUES ('tasks', $1::jsonb, NOW())
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+          [JSON.stringify([newTask, ...existingTasks])]
+        );
+      }
+    }
+
+    // Now upsert the conversation with the resolved clientId
+    const conversationToSave = { ...conversation, clientId: clientId || conversation.clientId };
     const idx = existing.findIndex(c => c.id === conversation.id);
     if (idx >= 0) {
-      existing[idx] = { ...existing[idx], ...conversation, updatedAt: new Date().toISOString() };
+      existing[idx] = { ...existing[idx], ...conversationToSave, updatedAt: new Date().toISOString() };
     } else {
-      existing.unshift({ ...conversation, updatedAt: new Date().toISOString() });
+      existing.unshift({ ...conversationToSave, updatedAt: new Date().toISOString() });
     }
 
     await writeConversations(existing);
-    return NextResponse.json({ ok: true, id: conversation.id });
+    return NextResponse.json({ ok: true, id: conversation.id, clientId });
   } catch (err: any) {
+    console.error('POST /api/conversations error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

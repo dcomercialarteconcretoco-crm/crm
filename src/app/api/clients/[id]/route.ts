@@ -27,6 +27,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         score = $11,
         category = $12,
         registration_date = $13,
+        assigned_to = COALESCE($14, assigned_to),
+        assigned_to_name = COALESCE($15, assigned_to_name),
+        source = COALESCE($16, source),
         updated_at = NOW()
       WHERE id = $1
     `,
@@ -44,6 +47,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       payload.score || 0,
       payload.category || 'General',
       payload.registrationDate || new Date().toISOString().split('T')[0],
+      payload.assignedTo || null,
+      payload.assignedToName || null,
+      payload.source || null,
     ]
   );
 

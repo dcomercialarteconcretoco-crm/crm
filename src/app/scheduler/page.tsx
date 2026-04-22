@@ -31,7 +31,8 @@ import { clsx } from 'clsx';
 const days = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
 
 import { useApp, CalendarEvent, Invitee } from '@/context/AppContext';
-import { PermissionGate } from '@/components/PermissionGate';
+import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
+import { hasPermission } from '@/lib/permissions';
 
 type GoogleTokenClient = {
     requestAccessToken: (options?: { prompt?: string }) => void;
@@ -76,6 +77,7 @@ const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','A
 
 export default function SchedulerPage() {
     const { clients, sellers, events, addEvent, addNotification, currentUser, updateEvent, deleteEvent, settings } = useApp();
+    const canManageEvents = hasPermission(currentUser, 'scheduler.manage');
     const GOOGLE_CLIENT_ID = settings.googleClientId?.trim() || GOOGLE_CLIENT_ID_ENV || '';
     const fileInputRef = useRef<HTMLInputElement>(null);
     const googleTokenClientRef = useRef<GoogleTokenClient | null>(null);
@@ -677,18 +679,21 @@ export default function SchedulerPage() {
                     )}
                     <button
                         onClick={handleImportClick}
-                        className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted flex items-center gap-2"
+                        className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!canManageEvents}
                     >
                         <Upload className="w-4 h-4" />
                         <span>Importar Citas</span>
                     </button>
-                    <button
-                        onClick={() => setIsModalOpen(true)}
-                        className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 flex items-center gap-2"
-                    >
-                        <Plus className="w-4 h-4" />
-                        <span>Agendar Evento</span>
-                    </button>
+                    <PermissionHide require="scheduler.manage">
+                        <button
+                            onClick={() => setIsModalOpen(true)}
+                            className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 flex items-center gap-2"
+                        >
+                            <Plus className="w-4 h-4" />
+                            <span>Agendar Evento</span>
+                        </button>
+                    </PermissionHide>
                 </div>
             </div>
 
@@ -709,6 +714,7 @@ export default function SchedulerPage() {
                         const totalCells = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
 
                         const openModalOnDay = (day: number) => {
+                            if (!canManageEvents) return;
                             const dateStr = `${year}-${String(month + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
                             setForm(prev => ({ ...prev, date: dateStr }));
                             setIsModalOpen(true);
@@ -843,22 +849,24 @@ export default function SchedulerPage() {
                                                 {event.ownerName && <span className="text-[9px] text-muted-foreground font-bold">{event.ownerName}</span>}
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); handleEditEvent(event); }}
-                                                className="p-1.5 rounded-lg hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground"
-                                                title="Editar evento"
-                                            >
-                                                <Pencil className="w-3.5 h-3.5" />
-                                            </button>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); handleDeleteEvent(event.id); }}
-                                                className="p-1.5 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors text-muted-foreground"
-                                                title="Eliminar evento"
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
-                                        </div>
+                                        {canManageEvents && (
+                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleEditEvent(event); }}
+                                                    className="p-1.5 rounded-lg hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground"
+                                                    title="Editar evento"
+                                                >
+                                                    <Pencil className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleDeleteEvent(event.id); }}
+                                                    className="p-1.5 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors text-muted-foreground"
+                                                    title="Eliminar evento"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="flex items-center gap-2 text-xs text-muted-foreground font-bold">

@@ -246,6 +246,9 @@ export interface AppSettings {
     quotePrefix?: string;       // default 'ART'
     quoteNextNumber?: number;   // next sequential number, starts at 250
     quoteYear?: number;         // current year for numbering
+    // When true, public-form leads receive the auto-generated quote email.
+    // When false (default), the lead is only assigned to the next vendor in rotation and they reach out personally.
+    autoSendPublicQuotes?: boolean;
 }
 
 export interface BotScheduleDay {
@@ -503,6 +506,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ],
         allowExports: false,
         blockScreenshots: false,
+        autoSendPublicQuotes: false,
         productionEmails: [],
         fromEmail: 'ordenes@arteconcreto.co',
         businessWhatsapp: '573178929477',
@@ -847,20 +851,64 @@ REGLAS DE ORO:
             });
         }
         fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
+
+        const keysToClear = [
+            'crm_current_user',
+            'crm_clients',
+            'crm_tasks',
+            'crm_quotes',
+            'crm_sellers',
+            'crm_notifications',
+            'crm_audit_logs_v_final',
+            'crm_anomalies_v_final',
+            'crm_events',
+            'crm_inventory_products',
+            'crm_forms',
+            'crm_product_sync_status',
+        ];
+        keysToClear.forEach(k => { try { localStorage.removeItem(k); } catch {} });
+
         setCurrentUser(null);
+        setClients([]);
+        setTasks([]);
+        setQuotes([]);
+        setSellers([]);
+        setNotifications([]);
+        setAuditLogs([]);
+        setAnomalies([]);
+        setEvents([]);
+        setProducts([]);
+        setForms([]);
     };
 
     // --- Actions ---
 
     const addClient = (client: Omit<Client, 'id'>) => {
         const id = `c-${Date.now()}`;
-        const newClient = { ...client, id };
+        // Auto-assign to the logged-in seller if no explicit assignment was provided.
+        // Admin/Manager/SuperAdmin can create clients on behalf of others by passing assignedTo,
+        // but Vendedores always end up as the owner of their own creations.
+        const autoAssignedTo = client.assignedTo || currentUser?.id;
+        const autoAssignedToName = client.assignedToName || currentUser?.name;
+        const newClient: Client = {
+            ...client,
+            id,
+            assignedTo: autoAssignedTo,
+            assignedToName: autoAssignedToName,
+        };
         setClients(prev => [...prev, newClient]);
         fetch('/api/clients', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(newClient),
         }).catch((error) => console.warn('Failed to persist client:', error));
+
+        addNotification({
+            title: newClient.status === 'Lead' ? 'Nuevo lead registrado' : 'Nuevo cliente registrado',
+            description: `${newClient.name}${newClient.company ? ' · ' + newClient.company : ''}`,
+            type: 'lead',
+        });
+
         return id;
     };
 
@@ -931,6 +979,13 @@ REGLAS DE ORO:
             const next = [...prev, { ...quote, id: quoteId, taskId, quoteNumber, baseNumber: baseNumber || quoteNumber, version: quote.version || 1 }];
             persistSharedState({ quotes: next });
             return next;
+        });
+
+        addNotification({
+            title: 'Cotización creada',
+            description: `${quoteNumber} · ${quote.client || 'Cliente'} · ${quote.total || ''}`,
+            type: 'success',
+            quoteId,
         });
 
         return quoteId;
@@ -1027,6 +1082,22 @@ REGLAS DE ORO:
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(newSeller),
         }).catch((error) => console.warn('Failed to persist seller:', error));
+
+        fetch('/api/biolinks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                seller_id: newSeller.id,
+                name: newSeller.name,
+                title: newSeller.role,
+                email: newSeller.email,
+                phone: newSeller.phone || null,
+                whatsapp: newSeller.phone || null,
+                photo: newSeller.avatar || null,
+                active: true,
+            }),
+        }).catch((error) => console.warn('Failed to auto-create biolink:', error));
+
         return newSeller.id;
     };
 
@@ -1146,11 +1217,32 @@ REGLAS DE ORO:
     };
 
     const updateQuote = (quoteId: string, updates: Partial<Quote>) => {
+        const prevQuote = quotes.find(q => q.id === quoteId);
+
         setQuotes(prev => {
             const next = prev.map(q => q.id === quoteId ? { ...q, ...updates } : q);
             persistSharedState({ quotes: next });
             return next;
         });
+
+        // Auto-notify on meaningful status transitions
+        if (updates.status && prevQuote && updates.status !== prevQuote.status) {
+            const notifMap: Record<string, { title: string; type: Notification['type'] }> = {
+                'Sent': { title: 'Cotización enviada', type: 'success' },
+                'Viewed': { title: 'Cotización vista por cliente', type: 'lead' },
+                'Approved': { title: 'Cotización aprobada', type: 'success' },
+                'Rejected': { title: 'Cotización rechazada', type: 'alert' },
+            };
+            const cfg = notifMap[updates.status];
+            if (cfg) {
+                addNotification({
+                    title: cfg.title,
+                    description: `${prevQuote.quoteNumber || quoteId} · ${prevQuote.client || ''}`,
+                    type: cfg.type,
+                    quoteId,
+                });
+            }
+        }
 
         // Sync pipeline stage when quote status changes
         if (updates.status) {

@@ -228,14 +228,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                         <div className="flex flex-col gap-3 lg:h-16 lg:flex-row lg:items-center lg:justify-between">
                             {/* Mobile top bar */}
                             <div className="flex items-center justify-between gap-3 lg:hidden py-3">
-                                <div className="flex min-w-0 items-center gap-3">
-                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted p-1.5">
-                                        <img
-                                            src="https://cuantium.com/wp-content/uploads/2026/02/logo.png"
-                                            alt="Logo"
-                                            className="h-full w-full object-contain"
-                                        />
-                                    </div>
+                                <div className="flex min-w-0 items-center gap-2.5">
+                                    <img
+                                        src="/favicon-ac.png"
+                                        alt="AC"
+                                        className="h-8 w-8 object-contain shrink-0 rounded-lg"
+                                    />
                                     <span className="font-black text-foreground text-sm tracking-tight">ArteConcreto CRM</span>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -315,9 +313,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                                 >
                                     <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Powered by</span>
                                     <img
-                                        src="https://cuantium.com/wp-content/uploads/2025/12/wibicrmblanco@4x.png"
+                                        src="/miwibilogo_1@4x.png"
                                         alt="MiWibi"
-                                        className="h-3.5 object-contain brightness-0"
+                                        className="h-3.5 object-contain opacity-40 brightness-0"
                                     />
                                 </a>
 

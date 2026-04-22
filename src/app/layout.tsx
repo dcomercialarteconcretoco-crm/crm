@@ -7,9 +7,9 @@ export const metadata: Metadata = {
   title: "ArteConcreto Intelligence Core",
   description: "Sistema de gestión empresarial a medida para ArteConcreto",
   icons: {
-    icon: "/logo.png",
-    shortcut: "/logo.png",
-    apple: "/logo.png",
+    icon: "/favicon-ac.png",
+    shortcut: "/favicon-ac.png",
+    apple: "/favicon-ac.png",
   },
 };
 

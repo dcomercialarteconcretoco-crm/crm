@@ -11,6 +11,7 @@ import { clsx } from 'clsx';
 import { useApp, Quote } from '@/context/AppContext';
 import { generateProposalPDF } from '@/lib/pdf-generator';
 import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
+import { ownsRecord } from '@/lib/scope';
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
     'Draft':    { label: 'Borrador',  className: 'bg-muted/40 text-muted-foreground' },
@@ -42,8 +43,10 @@ export default function QuotesPage() {
     const [isGenerating, setIsGenerating] = useState<string | null>(null);
 
     const validQuotes = useMemo(() =>
-        quotes.filter(q => q.number || q.client || q.total),
-        [quotes]
+        quotes
+            .filter(q => q.number || q.client || q.total)
+            .filter(q => ownsRecord(currentUser, q)),
+        [quotes, currentUser]
     );
 
     const filtered = useMemo(() => {
@@ -179,13 +182,15 @@ export default function QuotesPage() {
                         <ArrowDownToLine className="w-3.5 h-3.5" />
                         Exportar CSV ({filtered.length})
                     </button>
-                    <Link
-                        href="/quotes/new"
-                        className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 transition-all shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2 text-sm"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Nueva Cotización
-                    </Link>
+                    <PermissionHide require="quotes.create">
+                        <Link
+                            href="/quotes/new"
+                            className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 transition-all shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2 text-sm"
+                        >
+                            <Plus className="w-4 h-4" />
+                            Nueva Cotización
+                        </Link>
+                    </PermissionHide>
                 </div>
             </div>
 
@@ -326,13 +331,15 @@ export default function QuotesPage() {
 
                                 {/* Action buttons */}
                                 <div className="flex items-center gap-1.5 py-1 md:py-0 md:opacity-40 md:group-hover:opacity-100 transition-all justify-end">
-                                    <Link
-                                        href={`/quotes/${quote.id}/edit`}
-                                        title="Editar cotización"
-                                        className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-border text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-all"
-                                    >
-                                        <Pencil className="w-3.5 h-3.5" />
-                                    </Link>
+                                    <PermissionHide require="quotes.create">
+                                        <Link
+                                            href={`/quotes/${quote.id}/edit`}
+                                            title="Editar cotización"
+                                            className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-border text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-all"
+                                        >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                        </Link>
+                                    </PermissionHide>
                                     <Link
                                         href={`/quotes`}
                                         title="Ver detalle"

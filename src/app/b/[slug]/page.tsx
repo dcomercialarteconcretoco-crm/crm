@@ -4,14 +4,57 @@ import BiolinkPublicCard from './BiolinkPublicCard';
 
 interface Biolink {
     id: string; slug: string; name: string; title?: string; photo?: string;
-    phone?: string; email?: string; instagram?: string; facebook?: string;
+    phone?: string; email?: string;
+    // Personal social overrides (optional — if empty, falls back to global)
+    instagram?: string; facebook?: string;
     linkedin?: string; whatsapp?: string; website?: string;
     youtube_url?: string; maps_url?: string; active: boolean;
 }
-interface Settings {
-    form_fields: Record<string, boolean>; theme: string;
-    primary_color: string; show_youtube: boolean; show_map: boolean;
+
+interface FeaturedProduct {
+    id: string;
+    name: string;
+    image?: string;
+    price?: string;
+    url?: string;
 }
+
+interface VideoEntry {
+    id: string;
+    title: string;
+    url: string;
+}
+
+interface Settings {
+    form_fields: Record<string, boolean>;
+    theme: string;
+    primary_color: string;
+    show_youtube: boolean;
+    show_map: boolean;
+    company_name?: string;
+    company_tagline?: string;
+    company_description?: string;
+    company_logo?: string;
+    instagram?: string;
+    facebook?: string;
+    linkedin?: string;
+    tiktok?: string;
+    whatsapp?: string;
+    website?: string;
+    youtube_url?: string;
+    maps_url?: string;
+    featured_products?: FeaturedProduct[];
+    catalog_title?: string;
+    videos?: VideoEntry[];
+}
+
+const DEFAULT_SETTINGS: Settings = {
+    form_fields: { name: true, email: true, phone: true, city: true },
+    theme: 'dark', primary_color: '#fab510',
+    show_youtube: false, show_map: false,
+    featured_products: [],
+    videos: [],
+};
 
 async function getData(slug: string): Promise<{ card: Biolink; settings: Settings } | null> {
     if (!hasDatabase()) return null;
@@ -23,11 +66,27 @@ async function getData(slug: string): Promise<{ card: Biolink; settings: Setting
             pool.query(`SELECT * FROM crm_biolink_settings WHERE id='global' LIMIT 1`),
         ]);
         if (!cardRes.rows.length) return null;
-        const settings: Settings = settingsRes.rows[0] || {
-            form_fields: { name: true, email: true, phone: true, city: true },
-            theme: 'dark', primary_color: '#fab510', show_youtube: false, show_map: false,
+        const raw = settingsRes.rows[0] || {};
+        // Fallback: if the array column is empty but legacy youtube_url has a value, synthesize one entry
+        let videos: VideoEntry[] = Array.isArray(raw.videos) ? raw.videos : [];
+        if (videos.length === 0 && raw.youtube_url) {
+            videos = [{ id: 'v-legacy', title: 'Video', url: raw.youtube_url }];
+        }
+        const settings: Settings = { ...DEFAULT_SETTINGS, ...raw, videos };
+
+        // Merge: personal fields win if set; otherwise inherit from global
+        const rawCard = cardRes.rows[0];
+        const merged: Biolink = {
+            ...rawCard,
+            instagram: rawCard.instagram || settings.instagram || '',
+            facebook: rawCard.facebook || settings.facebook || '',
+            linkedin: rawCard.linkedin || settings.linkedin || '',
+            whatsapp: rawCard.whatsapp || settings.whatsapp || '',
+            website: rawCard.website || settings.website || '',
+            youtube_url: rawCard.youtube_url || settings.youtube_url || '',
+            maps_url: rawCard.maps_url || settings.maps_url || '',
         };
-        return { card: cardRes.rows[0], settings };
+        return { card: merged, settings };
     } catch {
         return null;
     }
@@ -44,9 +103,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     const { slug } = await params;
     const data = await getData(slug);
     if (!data) return { title: 'Tarjeta no encontrada' };
+    const companyName = data.settings.company_name || 'Arte Concreto';
     return {
-        title: `${data.card.name} — Arte Concreto`,
-        description: data.card.title || 'Tarjeta digital profesional',
+        title: `${data.card.name} — ${companyName}`,
+        description: data.card.title || data.settings.company_tagline || 'Tarjeta digital profesional',
         openGraph: { images: data.card.photo ? [data.card.photo] : [] },
     };
 }

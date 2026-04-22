@@ -462,20 +462,6 @@ export default function InventoryPage() {
                         {isSyncing ? "Sincronizando..." : "Sincronizar Catálogo"}
                     </button>
                     <div className="relative">
-                        <input
-                            type="file"
-                            id="csv-import"
-                            className="hidden"
-                            accept=".csv"
-                            onChange={handleImport}
-                        />
-                        <button
-                            onClick={() => document.getElementById('csv-import')?.click()}
-                            className="flex items-center gap-2 bg-white border border-border text-foreground font-semibold rounded-xl px-4 py-2.5 hover:bg-muted transition-all text-xs"
-                        >
-                            <BarChart2 className="w-3.5 h-3.5" />
-                            Importar CSV
-                        </button>
                     </div>
                     <button
                         onClick={handleExport}
@@ -708,9 +694,9 @@ export default function InventoryPage() {
                                         <div className="flex items-center gap-3">
                                             <div className="w-12 h-12 rounded-xl bg-muted border border-border flex items-center justify-center overflow-hidden shrink-0">
                                                 {product.image ? (
-                                                    <img src={product.image} alt={product.name} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://cuantium.com/wp-content/uploads/2026/02/logo.png'; (e.target as HTMLImageElement).className = 'w-8 h-8 object-contain opacity-30'; }} />
+                                                    <img src={product.image} alt={product.name} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = '/logo-arteconcreto.png'; (e.target as HTMLImageElement).className = 'w-8 h-8 object-contain opacity-30'; }} />
                                                 ) : (
-                                                    <img src="https://cuantium.com/wp-content/uploads/2026/02/logo.png" alt="logo" className="w-9 h-9 object-contain opacity-40" />
+                                                    <img src="/logo-arteconcreto.png" alt="logo" className="w-9 h-9 object-contain opacity-40" />
                                                 )}
                                             </div>
                                             <div>
@@ -844,13 +830,13 @@ export default function InventoryPage() {
                                         <div className="relative w-full h-36 rounded-2xl overflow-hidden bg-muted border border-border flex items-center justify-center">
                                             {form.image ? (
                                                 <>
-                                                    <img src={form.image} alt="preview" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://cuantium.com/wp-content/uploads/2026/02/logo.png'; }} />
+                                                    <img src={form.image} alt="preview" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = '/logo-arteconcreto.png'; }} />
                                                     <button onClick={() => setForm(f => ({ ...f, image: '' }))} className="absolute top-2 right-2 p-1.5 bg-white hover:bg-red-50 text-muted-foreground hover:text-red-600 rounded-full transition-colors border border-border">
                                                         <X className="w-3 h-3" />
                                                     </button>
                                                 </>
                                             ) : (
-                                                <img src="https://cuantium.com/wp-content/uploads/2026/02/logo.png" alt="logo" className="w-16 h-16 object-contain opacity-40" />
+                                                <img src="/logo-arteconcreto.png" alt="logo" className="w-16 h-16 object-contain opacity-40" />
                                             )}
                                         </div>
                                         <div className="flex gap-2">

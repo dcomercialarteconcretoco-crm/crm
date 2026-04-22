@@ -478,9 +478,9 @@ export default function MiWiBotPage() {
                         <div className="flex items-center gap-2">
                             <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">Powered by</span>
                             <img
-                                src="https://cuantium.com/wp-content/uploads/2025/12/wibicrmblanco@4x.png"
+                                src="/miwibilogo_1@4x.png"
                                 alt="MiWibi"
-                                className="h-3.5 object-contain brightness-0 opacity-75"
+                                className="h-3.5 object-contain opacity-40 brightness-0"
                             />
                         </div>
                         {settings.whatsapp.status === 'connected' && (

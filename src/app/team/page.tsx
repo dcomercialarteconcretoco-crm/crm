@@ -29,6 +29,7 @@ import {
     DEFAULT_PERMISSIONS,
     getDefaultPermissions,
     ALL_PERMISSION_KEYS,
+    hasPermission,
 } from '@/lib/permissions';
 import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
 
@@ -77,6 +78,7 @@ export default function TeamPage() {
 
     const isCurrentUserAdmin =
         currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
+    const canManageTeam = hasPermission(currentUser, 'team.manage');
 
     const teamSellers = useMemo(() => {
         const normalizedCurrentIdentity = (
@@ -153,8 +155,10 @@ export default function TeamPage() {
 
     const handleSave = () => {
         if (!form.name || !form.email) return;
+        // Email doubles as login username — if admin left username blank, reuse the email.
         const finalForm = {
             ...form,
+            username: (form.username && form.username.trim()) || form.email.trim().toLowerCase(),
             avatar: form.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(form.name)}&background=f5f0e8&color=1a1a1a`,
         };
         if (editingSeller) {
@@ -195,7 +199,7 @@ export default function TeamPage() {
                     </h1>
                     <p className="page-subtitle">Gestiona tu equipo. Los cambios se reflejan en el Pipeline en tiempo real.</p>
                 </div>
-                {isCurrentUserAdmin && (
+                {canManageTeam && (
                     <button
                         onClick={() => handleOpenModal()}
                         className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 transition-all shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2 text-sm self-start md:self-auto"
@@ -328,7 +332,7 @@ export default function TeamPage() {
                                         className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-black font-bold text-xs transition-all border border-primary/20"
                                     >
                                         <Eye className="w-3.5 h-3.5" />
-                                        {isCurrentUserAdmin ? 'Ver / Editar' : 'Ver Perfil'}
+                                        {canManageTeam ? 'Ver / Editar' : 'Ver Perfil'}
                                     </button>
                                     {canDelete && (
                                         <PermissionHide require="team.delete">
@@ -458,7 +462,18 @@ export default function TeamPage() {
                                     name={form.name}
                                     size="md"
                                 />
-                                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Foto de perfil</p>
+                                <div className="flex items-center gap-3">
+                                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Foto de perfil</p>
+                                    {form.avatar && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setForm(f => ({ ...f, avatar: '' }))}
+                                            className="text-xs font-bold text-rose-500 hover:text-rose-600 transition-colors"
+                                        >
+                                            Quitar foto
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
@@ -493,7 +508,7 @@ export default function TeamPage() {
 
                             <div>
                                 <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">
-                                    Email Corporativo
+                                    Email Corporativo (también es el login)
                                 </label>
                                 <div className="relative">
                                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -505,6 +520,9 @@ export default function TeamPage() {
                                         className="w-full bg-muted border border-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:bg-white transition-all placeholder:text-muted-foreground/60"
                                     />
                                 </div>
+                                <p className="text-[11px] text-muted-foreground mt-1.5">
+                                    Este correo será el usuario de ingreso al CRM. Puedes opcionalmente asignar un username corto arriba.
+                                </p>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
@@ -516,7 +534,7 @@ export default function TeamPage() {
                                         value={form.role}
                                         onChange={(e) => handleRoleChange(e.target.value)}
                                         className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:bg-white appearance-none transition-all"
-                                        disabled={!isCurrentUserAdmin}
+                                        disabled={!canManageTeam}
                                     >
                                         <option value="SuperAdmin">Administrador Principal</option>
                                         <option value="Admin">Administrador</option>
@@ -548,8 +566,8 @@ export default function TeamPage() {
                                 </div>
                             </div>
 
-                            {/* Permissions Panel — only for Admin/SuperAdmin */}
-                            {isCurrentUserAdmin && (
+                            {/* Permissions Panel — only for users with team.manage */}
+                            {canManageTeam && (
                                 <div className="border border-border rounded-2xl overflow-hidden">
                                     {/* Permissions Header Toggle */}
                                     <button
@@ -649,7 +667,7 @@ export default function TeamPage() {
                             >
                                 Cancelar
                             </button>
-                            {isCurrentUserAdmin && (
+                            {canManageTeam && (
                                 <button
                                     onClick={handleSave}
                                     className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 transition-all shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2 text-sm"

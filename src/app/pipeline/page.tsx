@@ -52,6 +52,7 @@ import { clsx } from 'clsx';
 import { useApp, Task, Activity, Seller, Client } from '@/context/AppContext';
 import SearchableSelect from '@/components/SearchableSelect';
 import { hasPermission } from '@/lib/permissions';
+import { ownsRecord, canSeeAll } from '@/lib/scope';
 import { PermissionGate } from '@/components/PermissionGate';
 
 // ─── Stage System ────────────────────────────────────────────────────────────
@@ -106,7 +107,12 @@ interface VirtualTask {
 // ─── SortableTask (real tasks only — virtual tasks shown separately) ─────────
 
 function SortableTask({ task, onClick, onNote }: { task: Task; onClick: (task: Task) => void; onNote: (task: Task) => void }) {
-    const { sellers, quotes, updateTask, updateQuote, addNotification, addTask, clients } = useApp();
+    const { sellers, quotes, updateTask, updateQuote, addNotification, addTask, clients, currentUser } = useApp();
+    const canApprove = hasPermission(currentUser, 'quotes.approve');
+    const showOwnerBadge = canSeeAll(currentUser); // only Admin/Manager/SuperAdmin see "de quién es"
+    const ownerSeller = sellers.find(s => s.id === task.assignedTo || s.name === task.assignedTo);
+    const ownerName = ownerSeller?.name || (task as any).assignedToName || task.assignedTo || '';
+    const ownerInitials = ownerName ? ownerName.split(' ').filter(Boolean).slice(0, 2).map((w: string) => w[0].toUpperCase()).join('') : '?';
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
     const style = { transform: CSS.Translate.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
 
@@ -165,10 +171,27 @@ function SortableTask({ task, onClick, onNote }: { task: Task; onClick: (task: T
                 <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-1 truncate">
                     <Building2 className="w-2.5 h-2.5 shrink-0" />{task.client}
                 </p>
-                {/* Value */}
-                {task.numericValue > 0 && (
-                    <p className="text-xs font-black text-foreground">{task.value}</p>
-                )}
+                {/* Value + owner badge */}
+                <div className="flex items-center justify-between gap-2">
+                    {task.numericValue > 0 ? (
+                        <p className="text-xs font-black text-foreground">{task.value}</p>
+                    ) : <span />}
+                    {showOwnerBadge && ownerName && (
+                        <span
+                            title={`Asignado a ${ownerName}`}
+                            className="inline-flex items-center gap-1 bg-primary/10 border border-primary/30 text-primary rounded-full pl-0.5 pr-2 py-0.5 text-[9px] font-black shrink-0"
+                        >
+                            {ownerSeller?.avatar ? (
+                                <img src={ownerSeller.avatar} alt={ownerName} className="w-4 h-4 rounded-full object-cover" />
+                            ) : (
+                                <span className="w-4 h-4 rounded-full bg-primary text-black flex items-center justify-center text-[8px] font-black">
+                                    {ownerInitials}
+                                </span>
+                            )}
+                            <span className="truncate max-w-[80px]">{ownerName.split(' ')[0]}</span>
+                        </span>
+                    )}
+                </div>
             </div>
 
             {/* Last action timestamp */}
@@ -199,12 +222,16 @@ function SortableTask({ task, onClick, onNote }: { task: Task; onClick: (task: T
                         <ChevronRight className="w-3 h-3" />
                     </button>
                 )}
-                <button onClick={handleWon} title="Ganado" className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white transition-all border border-emerald-200">
-                    <CheckCircle2 className="w-3 h-3" />
-                </button>
-                <button onClick={handleLost} title="Perdido" className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-500 text-rose-500 hover:text-white transition-all border border-rose-200">
-                    <X className="w-3 h-3" />
-                </button>
+                {canApprove && (
+                    <>
+                        <button onClick={handleWon} title="Ganado" className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white transition-all border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3" />
+                        </button>
+                        <button onClick={handleLost} title="Perdido" className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-500 text-rose-500 hover:text-white transition-all border border-rose-200">
+                            <X className="w-3 h-3" />
+                        </button>
+                    </>
+                )}
             </div>
         </div>
     );
@@ -261,7 +288,7 @@ interface Column {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function PipelinePage() {
-    const { tasks, clients, sellers, quotes, addTask, addQuote, addNotification, addAuditLog, updateTask, updateQuote, deleteTask, addClient, settings, products } = useApp();
+    const { tasks, clients, sellers, quotes, addTask, addQuote, addNotification, addAuditLog, updateTask, updateQuote, deleteTask, addClient, settings, products, currentUser: loggedInUser } = useApp();
 
     const [columns, setColumns] = useState<Column[]>(
         STAGES.map(s => ({ id: s.id, title: s.label, tasks: [] }))
@@ -302,14 +329,18 @@ export default function PipelinePage() {
             STAGES.map(s => ({
                 id: s.id,
                 title: s.label,
-                tasks: dedupTasks(tasks.filter((t: any) => migrateStageId(t.stageId) === s.id)),
+                tasks: dedupTasks(
+                    tasks
+                        .filter((t: any) => migrateStageId(t.stageId) === s.id)
+                        .filter((t: any) => ownsRecord(loggedInUser, t))
+                ),
             }))
         );
-    }, [tasks]);
+    }, [tasks, loggedInUser]);
 
-    // Virtual leads: clients without any pipeline task
+    // Virtual leads: clients without any pipeline task (respecting ownership)
     const clientsWithoutTask = clients.filter(c =>
-        !tasks.some((t: any) => t.clientId === c.id)
+        ownsRecord(loggedInUser, c) && !tasks.some((t: any) => t.clientId === c.id)
     );
 
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -326,7 +357,7 @@ export default function PipelinePage() {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const currentUser: Seller = sellers.find(s => s.role === 'SuperAdmin') || sellers[0];
+    const currentUser: Seller = loggedInUser || sellers.find(s => s.role === 'SuperAdmin') || sellers[0];
     const canReassign = hasPermission(currentUser, 'pipeline.reassign');
 
     const [newDeal, setNewDeal] = useState({

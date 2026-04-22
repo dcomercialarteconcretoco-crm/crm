@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hasDatabase, getPool } from '@/lib/postgres';
+import { hashPassword } from '@/lib/password';
 
 export async function POST(req: NextRequest) {
   try {
@@ -34,12 +35,13 @@ export async function POST(req: NextRequest) {
 
     const user = rows[0];
 
-    // Update password and clear token
+    // Update password (hashed) and clear token
+    const hashed = await hashPassword(password);
     await pool.query(
       `UPDATE crm_users
        SET password = $1, reset_token = NULL, reset_token_expires = NULL, updated_at = NOW()
        WHERE id = $2`,
-      [password, user.id]
+      [hashed, user.id]
     );
 
     return NextResponse.json({ ok: true, name: user.name });

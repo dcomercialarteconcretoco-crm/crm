@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
     ArrowLeft,
     Edit2,
@@ -23,6 +23,9 @@ import {
 import Link from 'next/link';
 import { clsx } from 'clsx';
 import { useApp, Activity } from '@/context/AppContext';
+import { ownsRecord } from '@/lib/scope';
+import { ClientAttachments } from '@/components/leads/ClientAttachments';
+import { ClientBotChats } from '@/components/leads/ClientBotChats';
 
 const STATUS_LABEL: Record<string, string> = {
     'Active': 'Activo',
@@ -30,11 +33,17 @@ const STATUS_LABEL: Record<string, string> = {
     'Inactive': 'Inactivo'
 };
 
+const VALID_TABS = ['Actividad', 'Razonamiento IA', 'Cotizaciones', 'Correos', 'Notas', 'Archivos', 'ConcreBOT'];
+
 export default function Lead360Page() {
     const params = useParams();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { clients, addAuditLog, sellers, tasks, quotes, auditLogs, currentUser, updateClient } = useApp();
-    const [activeTab, setActiveTab] = useState('Actividad');
+    const initialTab = searchParams?.get('tab');
+    const [activeTab, setActiveTab] = useState(
+        initialTab && VALID_TABS.includes(initialTab) ? initialTab : 'Actividad'
+    );
     const [noteText, setNoteText] = useState('');
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [editForm, setEditForm] = useState({ name: '', company: '', email: '', phone: '', city: '', status: '' });
@@ -192,6 +201,21 @@ export default function Lead360Page() {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
                 <p className="text-muted-foreground/50 font-black uppercase tracking-[0.3em]">Cliente no encontrado</p>
+            </div>
+        );
+    }
+
+    // Ownership guard: Vendedores cannot open a client assigned to another seller
+    if (!ownsRecord(currentUser, lead)) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[400px] text-center px-4 gap-4">
+                <p className="text-muted-foreground/70 font-black uppercase tracking-[0.3em]">Acceso restringido</p>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                    Este cliente está asignado a otro vendedor. Contacta a un administrador si necesitas acceso.
+                </p>
+                <Link href="/clients" className="text-sm font-bold text-primary hover:underline">
+                    Volver a clientes
+                </Link>
             </div>
         );
     }
@@ -364,7 +388,7 @@ export default function Lead360Page() {
                         {/* Tab Nav */}
                         <div className="border-b border-border px-4 pt-4">
                             <div className="flex bg-muted p-1 rounded-xl gap-1 overflow-x-auto scrollbar-hide">
-                                {['Actividad', 'Razonamiento IA', 'Cotizaciones', 'Correos', 'Notas'].map((tab) => (
+                                {VALID_TABS.map((tab) => (
                                     <button
                                         key={tab}
                                         onClick={() => setActiveTab(tab)}
@@ -675,6 +699,18 @@ export default function Lead360Page() {
                                         })()}
                                     </div>
                                 </div>
+                            )}
+
+                            {activeTab === 'Archivos' && (
+                                <ClientAttachments clientId={lead.id} currentUser={currentUser} />
+                            )}
+
+                            {activeTab === 'ConcreBOT' && (
+                                <ClientBotChats
+                                    clientId={lead.id}
+                                    clientEmail={lead.email}
+                                    clientPhone={lead.phone}
+                                />
                             )}
                         </div>
                     </div>

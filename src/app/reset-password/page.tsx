@@ -62,7 +62,7 @@ function ResetPasswordForm() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <img src="https://cuantium.com/wp-content/uploads/2026/02/logo.png" alt="Logo" className="w-16 h-16 object-contain" />
+            <img src="/logo-arteconcreto.png" alt="Logo" className="w-16 h-16 object-contain" />
           </div>
           <h1 className="text-2xl font-black text-foreground tracking-tight">
             Nueva <span className="text-primary">Contraseña</span>

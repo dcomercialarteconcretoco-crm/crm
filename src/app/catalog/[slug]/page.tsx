@@ -60,9 +60,9 @@ export default function ProductLandingPage() {
                 <div className="flex items-center gap-4">
                     <div className="h-10">
                         <img
-                            src="https://cuantium.com/wp-content/uploads/2026/02/logo.png"
+                            src="/logo-arteconcreto.png"
                             alt="ArteConcreto"
-                            className="h-full object-contain filter invert opacity-90"
+                            className="h-full object-contain opacity-90"
                         />
                     </div>
                 </div>

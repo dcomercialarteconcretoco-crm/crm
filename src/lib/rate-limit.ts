@@ -5,21 +5,26 @@
 
 const store = new Map<string, { count: number; resetAt: number }>();
 
-const WINDOW_MS = 60_000; // 1 minute
-const MAX_REQUESTS = 10;  // max per IP per window
+const DEFAULT_WINDOW_MS = 60_000; // 1 minute
+const DEFAULT_MAX_REQUESTS = 10;  // max per IP per window
 
-export function rateLimit(ip: string): { ok: boolean; retryAfter: number } {
+export function rateLimit(
+    ip: string,
+    opts: { maxRequests?: number; windowMs?: number; key?: string } = {}
+): { ok: boolean; retryAfter: number } {
+    const windowMs = opts.windowMs ?? DEFAULT_WINDOW_MS;
+    const maxRequests = opts.maxRequests ?? DEFAULT_MAX_REQUESTS;
+    const key = opts.key ? `${opts.key}:${ip}` : ip;
     const now = Date.now();
-    const key = ip;
     const entry = store.get(key);
 
     if (!entry || now > entry.resetAt) {
-        store.set(key, { count: 1, resetAt: now + WINDOW_MS });
+        store.set(key, { count: 1, resetAt: now + windowMs });
         return { ok: true, retryAfter: 0 };
     }
 
     entry.count++;
-    if (entry.count > MAX_REQUESTS) {
+    if (entry.count > maxRequests) {
         const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
         return { ok: false, retryAfter };
     }

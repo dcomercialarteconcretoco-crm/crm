@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureCrmSchema, getPool, hasDatabase } from "@/lib/postgres";
+import { hashPassword, isBcryptHash } from "@/lib/password";
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!hasDatabase()) {
@@ -10,6 +11,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const payload = await request.json();
   await ensureCrmSchema();
   const pool = getPool();
+
+  let passwordToStore: string | null = null;
+  if (payload.password) {
+    passwordToStore = isBcryptHash(payload.password)
+      ? payload.password
+      : await hashPassword(payload.password);
+  }
 
   await pool.query(
     `
@@ -40,7 +48,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       payload.status || "Activo",
       payload.sales || "$0",
       payload.commission || "10%",
-      payload.password || null,
+      passwordToStore,
       payload.permissions ? JSON.stringify(payload.permissions) : null,
     ]
   );

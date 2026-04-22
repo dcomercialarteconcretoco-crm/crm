@@ -12,6 +12,8 @@ const PUBLIC_API_PREFIXES = [
     '/api/whatsapp/',       // WhatsApp webhook (has its own verify token)
     '/api/woocommerce',     // Product catalog — also used by /public/cotizar
     '/api/logo',            // Logo proxy — public asset
+    '/api/assistant',       // ConcreBOT public chat (Gemini proxy, no PII leaks)
+    '/api/conversations',   // Widget chat storage — upserts clients with RR assign
 ];
 
 /** Mobile UA keywords — redirect to /m on these devices */

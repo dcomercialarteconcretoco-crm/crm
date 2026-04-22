@@ -1,12 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureCrmSchema, getPool, hasDatabase } from "@/lib/postgres";
 import { createSessionToken, SESSION_COOKIE_NAME, type SessionUser } from "@/lib/auth-session";
+import { hashPassword, isBcryptHash, verifyPassword } from "@/lib/password";
+import { rateLimit } from "@/lib/rate-limit";
 
 const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL?.trim().toLowerCase() || "";
 const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD?.trim() || "";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+
+    const limit = rateLimit(ip, { maxRequests: 8, windowMs: 60_000, key: "login" });
+    if (!limit.ok) {
+      return NextResponse.json(
+        { error: `Demasiados intentos. Espera ${limit.retryAfter}s.` },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfter) } }
+      );
+    }
+
     const body = (await req.json()) as {
       username?: string;
       password?: string;
@@ -61,7 +76,16 @@ export async function POST(req: NextRequest) {
 
       const user = rows[0];
 
-      if (user && (user.password || "") === password) {
+      if (user && (await verifyPassword(password, user.password))) {
+        // Migration: if the stored password is still plain text, upgrade to bcrypt
+        if (user.password && !isBcryptHash(user.password)) {
+          try {
+            const hashed = await hashPassword(password);
+            await pool.query(`UPDATE crm_users SET password = $1 WHERE id = $2`, [hashed, user.id]);
+          } catch (err) {
+            console.warn("Failed to upgrade password hash for user", user.id, err);
+          }
+        }
         const sessionUser: SessionUser = {
           id: user.id,
           name: user.name,

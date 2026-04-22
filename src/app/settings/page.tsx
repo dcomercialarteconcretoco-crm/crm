@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
     User,
     Bell,
@@ -33,14 +34,24 @@ import {
     Zap,
     Mail,
     Hash,
-    AlertTriangle
+    AlertTriangle,
+    CreditCard,
+    Instagram,
+    Facebook,
+    Linkedin,
+    ShoppingBag,
+    Loader2,
+    Upload,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useApp } from '@/context/AppContext';
-import { PermissionGate } from '@/components/PermissionGate';
+import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
+import { hasPermission } from '@/lib/permissions';
+import { BiolinkGlobalSettings } from '@/components/settings/BiolinkGlobalSettings';
 
 const categories = [
     { id: 'profile', name: 'Perfil de Usuario', icon: User },
+    { id: 'biolinks', name: 'Tarjetas Digitales', icon: CreditCard },
     { id: 'intelligence', name: 'Cerebro IA (MiWibi)', icon: Activity },
     { id: 'notifications', name: 'Notificaciones', icon: Bell },
     { id: 'security', name: 'Seguridad y Acceso', icon: Shield },
@@ -51,12 +62,29 @@ const categories = [
 ];
 
 export default function SettingsPage() {
-    const { settings, updateSettings, currentUser, clearTestData } = useApp();
+    const { settings, updateSettings: rawUpdateSettings, currentUser, clearTestData, addNotification } = useApp();
+    const canManageSettings = hasPermission(currentUser, 'settings.manage');
+    const updateSettings: typeof rawUpdateSettings = canManageSettings
+        ? rawUpdateSettings
+        : (() => {
+            addNotification({
+                title: 'Acceso restringido',
+                description: 'No tienes permiso para modificar la configuración.',
+                type: 'alert',
+            });
+        }) as typeof rawUpdateSettings;
     const [clearConfirm, setClearConfirm] = useState(false);
     const [quotePrefix, setQuotePrefix] = useState('');
     const [quoteNextNum, setQuoteNextNum] = useState('');
     const allowClientSecrets = process.env.NODE_ENV !== 'production';
-    const [activeTab, setActiveTab] = useState('profile');
+    const searchParams = useSearchParams();
+    const initialTab = searchParams?.get('tab') || 'profile';
+    const [activeTab, setActiveTab] = useState(initialTab);
+
+    useEffect(() => {
+        const t = searchParams?.get('tab');
+        if (t) setActiveTab(t);
+    }, [searchParams]);
     const [showPassword, setShowPassword] = useState(false);
     const [aiActive, setAiActive] = useState(true);
     const [notifEnabled, setNotifEnabled] = useState([true, true, true, true]);
@@ -210,10 +238,12 @@ export default function SettingsPage() {
                     <h1 className="text-2xl font-black text-foreground tracking-tight">Configuración</h1>
                     <p className="text-sm text-muted-foreground mt-1">Administra tu perfil e inteligencia del CRM.</p>
                 </div>
-                <button className="bg-primary text-black font-bold rounded-xl px-4 py-2.5 hover:brightness-105 transition-all flex items-center justify-center gap-2 w-full lg:w-auto">
-                    <Save className="w-4 h-4" />
-                    <span>Guardar Cambios</span>
-                </button>
+                <PermissionHide require="settings.manage">
+                    <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 w-full lg:w-auto justify-center">
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Los cambios se guardan automáticamente</span>
+                    </div>
+                </PermissionHide>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -248,6 +278,11 @@ export default function SettingsPage() {
                 {/* Tab Content Area */}
                 <div className="lg:col-span-9">
                     <div className="bg-white border border-border rounded-2xl shadow-sm p-6 lg:p-10 min-h-[500px] lg:min-h-[600px]">
+
+                        {/* Tab: Biolink global config */}
+                        {activeTab === 'biolinks' && (
+                            <BiolinkGlobalSettings />
+                        )}
 
                         {/* Tab: Intelligence Engine (Cerebro) */}
                         {activeTab === 'intelligence' && (
@@ -589,6 +624,37 @@ export default function SettingsPage() {
                                             <div className={clsx(
                                                 "w-4 h-4 bg-white rounded-full absolute transition-all",
                                                 settings.allowExports ? "right-1" : "left-1"
+                                            )}></div>
+                                        </button>
+                                    </div>
+
+                                    <div className="bg-muted border border-border rounded-xl p-5 flex items-center justify-between">
+                                        <div className="flex items-center gap-4">
+                                            <div className="p-2.5 bg-primary/10 rounded-xl">
+                                                <Mail className="w-4 h-4 text-primary" />
+                                            </div>
+                                            <div className="space-y-0.5">
+                                                <h4 className="text-sm font-black text-foreground">Auto-enviar cotización a leads públicos</h4>
+                                                <p className="text-xs text-muted-foreground font-semibold">
+                                                    {settings.autoSendPublicQuotes
+                                                        ? <span className="text-emerald-600">(ACTIVO — el sistema envía email automático con la cotización)</span>
+                                                        : <span className="text-amber-600">(DESACTIVADO — el lead se asigna al siguiente vendedor en rotación, él contacta)</span>}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground/60 italic">
+                                                    Aplica a cotizador web, formulario de tarjeta digital, WhatsApp y Concrebot.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => updateSettings({ autoSendPublicQuotes: !settings.autoSendPublicQuotes })}
+                                            className={clsx(
+                                                "w-12 h-6 rounded-full relative p-1 transition-all shrink-0",
+                                                settings.autoSendPublicQuotes ? "bg-emerald-500" : "bg-gray-300"
+                                            )}
+                                        >
+                                            <div className={clsx(
+                                                "w-4 h-4 bg-white rounded-full absolute transition-all",
+                                                settings.autoSendPublicQuotes ? "right-1" : "left-1"
                                             )}></div>
                                         </button>
                                     </div>
