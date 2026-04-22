@@ -905,6 +905,23 @@ REGLAS DE ORO:
             body: JSON.stringify(newClient),
         }).catch((error) => console.warn('Failed to persist client:', error));
 
+        // Taxonomy bootstrap: if the seller registered a client with a city/sector that
+        // isn't in the shared catalog yet, add it. Works for every role — the whole team
+        // benefits because this persists into crm_state.settings which everyone reads.
+        const needsCity = newClient.city && !settings.cities.some(c => c.name.trim().toLowerCase() === newClient.city.trim().toLowerCase());
+        const needsSector = newClient.category && !settings.sectors.some(s => s.trim().toLowerCase() === newClient.category.trim().toLowerCase());
+        if (needsCity || needsSector) {
+            setSettings(prev => {
+                const next = {
+                    ...prev,
+                    cities: needsCity ? [...prev.cities, { name: newClient.city, department: '' }] : prev.cities,
+                    sectors: needsSector ? [...prev.sectors, newClient.category] : prev.sectors,
+                };
+                persistSharedState({ settings: sanitizeSettingsForStorage(next) });
+                return next;
+            });
+        }
+
         addNotification({
             title: newClient.status === 'Lead' ? 'Nuevo lead registrado' : 'Nuevo cliente registrado',
             description: `${newClient.name}${newClient.company ? ' · ' + newClient.company : ''}`,
@@ -1203,11 +1220,27 @@ REGLAS DE ORO:
             return mergedClient;
         }));
         if (mergedClient) {
+            const merged = mergedClient as Client;
             fetch(`/api/clients/${clientId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(mergedClient),
+                body: JSON.stringify(merged),
             }).catch((error) => console.warn('Failed to update client:', error));
+
+            // Auto-add new city / sector to the shared catalog (see addClient comment)
+            const needsCity = merged.city && !settings.cities.some(c => c.name.trim().toLowerCase() === merged.city.trim().toLowerCase());
+            const needsSector = merged.category && !settings.sectors.some(s => s.trim().toLowerCase() === merged.category.trim().toLowerCase());
+            if (needsCity || needsSector) {
+                setSettings(prev => {
+                    const next = {
+                        ...prev,
+                        cities: needsCity ? [...prev.cities, { name: merged.city, department: '' }] : prev.cities,
+                        sectors: needsSector ? [...prev.sectors, merged.category] : prev.sectors,
+                    };
+                    persistSharedState({ settings: sanitizeSettingsForStorage(next) });
+                    return next;
+                });
+            }
         }
     };
 
