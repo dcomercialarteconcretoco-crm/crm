@@ -211,14 +211,19 @@ export default function LoginPage() {
 
                 {/* Powered by */}
                 <div className="mt-8 flex flex-col items-center gap-3 opacity-50">
-                    <div className="flex items-center gap-2">
+                    <a
+                        href="https://miwibi.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 hover:opacity-100 transition-opacity"
+                    >
                         <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">Powered by</span>
                         <img
                             src="/miwibilogo_1@4x.png"
                             alt="MiWibi"
                             className="h-3.5 object-contain opacity-40 brightness-0"
                         />
-                    </div>
+                    </a>
                     <p className="text-[9px] text-muted-foreground">V 3.0.0 · © 2026 ArteConcreto Intelligence</p>
                 </div>
             </div>

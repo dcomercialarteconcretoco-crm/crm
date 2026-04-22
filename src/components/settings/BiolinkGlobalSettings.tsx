@@ -152,10 +152,13 @@ export function BiolinkGlobalSettings() {
             const data = await res.json();
             if (res.ok) {
                 setSettings(s => ({ ...s, featured_products: Array.isArray(data.products) ? data.products : s.featured_products }));
+                const notFoundMsg = Array.isArray(data.notFound) && data.notFound.length > 0
+                    ? ` No se encontró en WooCommerce: ${data.notFound.join(', ')}. Bórralos y re-agrégalos desde el picker.`
+                    : '';
                 addNotification({
-                    title: 'Imágenes actualizadas',
-                    description: `${data.updated || 0} de ${data.total || 0} productos enriquecidos desde WooCommerce.`,
-                    type: 'success',
+                    title: data.updated > 0 ? 'Imágenes actualizadas' : 'Nada que actualizar',
+                    description: `${data.updated || 0} de ${data.total || 0} productos enriquecidos desde WooCommerce (catálogo: ${data.wooCatalogSize || 0} productos).${notFoundMsg}`,
+                    type: data.updated > 0 ? 'success' : 'alert',
                 });
             } else {
                 addNotification({

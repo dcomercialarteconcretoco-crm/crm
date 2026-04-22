@@ -332,9 +332,21 @@ export default function BiolinkPublicCard({ card, settings }: { card: Biolink; s
 
                 {/* Footer */}
                 <div style={{ textAlign: 'center', paddingTop: 16 }}>
-                    <p style={{ margin: 0, fontSize: 10, color: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.25)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>
+                    <a
+                        href="https://miwibi.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                            fontSize: 10,
+                            color: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.25)',
+                            letterSpacing: '0.15em',
+                            textTransform: 'uppercase',
+                            textDecoration: 'none',
+                            cursor: 'pointer',
+                        }}
+                    >
                         Powered by <span style={{ color: pc }}>MiWibiCRM</span>
-                    </p>
+                    </a>
                 </div>
             </div>
         </div>

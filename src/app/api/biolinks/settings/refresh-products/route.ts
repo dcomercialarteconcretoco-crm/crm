@@ -80,29 +80,46 @@ export async function POST(_req: NextRequest) {
     }
 
     let updatedCount = 0;
+    const notFound: string[] = [];
     const enriched = featured.map((p: any) => {
-        // Match by SKU first, then by normalized name
+        // Multi-strategy match: SKU, exact name, contains, token overlap
         const norm = normalize(p.name || '');
-        const bySku = p.sku ? wooProducts.find(w => (w.sku || '').trim() === p.sku) : null;
-        const byName = bySku || wooProducts.find(w => normalize(w.name || '') === norm) ||
-                                wooProducts.find(w => normalize(w.name || '').includes(norm) || norm.includes(normalize(w.name || '')));
-        if (!byName) return p;
+        const tokens = norm.split(' ').filter(t => t.length >= 3);
 
-        const image = byName.images?.[0]?.src || p.image || '';
-        const url = byName.permalink || p.url || '';
-        const priceRaw = Number(byName.price) || 0;
+        const bySku = p.sku ? wooProducts.find(w => (w.sku || '').trim() === p.sku) : null;
+        const exactName = !bySku ? wooProducts.find(w => normalize(w.name || '') === norm) : null;
+        const contains = !bySku && !exactName ? wooProducts.find(w => {
+            const wn = normalize(w.name || '');
+            return wn.includes(norm) || norm.includes(wn);
+        }) : null;
+        const tokenOverlap = !bySku && !exactName && !contains && tokens.length > 0
+            ? wooProducts.find(w => {
+                const wn = normalize(w.name || '');
+                return tokens.every(t => wn.includes(t));
+            })
+            : null;
+
+        const match = bySku || exactName || contains || tokenOverlap;
+        if (!match) {
+            notFound.push(p.name || p.id);
+            return p;
+        }
+
+        const image = match.images?.[0]?.src || p.image || '';
+        const url = match.permalink || p.url || '';
+        const priceRaw = Number(match.price) || 0;
         const price = priceRaw > 0 ? formatCOP(priceRaw) : p.price || '';
 
         const changed = image !== (p.image || '') || url !== (p.url || '') || price !== (p.price || '');
         if (changed) updatedCount++;
         return {
             ...p,
-            id: String(byName.id || p.id),
-            name: byName.name || p.name,
+            id: String(match.id || p.id),
+            name: match.name || p.name,
             image,
             url,
             price,
-            sku: byName.sku || p.sku || '',
+            sku: match.sku || p.sku || '',
         };
     });
 
@@ -111,5 +128,12 @@ export async function POST(_req: NextRequest) {
         [JSON.stringify(enriched)]
     );
 
-    return NextResponse.json({ ok: true, updated: updatedCount, total: featured.length, products: enriched });
+    return NextResponse.json({
+        ok: true,
+        updated: updatedCount,
+        total: featured.length,
+        notFound,
+        wooCatalogSize: wooProducts.length,
+        products: enriched,
+    });
 }

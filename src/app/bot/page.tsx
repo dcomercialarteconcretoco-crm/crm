@@ -475,14 +475,19 @@ export default function MiWiBotPage() {
                     <div className="flex flex-col lg:flex-row lg:items-center gap-2 mt-1">
                         <p className="text-sm text-muted-foreground mt-1">Control omnicanal con IA híbrida.</p>
                         <div className="hidden lg:block h-4 w-px bg-border mx-2" />
-                        <div className="flex items-center gap-2">
+                        <a
+                            href="https://miwibi.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                        >
                             <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">Powered by</span>
                             <img
                                 src="/miwibilogo_1@4x.png"
                                 alt="MiWibi"
                                 className="h-3.5 object-contain opacity-40 brightness-0"
                             />
-                        </div>
+                        </a>
                         {settings.whatsapp.status === 'connected' && (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 border border-emerald-200 text-emerald-700">
                                 <MessageCircle className="w-3 h-3" />
