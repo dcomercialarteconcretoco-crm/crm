@@ -37,7 +37,21 @@ export default function ClientsPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
     const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
+    const [pageSize, setPageSize] = useState<number>(50);
+    const [currentPage, setCurrentPage] = useState<number>(1);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Oculta emails sintéticos creados por la importación bulk (cuando el lead no tenía email).
+    const isPlaceholderEmail = (e?: string) => !!e && e.endsWith('@placeholder.local');
+    const displayEmail = (e?: string) => (!e || isPlaceholderEmail(e)) ? '' : e;
+    const formatRegDate = (iso?: string) => {
+        if (!iso) return '';
+        try {
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return '';
+            return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: '2-digit' });
+        } catch { return ''; }
+    };
 
     const currentUser = ctxUser;
     const canExportClients = hasPermission(currentUser, 'clients.export');
@@ -306,6 +320,17 @@ export default function ClientsPage() {
             });
     }, [clients, filters, searchTerm, sortConfig, currentUser]);
 
+    // Paginación
+    const totalClients = sortedAndFilteredClients.length;
+    const totalPages = Math.max(1, Math.ceil(totalClients / pageSize));
+    const safePage = Math.min(currentPage, totalPages);
+    const pageStart = (safePage - 1) * pageSize;
+    const pageEnd = Math.min(pageStart + pageSize, totalClients);
+    const paginatedClients = sortedAndFilteredClients.slice(pageStart, pageEnd);
+
+    // Reset a página 1 cuando cambia el filtro/búsqueda/pageSize
+    React.useEffect(() => { setCurrentPage(1); }, [searchTerm, pageSize, filters]);
+
     const SortIndicator = ({ column }: { column: keyof Client }) => {
         if (sortConfig.key !== column) return <div className="w-3 h-3 opacity-10 group-hover:opacity-30 ml-auto transition-opacity"><MoreVertical className="w-full h-full" /></div>;
         return (
@@ -525,8 +550,8 @@ export default function ClientsPage() {
             )}
 
             {/* Client Grid/List Layout */}
-            <div className={clsx('pb-20', viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6' : 'space-y-2')}>
-                {sortedAndFilteredClients.map((client) => {
+            <div className={clsx('pb-4', viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6' : 'space-y-2')}>
+                {paginatedClients.map((client) => {
                     const clientQuotes = quotes.filter(q => q.clientId === client.id);
                     const openQuotes = clientQuotes.filter(q => q.status === 'Sent' || q.status === 'Draft');
 
@@ -534,7 +559,8 @@ export default function ClientsPage() {
                         const sellerInitials = client.assignedToName
                             ? client.assignedToName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
                             : '';
-                        const metaBits = [client.email, client.company, client.city].filter(Boolean);
+                        const regDate = formatRegDate(client.registrationDate);
+                        const metaBits = [displayEmail(client.email), client.company, client.city, regDate ? `📅 ${regDate}` : ''].filter(Boolean);
                         return (
                             <div key={client.id} className="bg-white border border-border rounded-xl px-4 py-3 flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer group">
                                 {/* Avatar */}
@@ -640,7 +666,7 @@ export default function ClientsPage() {
                                     </Link>
                                     <div className="flex items-center gap-1.5 mt-0.5 truncate text-muted-foreground">
                                         <Mail className="w-3 h-3" />
-                                        <p className="text-xs truncate">{client.email}</p>
+                                        <p className="text-xs truncate">{displayEmail(client.email) || <span className="italic text-muted-foreground/60">sin email</span>}</p>
                                     </div>
                                 </div>
                             </div>
@@ -657,9 +683,16 @@ export default function ClientsPage() {
                                     <div className="w-7 h-7 rounded-lg bg-muted border border-border flex items-center justify-center text-muted-foreground">
                                         <MapPin className="w-3.5 h-3.5" />
                                     </div>
-                                    <span className="text-xs text-muted-foreground truncate">{client.city}</span>
+                                    <span className="text-xs text-muted-foreground truncate">{client.city || <span className="italic text-muted-foreground/50">sin ciudad</span>}</span>
                                 </div>
                             </div>
+
+                            {/* Fecha de ingreso */}
+                            {formatRegDate(client.registrationDate) && (
+                                <div className="mt-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                                    📅 Ingresó: <span className="text-foreground/80">{formatRegDate(client.registrationDate)}</span>
+                                </div>
+                            )}
 
                             {/* Stats Panel */}
                             <div className="mt-4 py-4 rounded-xl bg-muted border border-border">
@@ -712,6 +745,54 @@ export default function ClientsPage() {
                     );
                 })}
             </div>
+
+            {/* Paginación */}
+            {totalClients > 0 && (
+                <div className="bg-white border border-border rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-20">
+                    <div className="flex items-center gap-3">
+                        <span className="text-xs font-bold text-muted-foreground">
+                            Mostrando <strong className="text-foreground">{pageStart + 1}–{pageEnd}</strong> de <strong className="text-foreground">{totalClients}</strong>
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                            <label className="text-xs text-muted-foreground">por página:</label>
+                            <select
+                                value={pageSize}
+                                onChange={(e) => setPageSize(parseInt(e.target.value, 10))}
+                                className="bg-muted border border-border rounded-lg px-2 py-1 text-xs font-bold outline-none focus:border-primary"
+                            >
+                                {[20, 50, 100, 200, 500].map(n => (
+                                    <option key={n} value={n}>{n}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => setCurrentPage(1)}
+                            disabled={safePage === 1}
+                            className="px-2.5 py-1 rounded-lg bg-muted text-xs font-bold disabled:opacity-40 hover:bg-primary/10 hover:text-primary transition-all"
+                        >⏮</button>
+                        <button
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={safePage === 1}
+                            className="px-3 py-1 rounded-lg bg-muted text-xs font-bold disabled:opacity-40 hover:bg-primary/10 hover:text-primary transition-all"
+                        >Anterior</button>
+                        <span className="px-3 py-1 text-xs font-bold text-foreground">
+                            Página {safePage} de {totalPages}
+                        </span>
+                        <button
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                            disabled={safePage === totalPages}
+                            className="px-3 py-1 rounded-lg bg-muted text-xs font-bold disabled:opacity-40 hover:bg-primary/10 hover:text-primary transition-all"
+                        >Siguiente</button>
+                        <button
+                            onClick={() => setCurrentPage(totalPages)}
+                            disabled={safePage === totalPages}
+                            className="px-2.5 py-1 rounded-lg bg-muted text-xs font-bold disabled:opacity-40 hover:bg-primary/10 hover:text-primary transition-all"
+                        >⏭</button>
+                    </div>
+                </div>
+            )}
 
             {/* New Client Modal */}
             {isNewClientModalOpen && (
