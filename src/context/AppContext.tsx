@@ -591,7 +591,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         fromEmail: 'ordenes@arteconcreto.co',
         businessWhatsapp: '573178929477',
         quotePrefix: 'ART',
-        quoteNextNumber: 250,
+        quoteNextNumber: 300,
         quoteYear: new Date().getFullYear(),
         geminiKey: '',
         resendKey: '',
@@ -1070,12 +1070,12 @@ REGLAS DE ORO:
         if (!quoteNumber) {
             const prefix  = settings.quotePrefix  || 'ART';
             const year    = settings.quoteYear    || new Date().getFullYear();
-            const num     = settings.quoteNextNumber ?? 250;
+            const num     = settings.quoteNextNumber ?? 300;
             quoteNumber = `${prefix}-${num}-${year}`;
             baseNumber  = quoteNumber;
             // Increment counter
             setSettings(prev => {
-                const next = { ...prev, quoteNextNumber: (prev.quoteNextNumber ?? 250) + 1 };
+                const next = { ...prev, quoteNextNumber: (prev.quoteNextNumber ?? 300) + 1 };
                 persistSharedState({ settings: sanitizeSettingsForStorage(next) });
                 return next;
             });
