@@ -47,6 +47,31 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ skipped: true, reason: 'Weekend (weekdaysOnly=true)' });
     }
 
+    // Check hora configurada por el usuario (HH:MM en Bogotá). El cron fira cada 30 min
+    // en vercel.json — dispara el envío solo dentro de una ventana de ±29 min
+    // alrededor de sendTime para honrar lo que el SuperAdmin configuró.
+    const sendTime: string = typeof cfg.sendTime === 'string' && /^\d{2}:\d{2}$/.test(cfg.sendTime)
+        ? cfg.sendTime
+        : '17:50';
+    const [sendH, sendM] = sendTime.split(':').map(Number);
+    const currentMinutes = today.getHours() * 60 + today.getMinutes();
+    const targetMinutes  = sendH * 60 + sendM;
+    const delta = currentMinutes - targetMinutes;
+    // Ventana: [sendTime, sendTime + 29min] — da margen para que al menos uno de los
+    // dos disparos de 30 min del cron caiga dentro y active el envío.
+    if (delta < 0 || delta > 29) {
+        return NextResponse.json({ skipped: true, reason: `Outside send window (target=${sendTime}, now=${today.getHours()}:${String(today.getMinutes()).padStart(2,'0')})` });
+    }
+
+    // Evitar doble-envío: si ya se envió hoy (Bogotá), salir
+    if (cfg.lastSentAt) {
+        const lastSentBogota = new Date(cfg.lastSentAt).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+        const todayBogota    = today.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+        if (lastSentBogota === todayBogota) {
+            return NextResponse.json({ skipped: true, reason: 'Already sent today' });
+        }
+    }
+
     const recipientIds: string[] = Array.isArray(cfg.recipients) ? cfg.recipients : [];
     const extraEmails: string[] = Array.isArray(cfg.extraEmails) ? cfg.extraEmails : [];
 

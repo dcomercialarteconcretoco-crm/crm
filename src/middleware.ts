@@ -6,14 +6,15 @@ import { parseSessionToken, SESSION_COOKIE_NAME } from '@/lib/auth-session';
  * Everything else under /api/ requires a valid crm_session cookie.
  */
 const PUBLIC_API_PREFIXES = [
-    '/api/auth/',           // Login, logout, me, forgot/reset-password
-    '/api/public/',         // Public quote-request form (WordPress widget)
-    '/api/biolinks/lead',   // Lead form on public /b/[slug] pages
-    '/api/whatsapp/',       // WhatsApp webhook (has its own verify token)
-    '/api/woocommerce',     // Product catalog — also used by /public/cotizar
-    '/api/logo',            // Logo proxy — public asset
-    '/api/assistant',       // ConcreBOT public chat (Gemini proxy, no PII leaks)
-    '/api/conversations',   // Widget chat storage — upserts clients with RR assign
+    '/api/auth/',                // Login, logout, me, forgot/reset-password
+    '/api/public/',              // Public quote-request form (WordPress widget)
+    '/api/biolinks/lead',        // Lead form on public /b/[slug] pages
+    '/api/whatsapp/',            // WhatsApp webhook (has its own verify token)
+    '/api/woocommerce',          // Product catalog — also used by /public/cotizar
+    '/api/logo',                 // Logo proxy — public asset
+    '/api/assistant',            // ConcreBOT public chat (Gemini proxy, no PII leaks)
+    '/api/conversations',        // Widget chat storage — upserts clients with RR assign
+    '/api/daily-report/cron',    // Vercel Cron — protegido internamente por x-vercel-cron header + CRON_SECRET
 ];
 
 /** Mobile UA keywords — redirect to /m on these devices */

@@ -734,13 +734,29 @@ export async function POST(request: NextRequest) {
         }),
     });
 
+    const resendBody = await res.json().catch(() => ({} as any));
+
     if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
+        // Logging completo para diagnosticar en Vercel logs (problemas de dominio verificado,
+        // rate limit, API key inválida, etc.)
+        console.error('[daily-report] Resend error:', {
+            status: res.status,
+            from: FROM_EMAIL,
+            toCount: toEmails.length,
+            body: resendBody,
+        });
+        const message =
+            (resendBody as { message?: string }).message ||
+            (resendBody as { error?: string }).error ||
+            `Resend HTTP ${res.status}`;
         return NextResponse.json(
-            { error: (err as { message?: string }).message || 'Error enviando el informe.' },
+            { error: `Resend: ${message}`, from: FROM_EMAIL, status: res.status },
             { status: 500 }
         );
     }
+
+    const resendId = (resendBody as { id?: string }).id || null;
+    console.log('[daily-report] Sent OK', { demo, resendId, to: toEmails });
 
     return NextResponse.json({
         ok: true,
@@ -748,5 +764,6 @@ export async function POST(request: NextRequest) {
         sentTo: toEmails,
         sellersCovered: activities.length,
         date: targetDate.toISOString(),
+        resendId,
     });
 }
