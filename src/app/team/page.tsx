@@ -480,14 +480,15 @@ export default function TeamPage() {
                                         type="button"
                                         onClick={() => setForm(f => ({ ...f, receivesLeads: f.receivesLeads === false ? true : false }))}
                                         className={clsx(
-                                            "w-12 h-6 rounded-full relative p-1 transition-all shrink-0",
+                                            "w-12 h-6 rounded-full relative transition-all shrink-0",
                                             form.receivesLeads !== false ? "bg-emerald-500" : "bg-gray-300"
                                         )}
+                                        aria-pressed={form.receivesLeads !== false}
                                     >
-                                        <div className={clsx(
-                                            "w-4 h-4 bg-white rounded-full absolute transition-all shadow-sm",
-                                            form.receivesLeads !== false ? "right-1" : "left-1"
-                                        )}></div>
+                                        <span className={clsx(
+                                            "block w-4 h-4 bg-white rounded-full absolute top-1 transition-all shadow-sm",
+                                            form.receivesLeads !== false ? "left-7" : "left-1"
+                                        )} />
                                     </button>
                                 </div>
                             )}
