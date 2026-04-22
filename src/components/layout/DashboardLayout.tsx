@@ -10,7 +10,8 @@ import { usePathname } from 'next/navigation';
 import { MobileNav } from './MobileNav';
 import { useApp } from '@/context/AppContext';
 import { useRouter } from 'next/navigation';
-import { LogOut } from 'lucide-react';
+import { LogOut, Sparkles } from 'lucide-react';
+import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
 
 interface DashboardLayoutProps {
     children: React.ReactNode;
@@ -50,6 +51,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     const [isMiWiOpen, setIsMiWiOpen] = useState(false);
     const [miwiHasSuggestion, setMiwiHasSuggestion] = useState(false);
     const [layoutMode, setLayoutMode] = useState('classic');
+    // Onboarding wizard: shown automatically if onboardingCount < 2 on first mount per session.
+    // `wizardOpen` is the live visibility; `wizardAutoTriggered` ensures we only auto-open once per
+    // session even if the user closes and re-navigates (we don't want to trap them).
+    const [wizardOpen, setWizardOpen] = useState(false);
+    const [wizardAutoTriggered, setWizardAutoTriggered] = useState(false);
     const [selectedNotification, setSelectedNotification] = useState<any>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [showSearchResults, setShowSearchResults] = useState(false);
@@ -168,6 +174,24 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             router.push('/login');
         }
     }, [currentUser, pathname, router, isPublicPage, isHydrating]);
+
+    // Auto-open the onboarding wizard when a user logs in with onboardingCount < 2.
+    // Runs only on the first mount per session so navigation doesn't re-pop the modal.
+    useEffect(() => {
+        if (wizardAutoTriggered) return;
+        if (!currentUser) return;
+        if (isPublicPage) return;
+        if (isHydrating) return;
+        const count = typeof currentUser.onboardingCount === 'number' ? currentUser.onboardingCount : 0;
+        if (count < 2) {
+            setWizardOpen(true);
+        }
+        setWizardAutoTriggered(true);
+    }, [currentUser, isPublicPage, isHydrating, wizardAutoTriggered]);
+
+    const onboardingCount = currentUser?.onboardingCount ?? 0;
+    const wizardIsMandatory = onboardingCount === 0;
+    const canReplayWizard = onboardingCount < 2;
 
     // Apply/remove anti-screenshot mode on body based on SuperAdmin setting
     useEffect(() => {
@@ -377,6 +401,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                                                 <User className="w-3.5 h-3.5" />
                                                 Mi Perfil
                                             </button>
+                                            {canReplayWizard && (
+                                                <button
+                                                    onClick={() => setWizardOpen(true)}
+                                                    className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-muted text-sm font-medium text-muted-foreground hover:text-foreground transition-colors text-left"
+                                                >
+                                                    <Sparkles className="w-3.5 h-3.5" />
+                                                    Ver tour ({2 - onboardingCount} {2 - onboardingCount === 1 ? 'vez' : 'veces'} restante{2 - onboardingCount === 1 ? '' : 's'})
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={logout}
                                                 className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-red-50 text-sm font-medium text-muted-foreground hover:text-red-600 transition-colors text-left"
@@ -450,6 +483,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                         </div>
                     ))}
                 </div>
+            )}
+
+            {/* Onboarding Wizard — auto-opens on first login, replayable once more, then hidden forever */}
+            {wizardOpen && currentUser && (
+                <OnboardingWizard
+                    user={currentUser}
+                    isMandatory={wizardIsMandatory}
+                    onComplete={() => setWizardOpen(false)}
+                    onSkip={() => setWizardOpen(false)}
+                />
             )}
 
             {/* Notification Detail Modal */}
