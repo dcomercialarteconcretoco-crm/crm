@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Arte Concreto – Botón Pedir Cotización
  * Description: Botones de cotización (WhatsApp y Correo) en páginas de producto y grilla. Ambos capturan el lead en el CRM y abren WhatsApp. Incluye flujo de "Producto personalizado" con descripción e imagen de referencia.
- * Version: 3.4.0
+ * Version: 3.4.1
  * Author: Arte Concreto / MiWibi
  * Text Domain: ac-cotizacion
  */
@@ -480,18 +480,20 @@ function ac_render_modal_and_scripts() {
             <div style="padding:24px;">
 
                 <!-- ── Producto principal ──────────────────────────── -->
-                <p style="margin:0 0 10px; font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:#aaa;">Producto seleccionado</p>
-                <div style="background:#f9f9f9; border:1px solid #eee; border-radius:12px; padding:16px; display:flex; align-items:center; gap:14px;">
-                    <img id="ac-prod-img" src="" style="width:56px; height:56px; object-fit:cover; border-radius:8px; border:1px solid #eee; flex-shrink:0;" alt="" />
-                    <div style="flex:1; min-width:0;">
-                        <p id="ac-prod-name" style="margin:0; font-size:13px; font-weight:800; color:#111; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></p>
-                        <p id="ac-prod-sku"  style="margin:3px 0 0; font-size:11px; color:#888;"></p>
-                        <p id="ac-prod-price" style="margin:5px 0 0; font-size:13px; font-weight:700; color:#111;"></p>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:6px; border:1px solid #ddd; border-radius:8px; padding:4px 10px; flex-shrink:0;">
-                        <button type="button" id="ac-qty-minus" style="background:none; border:none; font-size:18px; cursor:pointer; color:#555; padding:0 2px; line-height:1;">−</button>
-                        <span id="ac-qty-display" style="font-size:15px; font-weight:800; min-width:20px; text-align:center;">1</span>
-                        <button type="button" id="ac-qty-plus" style="background:none; border:none; font-size:18px; cursor:pointer; color:#555; padding:0 2px; line-height:1;">+</button>
+                <div id="ac-main-product-block">
+                    <p style="margin:0 0 10px; font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:#aaa;">Producto seleccionado</p>
+                    <div style="background:#f9f9f9; border:1px solid #eee; border-radius:12px; padding:16px; display:flex; align-items:center; gap:14px;">
+                        <img id="ac-prod-img" src="" style="width:56px; height:56px; object-fit:cover; border-radius:8px; border:1px solid #eee; flex-shrink:0;" alt="" />
+                        <div style="flex:1; min-width:0;">
+                            <p id="ac-prod-name" style="margin:0; font-size:13px; font-weight:800; color:#111; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></p>
+                            <p id="ac-prod-sku"  style="margin:3px 0 0; font-size:11px; color:#888;"></p>
+                            <p id="ac-prod-price" style="margin:5px 0 0; font-size:13px; font-weight:700; color:#111;"></p>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px; border:1px solid #ddd; border-radius:8px; padding:4px 10px; flex-shrink:0;">
+                            <button type="button" id="ac-qty-minus" style="background:none; border:none; font-size:18px; cursor:pointer; color:#555; padding:0 2px; line-height:1;">−</button>
+                            <span id="ac-qty-display" style="font-size:15px; font-weight:800; min-width:20px; text-align:center;">1</span>
+                            <button type="button" id="ac-qty-plus" style="background:none; border:none; font-size:18px; cursor:pointer; color:#555; padding:0 2px; line-height:1;">+</button>
+                        </div>
                     </div>
                 </div>
 
@@ -729,9 +731,9 @@ function ac_render_modal_and_scripts() {
             var source = btn.getAttribute('data-source') || 'WhatsApp';
 
             // Producto principal / buscador extra se ocultan en modo "solo personalizado"
-            var mainProductCard = document.querySelector('#ac-prod-img').parentElement.parentElement;
-            var extraBlock      = el('ac-extra-products-block');
-            mainProductCard.style.display = customOnlyMode ? 'none' : 'flex';
+            var mainBlock  = el('ac-main-product-block');
+            var extraBlock = el('ac-extra-products-block');
+            if (mainBlock)  mainBlock.style.display  = customOnlyMode ? 'none' : 'block';
             if (extraBlock) extraBlock.style.display = customOnlyMode ? 'none' : 'block';
 
             // Poblar producto principal (si aplica)
