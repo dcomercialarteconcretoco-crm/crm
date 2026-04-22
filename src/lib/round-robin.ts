@@ -19,11 +19,14 @@ type RRSeller = { id: string; name: string };
 const STATE_KEY = 'lead_assignment_rr';
 
 async function loadRotation(pool: Pool): Promise<RRSeller[]> {
+    // Only Vendedores/Managers who are Activo AND opted-in (receives_leads=true) participate.
+    // SuperAdmins and Admins never receive leads via round-robin — they supervise.
     const { rows } = await pool.query(`
         SELECT id, name
         FROM crm_users
         WHERE status = 'Activo'
           AND role IN ('Vendedor', 'Manager')
+          AND COALESCE(receives_leads, TRUE) = TRUE
         ORDER BY created_at ASC
     `);
     return rows.map(r => ({ id: r.id, name: r.name }));

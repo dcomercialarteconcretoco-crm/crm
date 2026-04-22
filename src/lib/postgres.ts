@@ -67,6 +67,13 @@ export async function ensureCrmSchema() {
     ALTER TABLE crm_users ADD COLUMN IF NOT EXISTS onboarding_count INTEGER NOT NULL DEFAULT 0;
   `);
 
+  // Round-robin participation flag — when false the seller is skipped by the rotation
+  // for public leads (web form, biolink, WhatsApp, WooCommerce, bot). Default true
+  // so existing members keep receiving leads without extra configuration.
+  await pool.query(`
+    ALTER TABLE crm_users ADD COLUMN IF NOT EXISTS receives_leads BOOLEAN NOT NULL DEFAULT TRUE;
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_clients (
       id TEXT PRIMARY KEY,

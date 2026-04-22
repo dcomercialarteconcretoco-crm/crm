@@ -531,31 +531,48 @@ export default function ClientsPage() {
                     const openQuotes = clientQuotes.filter(q => q.status === 'Sent' || q.status === 'Draft');
 
                     if (viewMode === 'list') {
+                        const sellerInitials = client.assignedToName
+                            ? client.assignedToName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                            : '';
+                        const metaBits = [client.email, client.company, client.city].filter(Boolean);
                         return (
                             <div key={client.id} className="bg-white border border-border rounded-xl px-4 py-3 flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer group">
                                 {/* Avatar */}
-                                <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/15 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+                                <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/15 flex items-center justify-center text-sm font-bold text-primary shrink-0">
                                     {client.name.split(' ').map((n:string) => n[0]).join('').slice(0,2).toUpperCase()}
                                 </div>
-                                {/* Name + email */}
+
+                                {/* Identity block: name + seller chip inline, meta line below */}
                                 <div className="flex-1 min-w-0">
-                                    <Link href={`/leads/${client.id}`}>
-                                        <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors truncate">{client.name}</p>
-                                    </Link>
-                                    <p className="text-xs text-muted-foreground truncate">{client.email}</p>
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <Link href={`/leads/${client.id}`} className="min-w-0">
+                                            <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors truncate">{client.name}</p>
+                                        </Link>
+                                        {client.assignedToName && (
+                                            <span
+                                                title={`Vendedor: ${client.assignedToName}`}
+                                                className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-md border border-primary/15 shrink-0 whitespace-nowrap"
+                                            >
+                                                <span className="w-3.5 h-3.5 rounded-full bg-primary/20 flex items-center justify-center text-[8px] leading-none">{sellerInitials}</span>
+                                                {client.assignedToName.split(' ')[0]}
+                                            </span>
+                                        )}
+                                        {openQuotes.length > 0 && (
+                                            <span title="Tiene propuesta abierta" className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5 min-w-0">
+                                        {metaBits.map((bit, i) => (
+                                            <React.Fragment key={i}>
+                                                {i > 0 && <span className="text-muted-foreground/40 shrink-0">·</span>}
+                                                <span className={clsx('truncate', i === 0 ? 'max-w-[240px]' : 'max-w-[120px]')}>{bit}</span>
+                                            </React.Fragment>
+                                        ))}
+                                    </div>
                                 </div>
-                                {/* Company */}
-                                <div className="hidden md:block w-32 shrink-0">
-                                    <p className="text-xs font-medium text-muted-foreground truncate">{client.company}</p>
-                                    <p className="text-xs text-muted-foreground/60">{client.city}</p>
-                                    {client.assignedToName && (
-                                        <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/10 mt-0.5 inline-block">
-                                            {client.assignedToName}
-                                        </span>
-                                    )}
-                                </div>
-                                {/* Status + Source badges */}
-                                <div className="hidden lg:flex items-center gap-1.5 w-44 shrink-0 flex-wrap">
+
+                                {/* Badges: status + source */}
+                                <div className="hidden md:flex items-center gap-1.5 shrink-0">
                                     <span className={clsx(
                                         'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold',
                                         client.status === 'Active' ? 'bg-emerald-50 text-emerald-700' :
@@ -565,26 +582,28 @@ export default function ClientsPage() {
                                         {client.status}
                                     </span>
                                     {client.source === 'WooCommerce' && (
-                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-600">🛒 Web</span>
+                                        <span className="hidden lg:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-600">🛒 Web</span>
                                     )}
                                     {client.source === 'ConcreBot' && (
-                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-600">🤖 Bot</span>
+                                        <span className="hidden lg:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-600">🤖 Bot</span>
                                     )}
                                     {(!client.source || client.source === 'Manual') && (
-                                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-50 text-slate-400">✏️ Manual</span>
+                                        <span className="hidden lg:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-50 text-slate-400">✏️ Manual</span>
                                     )}
-                                    {openQuotes.length > 0 && <span className="text-xs font-bold text-primary">●</span>}
                                 </div>
-                                {/* Score */}
-                                <div className="hidden lg:block w-16 shrink-0 text-center">
-                                    <p className="text-sm font-bold text-foreground">{client.score || 0}</p>
-                                    <p className="text-xs text-muted-foreground uppercase">score</p>
+
+                                {/* Stats: score + value, compact pair */}
+                                <div className="hidden lg:flex items-center gap-5 shrink-0">
+                                    <div className="text-center leading-tight">
+                                        <p className="text-sm font-bold text-foreground">{client.score || 0}</p>
+                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">score</p>
+                                    </div>
+                                    <div className="text-right leading-tight min-w-[72px]">
+                                        <p className="text-sm font-bold text-primary">{formatCurrency(client.ltv)}</p>
+                                        <p className="text-[10px] text-muted-foreground">{clientQuotes.length} cotiz.</p>
+                                    </div>
                                 </div>
-                                {/* Value */}
-                                <div className="hidden xl:block w-28 shrink-0 text-right">
-                                    <p className="text-sm font-bold text-primary">{formatCurrency(client.ltv)}</p>
-                                    <p className="text-xs text-muted-foreground">{clientQuotes.length} cotiz.</p>
-                                </div>
+
                                 {/* Actions */}
                                 <div className="flex items-center gap-1.5 shrink-0">
                                     <button onClick={() => window.open(`https://wa.me/${client.phone?.replace(/\D/g,'')}`, '_blank')} className="p-2 rounded-lg bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white transition-all border border-emerald-100">

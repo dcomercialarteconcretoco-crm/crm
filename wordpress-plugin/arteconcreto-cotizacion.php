@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Arte Concreto – Botón Pedir Cotización
- * Description: Botones de cotización (WhatsApp y Correo) en páginas de producto y grilla. Ambos capturan el lead en el CRM y abren WhatsApp.
- * Version: 3.3.0
+ * Description: Botones de cotización (WhatsApp y Correo) en páginas de producto y grilla. Ambos capturan el lead en el CRM y abren WhatsApp. Incluye flujo de "Producto personalizado" con descripción e imagen de referencia.
+ * Version: 3.4.0
  * Author: Arte Concreto / MiWibi
  * Text Domain: ac-cotizacion
  */
@@ -418,6 +418,29 @@ function ac_loop_product_buttons() {
     <?php
 }
 
+// ── Shortcode [ac_custom_cta] — botón "Cotizar producto personalizado" ───────
+// Uso: [ac_custom_cta label="Pedir diseño a medida" style="gold"]
+add_shortcode( 'ac_custom_cta', 'ac_custom_cta_shortcode' );
+function ac_custom_cta_shortcode( $atts ) {
+    $a = shortcode_atts( [
+        'label'  => '✨ Cotizar producto personalizado',
+        'style'  => 'gold', // 'gold' | 'dark' | 'whatsapp'
+        'source' => 'Correo',
+    ], $atts, 'ac_custom_cta' );
+
+    $bg = AC_COLOR_GOLD; $fg = '#000';
+    if ( $a['style'] === 'dark' )     { $bg = AC_COLOR_DARK;  $fg = '#fff'; }
+    if ( $a['style'] === 'whatsapp' ) { $bg = '#25d366';      $fg = '#fff'; }
+
+    return sprintf(
+        '<button type="button" class="ac-open-quote" data-custom-only="1" data-source="%s" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 22px;background:%s;color:%s;font-family:inherit;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border:none;border-radius:10px;cursor:pointer;transition:opacity .2s;" onmouseover="this.style.opacity=\'.85\'" onmouseout="this.style.opacity=\'1\'">%s</button>',
+        esc_attr( $a['source'] ),
+        esc_attr( $bg ),
+        esc_attr( $fg ),
+        esc_html( $a['label'] )
+    );
+}
+
 // ── Modal compartido + JS (se renderiza UNA vez en el footer) ────────────────
 add_action( 'wp_footer', 'ac_render_modal_and_scripts' );
 
@@ -473,7 +496,7 @@ function ac_render_modal_and_scripts() {
                 </div>
 
                 <!-- ── Agregar más productos ──────────────────────── -->
-                <div style="margin-top:16px; border:1.5px dashed #e0e0e0; border-radius:12px; padding:14px;">
+                <div id="ac-extra-products-block" style="margin-top:16px; border:1.5px dashed #e0e0e0; border-radius:12px; padding:14px;">
                     <p style="margin:0 0 10px; font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:#aaa;">➕ Agregar más productos</p>
                     <div style="position:relative;">
                         <input id="ac-search-input" type="text" placeholder="Buscar bancas, macetas, mobiliario..." autocomplete="off" style="
@@ -490,6 +513,54 @@ function ac_render_modal_and_scripts() {
                         "></div>
                     </div>
                     <div id="ac-extra-list" style="margin-top:12px; display:none;"></div>
+                </div>
+
+                <!-- ── Producto personalizado ──────────────────────── -->
+                <div style="margin-top:16px; border:1.5px dashed <?php echo esc_attr( AC_COLOR_GOLD ); ?>60; background:<?php echo esc_attr( AC_COLOR_GOLD ); ?>08; border-radius:12px; padding:14px;">
+                    <label style="display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none;">
+                        <input id="ac-custom-toggle" type="checkbox" style="width:18px;height:18px;accent-color:<?php echo esc_attr( AC_COLOR_GOLD ); ?>;cursor:pointer;" />
+                        <span style="font-size:13px; font-weight:800; color:#111;">✨ ¿Necesitas algo <em>personalizado</em>?</span>
+                    </label>
+                    <p id="ac-custom-help" style="margin:6px 0 0 28px; font-size:11px; color:#888;">Diseños a medida, colores especiales, tamaños únicos — cuéntanos y un asesor te arma la cotización.</p>
+
+                    <div id="ac-custom-fields" style="display:none; margin-top:14px;">
+                        <label style="display:block; font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#777; margin-bottom:6px;">
+                            Describe lo que necesitas *
+                        </label>
+                        <textarea id="ac-custom-desc" rows="3" placeholder="Ej: Banca modular de 2.40m en concreto pulido color blanco hueso con logo grabado..." style="
+                            width:100%; padding:12px 14px; border:1.5px solid #ddd; border-radius:10px;
+                            font-size:14px; box-sizing:border-box; outline:none; font-family:inherit;
+                            resize:vertical; min-height:72px; margin-bottom:12px;
+                        " onfocus="this.style.borderColor='<?php echo esc_js( AC_COLOR_GOLD ); ?>'" onblur="this.style.borderColor='#ddd'"></textarea>
+
+                        <div style="display:grid; grid-template-columns:1fr auto; gap:12px; align-items:end;">
+                            <div>
+                                <label style="display:block; font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#777; margin-bottom:6px;">
+                                    Imagen de referencia <span style="font-weight:400;color:#bbb;">(opcional)</span>
+                                </label>
+                                <label for="ac-custom-image" style="display:flex; align-items:center; gap:8px; padding:10px 12px; border:1.5px dashed #ccc; border-radius:10px; cursor:pointer; font-size:12px; color:#666; font-weight:700;">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                    <span id="ac-custom-image-label">Subir foto de ejemplo</span>
+                                </label>
+                                <input id="ac-custom-image" type="file" accept="image/*" style="display:none;" />
+                                <p id="ac-custom-image-hint" style="margin:4px 0 0; font-size:10px; color:#aaa;">JPG/PNG/WEBP · se comprime automáticamente</p>
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#777; margin-bottom:6px;">Cantidad</label>
+                                <div style="display:flex; align-items:center; gap:6px; border:1.5px solid #ddd; border-radius:10px; padding:6px 10px;">
+                                    <button type="button" id="ac-custom-qty-minus" style="background:none; border:none; font-size:18px; cursor:pointer; color:#555; padding:0 2px; line-height:1;">−</button>
+                                    <span id="ac-custom-qty-display" style="font-size:15px; font-weight:800; min-width:22px; text-align:center;">1</span>
+                                    <button type="button" id="ac-custom-qty-plus" style="background:none; border:none; font-size:18px; cursor:pointer; color:#555; padding:0 2px; line-height:1;">+</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="ac-custom-preview-wrap" style="display:none; margin-top:12px; position:relative;">
+                            <img id="ac-custom-preview" src="" alt="Vista previa" style="width:100%; max-height:200px; object-fit:contain; border-radius:10px; background:#f5f5f5; border:1px solid #eee;" />
+                            <button type="button" id="ac-custom-preview-remove" title="Quitar imagen" style="position:absolute; top:6px; right:6px; background:rgba(0,0,0,.7); color:#fff; border:none; border-radius:50%; width:26px; height:26px; font-size:13px; cursor:pointer; line-height:1;">✕</button>
+                        </div>
+                        <p id="ac-custom-error" style="display:none; margin:8px 0 0; font-size:11px; color:#c00; font-weight:700;"></p>
+                    </div>
                 </div>
 
                 <!-- ── Formulario ─────────────────────────────────── -->
@@ -608,6 +679,8 @@ function ac_render_modal_and_scripts() {
         var currentSource  = 'WhatsApp'; // 'WhatsApp' | 'Correo'
         var mainQty        = 1;
         var extraItems     = {};
+        var customOnlyMode = false; // true cuando se abre el modal solo para cotizar un personalizado
+        var customState    = { enabled: false, desc: '', qty: 1, imageDataUrl: '' };
 
         function el(id) { return document.getElementById(id); }
 
@@ -639,22 +712,36 @@ function ac_render_modal_and_scripts() {
 
         // ── Abrir modal ──────────────────────────────────────────────────────
         function openModal(btn) {
-            currentProduct = {
-                name:      btn.getAttribute('data-name')      || '',
-                sku:       btn.getAttribute('data-sku')       || '',
-                price:     parseFloat(btn.getAttribute('data-price')) || 0,
-                priceHtml: btn.getAttribute('data-price-html') || '',
-                image:     btn.getAttribute('data-image')     || '',
-                url:       btn.getAttribute('data-url')       || '',
-            };
+            customOnlyMode = btn.getAttribute('data-custom-only') === '1';
+
+            if (customOnlyMode) {
+                currentProduct = { name:'', sku:'', price:0, priceHtml:'', image:'', url:'' };
+            } else {
+                currentProduct = {
+                    name:      btn.getAttribute('data-name')      || '',
+                    sku:       btn.getAttribute('data-sku')       || '',
+                    price:     parseFloat(btn.getAttribute('data-price')) || 0,
+                    priceHtml: btn.getAttribute('data-price-html') || '',
+                    image:     btn.getAttribute('data-image')     || '',
+                    url:       btn.getAttribute('data-url')       || '',
+                };
+            }
             var source = btn.getAttribute('data-source') || 'WhatsApp';
 
-            // Poblar producto principal
-            el('ac-prod-img').src = currentProduct.image;
-            el('ac-prod-name').textContent = currentProduct.name;
-            el('ac-prod-sku').textContent  = currentProduct.sku ? 'SKU: ' + currentProduct.sku : '';
-            el('ac-prod-sku').style.display = currentProduct.sku ? 'block' : 'none';
-            el('ac-prod-price').textContent = currentProduct.priceHtml;
+            // Producto principal / buscador extra se ocultan en modo "solo personalizado"
+            var mainProductCard = document.querySelector('#ac-prod-img').parentElement.parentElement;
+            var extraBlock      = el('ac-extra-products-block');
+            mainProductCard.style.display = customOnlyMode ? 'none' : 'flex';
+            if (extraBlock) extraBlock.style.display = customOnlyMode ? 'none' : 'block';
+
+            // Poblar producto principal (si aplica)
+            if (!customOnlyMode) {
+                el('ac-prod-img').src = currentProduct.image;
+                el('ac-prod-name').textContent = currentProduct.name;
+                el('ac-prod-sku').textContent  = currentProduct.sku ? 'SKU: ' + currentProduct.sku : '';
+                el('ac-prod-sku').style.display = currentProduct.sku ? 'block' : 'none';
+                el('ac-prod-price').textContent = currentProduct.priceHtml;
+            }
 
             // Resetear estado
             mainQty = 1;
@@ -670,6 +757,9 @@ function ac_render_modal_and_scripts() {
             // Limpiar bordes de validación
             el('ac-quote-form').elements['name'].style.borderColor  = '#ddd';
             el('ac-quote-form').elements['email'].style.borderColor = '#ddd';
+
+            // Reset producto personalizado — en modo customOnly arranca activado
+            resetCustomSection(customOnlyMode);
 
             configureModal(source);
 
@@ -814,16 +904,128 @@ function ac_render_modal_and_scripts() {
             });
         }
 
+        // ── Producto personalizado: UI handlers ──────────────────────────────
+        function resetCustomSection(forceEnabled) {
+            customState = { enabled: !!forceEnabled, desc: '', qty: 1, imageDataUrl: '' };
+            el('ac-custom-toggle').checked = !!forceEnabled;
+            el('ac-custom-fields').style.display = forceEnabled ? 'block' : 'none';
+            el('ac-custom-desc').value = '';
+            el('ac-custom-qty-display').textContent = '1';
+            el('ac-custom-image').value = '';
+            el('ac-custom-image-label').textContent = 'Subir foto de ejemplo';
+            el('ac-custom-preview-wrap').style.display = 'none';
+            el('ac-custom-preview').src = '';
+            el('ac-custom-error').style.display = 'none';
+            // En modo customOnly, el help text cambia para dejar claro que NO hay producto del catálogo
+            if (forceEnabled) {
+                el('ac-custom-help').textContent = 'Cuéntanos qué necesitas y un asesor te prepara la cotización a medida.';
+            } else {
+                el('ac-custom-help').textContent = 'Diseños a medida, colores especiales, tamaños únicos — cuéntanos y un asesor te arma la cotización.';
+            }
+        }
+
+        el('ac-custom-toggle').addEventListener('change', function() {
+            customState.enabled = this.checked;
+            el('ac-custom-fields').style.display = this.checked ? 'block' : 'none';
+            if (!this.checked) el('ac-custom-error').style.display = 'none';
+        });
+
+        el('ac-custom-desc').addEventListener('input', function() {
+            customState.desc = this.value;
+            if (this.value.trim()) el('ac-custom-error').style.display = 'none';
+        });
+
+        el('ac-custom-qty-minus').addEventListener('click', function() {
+            if (customState.qty > 1) { customState.qty--; el('ac-custom-qty-display').textContent = customState.qty; }
+        });
+        el('ac-custom-qty-plus').addEventListener('click', function() {
+            customState.qty++; el('ac-custom-qty-display').textContent = customState.qty;
+        });
+
+        el('ac-custom-preview-remove').addEventListener('click', function() {
+            customState.imageDataUrl = '';
+            el('ac-custom-image').value = '';
+            el('ac-custom-image-label').textContent = 'Subir foto de ejemplo';
+            el('ac-custom-preview-wrap').style.display = 'none';
+            el('ac-custom-preview').src = '';
+        });
+
+        el('ac-custom-image').addEventListener('change', function(e) {
+            var file = e.target.files && e.target.files[0];
+            if (!file) return;
+            var errEl = el('ac-custom-error');
+            errEl.style.display = 'none';
+
+            if (!/^image\//.test(file.type)) {
+                errEl.textContent = 'Archivo no válido. Sube una imagen (JPG, PNG o WEBP).';
+                errEl.style.display = 'block';
+                this.value = '';
+                return;
+            }
+            // 10MB de entrada — la comprimimos a ~300-500KB en cliente
+            if (file.size > 10 * 1024 * 1024) {
+                errEl.textContent = 'La imagen pesa más de 10MB. Sube una más pequeña.';
+                errEl.style.display = 'block';
+                this.value = '';
+                return;
+            }
+
+            compressImage(file, 1200, 0.78).then(function(dataUrl) {
+                customState.imageDataUrl = dataUrl;
+                el('ac-custom-preview').src = dataUrl;
+                el('ac-custom-preview-wrap').style.display = 'block';
+                el('ac-custom-image-label').textContent = file.name.length > 28 ? file.name.slice(0, 25) + '...' : file.name;
+            }).catch(function() {
+                errEl.textContent = 'No pudimos procesar la imagen. Intenta con otra.';
+                errEl.style.display = 'block';
+            });
+        });
+
+        // Compresión de imagen en cliente — resize a maxDim y re-encode como JPEG
+        function compressImage(file, maxDim, quality) {
+            return new Promise(function(resolve, reject) {
+                var reader = new FileReader();
+                reader.onload = function(ev) {
+                    var img = new Image();
+                    img.onload = function() {
+                        var w = img.width, h = img.height;
+                        var scale = Math.min(1, maxDim / Math.max(w, h));
+                        var cw = Math.round(w * scale);
+                        var ch = Math.round(h * scale);
+                        var canvas = document.createElement('canvas');
+                        canvas.width = cw; canvas.height = ch;
+                        var ctx = canvas.getContext('2d');
+                        // Fondo blanco para PNG transparentes → JPEG
+                        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cw, ch);
+                        ctx.drawImage(img, 0, 0, cw, ch);
+                        try {
+                            resolve(canvas.toDataURL('image/jpeg', quality));
+                        } catch (err) { reject(err); }
+                    };
+                    img.onerror = reject;
+                    img.src = ev.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
         // ── Construir lista de items ─────────────────────────────────────────
         function buildItems() {
-            var items = [{
-                name:     currentProduct.name,
-                sku:      currentProduct.sku,
-                price:    currentProduct.price,
-                quantity: mainQty,
-                image:    currentProduct.image,
-                url:      currentProduct.url,
-            }];
+            var items = [];
+
+            // Producto principal (salvo en modo customOnly)
+            if (!customOnlyMode && currentProduct.name) {
+                items.push({
+                    name:     currentProduct.name,
+                    sku:      currentProduct.sku,
+                    price:    currentProduct.price,
+                    quantity: mainQty,
+                    image:    currentProduct.image,
+                    url:      currentProduct.url,
+                });
+            }
+
             Object.values(extraItems).forEach(function(item) {
                 items.push({
                     name:     item.product.name,
@@ -834,6 +1036,21 @@ function ac_render_modal_and_scripts() {
                     url:      item.product.url,
                 });
             });
+
+            // Producto personalizado
+            if (customState.enabled && customState.desc.trim()) {
+                var descShort = customState.desc.trim().slice(0, 80);
+                items.push({
+                    name:              'Producto personalizado: ' + descShort,
+                    sku:               'CUSTOM',
+                    price:             0,
+                    quantity:          customState.qty,
+                    image:             customState.imageDataUrl || '',
+                    isCustom:          true,
+                    customDescription: customState.desc.trim(),
+                });
+            }
+
             return items;
         }
 
@@ -852,14 +1069,38 @@ function ac_render_modal_and_scripts() {
             if (!nameVal)  { nameInput.focus();  nameInput.style.borderColor  = '#e53e3e'; return; }
             if (!emailVal || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(emailVal)) { emailInput.focus(); emailInput.style.borderColor = '#e53e3e'; return; }
 
+            // Validar producto personalizado si está activado
+            if (customState.enabled && !customState.desc.trim()) {
+                var errEl = el('ac-custom-error');
+                errEl.textContent = 'Cuéntanos qué necesitas para poder cotizarte.';
+                errEl.style.display = 'block';
+                el('ac-custom-desc').focus();
+                el('ac-custom-desc').style.borderColor = '#e53e3e';
+                return;
+            }
+            el('ac-custom-desc').style.borderColor = '#ddd';
+
             var phoneVal   = form.elements['phone'].value.trim();
             var cityVal    = form.elements['city'].value.trim();
             var companyVal = form.elements['company'].value.trim();
             var msgVal     = form.elements['message'].value.trim();
             var items      = buildItems();
 
+            // En modo customOnly, si no activaron el custom, no hay nada que cotizar
+            if (!items.length) {
+                var errEl2 = el('ac-custom-error');
+                errEl2.textContent = 'Activa "producto personalizado" y describe lo que necesitas.';
+                errEl2.style.display = 'block';
+                el('ac-custom-toggle').focus();
+                return;
+            }
+
             // Construir URL de WhatsApp ANTES del fetch (dentro del gesto del usuario)
             var productLines = items.map(function(it) {
+                if (it.isCustom) {
+                    return '• ✨ Producto personalizado x' + it.quantity + ':\n    ' + it.customDescription
+                        + (it.image ? '\n    (adjunto imagen de referencia en el CRM)' : '');
+                }
                 return '• ' + it.name + ' x' + it.quantity + (it.sku ? ' (SKU: ' + it.sku + ')' : '');
             }).join('\n');
 

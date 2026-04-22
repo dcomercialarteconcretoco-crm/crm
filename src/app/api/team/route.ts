@@ -14,7 +14,8 @@ export async function GET() {
   const pool = getPool();
   // ⚠️ Never return password hashes — omitted from SELECT intentionally
   const { rows } = await pool.query(`
-    SELECT id, name, avatar, role, email, phone, username, status, sales, commission, permissions
+    SELECT id, name, avatar, role, email, phone, username, status, sales, commission, permissions,
+           COALESCE(receives_leads, TRUE) AS "receivesLeads"
     FROM crm_users
     ORDER BY created_at ASC
   `);
@@ -55,11 +56,15 @@ export async function POST(request: NextRequest) {
       : await hashPassword(payload.password);
   }
 
+  // receivesLeads defaults to true when not provided (backward compat for existing callers).
+  const receivesLeads = payload.receivesLeads === false ? false : true;
+
   await pool.query(
     `
       INSERT INTO crm_users (
-        id, name, avatar, role, email, phone, username, status, sales, commission, password, permissions, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
+        id, name, avatar, role, email, phone, username, status, sales, commission, password, permissions,
+        receives_leads, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         avatar = EXCLUDED.avatar,
@@ -72,6 +77,7 @@ export async function POST(request: NextRequest) {
         commission = EXCLUDED.commission,
         password = EXCLUDED.password,
         permissions = EXCLUDED.permissions,
+        receives_leads = EXCLUDED.receives_leads,
         updated_at = NOW()
     `,
     [
@@ -87,6 +93,7 @@ export async function POST(request: NextRequest) {
       payload.commission || "10%",
       passwordToStore,
       payload.permissions ? JSON.stringify(payload.permissions) : null,
+      receivesLeads,
     ]
   );
 

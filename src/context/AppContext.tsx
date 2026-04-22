@@ -157,6 +157,9 @@ export interface Seller {
     commission?: string;
     password?: string;
     permissions?: Record<string, boolean>;
+    /** When false this seller is skipped by the round-robin rotation for public leads.
+     *  They can still use the CRM normally and register their own leads. Default true. */
+    receivesLeads?: boolean;
     // Onboarding wizard progression:
     //   0 → never ran (next login triggers MANDATORY run — no skip button)
     //   1 → ran once (next login triggers OPTIONAL run — skip allowed)

@@ -62,6 +62,7 @@ function makeBlankForm(): FormSeller {
         commission: '10%',
         password: '',
         permissions: getDefaultPermissions('Vendedor'),
+        receivesLeads: true,
     };
 }
 
@@ -459,6 +460,37 @@ export default function TeamPage() {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Lead reception toggle — SuperAdmin only, applies only to Vendedor/Manager roles
+                                who would otherwise participate in round-robin. Turn OFF to skip this member
+                                when public leads arrive; they can still use the CRM and register leads manually. */}
+                            {currentUser?.role === 'SuperAdmin'
+                              && (form.role === 'Vendedor' || form.role === 'Manager')
+                              && canEditThisMember && (
+                                <div className="flex items-center justify-between p-4 bg-muted/40 border border-border rounded-2xl">
+                                    <div className="min-w-0 pr-4">
+                                        <p className="text-sm font-bold text-foreground">Recibe leads automáticos</p>
+                                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                                            {form.receivesLeads === false
+                                                ? <>OFF — El sistema <strong>NO</strong> le asigna leads del formulario web, tarjeta digital, WhatsApp ni WooCommerce. Sigue pudiendo trabajar sus propios leads.</>
+                                                : <>ON — Participa en la rotación round-robin de leads entrantes (web, tarjeta digital, WhatsApp, WooCommerce, bot).</>}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setForm(f => ({ ...f, receivesLeads: f.receivesLeads === false ? true : false }))}
+                                        className={clsx(
+                                            "w-12 h-6 rounded-full relative p-1 transition-all shrink-0",
+                                            form.receivesLeads !== false ? "bg-emerald-500" : "bg-gray-300"
+                                        )}
+                                    >
+                                        <div className={clsx(
+                                            "w-4 h-4 bg-white rounded-full absolute transition-all shadow-sm",
+                                            form.receivesLeads !== false ? "right-1" : "left-1"
+                                        )}></div>
+                                    </button>
+                                </div>
+                            )}
 
                             {/* Permissions Panel — only for users with team.manage */}
                             {canManageTeam && (

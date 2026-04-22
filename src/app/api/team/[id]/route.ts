@@ -58,10 +58,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       : await hashPassword(payload.password);
   }
 
+  const receivesLeads = payload.receivesLeads === false ? false : true;
+
   await pool.query(
     `
-      INSERT INTO crm_users (id, name, avatar, role, email, phone, username, status, sales, commission, password, permissions, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+      INSERT INTO crm_users (id, name, avatar, role, email, phone, username, status, sales, commission, password, permissions, receives_leads, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         avatar = EXCLUDED.avatar,
@@ -74,6 +76,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         commission = EXCLUDED.commission,
         password = EXCLUDED.password,
         permissions = EXCLUDED.permissions,
+        receives_leads = EXCLUDED.receives_leads,
         updated_at = NOW()
     `,
     [
@@ -89,6 +92,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       payload.commission || "10%",
       passwordToStore,
       payload.permissions ? JSON.stringify(payload.permissions) : null,
+      receivesLeads,
     ]
   );
 
