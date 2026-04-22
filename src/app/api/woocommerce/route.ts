@@ -20,6 +20,18 @@ function authHeader(key: string, secret: string) {
     return 'Basic ' + Buffer.from(`${key}:${secret}`).toString('base64');
 }
 
+function describeError(err: unknown): string {
+    if (!err) return 'unknown';
+    const e = err as { message?: string; name?: string; cause?: { code?: string; message?: string; errno?: number } };
+    const parts: string[] = [];
+    if (e.name) parts.push(e.name);
+    if (e.message) parts.push(e.message);
+    if (e.cause?.code) parts.push(`code=${e.cause.code}`);
+    if (e.cause?.errno) parts.push(`errno=${e.cause.errno}`);
+    if (e.cause?.message && e.cause.message !== e.message) parts.push(e.cause.message);
+    return parts.join(' · ') || String(err);
+}
+
 async function wooFetch(
     baseUrl: string,
     path: string,
@@ -28,25 +40,47 @@ async function wooFetch(
     init: RequestInit = {},
     extraQuery?: Record<string, string>
 ): Promise<Response> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25_000); // 25s hard timeout
-
-    try {
-        const res = await fetch(wooUrl(baseUrl, path, extraQuery), {
-            ...init,
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': authHeader(key, secret),
-                'User-Agent': 'CRM-ArteConcreto/1.1',
-                ...(init.headers || {}),
-            },
-            cache: 'no-store',
-            signal: controller.signal,
-        });
-        return res;
-    } finally {
-        clearTimeout(timeout);
+    // Up to 3 attempts with exponential backoff for transient network failures (ECONNRESET,
+    // ETIMEDOUT, upstream cold-start). Abort each attempt at 25s so we fail loud instead of
+    // hanging the serverless function.
+    const MAX_ATTEMPTS = 3;
+    let lastError: unknown = null;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 25_000);
+        try {
+            const res = await fetch(wooUrl(baseUrl, path, extraQuery), {
+                ...init,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': authHeader(key, secret),
+                    'User-Agent': 'CRM-ArteConcreto/1.1',
+                    ...(init.headers || {}),
+                },
+                cache: 'no-store',
+                signal: controller.signal,
+            });
+            clearTimeout(timeout);
+            // Retry only on 502/503/504 (transient upstream). 4xx are real errors — bubble immediately.
+            if (attempt < MAX_ATTEMPTS && [502, 503, 504].includes(res.status)) {
+                console.warn(`WooCommerce upstream ${res.status} on attempt ${attempt}, retrying…`);
+                lastError = new Error(`upstream ${res.status}`);
+                await new Promise(r => setTimeout(r, 500 * attempt));
+                continue;
+            }
+            return res;
+        } catch (err) {
+            clearTimeout(timeout);
+            lastError = err;
+            if (attempt < MAX_ATTEMPTS) {
+                console.warn(`WooCommerce fetch attempt ${attempt} failed: ${describeError(err)}. Retrying…`);
+                await new Promise(r => setTimeout(r, 500 * attempt));
+                continue;
+            }
+            throw err;
+        }
     }
+    throw lastError;
 }
 
 export async function GET(req: NextRequest) {
