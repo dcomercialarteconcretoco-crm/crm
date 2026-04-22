@@ -7,11 +7,9 @@ import {
     User,
     Mail,
     Phone,
-    TrendingUp,
     Shield,
     CheckCircle2,
     Users,
-    Clock,
     Trash2,
     X,
     Eye,
@@ -68,9 +66,8 @@ function makeBlankForm(): FormSeller {
 }
 
 export default function TeamPage() {
-    const { sellers, addSeller, deleteSeller, updateSeller, currentUser, quotes, tasks } = useApp();
+    const { sellers, addSeller, deleteSeller, updateSeller, currentUser, quotes } = useApp();
     const [searchTerm, setSearchTerm] = useState("");
-    const [view, setView] = useState<'team' | 'stats'>('team');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingSeller, setEditingSeller] = useState<Seller | null>(null);
     const editingGod = isGodUser(editingSeller);
@@ -206,36 +203,6 @@ export default function TeamPage() {
                 )}
             </div>
 
-            {/* View Switcher */}
-            <div className="flex items-center justify-center">
-                <div className="surface-card rounded-xl p-1 flex items-center gap-1">
-                    <button
-                        onClick={() => setView('team')}
-                        className={clsx(
-                            'px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all flex items-center gap-2',
-                            view === 'team'
-                                ? 'bg-primary text-black shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
-                        )}
-                    >
-                        <Users className="w-3.5 h-3.5" />
-                        Equipo
-                    </button>
-                    <button
-                        onClick={() => setView('stats')}
-                        className={clsx(
-                            'px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all flex items-center gap-2',
-                            view === 'stats'
-                                ? 'bg-primary text-black shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
-                        )}
-                    >
-                        <TrendingUp className="w-3.5 h-3.5" />
-                        Estadísticas
-                    </button>
-                </div>
-            </div>
-
             {/* Filter Bar */}
             <div className="surface-card rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="relative flex-1 max-w-md">
@@ -253,10 +220,9 @@ export default function TeamPage() {
                 </span>
             </div>
 
-            {view === 'team' ? (
-                /* Team Card Grid */
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {filteredSellers.map((seller) => {
+            {/* Team Card Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {filteredSellers.map((seller) => {
                         const isSelf = seller.id === currentUser?.id;
                         // Only the single god account is protected from edits/deletes.
                         // Other SuperAdmins are regular team members and can be managed normally.
@@ -348,78 +314,7 @@ export default function TeamPage() {
                             </div>
                         );
                     })}
-                </div>
-            ) : (
-                /* Stats View */
-                <div className="space-y-4">
-                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Rendimiento del equipo</p>
-                    {filteredSellers.map((seller) => {
-                        const sellerQuotes = quotes.filter(q => q.sellerId === seller.id || q.sellerName === seller.name);
-                        const sellerTasks = tasks.filter(t => t.assignedTo === seller.id || t.assignedTo === seller.name);
-                        const wonQuotes = sellerQuotes.filter(q => q.status === 'Approved');
-                        const totalRevenue = wonQuotes.reduce((acc, q) => acc + (q.numericTotal || 0), 0);
-                        const conversionRate = sellerQuotes.length > 0 ? Math.round((wonQuotes.length / sellerQuotes.length) * 100) : 0;
-                        const revenueFormatted = totalRevenue > 0
-                            ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(totalRevenue)
-                            : '$0';
-
-                        return (
-                            <div
-                                key={seller.id}
-                                className="surface-card rounded-2xl p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center hover:border-primary/30 transition-all group"
-                            >
-                                {/* Identity */}
-                                <div className="lg:col-span-4 flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-base font-bold text-primary group-hover:bg-primary group-hover:text-black transition-all overflow-hidden shrink-0">
-                                        {seller.avatar ? (
-                                            <img src={seller.avatar} alt={seller.name} className="w-full h-full object-cover" />
-                                        ) : (
-                                            seller.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-                                        )}
-                                    </div>
-                                    <div>
-                                        <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{seller.name}</h3>
-                                        <p className="text-xs text-muted-foreground mt-0.5">{seller.role}</p>
-                                        <p className="text-xs text-muted-foreground mt-0.5">
-                                            {sellerTasks.length} tarea{sellerTasks.length !== 1 ? 's' : ''} asignada{sellerTasks.length !== 1 ? 's' : ''}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Stat boxes */}
-                                <div className="lg:col-span-8 grid grid-cols-2 md:grid-cols-4 gap-3">
-                                    <div className="surface-card rounded-xl p-4 flex flex-col items-center justify-center border-border hover:scale-105 transition-all">
-                                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Cotizaciones</p>
-                                        <p className="text-xl font-black text-sky-500">{sellerQuotes.length}</p>
-                                        <p className="text-xs text-muted-foreground mt-0.5">total enviadas</p>
-                                    </div>
-                                    <div className="surface-card rounded-xl p-4 flex flex-col items-center justify-center border-border hover:scale-105 transition-all">
-                                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Ganadas</p>
-                                        <p className="text-xl font-black text-emerald-500">{wonQuotes.length}</p>
-                                        <p className="text-xs text-muted-foreground mt-0.5">aprobadas</p>
-                                    </div>
-                                    <div className="surface-card rounded-xl p-4 flex flex-col items-center justify-center border-border hover:scale-105 transition-all">
-                                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Tasa</p>
-                                        <p className="text-xl font-black text-primary">{conversionRate}%</p>
-                                        <p className="text-xs text-muted-foreground mt-0.5">conversión</p>
-                                    </div>
-                                    <div className="surface-card rounded-xl p-4 flex flex-col items-center justify-center border-border hover:scale-105 transition-all">
-                                        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Revenue</p>
-                                        <p className="text-sm font-black text-amber-500 text-center leading-tight">{revenueFormatted}</p>
-                                        <p className="text-xs text-muted-foreground mt-0.5">ganado</p>
-                                    </div>
-                                </div>
-
-                                <div className="hidden lg:flex lg:col-span-12 justify-end -mt-4">
-                                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-                                        <Clock className="w-3 h-3" /> En vivo
-                                    </span>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
+            </div>
 
             {/* Add/Edit Modal */}
             {isModalOpen && (

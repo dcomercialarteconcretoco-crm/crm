@@ -459,6 +459,8 @@ async function loadRealActivities(targetDate: Date): Promise<SellerActivity[]> {
 
     return sellers
         .filter((s) => s.status !== 'Inactivo')
+        // SuperAdmin/Admin no son vendedores — no deben aparecer en el reporte
+        .filter((s) => s.role !== 'SuperAdmin' && s.role !== 'Admin')
         .map((seller): SellerActivity => {
             const sellerLogs = auditLogs.filter(
                 (l) => l.userId === seller.id && isSameBogotaDay(new Date(l.timestamp), targetDate)

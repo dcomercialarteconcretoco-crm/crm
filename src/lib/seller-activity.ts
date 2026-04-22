@@ -60,13 +60,20 @@ export interface AggregateInput {
     to: Date;
     /** Skip sellers marked Inactivo. Default true. */
     excludeInactive?: boolean;
+    /** Skip SuperAdmin/Admin — no son vendedores, no deben aparecer en rankings. Default true. */
+    excludeAdmins?: boolean;
 }
 
 export function aggregateSellerActivity(input: AggregateInput): SellerActivity[] {
-    const { sellers, clients, quotes, auditLogs, events, from, to, excludeInactive = true } = input;
+    const {
+        sellers, clients, quotes, auditLogs, events, from, to,
+        excludeInactive = true,
+        excludeAdmins = true,
+    } = input;
 
     return sellers
         .filter((s) => !excludeInactive || s.status !== 'Inactivo')
+        .filter((s) => !excludeAdmins || (s.role !== 'SuperAdmin' && s.role !== 'Admin'))
         .map((seller): SellerActivity => {
             const sellerLogs = auditLogs.filter(
                 (l) => l.userId === seller.id && isInRange(new Date(l.timestamp), from, to)
