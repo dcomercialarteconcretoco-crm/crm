@@ -2095,7 +2095,29 @@ export default function SettingsPage() {
                                                 <p className="text-xs font-black text-rose-600 text-center">¿Estás seguro? Esta acción borra TODO y no se puede revertir.</p>
                                                 <div className="flex gap-2">
                                                     <button
-                                                        onClick={() => { clearTestData(); setClearConfirm(false); }}
+                                                        onClick={async () => {
+                                                            try {
+                                                                const res = await fetch('/api/admin/clear-test-data', { method: 'POST' });
+                                                                const data = await res.json();
+                                                                if (res.ok) {
+                                                                    // Tambi\u00e9n limpiar estado local para que la UI refleje inmediatamente
+                                                                    clearTestData();
+                                                                    addNotification({
+                                                                        title: '\u2705 Datos borrados',
+                                                                        description: `Servidor limpio. Clientes eliminados: ${data.results?.clients ?? 0}`,
+                                                                        type: 'success',
+                                                                    });
+                                                                } else {
+                                                                    addNotification({
+                                                                        title: 'Error borrando datos',
+                                                                        description: data.error || 'Intenta de nuevo',
+                                                                        type: 'alert',
+                                                                    });
+                                                                }
+                                                            } finally {
+                                                                setClearConfirm(false);
+                                                            }
+                                                        }}
                                                         className="flex-1 py-2.5 bg-rose-500 text-white font-black text-[10px] uppercase tracking-widest rounded-xl hover:bg-rose-600 transition-all"
                                                     >
                                                         Sí, borrar todo
