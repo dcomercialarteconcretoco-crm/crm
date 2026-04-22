@@ -32,6 +32,7 @@ import {
     hasPermission,
 } from '@/lib/permissions';
 import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
+import { isGodUser, isCurrentUserGod } from '@/lib/god-user';
 
 type FormSeller = Omit<Seller, 'id'> & { permissions: Record<string, boolean> };
 
@@ -72,6 +73,9 @@ export default function TeamPage() {
     const [view, setView] = useState<'team' | 'stats'>('team');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingSeller, setEditingSeller] = useState<Seller | null>(null);
+    const editingGod = isGodUser(editingSeller);
+    const iAmGod = isCurrentUserGod(currentUser);
+    const canEditThisMember = !editingGod || iAmGod;
     const [showPassword, setShowPassword] = useState(false);
     const [showPermissions, setShowPermissions] = useState(false);
     const [form, setForm] = useState<FormSeller>(makeBlankForm());
@@ -254,9 +258,12 @@ export default function TeamPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                     {filteredSellers.map((seller) => {
                         const isSelf = seller.id === currentUser?.id;
-                        const roleLC = (seller.role || '').toLowerCase();
-                        const isProtected = roleLC === 'superadmin';
-                        const canDelete = !isSelf && !isProtected && isCurrentUserAdmin;
+                        // Only the single god account is protected from edits/deletes.
+                        // Other SuperAdmins are regular team members and can be managed normally.
+                        const sellerIsGod = isGodUser(seller);
+                        const iAmGod = isCurrentUserGod(currentUser);
+                        const canDelete = !isSelf && !sellerIsGod && isCurrentUserAdmin;
+                        const canEditSeller = iAmGod || !sellerIsGod;
                         const activePerms = countActivePerms(seller);
 
                         return (
@@ -324,7 +331,7 @@ export default function TeamPage() {
                                         className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-black font-bold text-xs transition-all border border-primary/20"
                                     >
                                         <Eye className="w-3.5 h-3.5" />
-                                        {canManageTeam ? 'Ver / Editar' : 'Ver Perfil'}
+                                        {canEditSeller && canManageTeam ? 'Ver / Editar' : 'Ver Perfil'}
                                     </button>
                                     {canDelete && (
                                         <PermissionHide require="team.delete">
@@ -526,7 +533,7 @@ export default function TeamPage() {
                                         value={form.role}
                                         onChange={(e) => handleRoleChange(e.target.value)}
                                         className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:bg-white appearance-none transition-all"
-                                        disabled={!canManageTeam}
+                                        disabled={!canManageTeam || !canEditThisMember}
                                     >
                                         <option value="SuperAdmin">Administrador Principal</option>
                                         <option value="Admin">Administrador</option>
@@ -659,7 +666,7 @@ export default function TeamPage() {
                             >
                                 Cancelar
                             </button>
-                            {canManageTeam && (
+                            {canManageTeam && canEditThisMember && (
                                 <button
                                     onClick={handleSave}
                                     className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 transition-all shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2 text-sm"
@@ -667,6 +674,11 @@ export default function TeamPage() {
                                     <CheckCircle2 className="w-4 h-4" />
                                     {editingSeller ? 'Actualizar Miembro' : 'Crear Usuario'}
                                 </button>
+                            )}
+                            {editingGod && !iAmGod && (
+                                <span className="text-xs font-bold text-rose-500 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
+                                    Cuenta protegida
+                                </span>
                             )}
                         </div>
                     </div>

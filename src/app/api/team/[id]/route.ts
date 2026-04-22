@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureCrmSchema, getPool, hasDatabase } from "@/lib/postgres";
 import { hashPassword, isBcryptHash } from "@/lib/password";
+import { isGodUser, isCurrentUserGod } from "@/lib/god-user";
+import { parseSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth-session";
+
+async function loadSession(request: NextRequest) {
+  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  return parseSessionToken(token);
+}
+
+async function loadTarget(pool: ReturnType<typeof getPool>, id: string) {
+  const { rows } = await pool.query(`SELECT id, email FROM crm_users WHERE id = $1 LIMIT 1`, [id]);
+  return rows[0] || null;
+}
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!hasDatabase()) {
@@ -11,6 +23,25 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const payload = await request.json();
   await ensureCrmSchema();
   const pool = getPool();
+
+  // Guard: god's row is immutable to everyone except god themselves.
+  const session = await loadSession(request);
+  const target = await loadTarget(pool, id);
+  const targetIsGod = isGodUser(target || { id, email: payload.email });
+  if (targetIsGod && !isCurrentUserGod(session)) {
+    return NextResponse.json(
+      { error: 'Esta cuenta está protegida. Solo el propietario principal puede editarla.' },
+      { status: 403 }
+    );
+  }
+  // Also refuse to silently promote someone to god's email.
+  const tryingToBecomeGod = isGodUser({ id: payload.id || id, email: payload.email }) && !targetIsGod;
+  if (tryingToBecomeGod) {
+    return NextResponse.json(
+      { error: 'No se puede asignar esa identidad al usuario.' },
+      { status: 403 }
+    );
+  }
 
   let passwordToStore: string | null = null;
   if (payload.password) {
@@ -56,7 +87,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!hasDatabase()) {
     return NextResponse.json({ error: "Database is not configured" }, { status: 503 });
   }
@@ -64,6 +95,21 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   await ensureCrmSchema();
   const pool = getPool();
+
+  // Guard: god can never be deleted — not by other SuperAdmins, not by Admins, not by anyone.
+  const session = await loadSession(request);
+  const target = await loadTarget(pool, id);
+  if (isGodUser(target || { id })) {
+    // Even god themselves shouldn't be able to accidentally delete the root account.
+    return NextResponse.json(
+      { error: 'La cuenta principal del sistema no puede ser eliminada.' },
+      { status: 403 }
+    );
+  }
+  if (!session) {
+    return NextResponse.json({ error: 'Sesión requerida.' }, { status: 401 });
+  }
+
   await pool.query(`DELETE FROM crm_users WHERE id = $1`, [id]);
   return NextResponse.json({ ok: true });
 }

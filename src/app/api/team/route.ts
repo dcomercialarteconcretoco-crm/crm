@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureCrmSchema, getPool, hasDatabase } from "@/lib/postgres";
 import { hashPassword, isBcryptHash } from "@/lib/password";
+import { isGodUser } from "@/lib/god-user";
 
 export async function GET() {
   if (!hasDatabase()) {
@@ -27,6 +28,14 @@ export async function POST(request: NextRequest) {
   await ensureCrmSchema();
   const payload = await request.json();
   const pool = getPool();
+
+  // Nobody can create/overwrite the god account through the normal team endpoint.
+  if (isGodUser({ id: payload.id, email: payload.email })) {
+    return NextResponse.json(
+      { error: 'Esa identidad está reservada para la cuenta principal del sistema.' },
+      { status: 403 }
+    );
+  }
 
   let passwordToStore: string | null = null;
   if (payload.password) {
