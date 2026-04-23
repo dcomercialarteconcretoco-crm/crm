@@ -74,9 +74,12 @@ export default function BiolinksPage() {
                     fetch('/api/biolinks'),
                     fetch('/api/biolinks/settings'),
                 ]);
-                // If session expired, force logout
+                // Session rejected by the API. Send the user to /login but
+                // don't destroy the cookie — if this was a transient failure
+                // (cold start, DB blip) they can just navigate back and
+                // continue working. Middleware will keep them out if the
+                // cookie really is invalid.
                 if (blRes.status === 401) {
-                    await fetch('/api/auth/logout', { method: 'POST' });
                     router.push('/login');
                     return;
                 }

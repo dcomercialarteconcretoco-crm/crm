@@ -3,15 +3,44 @@
  * Uses Web Crypto API (globalThis.crypto.subtle) so tokens are signed and
  * verified identically in the Vercel Edge runtime (middleware) and in
  * Node.js route handlers.  Node.js ≥ 18 ships globalThis.crypto natively.
+ *
+ * Secret rotation tolerance:
+ *   Cookies are always SIGNED with PRIMARY_SECRET (the first non-empty value
+ *   of SESSION_SECRET, SUPERADMIN_PASSWORD, or a built-in dev fallback).
+ *   They VERIFY against any candidate in the fallback chain so a live env
+ *   rotation (e.g. someone adds SESSION_SECRET after weeks of relying on the
+ *   password fallback) doesn't instantly invalidate every in-flight session.
+ *   /api/auth/me re-issues the cookie with PRIMARY_SECRET on every call, so
+ *   legacy cookies get silently migrated on the user's next page load.
  */
 
 const SESSION_COOKIE = "crm_session";
 
-const SESSION_SECRET = (
+const DEV_FALLBACK_SECRET = "ac-fallback-dev-secret-change-in-prod";
+
+// Primary secret: used for SIGNING new cookies. First non-empty wins.
+const PRIMARY_SECRET = (
   process.env.SESSION_SECRET ||
   process.env.SUPERADMIN_PASSWORD ||
-  "ac-fallback-dev-secret-change-in-prod"
+  DEV_FALLBACK_SECRET
 ).trim();
+
+// Every secret we'll accept when VERIFYING an incoming cookie — deduplicated,
+// trimmed, and filtered to non-empty. Verifying against each candidate means
+// a cookie signed under any historical member of the fallback chain still
+// works, which prevents the "every refresh logs me out" failure mode when
+// env vars change or drift between deploys.
+const CANDIDATE_SECRETS: string[] = Array.from(
+  new Set(
+    [
+      process.env.SESSION_SECRET,
+      process.env.SUPERADMIN_PASSWORD,
+      DEV_FALLBACK_SECRET,
+    ]
+      .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+      .map((s) => s.trim())
+  )
+);
 
 export type SessionUser = {
   id: string;
@@ -31,18 +60,18 @@ export type SessionUser = {
 
 const enc = new TextEncoder();
 
-async function getKey(): Promise<CryptoKey> {
+async function importKey(secret: string): Promise<CryptoKey> {
   return globalThis.crypto.subtle.importKey(
     "raw",
-    enc.encode(SESSION_SECRET),
+    enc.encode(secret),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign", "verify"]
   );
 }
 
-async function hmacHex(payload: string): Promise<string> {
-  const key = await getKey();
+async function hmacHexWith(secret: string, payload: string): Promise<string> {
+  const key = await importKey(secret);
   const buf = await globalThis.crypto.subtle.sign("HMAC", key, enc.encode(payload));
   return Array.from(new Uint8Array(buf))
     .map((b) => b.toString(16).padStart(2, "0"))
@@ -65,7 +94,7 @@ function b64urlDecode(str: string): string {
 
 export async function createSessionToken(user: SessionUser): Promise<string> {
   const payload = b64urlEncode(JSON.stringify(user));
-  const sig = await hmacHex(payload);
+  const sig = await hmacHexWith(PRIMARY_SECRET, payload);
   return `${payload}.${sig}`;
 }
 
@@ -78,9 +107,15 @@ export async function parseSessionToken(
   const payload = token.slice(0, dot);
   const sig = token.slice(dot + 1);
   try {
-    const expected = await hmacHex(payload);
-    if (expected !== sig) return null;
-    return JSON.parse(b64urlDecode(payload)) as SessionUser;
+    // Try each historical secret — cookies signed with any member of the
+    // fallback chain still verify, which smooths out env rotations.
+    for (const candidate of CANDIDATE_SECRETS) {
+      const expected = await hmacHexWith(candidate, payload);
+      if (expected === sig) {
+        return JSON.parse(b64urlDecode(payload)) as SessionUser;
+      }
+    }
+    return null;
   } catch {
     return null;
   }

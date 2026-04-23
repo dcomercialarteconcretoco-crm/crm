@@ -60,7 +60,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [showSearchResults, setShowSearchResults] = useState(false);
     const [liveToasts, setLiveToasts] = useState<LiveToast[]>([]);
-    const { notifications, setNotifications, settings, currentUser, isHydrating, logout, clients, tasks, quotes, products } = useApp() as any;
+    const { notifications, setNotifications, settings, currentUser, isHydrating, logout, clients, tasks, quotes, products, incrementOnboardingCount } = useApp() as any;
     const pathname = usePathname();
     const router = useRouter();
 
@@ -176,7 +176,18 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }, [currentUser, pathname, router, isPublicPage, isHydrating]);
 
     // Auto-open the onboarding wizard when a user logs in with onboardingCount < 2.
-    // Runs only on the first mount per session so navigation doesn't re-pop the modal.
+    //
+    // Business rule (explicit request from the owner):
+    //   - 1st auto-open (count 0) → OPTIONAL, user can skip freely.
+    //   - 2nd auto-open (count 1) → MANDATORY, skip button is hidden.
+    //   - 3rd login onwards (count ≥ 2) → never auto-opened.
+    //
+    // The counter is incremented AT AUTO-OPEN TIME — not when the user clicks
+    // Terminar/Saltar. That's on purpose: before this fix the counter only
+    // advanced on completion, so a user who closed the tab mid-tour (or lost
+    // their session to a transient 401) would see the mandatory wizard every
+    // single login, forever. Now the moment we *show* the wizard it counts as
+    // "seen", so they always graduate after exactly 2 logins.
     useEffect(() => {
         if (wizardAutoTriggered) return;
         if (!currentUser) return;
@@ -185,12 +196,18 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         const count = typeof currentUser.onboardingCount === 'number' ? currentUser.onboardingCount : 0;
         if (count < 2) {
             setWizardOpen(true);
+            // Fire-and-forget: advance the persisted counter so future logins
+            // don't re-show the same phase. The wizard itself intentionally
+            // does NOT increment, so this is the single source of truth.
+            incrementOnboardingCount?.().catch(() => {});
         }
         setWizardAutoTriggered(true);
-    }, [currentUser, isPublicPage, isHydrating, wizardAutoTriggered]);
+    }, [currentUser, isPublicPage, isHydrating, wizardAutoTriggered, incrementOnboardingCount]);
 
     const onboardingCount = currentUser?.onboardingCount ?? 0;
-    const wizardIsMandatory = onboardingCount === 0;
+    // count=1 means the user is seeing the wizard for the second time — that's
+    // the mandatory pass. count=0 is the first (optional) showing.
+    const wizardIsMandatory = onboardingCount === 1;
     const canReplayWizard = onboardingCount < 2;
 
     // Apply/remove anti-screenshot mode on body based on SuperAdmin setting

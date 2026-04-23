@@ -826,22 +826,28 @@ REGLAS DE ORO:
                     fetch('/api/state', { cache: 'no-store' })
                 ]);
 
+                // /api/auth/me is THE source of truth for session validity.
+                // If it returns 200 with a user, the cookie is good — even if
+                // other endpoints are transiently returning 401 (cold start,
+                // DB blip, rate limit). Only treat a 401 FROM /api/auth/me
+                // ITSELF as a real logout signal, and never call
+                // /api/auth/logout preemptively: destroying the cookie turns
+                // every transient hiccup into a permanent sign-out.
                 if (meRes.ok) {
                     const meData = await meRes.json();
                     if (meData.user) setCurrentUser(meData.user);
-                } else if (isProduction) {
+                } else if (meRes.status === 401 && isProduction) {
+                    // Clear the in-memory user so protected routes don't
+                    // render stale data — but leave the cookie alone. If it
+                    // was a blip the next refresh will recover; if the cookie
+                    // really is invalid the user will be redirected to /login
+                    // by the route guards and re-authenticate normally.
                     setCurrentUser(null);
                 }
 
                 if (teamRes.ok) {
                     const teamData = await teamRes.json();
                     if (Array.isArray(teamData.users)) setSellers(teamData.users);
-                }
-
-                if (teamRes.status === 401 && meRes.status === 401) {
-                    // Both failed — session completely invalid, force logout
-                    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
-                    setCurrentUser(null);
                 }
 
                 if (clientsRes.ok) {

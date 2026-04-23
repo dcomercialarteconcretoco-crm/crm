@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link';
 import { clsx } from 'clsx';
 import { ChevronLeft, ChevronRight, X, Check, ExternalLink } from 'lucide-react';
-import { useApp, type Seller } from '@/context/AppContext';
+import { type Seller } from '@/context/AppContext';
 import { buildSteps, type WizardStep } from './steps';
 
 interface OnboardingWizardProps {
@@ -26,7 +26,6 @@ const ACCENT_CLASSES: Record<WizardStep['accent'], { bg: string; text: string; r
 };
 
 export function OnboardingWizard({ user, isMandatory, onComplete, onSkip }: OnboardingWizardProps) {
-    const { incrementOnboardingCount } = useApp();
     const steps = useMemo(() => buildSteps(user), [user]);
     const [index, setIndex] = useState(0);
     const [isFinishing, setIsFinishing] = useState(false);
@@ -38,32 +37,29 @@ export function OnboardingWizard({ user, isMandatory, onComplete, onSkip }: Onbo
     const isLast = index === steps.length - 1;
     const isFirst = index === 0;
 
-    const goNext = useCallback(async () => {
+    // NOTE: the onboardingCount counter is incremented by the parent
+    // (DashboardLayout) at the moment the wizard auto-opens. The wizard itself
+    // must NOT call incrementOnboardingCount — doing so would double-count and
+    // burn through the user's 2 allowed showings in a single session.
+
+    const goNext = useCallback(() => {
         if (isLast) {
             setIsFinishing(true);
-            try {
-                await incrementOnboardingCount();
-            } finally {
-                onComplete();
-            }
+            onComplete();
             return;
         }
         setIndex(i => Math.min(i + 1, steps.length - 1));
-    }, [isLast, steps.length, incrementOnboardingCount, onComplete]);
+    }, [isLast, steps.length, onComplete]);
 
     const goPrev = useCallback(() => {
         setIndex(i => Math.max(i - 1, 0));
     }, []);
 
-    const handleSkip = useCallback(async () => {
+    const handleSkip = useCallback(() => {
         if (isMandatory) return;
         setIsFinishing(true);
-        try {
-            await incrementOnboardingCount();
-        } finally {
-            onSkip();
-        }
-    }, [isMandatory, incrementOnboardingCount, onSkip]);
+        onSkip();
+    }, [isMandatory, onSkip]);
 
     // Keyboard navigation
     useEffect(() => {
@@ -175,10 +171,10 @@ export function OnboardingWizard({ user, isMandatory, onComplete, onSkip }: Onbo
                         {step.tryIt && (
                             <Link
                                 href={step.tryIt.href}
-                                onClick={async () => {
-                                    // When user clicks "try it" we mark the tour as seen so we don't
-                                    // pop it back up after navigation — feels responsive and sane.
-                                    try { await incrementOnboardingCount(); } catch {}
+                                onClick={() => {
+                                    // Closing the wizard is enough — the count was already
+                                    // advanced by the parent when the wizard auto-opened, so
+                                    // navigating away won't make it re-pop later.
                                     onComplete();
                                 }}
                                 className={clsx(

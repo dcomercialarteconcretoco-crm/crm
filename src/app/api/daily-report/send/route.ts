@@ -427,7 +427,7 @@ async function loadRealActivities(targetDate: Date): Promise<SellerActivity[]> {
 
     // Load team + clients + state (quotes, audit logs, events)
     const [teamRes, clientsRes, stateRes] = await Promise.all([
-        pool.query('SELECT id, name, email, role, status FROM crm_team ORDER BY name').catch(() => ({ rows: [] as any[] })),
+        pool.query('SELECT id, name, email, role, status FROM crm_users ORDER BY name').catch(() => ({ rows: [] as any[] })),
         pool.query('SELECT id, name, company, city, status, assigned_to, registration_date FROM crm_clients').catch(() => ({ rows: [] as any[] })),
         pool.query(`SELECT key, value FROM crm_state WHERE key IN ('quotes', 'auditLogs', 'events')`).catch(() => ({ rows: [] as any[] })),
     ]);
@@ -668,13 +668,24 @@ async function resolveRecipients(
     (requestedEmails || []).forEach((e) => e && set.add(e.toLowerCase()));
     (extraEmails || []).forEach((e) => e && set.add(e.toLowerCase()));
 
-    if (recipientIds && recipientIds.length > 0 && hasDatabase()) {
-        await ensureCrmSchema();
-        const pool = getPool();
-        const { rows } = await pool
-            .query(`SELECT email FROM crm_team WHERE id = ANY($1::text[]) AND email IS NOT NULL`, [recipientIds])
-            .catch(() => ({ rows: [] as any[] }));
-        rows.forEach((r: any) => r.email && set.add(String(r.email).toLowerCase()));
+    if (recipientIds && recipientIds.length > 0) {
+        // The env-based "god" SuperAdmin (id "superadmin-server") has no row
+        // in crm_users — resolve that synthetic id to the configured
+        // SUPERADMIN_EMAIL directly so it also receives the report.
+        const godEmail = process.env.SUPERADMIN_EMAIL?.trim().toLowerCase();
+        if (godEmail && recipientIds.includes('superadmin-server')) {
+            set.add(godEmail);
+        }
+
+        const realIds = recipientIds.filter((id) => id !== 'superadmin-server');
+        if (realIds.length > 0 && hasDatabase()) {
+            await ensureCrmSchema();
+            const pool = getPool();
+            const { rows } = await pool
+                .query(`SELECT email FROM crm_users WHERE id = ANY($1::text[]) AND email IS NOT NULL`, [realIds])
+                .catch(() => ({ rows: [] as any[] }));
+            rows.forEach((r: any) => r.email && set.add(String(r.email).toLowerCase()));
+        }
     }
 
     return Array.from(set).filter((e) => /.+@.+\..+/.test(e));
