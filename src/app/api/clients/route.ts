@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureCrmSchema, getPool, hasDatabase } from "@/lib/postgres";
-import { parseSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth-session";
+import { loadFreshSession } from "@/lib/auth-session";
 
 export async function GET(request: NextRequest) {
   if (!hasDatabase()) {
@@ -13,7 +13,9 @@ export async function GET(request: NextRequest) {
   // Ownership scoping: Vendedores only get their own clients from this endpoint,
   // so even a direct API call (bypassing the UI filter) can't leak other sellers' data.
   // Admins, Managers, and SuperAdmins see everything.
-  const session = await parseSessionToken(request.cookies.get(SESSION_COOKIE_NAME)?.value);
+  // Role is read fresh from the DB (not the signed cookie) so role changes take
+  // effect immediately without requiring the user to log out and back in.
+  const session = await loadFreshSession(request);
   const canSeeAll = !session ? false : (session.role === 'SuperAdmin' || session.role === 'Admin' || session.role === 'Manager');
 
   const where: string[] = [];

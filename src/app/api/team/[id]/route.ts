@@ -2,12 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { ensureCrmSchema, getPool, hasDatabase } from "@/lib/postgres";
 import { hashPassword, isBcryptHash } from "@/lib/password";
 import { isGodUser, isCurrentUserGod } from "@/lib/god-user";
-import { parseSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth-session";
+import { loadFreshSession } from "@/lib/auth-session";
 import { hasPermission } from "@/lib/permissions";
 
 async function loadSession(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  return parseSessionToken(token);
+  return loadFreshSession(request);
 }
 
 async function loadTarget(pool: ReturnType<typeof getPool>, id: string) {

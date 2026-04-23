@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
-import { parseSessionToken, SESSION_COOKIE_NAME } from '@/lib/auth-session';
+import { loadFreshSession } from '@/lib/auth-session';
 import { hasPermission } from '@/lib/permissions';
 
 /**
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     if (!hasDatabase()) {
         return NextResponse.json({ error: 'Base de datos no configurada' }, { status: 503 });
     }
-    const session = await parseSessionToken(request.cookies.get(SESSION_COOKIE_NAME)?.value);
+    const session = await loadFreshSession(request);
     if (!session) {
         return NextResponse.json({ error: 'Sesión requerida.' }, { status: 401 });
     }

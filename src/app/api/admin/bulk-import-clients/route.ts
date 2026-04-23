@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
-import { parseSessionToken, SESSION_COOKIE_NAME } from '@/lib/auth-session';
+import { loadFreshSession } from '@/lib/auth-session';
 
 // Bulk insert client records in ONE query using UNNEST — mucho más eficiente que
 // POSTs individuales a /api/clients y evita saturar el pool de Neon.
 // SuperAdmin/Admin only.
 export async function POST(request: NextRequest) {
-    const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const user = await parseSessionToken(token);
+    const user = await loadFreshSession(request);
     if (!user) return NextResponse.json({ error: 'No autorizado.' }, { status: 401 });
     if (user.role !== 'SuperAdmin' && user.role !== 'Admin') {
         return NextResponse.json({ error: 'Requiere SuperAdmin.' }, { status: 403 });

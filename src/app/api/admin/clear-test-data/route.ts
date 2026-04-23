@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
-import { parseSessionToken, SESSION_COOKIE_NAME } from '@/lib/auth-session';
+import { loadFreshSession } from '@/lib/auth-session';
 
 // ⚠️ DESTRUCTIVO — borra TODOS los clientes, leads, tasks, cotizaciones, audit logs,
 // notificaciones, anomalías y eventos del calendario. Preserva: vendedores, productos,
@@ -8,8 +8,7 @@ import { parseSessionToken, SESSION_COOKIE_NAME } from '@/lib/auth-session';
 //
 // Sólo SuperAdmin/Admin puede invocar este endpoint.
 export async function POST(request: NextRequest) {
-    const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const user = await parseSessionToken(token);
+    const user = await loadFreshSession(request);
     if (!user) {
         return NextResponse.json({ error: 'No autorizado.' }, { status: 401 });
     }

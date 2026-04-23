@@ -87,3 +87,62 @@ export async function parseSessionToken(
 }
 
 export const SESSION_COOKIE_NAME = SESSION_COOKIE;
+
+// ── Fresh session loader (Node runtime only) ──────────────────────────────────
+// Reads the session cookie AND refreshes role/permissions/status from the DB so
+// a user promoted/demoted after login no longer carries a stale role in their
+// signed cookie. Must only be used from API routes (needs `pg`). Returns null
+// if the cookie is invalid, the user no longer exists, or they are Inactive.
+//
+// Endpoints that authorize by role MUST use this instead of parseSessionToken.
+
+type CookieReader = { get: (name: string) => { value: string } | undefined };
+type RequestLike = { cookies: CookieReader };
+
+export async function loadFreshSession(
+  request: RequestLike
+): Promise<SessionUser | null> {
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  const cookieUser = await parseSessionToken(token);
+  if (!cookieUser) return null;
+
+  // Superadmin-via-env bypass: no DB row exists for this synthetic user, and the
+  // only way to obtain this cookie is to log in with SUPERADMIN_EMAIL/PASSWORD,
+  // so the role is trustworthy as-is.
+  if (cookieUser.id === "superadmin-server") return cookieUser;
+
+  // Lazy import to keep this module usable from the Edge runtime (middleware)
+  // as long as the caller doesn't invoke loadFreshSession there.
+  const { hasDatabase, getPool, ensureCrmSchema } = await import("./postgres");
+  if (!hasDatabase()) return cookieUser; // no DB → best we can do
+
+  try {
+    await ensureCrmSchema();
+    const pool = getPool();
+    const { rows } = await pool.query(
+      `SELECT id, name, email, username, role, status, avatar, phone, sales, commission, permissions
+       FROM crm_users WHERE id = $1 LIMIT 1`,
+      [cookieUser.id]
+    );
+    const dbUser = rows[0];
+    if (!dbUser) return null; // user was deleted → revoke
+    if (dbUser.status && dbUser.status !== "Activo") return null; // deactivated → revoke
+
+    return {
+      id: dbUser.id,
+      name: dbUser.name ?? cookieUser.name,
+      username: dbUser.username ?? cookieUser.username,
+      email: dbUser.email ?? cookieUser.email,
+      role: dbUser.role ?? cookieUser.role,
+      status: dbUser.status ?? cookieUser.status,
+      avatar: dbUser.avatar ?? cookieUser.avatar,
+      phone: dbUser.phone ?? cookieUser.phone,
+      sales: dbUser.sales ?? cookieUser.sales,
+      commission: dbUser.commission ?? cookieUser.commission,
+      permissions: dbUser.permissions ?? cookieUser.permissions,
+    };
+  } catch (err) {
+    console.warn("loadFreshSession: DB lookup failed, falling back to cookie", err);
+    return cookieUser;
+  }
+}

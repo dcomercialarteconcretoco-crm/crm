@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
 import { hashPassword } from '@/lib/password';
-import { parseSessionToken, SESSION_COOKIE_NAME } from '@/lib/auth-session';
+import { loadFreshSession } from '@/lib/auth-session';
 
 /**
  * One-shot seeding endpoint for Arte Concreto go-live.
@@ -80,9 +80,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Base de datos no configurada' }, { status: 503 });
     }
 
-    // Guard: only the SuperAdmin session can run this
-    const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const user = await parseSessionToken(token);
+    // Guard: only the SuperAdmin session can run this (role read fresh from DB)
+    const user = await loadFreshSession(req);
     if (!user || user.role !== 'SuperAdmin') {
         return NextResponse.json({ error: 'Solo el SuperAdmin puede ejecutar seed' }, { status: 403 });
     }
