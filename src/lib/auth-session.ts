@@ -92,8 +92,39 @@ function b64urlDecode(str: string): string {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+// Fields we're willing to embed in the signed cookie. Anything variable-size
+// (avatar base64, permissions object, free-text sales/commission) is
+// DELIBERATELY excluded — those MUST come fresh from the DB in /api/auth/me.
+//
+// Why: avatars in this CRM are often base64-encoded JPEGs stored inline in the
+// users table. If we include them in the cookie payload, a single user with a
+// profile photo blows the cookie past ~100 KB. Browsers silently drop cookies
+// larger than ~4 KB, which meant Laureth's login "succeeded" (JSON body came
+// back fine) but the Set-Cookie header was discarded — so every subsequent API
+// call was unauthenticated, the UI rendered zeros, and any refresh bounced
+// back to /login. Keeping the cookie small is the ONLY fix.
+type CompactSessionPayload = {
+  id: string;
+  name: string;
+  username?: string;
+  email: string;
+  role: SessionUser["role"];
+  status: SessionUser["status"];
+};
+
+function toCompactPayload(user: SessionUser): CompactSessionPayload {
+  return {
+    id: user.id,
+    name: user.name,
+    username: user.username,
+    email: user.email,
+    role: user.role,
+    status: user.status,
+  };
+}
+
 export async function createSessionToken(user: SessionUser): Promise<string> {
-  const payload = b64urlEncode(JSON.stringify(user));
+  const payload = b64urlEncode(JSON.stringify(toCompactPayload(user)));
   const sig = await hmacHexWith(PRIMARY_SECRET, payload);
   return `${payload}.${sig}`;
 }
