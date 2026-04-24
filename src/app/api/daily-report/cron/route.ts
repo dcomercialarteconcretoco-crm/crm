@@ -47,9 +47,17 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ skipped: true, reason: 'Weekend (weekdaysOnly=true)' });
     }
 
-    // Check hora configurada por el usuario (HH:MM en Bogotá). El cron fira cada 30 min
-    // en vercel.json — dispara el envío solo dentro de una ventana de ±29 min
-    // alrededor de sendTime para honrar lo que el SuperAdmin configuró.
+    // Check hora configurada por el usuario (HH:MM en Bogotá).
+    //
+    // Limitación Vercel Hobby: solo 1 cron/día. Ese cron fira al final del día
+    // (23:00 UTC = 18:00 Bogotá) y procesa CUALQUIER config cuya sendTime ya
+    // haya pasado hoy y que no se haya enviado aún. El dedup por lastSentAt
+    // más abajo previene doble envío. Con esto:
+    //   - sendTime 09:00 → al disparar a las 18:00 ya pasó → se envía
+    //   - sendTime 17:50 → al disparar a las 18:00 ya pasó → se envía ✓
+    //   - sendTime 20:00 → al disparar a las 18:00 aún NO ha pasado → se salta
+    //     (y como el cron solo corre 1x/día, no se alcanza a enviar ese día).
+    //     El SuperAdmin debería configurar sendTime ≤ 18:00 para que llegue.
     const sendTime: string = typeof cfg.sendTime === 'string' && /^\d{2}:\d{2}$/.test(cfg.sendTime)
         ? cfg.sendTime
         : '17:50';
@@ -57,10 +65,8 @@ export async function GET(request: NextRequest) {
     const currentMinutes = today.getHours() * 60 + today.getMinutes();
     const targetMinutes  = sendH * 60 + sendM;
     const delta = currentMinutes - targetMinutes;
-    // Ventana: [sendTime, sendTime + 29min] — da margen para que al menos uno de los
-    // dos disparos de 30 min del cron caiga dentro y active el envío.
-    if (delta < 0 || delta > 29) {
-        return NextResponse.json({ skipped: true, reason: `Outside send window (target=${sendTime}, now=${today.getHours()}:${String(today.getMinutes()).padStart(2,'0')})` });
+    if (delta < 0) {
+        return NextResponse.json({ skipped: true, reason: `sendTime ${sendTime} aún no ha pasado (ahora ${today.getHours()}:${String(today.getMinutes()).padStart(2,'0')})` });
     }
 
     // Evitar doble-envío: si ya se envió hoy (Bogotá), salir
