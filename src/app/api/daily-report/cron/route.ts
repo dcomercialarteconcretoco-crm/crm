@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hasDatabase, getPool, ensureCrmSchema } from '@/lib/postgres';
+import { executeDailyReport } from '@/lib/daily-report-engine';
 
 // Vercel Cron: este endpoint se dispara por Vercel según la config en vercel.json.
 // Sólo envía el informe si:
@@ -85,26 +86,25 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ skipped: true, reason: 'No recipients configured' });
     }
 
-    // Internal call al endpoint de envío
-    const baseUrl =
-        process.env.NEXT_PUBLIC_APP_URL ||
-        `https://${request.headers.get('host')}` ||
-        '';
-
-    const sendRes = await fetch(`${baseUrl}/api/daily-report/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            demo: false,
-            recipientIds,
-            extraEmails,
-        }),
+    // Llamar la lógica del envío DIRECTO como función — NO por HTTP.
+    //
+    // Por qué: antes el cron hacía `fetch('/api/daily-report/send', ...)` al
+    // mismo servidor, pero esa request interna no llevaba cookie de sesión y
+    // el middleware la devolvía con 401 ("No autorizado. Inicia sesión
+    // primero."). Resultado: el correo diario nunca salía, ni siquiera con el
+    // toggle ON y destinatarios válidos (por eso `lastSentAt` quedaba en
+    // undefined).
+    //
+    // Invocar la función importada salta el middleware completo y evita el
+    // round-trip de red.
+    const result = await executeDailyReport({
+        demo: false,
+        recipientIds,
+        extraEmails,
     });
 
-    const sendData = await sendRes.json().catch(() => ({}));
-
     // Marca lastSentAt en settings (no bloqueante)
-    if (sendRes.ok) {
+    if (result.ok) {
         const nextSettings = {
             ...settings,
             dailyReport: { ...cfg, lastSentAt: new Date().toISOString() },
@@ -119,8 +119,8 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-        ok: sendRes.ok,
-        status: sendRes.status,
-        result: sendData,
+        ok: result.ok,
+        status: result.ok ? 200 : result.status,
+        result,
     });
 }
