@@ -161,6 +161,9 @@ export default function ProductLandingPage() {
                             {[
                                 { label: 'SKU', value: product.sku },
                                 { label: 'Dimensiones', value: product.dimensions || 'Ver descripción' },
+                                ...(typeof product.weight === 'number' && product.weight > 0
+                                    ? [{ label: 'Peso', value: `${product.weight} kg` }]
+                                    : []),
                                 { label: 'Stock', value: product.isStockTracked ? `${product.stock} Un.` : 'Producción Fábrica' },
                                 { label: 'Categoría', value: product.category }
                             ].map((spec: any) => (

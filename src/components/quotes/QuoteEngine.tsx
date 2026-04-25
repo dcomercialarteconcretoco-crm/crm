@@ -1007,6 +1007,14 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                             {/* Product info */}
                                             <div className="p-3">
                                                 <p className="text-[10px] font-black text-foreground uppercase leading-tight line-clamp-2 mb-1">{product.name}</p>
+                                                {/* Specs from WooCommerce — dimensions + weight when present */}
+                                                {(product.dimensions || product.weight) && (
+                                                    <p className="text-[8.5px] font-bold text-muted-foreground/80 leading-tight mb-1 line-clamp-1">
+                                                        {product.dimensions}
+                                                        {product.dimensions && product.weight ? ' · ' : ''}
+                                                        {product.weight ? `${product.weight} kg` : ''}
+                                                    </p>
+                                                )}
                                                 <p className="text-sm font-black text-primary">{formatCurrency(product.price)}</p>
                                             </div>
                                         </button>
@@ -1149,9 +1157,15 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                                 type="text"
                                                 value={item.dimensions || ''}
                                                 onChange={e => updateItemDimensions(item.id, e.target.value)}
-                                                placeholder="Dimensiones (ej: 60×40×45 cm)"
+                                                placeholder="Dimensiones (ej: 60 × 40 × 45 cm)"
                                                 className="w-full bg-transparent text-[10px] font-bold text-muted-foreground outline-none border-b border-transparent focus:border-primary/40 placeholder:text-muted-foreground/50 transition-all"
                                             />
+                                            {/* Peso (read-only — viene de WooCommerce) */}
+                                            {item.weight ? (
+                                                <p className="text-[9px] font-bold text-muted-foreground/70 leading-none">
+                                                    Peso: {item.weight} kg{item.quantity > 1 ? ` · Total: ${(item.weight * item.quantity).toFixed(1)} kg` : ''}
+                                                </p>
+                                            ) : null}
                                             {/* Unit + Price row */}
                                             <div className="flex items-center gap-2">
                                                 <select

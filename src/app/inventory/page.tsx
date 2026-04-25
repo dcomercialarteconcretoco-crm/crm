@@ -79,8 +79,10 @@ export default function InventoryPage() {
     const [dimD, setDimD] = useState('');
 
     const parseDims = (dims: string) => {
-        // Parse formats like "180x60x45cm" or "Alto:72 cm, Ancho: 80 cm, Largo: 80 cm"
-        const simple = dims.match(/(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)/);
+        // Acepta tanto el formato viejo "180x60x45cm" como el nuevo
+        // "180 × 60 × 45 cm" (con espacios y signo de multiplicar real).
+        // También soporta texto descriptivo "Alto:72 cm, Ancho: 80 cm, ...".
+        const simple = dims.match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)/i);
         if (simple) return { h: simple[1], w: simple[2], d: simple[3] };
         const alto = dims.match(/[Aa]lto[:\s]+(\d+(?:\.\d+)?)/);
         const ancho = dims.match(/[Aa]ncho[:\s]+(\d+(?:\.\d+)?)/);
@@ -1065,8 +1067,10 @@ export default function InventoryPage() {
                                                         const newH = label === 'Alto' ? raw : dimH;
                                                         const newW = label === 'Ancho' ? raw : dimW;
                                                         const newD = label === 'Largo' ? raw : dimD;
+                                                        // Mismo formato legible que el importador de Woo:
+                                                        // "120 × 80 × 60 cm" — espacios + signo de multiplicar.
                                                         const dimsStr = (newH || newW || newD)
-                                                            ? `${newH || 0}x${newW || 0}x${newD || 0}cm`
+                                                            ? `${newH || 0} × ${newW || 0} × ${newD || 0} cm`
                                                             : '';
                                                         setForm(f => ({
                                                             ...f,

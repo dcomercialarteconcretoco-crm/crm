@@ -814,7 +814,10 @@ REGLAS DE ORO:
                 const wid = toNum(wooP.dimensions?.width);
                 const hei = toNum(wooP.dimensions?.height);
                 const wgt = toNum(wooP.weight);
-                const dimsStr = (len && wid && hei) ? `${len}x${wid}x${hei}cm` : '';
+                // Formato legible: "120 × 80 × 60 cm" (con espacios y signo de
+                // multiplicar real). Sirve para mostrarse en tarjetas, PDF e
+                // inventario sin más procesamiento.
+                const dimsStr = (len && wid && hei) ? `${len} × ${wid} × ${hei} cm` : '';
 
                 return {
                     id: wooP.id.toString(),
