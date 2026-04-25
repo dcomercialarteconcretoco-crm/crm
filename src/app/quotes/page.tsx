@@ -78,24 +78,82 @@ export default function QuotesPage() {
         setIsGenerating(quote.id);
         try {
             const client = clients.find(c => c.id === quote.clientId);
-            await generateProposalPDF({
-                quoteNumber: quote.number || 'AC-XXX',
-                date: quote.date || new Date().toLocaleDateString('es-CO'),
-                leadName: quote.client || 'Cliente',
-                leadCompany: quote.clientCompany || client?.company || '',
-                leadEmail: quote.clientEmail || client?.email || '',
-                leadCity: client?.city || '',
-                items: (quote.items || []).map(i => ({
-                    name: i.name,
-                    price: i.price,
-                    quantity: i.quantity,
-                    unit: i.unit || 'un',
-                    total: (i.price || 0) * (i.quantity || 1),
-                })),
-                subtotal: quote.subtotal || quote.numericTotal || 0,
-                tax: quote.tax || (quote.numericTotal || 0) * 0.19 / 1.19,
-                total: quote.numericTotal || 0,
-            });
+            // Cotizaciones guardadas con el modelo NUEVO traen `quoteMode` y NO traen
+            // `aiuData` con montos. Para esas pasamos los datos crudos y dejamos que
+            // pdf-generator vuelva a calcular el desglose con `calculateQuoteTotals`.
+            //
+            // Las VIEJAS pueden venir de dos formas:
+            //   a) sin `quoteMode` → cotización pre-migración (simple o AIU legacy)
+            //   b) con `quoteMode='aiu'` PERO con `aiuData.totalAIU` → AIU vieja que la
+            //      migración tagueó. La math AIU vieja (transporte+descargue+instalación
+            //      con montos) NO se reconstruye desde adminPercent/utilityPercent, así
+            //      que las mandamos por la rama legacy aunque ya tengan `quoteMode`.
+            const hasLegacyAiuMath = !!(quote.aiuData && (quote.aiuData.totalAIU || quote.aiuData.transportPrice || quote.aiuData.installationPrice));
+            const isNewModel = !!quote.quoteMode && !hasLegacyAiuMath;
+
+            if (isNewModel) {
+                await generateProposalPDF({
+                    quoteNumber: quote.number || 'AC-XXX',
+                    date: quote.date || new Date().toLocaleDateString('es-CO'),
+                    leadName: quote.client || 'Cliente',
+                    leadCompany: quote.clientCompany || client?.company || '',
+                    leadEmail: quote.clientEmail || client?.email || '',
+                    leadCity: client?.city || '',
+                    referencia: quote.referencia,
+                    validUntil: quote.validUntil,
+                    deliveryTime: quote.deliveryTime,
+                    paymentTerms: quote.paymentTerms,
+                    sellerName: quote.sellerName,
+                    sellerPhone: quote.sellerPhone,
+                    mode: quote.quoteMode,
+                    items: (quote.items || []).map(i => ({
+                        name: i.name,
+                        unitPrice: i.price,
+                        quantity: i.quantity,
+                        unit: i.unit || 'un',
+                        image: i.image,
+                        dimensions: i.dimensions,
+                    })),
+                    includesTransport: quote.includesTransport,
+                    transportAmount: quote.transportAmount,
+                    transportCity: quote.transportCity,
+                    adminPercent: quote.adminPercent,
+                    utilityPercent: quote.utilityPercent,
+                    deliveryLocation: quote.deliveryLocation,
+                });
+            } else {
+                // Rama legacy: cotizaciones pre-modelo-nuevo. No pasamos `mode` para
+                // que el PDF detecte legacy y use el formato antiguo con subtotal/tax/total.
+                await generateProposalPDF({
+                    quoteNumber: quote.number || 'AC-XXX',
+                    date: quote.date || new Date().toLocaleDateString('es-CO'),
+                    leadName: quote.client || 'Cliente',
+                    leadCompany: quote.clientCompany || client?.company || '',
+                    leadEmail: quote.clientEmail || client?.email || '',
+                    leadCity: client?.city || '',
+                    referencia: quote.referencia,
+                    validUntil: quote.validUntil,
+                    deliveryTime: quote.deliveryTime,
+                    paymentTerms: quote.paymentTerms,
+                    sellerName: quote.sellerName,
+                    sellerPhone: quote.sellerPhone,
+                    items: (quote.items || []).map(i => ({
+                        name: i.name,
+                        unitPrice: i.price,
+                        quantity: i.quantity,
+                        unit: i.unit || 'un',
+                        image: i.image,
+                        dimensions: i.dimensions,
+                    })),
+                    isAIU: quote.isAIU,
+                    aiuData: quote.aiuData,
+                    subtotal: quote.subtotal || quote.numericTotal || 0,
+                    tax: quote.tax || (quote.numericTotal || 0) * 0.19 / 1.19,
+                    total: quote.numericTotal || 0,
+                    shipping: quote.shipping,
+                    shippingCity: quote.shippingCity,
+                });
+            }
             addNotification({ title: 'PDF generado', description: `Propuesta ${quote.number} descargada.`, type: 'success' });
         } catch (e: any) {
             addNotification({ title: 'Error al generar PDF', description: e.message || 'Revisa la consola.', type: 'alert' });

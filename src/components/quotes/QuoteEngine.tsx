@@ -9,6 +9,14 @@ import {
 import { clsx } from 'clsx';
 import { generateProposalPDF } from '@/lib/pdf-generator';
 import { useApp, Product, formatQuoteNumber } from '@/context/AppContext';
+import {
+    calculateQuoteTotals,
+    computeValidUntil,
+    formatSpanishLongDate,
+    transportItemDescription,
+    DEFAULT_VALIDITY_DAYS,
+    type QuoteMode,
+} from '@/lib/quote-calculations';
 
 interface QuoteItem {
     id: string;
@@ -39,11 +47,42 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
 
     const [selectedClientId, setSelectedClientId] = useState(defaultClientId);
     const [items, setItems] = useState<QuoteItem[]>([]);
-    const [taxRate] = useState(0.19);
-    // AIU toggle + prices (transport and descarga as separate values)
-    const [isAIU, setIsAIU] = useState<boolean>(!!editQuote?.isAIU);
-    const [transportPrice, setTransportPrice] = useState<number>(editQuote?.aiuData?.transportPrice || 0);
-    const [unloadPrice, setUnloadPrice] = useState<number>(editQuote?.aiuData?.unloadPrice || 0);
+    // ── Modelo nuevo (abril 2026) ──────────────────────────────────────────────
+    // 'simple' = factura completa con IVA 19% sobre todo. 'aiu' = régimen
+    // Administración + Utilidad, IVA SÓLO sobre la utilidad. La elección se
+    // refleja en el sufijo "-AIU" del número y en el formato del PDF.
+    // Para cotizaciones legacy (quoteMode === undefined) hereda 'aiu' si tenía
+    // isAIU=true, si no 'simple', para que el modo de edición no rompa nada.
+    const initialMode: QuoteMode = editQuote?.quoteMode ?? (editQuote?.isAIU ? 'aiu' : 'simple');
+    const [quoteMode, setQuoteMode] = useState<QuoteMode>(initialMode);
+    // El isAIU del número es derivado del mode; lo dejamos sincronizado con un
+    // alias para no tocar el resto del flujo de numeración (formatQuoteNumber).
+    const isAIU = quoteMode === 'aiu';
+    // (modo simple) — checkbox + monto (CON IVA, lo escribe el vendedor) + ciudad
+    const [includesTransport, setIncludesTransport] = useState<boolean>(
+        editQuote?.includesTransport ?? false
+    );
+    const [transportAmount, setTransportAmount] = useState<number>(
+        editQuote?.transportAmount ?? 0
+    );
+    const [transportCity, setTransportCity] = useState<string>(
+        editQuote?.transportCity ?? ''
+    );
+    // (modo aiu) — porcentajes que negocia el vendedor con el cliente.
+    const [adminPercent, setAdminPercent] = useState<number>(
+        editQuote?.adminPercent ?? 10
+    );
+    const [utilityPercent, setUtilityPercent] = useState<number>(
+        editQuote?.utilityPercent ?? 5
+    );
+    // Texto opcional que reemplaza el auto-generado "se entrega en {ciudad}".
+    const [deliveryLocation, setDeliveryLocation] = useState<string>(
+        editQuote?.deliveryLocation ?? ''
+    );
+    // Días de validez de la oferta. Default 30 — editable pero no obligatorio.
+    const [validityDays, setValidityDays] = useState<number>(
+        editQuote?.validityDays ?? DEFAULT_VALIDITY_DAYS
+    );
     const [isSaving, setIsSaving] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [isSendingEmail, setIsSendingEmail] = useState(false);
@@ -123,10 +162,17 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         if (existing.validUntil) setValidUntil(existing.validUntil);
         if (existing.deliveryTime) setDeliveryTime(existing.deliveryTime);
         if (existing.paymentTerms) setPaymentTerms(existing.paymentTerms);
-        // Load AIU state
-        setIsAIU(!!existing.isAIU);
-        setTransportPrice(existing.aiuData?.transportPrice || 0);
-        setUnloadPrice(existing.aiuData?.unloadPrice || 0);
+        // Modelo nuevo — hidrata el modo y campos asociados. Para cotizaciones
+        // legacy sin quoteMode definido, se infiere desde el flag isAIU previo.
+        const mode: QuoteMode = existing.quoteMode ?? (existing.isAIU ? 'aiu' : 'simple');
+        setQuoteMode(mode);
+        setIncludesTransport(existing.includesTransport ?? false);
+        setTransportAmount(existing.transportAmount ?? 0);
+        setTransportCity(existing.transportCity ?? '');
+        setAdminPercent(existing.adminPercent ?? 10);
+        setUtilityPercent(existing.utilityPercent ?? 5);
+        setDeliveryLocation(existing.deliveryLocation ?? '');
+        setValidityDays(existing.validityDays ?? DEFAULT_VALIDITY_DAYS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editQuoteId]);
 
@@ -205,11 +251,39 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         setItems(prev => prev.filter(i => i.id !== id));
     };
 
-    const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
-    const tax = subtotal * taxRate;
-    const aiuTotal = isAIU ? (transportPrice + unloadPrice) : 0;
+    // ── Cálculo unificado de la cotización ───────────────────────────────────
+    // Todos los totales (lo que se ve en pantalla, lo que entra en el PDF, lo
+    // que se guarda en `numericTotal`) salen de calculateQuoteTotals para que
+    // un mismo input produzca exactamente el mismo número en todos lados.
+    const calc = useMemo(() => calculateQuoteTotals({
+        mode: quoteMode,
+        items: items.map(i => ({ unitPrice: i.price, quantity: i.quantity })),
+        includesTransport,
+        transportAmount,
+        adminPercent,
+        utilityPercent,
+    }), [quoteMode, items, includesTransport, transportAmount, adminPercent, utilityPercent]);
+
+    // Aliases legacy mantenidos para no romper código que ya los referencia
+    // (preview modal, mensajes WhatsApp, payload del email). En modo simple
+    // `subtotal` es productos+transporte antes de IVA; en AIU es subtotal de
+    // productos antes del bloque admin/utilidad.
+    const subtotal = calc.subtotalLine1;
+    const tax = calc.taxAmount;
+    const total = calc.total;
+
+    // Vigencia auto-derivada: hoy + validityDays (en es-CO).
+    const computedValidUntil = useMemo(
+        () => formatSpanishLongDate(computeValidUntil(new Date(), validityDays || DEFAULT_VALIDITY_DAYS)),
+        [validityDays]
+    );
+    // Si el vendedor escribió uno manual lo respetamos; si no, mostramos el computado.
+    const displayValidUntil = validUntil.trim() || computedValidUntil;
 
     // ── Cálculo de envío (peso real vs volumétrico × tarifa por ciudad) ──────
+    // En el modelo nuevo el "transporte" lo escribe el vendedor a mano. Esta
+    // calculadora se queda como SUGERENCIA: el botón "Sugerir" llena el campo
+    // transportAmount con el valor estimado por ciudad para ese carrito.
     const selectedClient = clients.find(c => c.id === selectedClientId);
     const shippingEnabled = settings.shipping?.enabled ?? true;
 
@@ -241,8 +315,11 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         return Math.round(Math.max(computed, minCharge));
     }, [shippingEnabled, shippingMetrics, selectedClient?.city, settings.shipping?.cityRates, settings.shipping?.defaultRatePerKg, settings.shipping?.defaultMinimumCharge]);
 
-    const shipping = shippingMode === 'manual' ? Math.max(0, shippingOverride) : autoShipping;
-    const total = subtotal + tax + aiuTotal + shipping;
+    // `shipping` (legacy) — sigue exponiéndose porque la API de email/whatsapp y el snapshot
+    // del Quote la siguen guardando como dato auxiliar. En el modelo nuevo NO entra al total
+    // (eso lo hace transportAmount via calc.transportBeforeTax + IVA). Lo dejamos como cero
+    // salvo que el vendedor esté en simple+transporte para preservar el snapshot histórico.
+    const shipping = quoteMode === 'simple' && includesTransport ? (transportAmount || 0) : 0;
 
     const formatCurrency = (v: number) =>
         new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v);
@@ -254,27 +331,77 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         total: formatCurrency(total), numericTotal: total, subtotal, tax,
         items: mappedItems.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity, productId: i.productId, image: i.image, dimensions: i.dimensions, isCustom: i.isCustom, weight: i.weight, length: i.length, width: i.width, height: i.height })),
         notes: '', sellerId: currentUser?.id || '', sellerName: currentUser?.name || '',
-        referencia, validUntil, deliveryTime, paymentTerms,
+        referencia,
+        // validUntil: si el vendedor no escribió uno manual, persistimos el computado
+        // (formatSpanishLongDate(today + validityDays)) así el PDF y el listado coinciden.
+        validUntil: validUntil.trim() || computedValidUntil,
+        deliveryTime, paymentTerms,
         sellerPhone: currentUser?.phone || '',
-        // Envío (snapshot)
+        // Envío legacy (snapshot histórico — se queda por compatibilidad pero NO entra al total).
         shipping: shipping > 0 ? shipping : undefined,
         shippingCity: client.city || undefined,
         shippingMode,
         totalWeight: shippingMetrics.totalWeight || undefined,
         totalVolume: shippingMetrics.totalVolume || undefined,
-        // Numbering + AIU persistence
+        // Numbering
         quoteNumber,
         baseNumber: editQuote?.baseNumber || (editQuote ? undefined : newQuoteBase),
         version: versionForDisplay,
+        // isAIU se mantiene por el sufijo "-AIU" del número y el listado de cotizaciones,
+        // pero la fuente de verdad es quoteMode. aiuData (legacy) se conserva tal cual si
+        // viene de una cotización vieja para que su PDF legacy siga renderizando bien.
         isAIU,
-        aiuData: isAIU
-            ? {
-                ...(editQuote?.aiuData || {}),
-                transportPrice: transportPrice || undefined,
-                unloadPrice: unloadPrice || undefined,
-                totalAIU: aiuTotal || undefined,
-            }
+        aiuData: editQuote?.aiuData,
+        // ── Modelo nuevo ──────────────────────────────────────────────────────
+        quoteMode,
+        includesTransport: quoteMode === 'simple' ? includesTransport : undefined,
+        transportAmount: quoteMode === 'simple' && includesTransport ? (transportAmount || undefined) : undefined,
+        transportCity: quoteMode === 'simple' && includesTransport
+            ? (transportCity.trim() || client.city || undefined)
             : undefined,
+        adminPercent: quoteMode === 'aiu' ? adminPercent : undefined,
+        utilityPercent: quoteMode === 'aiu' ? utilityPercent : undefined,
+        deliveryLocation: deliveryLocation.trim() || undefined,
+        validityDays,
+    });
+
+    // ── Datos para el PDF (un solo lugar) ───────────────────────────────────
+    // Recibe quoteNumber porque puede ser nuevo o el mismo del editQuote, y
+    // empaqueta todo lo que el generador del PDF necesita para decidir entre
+    // plantilla simple/AIU. Se llama desde executeGeneratePDF y desde el
+    // recordatorio post-descarga (re-download).
+    const buildPdfData = (client: typeof clients[0], quoteNumber: string) => ({
+        quoteNumber,
+        date: new Date().toLocaleDateString('es-CO'),
+        leadName: client.name,
+        leadCompany: client.company,
+        leadEmail: client.email,
+        leadCity: client.city,
+        referencia,
+        validUntil: validUntil.trim() || computedValidUntil,
+        deliveryTime,
+        paymentTerms,
+        sellerName: currentUser?.name || 'ArteConcreto',
+        sellerPhone: currentUser?.phone || '',
+        // Modo + datos crudos: el PDF llama a calculateQuoteTotals internamente
+        // para no duplicar el cálculo aquí.
+        mode: quoteMode,
+        items: items.map(i => ({
+            name: i.name,
+            unitPrice: i.price,
+            quantity: i.quantity,
+            unit: i.unit,
+            image: i.image,
+            dimensions: i.dimensions,
+        })),
+        includesTransport: quoteMode === 'simple' ? includesTransport : undefined,
+        transportAmount: quoteMode === 'simple' && includesTransport ? transportAmount : undefined,
+        transportCity: quoteMode === 'simple' && includesTransport
+            ? (transportCity.trim() || client.city || '')
+            : undefined,
+        adminPercent: quoteMode === 'aiu' ? adminPercent : undefined,
+        utilityPercent: quoteMode === 'aiu' ? utilityPercent : undefined,
+        deliveryLocation: deliveryLocation.trim() || undefined,
     });
 
     // ── Helper único para enviar cotización a aprobación ────────────────────
@@ -364,7 +491,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                     subtotal, tax, total,
                     shipping: shipping > 0 ? shipping : 0,
                     shippingCity: client.city || '',
-                    referencia, validUntil, deliveryTime, paymentTerms,
+                    referencia, validUntil: displayValidUntil, deliveryTime, paymentTerms,
                     sellerPhone: currentUser?.phone || '',
                 }),
             });
@@ -413,21 +540,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 quoteNumber = genQuoteNumber();
                 quoteId = addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Draft' as const });
             }
-            await generateProposalPDF({
-                quoteNumber, date: new Date().toLocaleDateString('es-CO'),
-                leadName: client.name, leadCompany: client.company, leadEmail: client.email, leadCity: client.city,
-                referencia, validUntil, deliveryTime, paymentTerms,
-                sellerName: currentUser?.name || 'ArteConcreto',
-                sellerPhone: currentUser?.phone || '',
-                items: items.map(i => ({ ...i, total: i.price * i.quantity })),
-                subtotal, tax, total,
-                shipping: shipping > 0 ? shipping : undefined,
-                shippingCity: client.city,
-                isAIU,
-                aiuData: isAIU
-                    ? { transportPrice: transportPrice || undefined, unloadPrice: unloadPrice || undefined, totalAIU: aiuTotal || undefined }
-                    : undefined,
-            });
+            await generateProposalPDF(buildPdfData(client, quoteNumber));
             addAuditLog({ userId: currentUser?.id || '', userName: currentUser?.name || 'Sistema', userRole: currentUser?.role || 'Vendedor', action: 'QUOTE_SENT', targetId: client.id, targetName: client.company || client.name, details: `Cotización ${quoteNumber} ${isEditMode ? 'editada' : 'generada'} · Total: ${formatCurrency(total)}`, verified: true });
             addNotification({ title: `Cotización ${quoteNumber} lista`, description: 'PDF descargado. Recuerda enviársela al cliente.', type: 'success' });
             // El PDF ya se descargó pero aún no se envió al cliente — disparamos el recordatorio.
@@ -452,21 +565,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         if (!client || !postGenReminder) return;
         setReminderBusy('download');
         try {
-            await generateProposalPDF({
-                quoteNumber: postGenReminder.quoteNumber, date: new Date().toLocaleDateString('es-CO'),
-                leadName: client.name, leadCompany: client.company, leadEmail: client.email, leadCity: client.city,
-                referencia, validUntil, deliveryTime, paymentTerms,
-                sellerName: currentUser?.name || 'ArteConcreto',
-                sellerPhone: currentUser?.phone || '',
-                items: items.map(i => ({ ...i, total: i.price * i.quantity })),
-                subtotal, tax, total,
-                shipping: shipping > 0 ? shipping : undefined,
-                shippingCity: client.city,
-                isAIU,
-                aiuData: isAIU
-                    ? { transportPrice: transportPrice || undefined, unloadPrice: unloadPrice || undefined, totalAIU: aiuTotal || undefined }
-                    : undefined,
-            });
+            await generateProposalPDF(buildPdfData(client, postGenReminder.quoteNumber));
             addNotification({ title: 'PDF re-descargado', description: `Cotización ${postGenReminder.quoteNumber}`, type: 'success' });
         } finally {
             setReminderBusy(null);
@@ -482,8 +581,10 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             const quoteNumber = postGenReminder.quoteNumber;
             const phone = client.phone.replace(/\D/g, '');
             const intlPhone = phone.startsWith('57') ? phone : `57${phone}`;
-            const itemsList = items.map(i => `  • ${i.name} x${i.quantity} → ${formatCurrency(i.price * i.quantity)}`).join('\n');
-            const vigencia = validUntil ? `Vigencia hasta: ${validUntil}` : 'Vigencia: 15 días calendario';
+            // El detalle de IVA/admin/utilidad va en el PDF; en WhatsApp el cliente
+            // sólo necesita ver los productos y el TOTAL (igual que en el PDF que llega adjunto).
+            const itemsList = items.map(i => `  • ${i.name} x${i.quantity}`).join('\n');
+            const vigencia = `Vigencia hasta: ${displayValidUntil}`;
             const msg = [
                 `Hola ${client.name.split(' ')[0]} 👋`,
                 ``,
@@ -492,9 +593,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 ``,
                 itemsList,
                 ``,
-                `Subtotal: ${formatCurrency(subtotal)}`,
-                `IVA (19%): ${formatCurrency(tax)}`,
-                shipping > 0 ? `Envío${client.city ? ` (${client.city})` : ''}: ${formatCurrency(shipping)}` : '',
+                quoteMode === 'aiu' ? `(Cotización bajo régimen AIU)` : '',
                 `*TOTAL: ${formatCurrency(total)}*`,
                 ``,
                 vigencia,
@@ -531,7 +630,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                     subtotal, tax, total,
                     shipping: shipping > 0 ? shipping : 0,
                     shippingCity: client.city || '',
-                    referencia, validUntil, deliveryTime, paymentTerms,
+                    referencia, validUntil: displayValidUntil, deliveryTime, paymentTerms,
                     sellerPhone: currentUser?.phone || '',
                 }),
             });
@@ -563,8 +662,8 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Sent' as const });
         const phone = client.phone.replace(/\D/g, '');
         const intlPhone = phone.startsWith('57') ? phone : `57${phone}`;
-        const itemsList = items.map(i => `  • ${i.name} x${i.quantity} → ${formatCurrency(i.price * i.quantity)}`).join('\n');
-        const vigencia = validUntil ? `Vigencia hasta: ${validUntil}` : 'Vigencia: 15 días calendario';
+        const itemsList = items.map(i => `  • ${i.name} x${i.quantity}`).join('\n');
+        const vigencia = `Vigencia hasta: ${displayValidUntil}`;
         const msg = [
             `Hola ${client.name.split(' ')[0]} 👋`,
             ``,
@@ -573,9 +672,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             ``,
             itemsList,
             ``,
-            `Subtotal: ${formatCurrency(subtotal)}`,
-            `IVA (19%): ${formatCurrency(tax)}`,
-            shipping > 0 ? `Envío${client.city ? ` (${client.city})` : ''}: ${formatCurrency(shipping)}` : '',
+            quoteMode === 'aiu' ? `(Cotización bajo régimen AIU)` : '',
             `*TOTAL: ${formatCurrency(total)}*`,
             ``,
             vigencia,
@@ -621,7 +718,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                     subtotal, tax, total,
                     shipping: shipping > 0 ? shipping : 0,
                     shippingCity: client.city || '',
-                    referencia, validUntil, deliveryTime, paymentTerms,
+                    referencia, validUntil: displayValidUntil, deliveryTime, paymentTerms,
                     sellerPhone: currentUser?.phone || '',
                 }),
             });
@@ -942,14 +1039,41 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                             />
                         </div>
                         <div className="space-y-1.5">
-                            <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Vigencia de la Oferta</label>
+                            <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Vigencia (días)</label>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={365}
+                                    value={validityDays}
+                                    onChange={e => setValidityDays(Math.max(1, parseInt(e.target.value, 10) || DEFAULT_VALIDITY_DAYS))}
+                                    className="w-20 bg-white/80 border border-border/60 rounded-xl px-3 py-3 text-[11px] font-black text-center outline-none focus:border-primary transition-all text-foreground"
+                                />
+                                <span className="text-[10px] font-bold text-muted-foreground">
+                                    días → válida hasta el <strong className="text-foreground">{computedValidUntil}</strong>
+                                </span>
+                            </div>
+                            <p className="text-[9px] text-muted-foreground/70">
+                                Default 30. Si necesitas una fecha exacta diferente, edítala abajo.
+                            </p>
                             <input
                                 type="text"
                                 value={validUntil}
                                 onChange={e => setValidUntil(e.target.value)}
-                                placeholder="15 de Abril de 2026"
-                                className="w-full bg-white/80 border border-border/60 rounded-xl px-4 py-3 text-[11px] font-bold outline-none focus:border-primary transition-all text-foreground"
+                                placeholder={`(opcional) sobreescribir: ${computedValidUntil}`}
+                                className="w-full bg-white/80 border border-border/60 rounded-xl px-4 py-2.5 text-[11px] font-bold outline-none focus:border-primary transition-all text-foreground placeholder:text-muted-foreground/60"
                             />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Lugar de Entrega (opcional)</label>
+                            <input
+                                type="text"
+                                value={deliveryLocation}
+                                onChange={e => setDeliveryLocation(e.target.value)}
+                                placeholder={selectedClient?.city ? `Por defecto: ${selectedClient.city}` : 'Ciudad o dirección de entrega'}
+                                className="w-full bg-white/80 border border-border/60 rounded-xl px-4 py-3 text-[11px] font-bold outline-none focus:border-primary transition-all text-foreground placeholder:text-muted-foreground/60"
+                            />
+                            <p className="text-[9px] text-muted-foreground/70">Reemplaza el “se entrega en {'{ciudad del cliente}'}” del alcance.</p>
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Plazo de Entrega</label>
@@ -1071,127 +1195,189 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                         )}
                     </div>
 
-                    {/* AIU Toggle + Transport/Unload inputs */}
+                    {/* ── Selector de modo: Sencilla vs AIU ─────────────────────── */}
                     <div className="px-5 py-4 border-t border-border/40 bg-blue-50/30 space-y-3">
-                        <label className="flex items-start gap-3 cursor-pointer select-none">
-                            <input
-                                type="checkbox"
-                                checked={isAIU}
-                                onChange={e => setIsAIU(e.target.checked)}
-                                className="mt-0.5 w-4 h-4 rounded border-border/60 text-primary focus:ring-primary/40 cursor-pointer"
-                            />
-                            <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                    <Wrench className="w-3.5 h-3.5 text-blue-700" />
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-700">Cotización final (AIU)</span>
-                                </div>
-                                <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">Incluye valor de transporte y descarga. Agrega <strong>-AIU</strong> al número.</p>
+                        <div>
+                            <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-2">Tipo de cotización</span>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setQuoteMode('simple')}
+                                    className={clsx(
+                                        "text-[10px] font-black uppercase tracking-widest py-3 rounded-xl border-2 transition-all",
+                                        quoteMode === 'simple'
+                                            ? "border-primary bg-primary text-black shadow-md"
+                                            : "border-border/50 bg-white/70 text-muted-foreground hover:border-primary/40"
+                                    )}
+                                >
+                                    Sencilla
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setQuoteMode('aiu')}
+                                    className={clsx(
+                                        "text-[10px] font-black uppercase tracking-widest py-3 rounded-xl border-2 transition-all flex items-center justify-center gap-1.5",
+                                        quoteMode === 'aiu'
+                                            ? "border-blue-500 bg-blue-500 text-white shadow-md"
+                                            : "border-border/50 bg-white/70 text-muted-foreground hover:border-blue-400/40"
+                                    )}
+                                >
+                                    <Wrench className="w-3.5 h-3.5" /> AIU
+                                </button>
                             </div>
-                        </label>
-                        {isAIU && (
-                            <div className="space-y-2 pt-1">
-                                <div>
-                                    <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Valor transporte</label>
+                            <p className="text-[10px] text-muted-foreground mt-2 leading-snug">
+                                {quoteMode === 'simple'
+                                    ? 'IVA 19% sobre todo el subtotal. Puedes incluir transporte como fila aparte.'
+                                    : 'Régimen Administración + Utilidad. IVA aplica SÓLO sobre la utilidad. Sufijo -AIU al número.'}
+                            </p>
+                        </div>
+
+                        {/* ── Modo SIMPLE: checkbox + monto + ciudad de transporte ── */}
+                        {quoteMode === 'simple' && (
+                            <div className="space-y-2 pt-2 border-t border-border/30">
+                                <label className="flex items-start gap-3 cursor-pointer select-none">
                                     <input
-                                        type="number"
-                                        min={0}
-                                        value={transportPrice || ''}
-                                        onChange={e => setTransportPrice(parseFloat(e.target.value) || 0)}
-                                        placeholder="0"
-                                        className="w-full px-3 py-2 rounded-xl border border-border/60 bg-white text-xs font-bold text-foreground outline-none focus:border-primary/60"
+                                        type="checkbox"
+                                        checked={includesTransport}
+                                        onChange={e => setIncludesTransport(e.target.checked)}
+                                        className="mt-0.5 w-4 h-4 rounded border-border/60 text-primary focus:ring-primary/40 cursor-pointer"
                                     />
+                                    <div className="flex-1">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-foreground">¿Incluye transporte?</span>
+                                        <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">
+                                            Si lo activas, sale como fila aparte “TRANSPORTE DESDE FLORIDABLANCA HASTA …”.
+                                        </p>
+                                    </div>
+                                </label>
+                                {includesTransport && (
+                                    <div className="space-y-2 pt-1">
+                                        <div>
+                                            <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Monto del transporte (incluye IVA)</label>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                value={transportAmount || ''}
+                                                onChange={e => setTransportAmount(parseFloat(e.target.value) || 0)}
+                                                placeholder="0"
+                                                className="w-full px-3 py-2 rounded-xl border border-border/60 bg-white text-xs font-bold text-foreground outline-none focus:border-primary/60"
+                                            />
+                                            <p className="text-[9px] text-muted-foreground/70 mt-1">
+                                                Escribe el valor que cobras al cliente (con IVA dentro). El sistema lo separa para mostrar “antes de IVA” en el PDF.
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Ciudad destino</label>
+                                            <input
+                                                type="text"
+                                                value={transportCity}
+                                                onChange={e => setTransportCity(e.target.value)}
+                                                placeholder={selectedClient?.city || 'BUCARAMANGA'}
+                                                className="w-full px-3 py-2 rounded-xl border border-border/60 bg-white text-xs font-bold text-foreground uppercase outline-none focus:border-primary/60"
+                                            />
+                                            <p className="text-[9px] text-muted-foreground/70 mt-1">
+                                                Si lo dejas vacío se usa la ciudad del cliente: <strong>{selectedClient?.city || '(ninguna)'}</strong>.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ── Modo AIU: Administración % + Utilidad % ────────────── */}
+                        {quoteMode === 'aiu' && (
+                            <div className="space-y-2 pt-2 border-t border-border/30">
+                                <p className="text-[10px] text-muted-foreground leading-snug">
+                                    Transporte, descargue e instalación están <strong>absorbidos en el % de Administración</strong> — los negocias internamente con el cliente.
+                                </p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Administración %</label>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={100}
+                                            step={0.01}
+                                            value={adminPercent}
+                                            onChange={e => setAdminPercent(Math.max(0, parseFloat(e.target.value) || 0))}
+                                            className="w-full px-3 py-2 rounded-xl border border-blue-300 bg-white text-xs font-bold text-foreground outline-none focus:border-blue-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Utilidad %</label>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={100}
+                                            step={0.01}
+                                            value={utilityPercent}
+                                            onChange={e => setUtilityPercent(Math.max(0, parseFloat(e.target.value) || 0))}
+                                            className="w-full px-3 py-2 rounded-xl border border-blue-300 bg-white text-xs font-bold text-foreground outline-none focus:border-blue-500"
+                                        />
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Valor descarga</label>
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        value={unloadPrice || ''}
-                                        onChange={e => setUnloadPrice(parseFloat(e.target.value) || 0)}
-                                        placeholder="0"
-                                        className="w-full px-3 py-2 rounded-xl border border-border/60 bg-white text-xs font-bold text-foreground outline-none focus:border-primary/60"
-                                    />
-                                </div>
+                                <p className="text-[9px] text-muted-foreground/70">
+                                    El IVA del 19% se calcula <strong>sólo sobre la utilidad</strong>, no sobre todo el subtotal.
+                                </p>
                             </div>
                         )}
                     </div>
 
-                    {/* Totals */}
+                    {/* ── Totales (modelo nuevo, derivados de calculateQuoteTotals) ── */}
                     <div className="px-5 py-4 border-t border-border/40 bg-white/20 space-y-2">
-                        <div className="flex justify-between text-[10px] font-black text-muted-foreground uppercase tracking-widest">
-                            <span>Subtotal</span>
-                            <span>{formatCurrency(subtotal)}</span>
-                        </div>
-                        <div className="flex justify-between text-[10px] font-black text-muted-foreground uppercase tracking-widest">
-                            <span>IVA 19%</span>
-                            <span>{formatCurrency(tax)}</span>
-                        </div>
-                        {isAIU && aiuTotal > 0 && (
-                            <div className="flex justify-between text-[10px] font-black text-blue-700 uppercase tracking-widest">
-                                <span>Transporte + Descarga</span>
-                                <span>{formatCurrency(aiuTotal)}</span>
-                            </div>
-                        )}
-                        {/* ── Envío ───────────────────────────────── */}
-                        {shippingEnabled && items.length > 0 && (
-                            <div className="space-y-1.5 pt-2 border-t border-border/40">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Envío</span>
-                                        {selectedClient?.city && (
-                                            <span className="text-[8px] font-bold text-muted-foreground/70 uppercase tracking-wide">· {selectedClient.city}</span>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => {
-                                                if (shippingMode === 'auto') {
-                                                    setShippingOverride(autoShipping);
-                                                    setShippingMode('manual');
-                                                } else {
-                                                    setShippingMode('auto');
-                                                }
-                                            }}
-                                            className={clsx(
-                                                "text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded transition-colors",
-                                                shippingMode === 'manual'
-                                                    ? "bg-amber-100 text-amber-700 border border-amber-300"
-                                                    : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                            )}
-                                            title={shippingMode === 'manual' ? 'Valor manual · click para volver al cálculo automático' : 'Calculado automáticamente · click para editar manualmente'}
-                                        >
-                                            {shippingMode === 'manual' ? 'Manual' : 'Auto'}
-                                        </button>
-                                        {shippingMode === 'manual' ? (
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                value={shippingOverride}
-                                                onChange={e => setShippingOverride(parseFloat(e.target.value) || 0)}
-                                                className="w-24 text-right text-[10px] font-black bg-white border border-amber-300 rounded px-1.5 py-0.5 outline-none focus:border-amber-500"
-                                            />
-                                        ) : (
-                                            <span className="text-[10px] font-black text-muted-foreground">{formatCurrency(shipping)}</span>
-                                        )}
-                                    </div>
+                        {quoteMode === 'simple' ? (
+                            <>
+                                <div className="flex justify-between text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                                    <span>Productos (antes de IVA)</span>
+                                    <span>{formatCurrency(calc.productsSubtotal)}</span>
                                 </div>
-                                {shippingMetrics.hasShippingData && (
-                                    <p className="text-[9px] text-muted-foreground/80 text-right">
-                                        Peso real: {shippingMetrics.totalWeight.toFixed(1)} kg ·
-                                        Volumétrico: {shippingMetrics.volumetricWeight.toFixed(1)} kg ·
-                                        Facturable: {shippingMetrics.billableWeight.toFixed(1)} kg
-                                    </p>
+                                {calc.transportBeforeTax !== undefined && (
+                                    <div className="flex justify-between text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                                        <span>Transporte (antes de IVA)</span>
+                                        <span>{formatCurrency(calc.transportBeforeTax)}</span>
+                                    </div>
                                 )}
-                                {!shippingMetrics.hasShippingData && items.length > 0 && (
-                                    <p className="text-[9px] text-amber-600 text-right">
-                                        ⚠ Ningún producto tiene peso/dimensiones. Sincroniza el catálogo o edita manualmente.
-                                    </p>
+                                <div className="flex justify-between text-[10px] font-black text-muted-foreground uppercase tracking-widest pt-1 border-t border-border/30">
+                                    <span>Valor total antes de IVA</span>
+                                    <span>{formatCurrency(calc.subtotalLine1)}</span>
+                                </div>
+                                <div className="flex justify-between text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                                    <span>IVA 19%</span>
+                                    <span>{formatCurrency(calc.taxAmount)}</span>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="flex justify-between text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                                    <span>Subtotal productos</span>
+                                    <span>{formatCurrency(calc.productsSubtotal)}</span>
+                                </div>
+                                {calc.adminAmount !== undefined && (
+                                    <div className="flex justify-between text-[10px] font-black text-blue-700 uppercase tracking-widest">
+                                        <span>Administración ({adminPercent}%)</span>
+                                        <span>{formatCurrency(calc.adminAmount)}</span>
+                                    </div>
                                 )}
-                            </div>
+                                {calc.utilityAmount !== undefined && (
+                                    <div className="flex justify-between text-[10px] font-black text-blue-700 uppercase tracking-widest">
+                                        <span>Utilidad ({utilityPercent}%)</span>
+                                        <span>{formatCurrency(calc.utilityAmount)}</span>
+                                    </div>
+                                )}
+                                {calc.subtotalAfterAiu !== undefined && (
+                                    <div className="flex justify-between text-[10px] font-black text-muted-foreground uppercase tracking-widest pt-1 border-t border-border/30">
+                                        <span>Subtotal acumulado</span>
+                                        <span>{formatCurrency(calc.subtotalAfterAiu)}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                                    <span>IVA 19% sólo sobre utilidad</span>
+                                    <span>{formatCurrency(calc.taxAmount)}</span>
+                                </div>
+                            </>
                         )}
                         <div className="flex justify-between items-baseline pt-2 border-t border-border/40">
                             <span className="text-[10px] font-black uppercase tracking-widest text-primary">Total</span>
-                            <span className="text-2xl font-black text-foreground tracking-tighter">{formatCurrency(total)}</span>
+                            <span className="text-2xl font-black text-foreground tracking-tighter">{formatCurrency(calc.total)}</span>
                         </div>
                     </div>
 
@@ -1356,11 +1542,31 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                             <div className="space-y-4">
                                 <div>
                                     <p className="font-black text-xs text-[#1a1a1d] uppercase mb-1">1. Alcance de la Propuesta:</p>
-                                    <p className="text-xs text-gray-600 leading-relaxed">La presente oferta se entrega en la planta de producción, Anillo Vial Km 1 + 800 Floridablanca – Girón. <span className="font-bold">No incluye</span> transporte, descargue ni instalación.</p>
+                                    {(() => {
+                                        // Texto del alcance — se reproduce del PDF para que el preview no engañe.
+                                        const lugar = (deliveryLocation.trim() || client?.city || '').toUpperCase();
+                                        if (quoteMode === 'aiu') {
+                                            return (
+                                                <p className="text-xs text-gray-600 leading-relaxed">
+                                                    La presente oferta se entrega en {lugar ? <><strong>{lugar}</strong>. </> : 'el sitio acordado con el cliente. '}
+                                                    <span className="font-bold">Incluye</span> transporte, descargue e instalación (cubiertos por el porcentaje de Administración).
+                                                </p>
+                                            );
+                                        }
+                                        // Modo simple
+                                        return (
+                                            <p className="text-xs text-gray-600 leading-relaxed">
+                                                La presente oferta se entrega en {lugar ? <><strong>{lugar}</strong>. </> : 'la planta de producción, Anillo Vial Km 1+800 Floridablanca – Girón. '}
+                                                {includesTransport
+                                                    ? <><span className="font-bold">Incluye transporte</span> hasta {(transportCity.trim() || client?.city || 'destino').toUpperCase()}. <span className="font-bold">No incluye</span> descargue ni instalación.</>
+                                                    : <><span className="font-bold">No incluye</span> transporte, descargue ni instalación.</>}
+                                            </p>
+                                        );
+                                    })()}
                                 </div>
                                 <div>
                                     <p className="font-black text-xs text-[#1a1a1d] uppercase mb-1">2. Vigencia de la Oferta:</p>
-                                    <p className="text-xs text-gray-600">La cotización tiene vigencia hasta el <strong>{validUntil || '(definir fecha)'}</strong>.</p>
+                                    <p className="text-xs text-gray-600">La cotización tiene vigencia hasta el <strong>{displayValidUntil}</strong>.</p>
                                 </div>
                                 <div>
                                     <p className="font-black text-xs text-[#1a1a1d] uppercase mb-1">3. Plazo de Entrega:</p>
@@ -1372,7 +1578,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                 </div>
                             </div>
 
-                            {/* Items Table */}
+                            {/* Items Table — el header y el desglose dependen del modo */}
                             <div>
                                 <p className="font-black text-xs text-[#1a1a1d] uppercase mb-2">5. Cantidades y Precios del Proyecto:</p>
                                 <table className="w-full text-xs border-collapse">
@@ -1382,33 +1588,62 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                             <th className="text-left px-2 py-2 font-black uppercase tracking-wide">Dimensiones</th>
                                             <th className="text-center px-2 py-2 font-black uppercase tracking-wide">Un.</th>
                                             <th className="text-center px-2 py-2 font-black uppercase tracking-wide">Cant.</th>
-                                            <th className="text-right px-3 py-2 font-black uppercase tracking-wide">P. Unit.</th>
-                                            <th className="text-right px-3 py-2 font-black uppercase tracking-wide">Total</th>
+                                            <th className="text-right px-3 py-2 font-black uppercase tracking-wide">V. Unit. antes IVA</th>
+                                            <th className="text-right px-3 py-2 font-black uppercase tracking-wide">V. Total antes IVA</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {items.map((item, idx) => (
-                                            <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#faf7f0]'}>
-                                                <td className="px-3 py-2 font-semibold">{item.name}</td>
-                                                <td className="px-2 py-2 text-gray-500 text-[10px]">{item.dimensions || '—'}</td>
-                                                <td className="px-2 py-2 text-center text-gray-500">{item.unit}</td>
-                                                <td className="px-2 py-2 text-center font-bold text-[#fab510]">{item.quantity}</td>
-                                                <td className="px-3 py-2 text-right text-gray-600">{formatCurrency(item.price)}</td>
-                                                <td className="px-3 py-2 text-right font-bold">{formatCurrency(item.price * item.quantity)}</td>
+                                        {items.map((item, idx) => {
+                                            const c = calc.items[idx];
+                                            const unitBefore = c?.unitPriceBeforeTax ?? 0;
+                                            const lineBefore = c?.lineTotalBeforeTax ?? 0;
+                                            return (
+                                                <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#faf7f0]'}>
+                                                    <td className="px-3 py-2 font-semibold">{item.name}</td>
+                                                    <td className="px-2 py-2 text-gray-500 text-[10px]">{item.dimensions || '—'}</td>
+                                                    <td className="px-2 py-2 text-center text-gray-500">{item.unit}</td>
+                                                    <td className="px-2 py-2 text-center font-bold text-[#fab510]">{item.quantity}</td>
+                                                    <td className="px-3 py-2 text-right text-gray-600">{formatCurrency(unitBefore)}</td>
+                                                    <td className="px-3 py-2 text-right font-bold">{formatCurrency(lineBefore)}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                        {/* Fila de transporte (solo modo simple cuando el vendedor lo activó) */}
+                                        {quoteMode === 'simple' && includesTransport && calc.transportBeforeTax !== undefined && (
+                                            <tr className="bg-amber-50/40">
+                                                <td className="px-3 py-2 font-semibold">{transportItemDescription(transportCity || client?.city || '')}</td>
+                                                <td className="px-2 py-2 text-gray-500 text-[10px]">—</td>
+                                                <td className="px-2 py-2 text-center text-gray-500">gl</td>
+                                                <td className="px-2 py-2 text-center font-bold text-[#fab510]">1</td>
+                                                <td className="px-3 py-2 text-right text-gray-600">{formatCurrency(calc.transportBeforeTax)}</td>
+                                                <td className="px-3 py-2 text-right font-bold">{formatCurrency(calc.transportBeforeTax)}</td>
                                             </tr>
-                                        ))}
+                                        )}
                                     </tbody>
                                 </table>
                                 <div className="flex justify-end mt-2 gap-4 text-xs pr-3">
                                     <div className="text-right space-y-1">
-                                        <div className="text-gray-500">Subtotal: <strong className="text-gray-800">{formatCurrency(subtotal)}</strong></div>
-                                        <div className="text-gray-500">IVA (19%): <strong className="text-gray-800">{formatCurrency(tax)}</strong></div>
-                                        {shipping > 0 && (
-                                            <div className="text-gray-500">
-                                                Envío{client?.city ? ` (${client.city})` : ''}: <strong className="text-gray-800">{formatCurrency(shipping)}</strong>
-                                            </div>
+                                        {quoteMode === 'simple' ? (
+                                            <>
+                                                <div className="text-gray-500">Valor total antes de IVA: <strong className="text-gray-800">{formatCurrency(calc.subtotalLine1)}</strong></div>
+                                                <div className="text-gray-500">IVA (19%): <strong className="text-gray-800">{formatCurrency(calc.taxAmount)}</strong></div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="text-gray-500">Subtotal: <strong className="text-gray-800">{formatCurrency(calc.productsSubtotal)}</strong></div>
+                                                {calc.adminAmount !== undefined && (
+                                                    <div className="text-gray-500">Administración ({adminPercent}%): <strong className="text-gray-800">{formatCurrency(calc.adminAmount)}</strong></div>
+                                                )}
+                                                {calc.utilityAmount !== undefined && (
+                                                    <div className="text-gray-500">Utilidad ({utilityPercent}%): <strong className="text-gray-800">{formatCurrency(calc.utilityAmount)}</strong></div>
+                                                )}
+                                                {calc.subtotalAfterAiu !== undefined && (
+                                                    <div className="text-gray-500">Subtotal acumulado: <strong className="text-gray-800">{formatCurrency(calc.subtotalAfterAiu)}</strong></div>
+                                                )}
+                                                <div className="text-gray-500">IVA (19% sólo sobre utilidad): <strong className="text-gray-800">{formatCurrency(calc.taxAmount)}</strong></div>
+                                            </>
                                         )}
-                                        <div className="bg-[#fab510] text-black font-black px-4 py-2 rounded-lg text-sm mt-1">TOTAL: {formatCurrency(total)}</div>
+                                        <div className="bg-[#fab510] text-black font-black px-4 py-2 rounded-lg text-sm mt-1">TOTAL: {formatCurrency(calc.total)}</div>
                                     </div>
                                 </div>
                             </div>

@@ -1,5 +1,10 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import {
+    calculateQuoteTotals,
+    transportItemDescription,
+    type QuoteMode,
+} from './quote-calculations';
 
 export interface ReportData {
     title: string;
@@ -7,6 +12,13 @@ export interface ReportData {
     topLeads: { name: string; company: string; score: number }[];
 }
 
+/**
+ * ProposalData es el contrato del PDF. Recibe los datos crudos (no totales pre-
+ * calculados) — el PDF llama internamente a `calculateQuoteTotals` para que el
+ * formulario y el PDF muestren EXACTAMENTE el mismo desglose. Si esto se
+ * duplicara cada uno fallaría en una arista de redondeo distinta y los
+ * vendedores verían un total en pantalla y otro en el PDF que recibe el cliente.
+ */
 export interface ProposalData {
     quoteNumber: string;
     date: string;
@@ -14,13 +26,40 @@ export interface ProposalData {
     leadCompany?: string;
     leadEmail?: string;
     leadCity?: string;
-    // Campos comerciales
     referencia?: string;
-    validUntil?: string;
+    validUntil?: string;     // string ya formateado (ej: "24 de Mayo de 2026")
     deliveryTime?: string;
     paymentTerms?: string;
     sellerName?: string;
     sellerPhone?: string;
+    /** Modo de la cotización. Default 'simple' si no viene. */
+    mode?: QuoteMode;
+    items: Array<{
+        name: string;
+        unitPrice: number;       // precio Woo (CON IVA incluido)
+        quantity: number;
+        unit?: string;
+        image?: string;
+        dimensions?: string;
+    }>;
+    /** (modo simple) ¿La oferta cubre transporte? */
+    includesTransport?: boolean;
+    /** (modo simple) Monto del transporte que escribió el vendedor (CON IVA). */
+    transportAmount?: number;
+    /** (modo simple) Ciudad destino para el texto de la fila de transporte. */
+    transportCity?: string;
+    /** (modo aiu) Porcentaje 0–100. */
+    adminPercent?: number;
+    /** (modo aiu) Porcentaje 0–100. */
+    utilityPercent?: number;
+    /** Texto que reemplaza el "se entrega en {ciudad cliente}" del Alcance. */
+    deliveryLocation?: string;
+
+    // ── Campos LEGACY ──
+    // Para que las cotizaciones viejas (las pocas pre-modelo-nuevo) sigan
+    // renderizando con el formato antiguo, mantenemos estos campos. Si llegan,
+    // el PDF usa la rama legacy (subtotal/tax/total + aiuData) en vez de la
+    // rama nueva. Cotizaciones nuevas NO los pasan.
     isAIU?: boolean;
     aiuData?: {
         supply?: string;
@@ -31,20 +70,11 @@ export interface ProposalData {
         installationPrice?: number;
         totalAIU?: number;
     };
-    items: {
-        name: string;
-        price: number;
-        quantity: number;
-        unit: string;
-        total: number;
-        image?: string;
-        dimensions?: string;
-    }[];
-    subtotal: number;
-    tax: number;
-    total: number;
-    shipping?: number;        // COP — se muestra como línea separada antes del total
-    shippingCity?: string;    // ciudad usada para el cálculo (display)
+    subtotal?: number;
+    tax?: number;
+    total?: number;
+    shipping?: number;
+    shippingCity?: string;
 }
 
 const PRIMARY = [250, 181, 16] as [number, number, number];
@@ -165,6 +195,13 @@ export const generatePDFReport = (data: ReportData): void => {
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // PROPUESTA COMERCIAL — Formato oficial Arte Concreto
+//
+// Render unificado: el documento se construye una sola vez y dentro de él
+// dos ramas (`renderSimpleTotals` / `renderAiuTotals`) deciden cómo se ve el
+// bloque de precios y cómo se redacta el alcance. El header, los datos del
+// destinatario, la referencia, la galería de imágenes, vigencia, plazo,
+// forma de pago y el cierre son COMUNES — no se duplican. Eso evita el
+// drift que tendríamos si hiciéramos dos PDFs separados.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 export const generateProposalPDF = async (data: ProposalData): Promise<void> => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -179,17 +216,37 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
     const paymentTerms = data.paymentTerms ||
         '- Anticipo del 50% del total de la orden.\n- El saldo deberá cancelarse en su totalidad antes de la entrega de los productos. El producto que no sea cancelado en su totalidad, no podrá ser entregado.';
 
+    // ── Detectar si es cotización LEGACY ──
+    // Dos señales nos llevan al render legacy:
+    //   1) Llega `aiuData.totalAIU` — es una AIU del modelo viejo (transporte+descargue+
+    //      instalación con montos hardcoded). El modelo nuevo usa porcentajes; los montos
+    //      pre-calculados no se pueden reconstruir desde adminPercent/utilityPercent.
+    //   2) No viene `mode` Y vienen subtotal/total — cotización simple del modelo viejo.
+    // Si la migración back-fill el campo `mode` en cotizaciones AIU viejas, la señal (1)
+    // sigue redirigiendo correctamente al render legacy y los totales no se descuajaran.
+    const hasLegacyAiuData = !!(data.aiuData && (data.aiuData.totalAIU || data.aiuData.transportPrice || data.aiuData.installationPrice));
+    const isLegacy = hasLegacyAiuData || (data.mode === undefined && (data.subtotal !== undefined || data.total !== undefined));
+
+    // Si es nuevo, calculamos todo desde la fuente única.
+    const calc = isLegacy ? null : calculateQuoteTotals({
+        mode: data.mode || 'simple',
+        items: data.items.map(i => ({ unitPrice: i.unitPrice, quantity: i.quantity })),
+        includesTransport: data.includesTransport,
+        transportAmount: data.transportAmount,
+        adminPercent: data.adminPercent,
+        utilityPercent: data.utilityPercent,
+    });
+
+    const mode: QuoteMode = (data.mode ?? (data.isAIU ? 'aiu' : 'simple'));
+
     // ── HEADER ────────────────────────────────────────────────────────────────
-    // Dark background
     doc.setFillColor(...DARK);
     doc.rect(0, 0, PW, 44, 'F');
     doc.setFillColor(...PRIMARY);
     doc.rect(0, 40, PW, 4, 'F');
 
-    // Try to load logo via /api/logo proxy
-    // Logo Arte Concreto: 237×96 px → aspect ratio 2.47:1
-    // White pill background so logo (dark ink on transparent) is visible on dark header
-    const LOGO_W = 46, LOGO_H = Math.round(46 / (237 / 96)); // ≈ 18.6 → 19 mm
+    // Logo Arte Concreto (237×96 px → 2.47:1)
+    const LOGO_W = 46, LOGO_H = Math.round(46 / (237 / 96)); // ≈ 19 mm
     try {
         const res = await fetch('/api/logo');
         if (res.ok) {
@@ -200,14 +257,12 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
                 reader.onerror = reject;
                 reader.readAsDataURL(blob);
             });
-            // White rounded background so dark-ink logo shows on dark PDF header
             doc.setFillColor(...WHITE);
             doc.roundedRect(LM - 2, 9, LOGO_W + 4, LOGO_H + 4, 3, 3, 'F');
-            const fmt = base64.startsWith('data:image/jpeg') || base64.startsWith('data:image/jpg') ? 'JPEG' : 'PNG';
-            doc.addImage(base64, fmt, LM, 11, LOGO_W, LOGO_H, undefined, 'FAST');
+            const fmtLogo = base64.startsWith('data:image/jpeg') || base64.startsWith('data:image/jpg') ? 'JPEG' : 'PNG';
+            doc.addImage(base64, fmtLogo, LM, 11, LOGO_W, LOGO_H, undefined, 'FAST');
         } else { throw new Error('logo not ok'); }
     } catch {
-        // Fallback: text logo
         doc.setTextColor(...WHITE);
         doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
@@ -220,7 +275,6 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
         doc.text('S.A.S', LM, 24);
     }
 
-    // Company info right side
     doc.setTextColor(180, 180, 180);
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
@@ -300,7 +354,7 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
     doc.text('1. CANTIDADES Y PRECIOS DEL PROYECTO:', LM, y);
     y += 6;
 
-    // ── 1a. Product images block (before the table) ───────────────────────────
+    // ── 1a. Galería de imágenes (si hay) ──────────────────────────────────────
     const itemsWithImages = data.items.filter(i => i.image);
     if (itemsWithImages.length > 0) {
         const IMG_SIZE = 32;
@@ -313,14 +367,12 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
                 y += IMG_SIZE + 14;
                 imgX = LM;
             }
-            // Check page break
             if (y + IMG_SIZE + 14 > doc.internal.pageSize.getHeight() - 20) {
                 doc.addPage();
                 y = 25;
                 imgX = LM;
             }
             try {
-                // Attempt to embed image from data-url or URL
                 const src = item.image!;
                 if (src.startsWith('data:') || src.startsWith('http')) {
                     let b64 = src;
@@ -342,7 +394,6 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
                     doc.addImage(b64, imgFmt, imgX, y, IMG_SIZE, IMG_SIZE, undefined, 'FAST');
                 }
             } catch { /* skip image on error */ }
-            // Product name below image
             doc.setFontSize(6.5);
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(...DARK);
@@ -359,101 +410,193 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
         y += IMG_SIZE + 16;
     }
 
-    // ── 5b. Price table ──────────────────────────────────────────────────────
-    // Check page break before table
-    if (y + 30 > doc.internal.pageSize.getHeight() - 20) {
-        doc.addPage();
-        y = 25;
-    }
+    // ── 1b. Tabla de precios + footer con desglose ───────────────────────────
+    if (y + 30 > doc.internal.pageSize.getHeight() - 20) { doc.addPage(); y = 25; }
 
-    autoTable(doc, {
-        startY: y,
-        head: [['Producto / Referencia', 'Dimensiones', 'Ud.', 'Cant.', 'P. Unitario', 'Total']],
-        body: data.items.map(item => [
+    let fy: number;
+
+    if (isLegacy) {
+        // ── RAMA LEGACY (cotizaciones pre-modelo-nuevo) ────────────────────
+        // Reproduce la tabla original con subtotal/IVA/envío y la sección AIU
+        // antigua tal como existía. Este código sólo lo ejecutan cotizaciones
+        // viejas; nuevas siempre van por la rama de calc.
+        autoTable(doc, {
+            startY: y,
+            head: [['Producto / Referencia', 'Dimensiones', 'Ud.', 'Cant.', 'P. Unitario', 'Total']],
+            body: data.items.map(item => {
+                const lineTotal = item.unitPrice * item.quantity;
+                return [
+                    item.name,
+                    item.dimensions || '—',
+                    item.unit || 'un',
+                    String(item.quantity),
+                    fmt(item.unitPrice),
+                    fmt(lineTotal),
+                ];
+            }),
+            theme: 'grid',
+            headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: 'bold', fontSize: 7.5, cellPadding: 3.5 },
+            bodyStyles: { fontSize: 7.5, cellPadding: 2.5, textColor: DARKGRAY },
+            alternateRowStyles: { fillColor: [250, 248, 244] as [number,number,number] },
+            columnStyles: {
+                0: { cellWidth: 62 },
+                1: { cellWidth: 32 },
+                2: { cellWidth: 14, halign: 'center' },
+                3: { cellWidth: 12, halign: 'center' },
+                4: { cellWidth: 30, halign: 'right' },
+                5: { cellWidth: 24, halign: 'right' },
+            },
+            margin: { left: LM, right: 18 },
+            foot: [
+                ['', '', '', '', 'Subtotal:', fmt(data.subtotal || 0)],
+                ['', '', '', '', 'IVA (19%):', fmt(data.tax || 0)],
+                ...(data.shipping && data.shipping > 0
+                    ? [['', '', '', '', `Envío${data.shippingCity ? ` (${data.shippingCity})` : ''}:`, fmt(data.shipping)] as string[]]
+                    : []),
+            ],
+            footStyles: { fillColor: [245, 245, 245] as [number,number,number], textColor: DARKGRAY, fontStyle: 'bold', fontSize: 7.5, halign: 'right' },
+        });
+        fy = ((doc as any).lastAutoTable?.finalY ?? y + 40) + 2;
+
+        if (data.isAIU && data.aiuData) {
+            fy += 8;
+            if (fy + 50 > doc.internal.pageSize.getHeight() - 20) { doc.addPage(); fy = 25; }
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.setTextColor(...DARK);
+            doc.text('SUMINISTRO, TRANSPORTE E INSTALACIÓN (AIU):', LM, fy);
+            fy += 6;
+            const aiuRows: [string, string][] = [];
+            if (data.aiuData.transportPrice)    aiuRows.push(['Valor transporte', fmt(data.aiuData.transportPrice)]);
+            if (data.aiuData.unloadPrice)       aiuRows.push(['Valor descarga', fmt(data.aiuData.unloadPrice)]);
+            if (data.aiuData.installationPrice) aiuRows.push(['Valor instalación', fmt(data.aiuData.installationPrice)]);
+            autoTable(doc, {
+                startY: fy,
+                head: [['Concepto AIU', 'Valor']],
+                body: aiuRows,
+                theme: 'grid',
+                headStyles: { fillColor: PRIMARY, textColor: [0,0,0] as [number,number,number], fontStyle: 'bold', fontSize: 8 },
+                bodyStyles: { fontSize: 8, textColor: DARKGRAY },
+                columnStyles: { 0: { cellWidth: 60, fontStyle: 'bold' }, 1: { cellWidth: 114 } },
+                margin: { left: LM, right: 18 },
+            });
+            fy = ((doc as any).lastAutoTable?.finalY ?? fy + 30) + 4;
+        }
+
+        doc.setFillColor(...PRIMARY);
+        doc.roundedRect(LM + 118, fy, 56, 10, 2, 2, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(0, 0, 0);
+        doc.text('TOTAL:', LM + 121, fy + 6.5);
+        doc.text(fmt(data.total || 0), RM, fy + 6.5, { align: 'right' });
+        fy += 18;
+    } else if (mode === 'simple') {
+        // ── MODO SIMPLE (modelo nuevo) ──
+        // Tabla con valor unitario ANTES de IVA + valor total ANTES de IVA. Si
+        // hay transporte se inserta como una fila extra autogenerada.
+        const c = calc!;
+        const bodyRows = data.items.map((item, idx) => [
             item.name,
             item.dimensions || '—',
             item.unit || 'un',
             String(item.quantity),
-            fmt(item.price),
-            fmt(item.total),
-        ]),
-        theme: 'grid',
-        headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: 'bold', fontSize: 7.5, cellPadding: 3.5 },
-        bodyStyles: { fontSize: 7.5, cellPadding: 2.5, textColor: DARKGRAY },
-        alternateRowStyles: { fillColor: [250, 248, 244] as [number,number,number] },
-        columnStyles: {
-            0: { cellWidth: 62 },
-            1: { cellWidth: 32 },
-            2: { cellWidth: 14, halign: 'center' },
-            3: { cellWidth: 12, halign: 'center' },
-            4: { cellWidth: 30, halign: 'right' },
-            5: { cellWidth: 24, halign: 'right' },
-        },
-        margin: { left: LM, right: 18 },
-        foot: [
-            ['', '', '', '', 'Subtotal:', fmt(data.subtotal)],
-            ['', '', '', '', 'IVA (19%):', fmt(data.tax)],
-            ...(data.shipping && data.shipping > 0
-                ? [['', '', '', '', `Envío${data.shippingCity ? ` (${data.shippingCity})` : ''}:`, fmt(data.shipping)] as string[]]
-                : []),
-        ],
-        footStyles: { fillColor: [245, 245, 245] as [number,number,number], textColor: DARKGRAY, fontStyle: 'bold', fontSize: 7.5, halign: 'right' },
-    });
+            fmt(c.items[idx].unitPriceBeforeTax),
+            fmt(c.items[idx].lineTotalBeforeTax),
+        ]);
+        if (c.transportBeforeTax !== undefined) {
+            bodyRows.push([
+                transportItemDescription(data.transportCity || data.leadCity || ''),
+                '—',
+                'gl',
+                '1',
+                fmt(c.transportBeforeTax),
+                fmt(c.transportBeforeTax),
+            ]);
+        }
+        autoTable(doc, {
+            startY: y,
+            head: [['Producto / Referencia', 'Dimensiones', 'Ud.', 'Cant.', 'V. Unit. antes IVA', 'V. Total antes IVA']],
+            body: bodyRows,
+            theme: 'grid',
+            headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: 'bold', fontSize: 7.5, cellPadding: 3.5 },
+            bodyStyles: { fontSize: 7.5, cellPadding: 2.5, textColor: DARKGRAY },
+            alternateRowStyles: { fillColor: [250, 248, 244] as [number,number,number] },
+            columnStyles: {
+                0: { cellWidth: 62 },
+                1: { cellWidth: 28 },
+                2: { cellWidth: 12, halign: 'center' },
+                3: { cellWidth: 12, halign: 'center' },
+                4: { cellWidth: 30, halign: 'right' },
+                5: { cellWidth: 30, halign: 'right' },
+            },
+            margin: { left: LM, right: 18 },
+            foot: [
+                ['', '', '', '', 'Valor total antes de IVA:', fmt(c.subtotalLine1)],
+                ['', '', '', '', 'IVA (19%):', fmt(c.taxAmount)],
+            ],
+            footStyles: { fillColor: [245, 245, 245] as [number,number,number], textColor: DARKGRAY, fontStyle: 'bold', fontSize: 7.5, halign: 'right' },
+        });
+        fy = ((doc as any).lastAutoTable?.finalY ?? y + 40) + 2;
 
-    let fy = ((doc as any).lastAutoTable?.finalY ?? y + 40) + 2;
-
-    // ── AIU Section (if applicable) ───────────────────────────────────────────
-    if (data.isAIU && data.aiuData) {
-        fy += 8;
-        if (fy + 50 > doc.internal.pageSize.getHeight() - 20) { doc.addPage(); fy = 25; }
+        // Total destacado
+        doc.setFillColor(...PRIMARY);
+        doc.roundedRect(LM + 118, fy, 56, 10, 2, 2, 'F');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
-        doc.setTextColor(...DARK);
-        doc.text('SUMINISTRO, TRANSPORTE E INSTALACIÓN (AIU):', LM, fy);
-        fy += 6;
-
-        const aiuRows: [string, string][] = [];
-        if (data.aiuData.supply)       aiuRows.push(['Suministro', data.aiuData.supply]);
-        if (data.aiuData.transport)    aiuRows.push(['Transporte', data.aiuData.transport]);
-        if (data.aiuData.installation) aiuRows.push(['Instalación en sitio', data.aiuData.installation]);
-        if (data.aiuData.transportPrice)    aiuRows.push(['Valor transporte', fmt(data.aiuData.transportPrice)]);
-        if (data.aiuData.unloadPrice)       aiuRows.push(['Valor descarga', fmt(data.aiuData.unloadPrice)]);
-        if (data.aiuData.installationPrice) aiuRows.push(['Valor instalación', fmt(data.aiuData.installationPrice)]);
-
+        doc.setTextColor(0, 0, 0);
+        doc.text('VALOR TOTAL:', LM + 121, fy + 6.5);
+        doc.text(fmt(c.total), RM, fy + 6.5, { align: 'right' });
+        fy += 18;
+    } else {
+        // ── MODO AIU (modelo nuevo) ──
+        // Tabla productos + bloque Administración/Utilidad + IVA solo sobre util.
+        const c = calc!;
         autoTable(doc, {
-            startY: fy,
-            head: [['Concepto AIU', 'Detalle / Valor']],
-            body: aiuRows,
+            startY: y,
+            head: [['Producto / Referencia', 'Dimensiones', 'Ud.', 'Cant.', 'V. Unit. antes IVA', 'V. Total antes IVA']],
+            body: data.items.map((item, idx) => [
+                item.name,
+                item.dimensions || '—',
+                item.unit || 'un',
+                String(item.quantity),
+                fmt(c.items[idx].unitPriceBeforeTax),
+                fmt(c.items[idx].lineTotalBeforeTax),
+            ]),
             theme: 'grid',
-            headStyles: { fillColor: PRIMARY, textColor: [0,0,0] as [number,number,number], fontStyle: 'bold', fontSize: 8 },
-            bodyStyles: { fontSize: 8, textColor: DARKGRAY },
-            columnStyles: { 0: { cellWidth: 60, fontStyle: 'bold' }, 1: { cellWidth: 114 } },
+            headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: 'bold', fontSize: 7.5, cellPadding: 3.5 },
+            bodyStyles: { fontSize: 7.5, cellPadding: 2.5, textColor: DARKGRAY },
+            alternateRowStyles: { fillColor: [250, 248, 244] as [number,number,number] },
+            columnStyles: {
+                0: { cellWidth: 62 },
+                1: { cellWidth: 28 },
+                2: { cellWidth: 12, halign: 'center' },
+                3: { cellWidth: 12, halign: 'center' },
+                4: { cellWidth: 30, halign: 'right' },
+                5: { cellWidth: 30, halign: 'right' },
+            },
             margin: { left: LM, right: 18 },
+            foot: [
+                ['', '', '', '', 'Subtotal:', fmt(c.productsSubtotal)],
+                ['', '', '', '', `Administración (${data.adminPercent ?? 0}%):`, fmt(c.adminAmount ?? 0)],
+                ['', '', '', '', `Utilidad (${data.utilityPercent ?? 0}%):`, fmt(c.utilityAmount ?? 0)],
+                ['', '', '', '', 'Subtotal acumulado:', fmt(c.subtotalAfterAiu ?? 0)],
+                ['', '', '', '', 'IVA 19% (sólo sobre utilidad):', fmt(c.taxAmount)],
+            ],
+            footStyles: { fillColor: [245, 245, 245] as [number,number,number], textColor: DARKGRAY, fontStyle: 'bold', fontSize: 7.5, halign: 'right' },
         });
-        fy = ((doc as any).lastAutoTable?.finalY ?? fy + 30) + 4;
+        fy = ((doc as any).lastAutoTable?.finalY ?? y + 60) + 2;
 
-        if (data.aiuData.totalAIU) {
-            doc.setFillColor(...PRIMARY);
-            doc.roundedRect(LM + 108, fy, 66, 10, 2, 2, 'F');
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(9);
-            doc.setTextColor(0, 0, 0);
-            doc.text('TOTAL AIU:', LM + 111, fy + 6.5);
-            doc.text(fmt(data.aiuData.totalAIU), RM, fy + 6.5, { align: 'right' });
-            fy += 14;
-        }
+        // Total destacado
+        doc.setFillColor(...PRIMARY);
+        doc.roundedRect(LM + 118, fy, 56, 10, 2, 2, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(0, 0, 0);
+        doc.text('VALOR TOTAL:', LM + 121, fy + 6.5);
+        doc.text(fmt(c.total), RM, fy + 6.5, { align: 'right' });
+        fy += 18;
     }
-
-    // TOTAL highlight box
-    doc.setFillColor(...PRIMARY);
-    doc.roundedRect(LM + 118, fy, 56, 10, 2, 2, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(0, 0, 0);
-    doc.text('TOTAL:', LM + 121, fy + 6.5);
-    doc.text(fmt(data.total), RM, fy + 6.5, { align: 'right' });
-
-    fy += 18;
 
     // ── CONDICIONES (después de precios) ──────────────────────────────────────
     const pageH = doc.internal.pageSize.getHeight();
@@ -462,6 +605,11 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
     };
 
     // Section 2: ALCANCE
+    // El alcance habla de transporte/descargue/instalación. En cotizaciones
+    // SIMPLE con transporte activo, decimos "Sí incluye transporte" pero
+    // descargue e instalación siguen siendo "No incluye". En AIU, los 3 son
+    // "Sí incluye" porque están absorbidos por el % de Administración. Lo
+    // que el cliente lee aquí debe coincidir con lo que se le cobra.
     ensureSpace(40);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
@@ -471,26 +619,50 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(...DARKGRAY);
-    const alcanceText = 'La presente oferta de los elementos en concreto se entrega en la planta de producción, Anillo Vial Km 1 + 800 Floridablanca – Girón, basado en la solicitud del cliente.';
+
+    const lugarEntrega = (data.deliveryLocation && data.deliveryLocation.trim())
+        ? data.deliveryLocation.trim()
+        : (data.leadCity && data.leadCity.trim() ? `la ciudad de ${data.leadCity.trim()}` : 'el sitio acordado con el cliente');
+
+    let alcanceText: string;
+    if (mode === 'aiu') {
+        alcanceText = `La presente oferta de los elementos en concreto se entrega en ${lugarEntrega}, basado en la solicitud del cliente.`;
+    } else {
+        // simple: la oferta se entrega en planta o en la ciudad indicada
+        alcanceText = data.deliveryLocation && data.deliveryLocation.trim()
+            ? `La presente oferta de los elementos en concreto se entrega en ${lugarEntrega}, basado en la solicitud del cliente.`
+            : 'La presente oferta de los elementos en concreto se entrega en la planta de producción, Anillo Vial Km 1 + 800 Floridablanca – Girón, basado en la solicitud del cliente.';
+    }
     const alcanceLines = doc.splitTextToSize(alcanceText, 174);
     doc.text(alcanceLines, LM, fy);
     fy += alcanceLines.length * 4.5 + 3;
 
-    const noIncluyeItems = [
-        'La oferta No incluye el transporte de los elementos al sitio de entrega.',
-        'La oferta No incluye el descargue del producto que corresponde a los productos en concreto.',
-        'La oferta No incluye la instalación de las piezas cotizadas.',
-    ];
-    for (const item of noIncluyeItems) {
+    // Bullets Sí/No incluye según modo
+    const includeRows: Array<{ verb: 'Sí incluye' | 'No incluye'; rest: string }> = (() => {
+        if (mode === 'aiu') {
+            return [
+                { verb: 'Sí incluye', rest: ' el transporte de los elementos al sitio de entrega.' },
+                { verb: 'Sí incluye', rest: ' el descargue del producto en concreto.' },
+                { verb: 'Sí incluye', rest: ' la instalación de las piezas cotizadas.' },
+            ];
+        }
+        // simple
+        return [
+            { verb: data.includesTransport ? 'Sí incluye' : 'No incluye', rest: ' el transporte de los elementos al sitio de entrega.' },
+            { verb: 'No incluye', rest: ' el descargue del producto en concreto.' },
+            { verb: 'No incluye', rest: ' la instalación de las piezas cotizadas.' },
+        ];
+    })();
+
+    for (const { verb, rest } of includeRows) {
         ensureSpace(10);
         doc.setFont('helvetica', 'normal');
         doc.text('La oferta ', LM + 3, fy);
         const x1 = LM + 3 + doc.getTextWidth('La oferta ');
         doc.setFont('helvetica', 'bold');
-        doc.text('No incluye', x1, fy);
-        const x2 = x1 + doc.getTextWidth('No incluye');
+        doc.text(verb, x1, fy);
+        const x2 = x1 + doc.getTextWidth(verb);
         doc.setFont('helvetica', 'normal');
-        const rest = item.replace('La oferta No incluye', '');
         const restLines = doc.splitTextToSize(rest, 174 - (x2 - LM));
         doc.text(restLines[0] || '', x2, fy);
         if (restLines.length > 1) {
@@ -566,7 +738,6 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
     doc.text('Cordialmente', LM, fy);
     fy += 14;
 
-    // Signature line
     doc.setDrawColor(...GRAY);
     doc.line(LM, fy, LM + 60, fy);
     fy += 5;

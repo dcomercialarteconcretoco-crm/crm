@@ -156,6 +156,11 @@ export interface Quote {
     baseNumber?: string;    // base without version: "ART-250-2026"
     version?: number;       // 1=original (no V suffix), 2=V1, 3=V2...
     isAIU?: boolean;        // final AIU version (appends "-AIU")
+    // Legacy AIU data (formato anterior donde AIU significaba "agregar transporte/descargue/
+    // instalación con montos"). NUEVAS cotizaciones NO usan este objeto — el modelo nuevo es
+    // adminPercent + utilityPercent + IVA-solo-sobre-utilidad. Se mantiene para que las
+    // cotizaciones históricas (las pocas que ya salieron antes del cambio de modelo) sigan
+    // viéndose correctamente con el PDF legacy.
     aiuData?: {
         supply?: string;
         transport?: string;
@@ -165,6 +170,55 @@ export interface Quote {
         installationPrice?: number;
         totalAIU?: number;
     };
+
+    // ── MODELO NUEVO (abril 2026) ──────────────────────────────────────────────
+    //
+    // El precio que viene de WooCommerce (price/regular_price) YA INCLUYE IVA del 19%.
+    // En el PDF se muestra "valor unitario antes de IVA", que es precio_woo / 1.19.
+    //
+    // Tipos de cotización:
+    //
+    //   - 'simple': cotización normal. Productos + (transporte opcional). IVA 19% sobre
+    //     todo el subtotal. Alcance dice "Sí/No incluye transporte" según el checkbox;
+    //     descargue e instalación SIEMPRE dicen "No incluye".
+    //
+    //   - 'aiu': cotización bajo régimen de Administración + Utilidad (Estatuto
+    //     Tributario, contratos asimilados a obra). El IVA del 19% aplica SÓLO sobre
+    //     la línea de Utilidad — eso es lo que la hace "más barata" para el cliente
+    //     final cuando el cliente patalea por el IVA full. El alcance dice "Sí incluye"
+    //     en las 3 líneas porque transporte/descargue/instalación están absorbidos
+    //     dentro del % de Administración (lo negocia el vendedor a mano). El número
+    //     de la cotización lleva sufijo "-AIU".
+    //
+    // Si quoteMode es undefined → cotización heredada del modelo viejo. El PDF y los
+    // listados las siguen renderizando con el formato legacy para no romper histórico.
+    quoteMode?: 'simple' | 'aiu';
+
+    // (modo simple) — el vendedor decide si la oferta cubre el transporte. Si está en
+    // false o undefined, el alcance dice "No incluye transporte" y no aparece fila en
+    // la tabla. Si está en true, se agrega una fila autogenerada
+    // "TRANSPORTE DESDE FLORIDABLANCA HASTA {transportCity} SIN DESCARGUE" con el
+    // monto `transportAmount`.
+    includesTransport?: boolean;
+    // Monto del transporte tal como lo escribe el vendedor. INCLUYE IVA — el sistema
+    // lo divide entre 1.19 al armar el "antes de IVA" del PDF, igual que con los
+    // productos de Woo.
+    transportAmount?: number;
+    // Ciudad destino del transporte (override). Si está vacío, se usa client.city.
+    transportCity?: string;
+
+    // (modo aiu) — porcentajes que el vendedor negocia con el cliente. Pueden ser 0.
+    adminPercent?: number;
+    utilityPercent?: number;
+
+    // Texto que reemplaza el "se entrega en la ciudad de {client.city}" del Alcance.
+    // Vacío → se autogenera con la ciudad. Útil cuando el vendedor quiere poner una
+    // dirección específica (Calle 24 # 25-68 Bucaramanga, etc.).
+    deliveryLocation?: string;
+
+    // Días de validez de la oferta. Default 30, editable. La fecha mostrada en el PDF
+    // se calcula como cotización.date + validityDays.
+    validityDays?: number;
 }
 
 export interface Seller {
@@ -941,6 +995,41 @@ REGLAS DE ORO:
                 return nextTasks;
             });
             return prevQuotes;
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isInitialLoad]);
+
+    // ── Migration: tag legacy quotes with `quoteMode` ────────────────────────
+    // Antes de abril 2026 el modelo de cotización no tenía un campo `quoteMode`
+    // explícito — la única señal era el flag booleano `isAIU`. El modelo nuevo
+    // bifurca por `quoteMode = 'simple' | 'aiu'`. Este efecto corre una vez
+    // después de que se hidrata la data y back-fill el campo en cualquier
+    // cotización que todavía no lo tenga.
+    //
+    // Lo que NO toca:
+    //   - `numericTotal`, `total`, `subtotal`, `tax` — esos quedan exactamente
+    //     como se guardaron (los vendedores y los clientes ya vieron esos
+    //     números, no podemos cambiarlos retroactivamente).
+    //   - `aiuData` (objeto legacy con montos hardcoded) — se conserva. El PDF
+    //     detecta `aiuData.totalAIU` y dispara la rama de render legacy aunque
+    //     `quoteMode` esté seteado. Esto es lo que evita que las ~2-4 AIU
+    //     viejas que ya se enviaron con el modelo viejo cambien de números.
+    //   - El consecutivo (`number`, `quoteNumber`, `baseNumber`, `version`) —
+    //     tagueamos sin tocar la numeración.
+    //
+    // Idempotente: una vez que todas tienen `quoteMode`, no hace nada.
+    useEffect(() => {
+        if (isInitialLoad) return;
+        setQuotes(prev => {
+            const needsMigration = prev.some(q => q.quoteMode === undefined);
+            if (!needsMigration) return prev;
+            const migrated = prev.map(q => {
+                if (q.quoteMode !== undefined) return q;
+                const inferredMode: 'simple' | 'aiu' = q.isAIU ? 'aiu' : 'simple';
+                return { ...q, quoteMode: inferredMode };
+            });
+            persistSharedState({ quotes: migrated });
+            return migrated;
         });
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isInitialLoad]);
