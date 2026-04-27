@@ -608,10 +608,13 @@ export default function ClientsPage() {
                         // de la company; si no, fallback al string denormalizado.
                         const linkedCompany = client.companyId ? companies.find(c => c.id === client.companyId) : null;
                         const companyName = linkedCompany?.name || client.company || '';
+                        // Layout flex en vez de grid de 12 para que las acciones nunca
+                        // se salgan: las columnas intermedias se ocultan progresivamente
+                        // (md/lg/xl) y los botones quedan fijos a la derecha sin overflow.
                         return (
-                            <div key={client.id} className="bg-white border border-border rounded-xl px-4 py-3.5 grid grid-cols-12 items-center gap-3 hover:shadow-md transition-shadow group">
-                                {/* Col 1-4: Avatar + nombre + estado/score */}
-                                <Link href={`/leads/${client.id}`} className="col-span-12 md:col-span-4 flex items-center gap-3 min-w-0">
+                            <div key={client.id} className="bg-white border border-border rounded-xl px-4 py-3.5 flex flex-wrap md:flex-nowrap items-center gap-3 hover:shadow-md transition-shadow group">
+                                {/* Identidad: avatar + nombre + estado + email + fecha (subtítulo) */}
+                                <Link href={`/leads/${client.id}`} className="flex items-center gap-3 min-w-0 flex-1">
                                     <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/15 flex items-center justify-center text-sm font-bold text-primary shrink-0">
                                         {client.name.split(' ').map((n:string) => n[0]).join('').slice(0,2).toUpperCase()}
                                     </div>
@@ -624,7 +627,7 @@ export default function ClientsPage() {
                                         </div>
                                         <div className="flex items-center gap-1.5 mt-0.5">
                                             <span className={clsx(
-                                                'inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide',
+                                                'inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide shrink-0',
                                                 client.status === 'Active' ? 'bg-emerald-50 text-emerald-700' :
                                                 client.status === 'Lead' ? 'bg-amber-50 text-amber-700' :
                                                 'bg-slate-100 text-slate-500'
@@ -632,12 +635,13 @@ export default function ClientsPage() {
                                                 {client.status}
                                             </span>
                                             <span className="text-[10px] text-muted-foreground truncate">{displayEmail(client.email) || 'sin email'}</span>
+                                            {regDate && <span className="hidden xl:inline text-[10px] text-muted-foreground/70 whitespace-nowrap">· {regDate}</span>}
                                         </div>
                                     </div>
                                 </Link>
 
-                                {/* Col 5-7: Empresa */}
-                                <div className="hidden md:flex md:col-span-3 items-center gap-2 min-w-0">
+                                {/* Empresa */}
+                                <div className="hidden md:flex items-center gap-2 min-w-0 w-[180px] shrink-0">
                                     <Building2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                                     <div className="min-w-0">
                                         <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Empresa</p>
@@ -645,8 +649,8 @@ export default function ClientsPage() {
                                     </div>
                                 </div>
 
-                                {/* Col 8-9: Teléfono */}
-                                <div className="hidden md:flex md:col-span-2 items-center gap-2 min-w-0">
+                                {/* Teléfono */}
+                                <div className="hidden lg:flex items-center gap-2 min-w-0 w-[140px] shrink-0">
                                     <Phone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                                     <div className="min-w-0">
                                         <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Teléfono</p>
@@ -654,8 +658,8 @@ export default function ClientsPage() {
                                     </div>
                                 </div>
 
-                                {/* Col 10: Vendedor */}
-                                <div className="hidden lg:flex lg:col-span-2 items-center gap-2 min-w-0">
+                                {/* Vendedor */}
+                                <div className="hidden xl:flex items-center gap-2 min-w-0 w-[130px] shrink-0">
                                     <div className="w-6 h-6 rounded-full bg-primary/15 flex items-center justify-center text-[9px] font-black text-primary shrink-0">
                                         {sellerInitials || '—'}
                                     </div>
@@ -667,14 +671,8 @@ export default function ClientsPage() {
                                     </div>
                                 </div>
 
-                                {/* Col 11: Fecha + Score */}
-                                <div className="hidden xl:block xl:col-span-1 text-right leading-tight">
-                                    <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Registro</p>
-                                    <p className="text-xs font-semibold text-foreground whitespace-nowrap">{regDate || '—'}</p>
-                                </div>
-
-                                {/* Col 12: Acciones — Edit es un atajo al detalle (modal de edición vive ahí), Delete es SuperAdmin */}
-                                <div className="col-span-12 md:col-span-1 flex items-center justify-end gap-1.5 shrink-0">
+                                {/* Acciones — ancho fijo, nunca se desborda */}
+                                <div className="flex items-center justify-end gap-1.5 shrink-0 ml-auto">
                                     <button
                                         type="button"
                                         title="WhatsApp"
