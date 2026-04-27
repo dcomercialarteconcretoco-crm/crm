@@ -184,12 +184,12 @@ export default function CompaniesPage() {
                 ) : (
                     <div className="space-y-2 pb-4">
                         {filtered.map(co => (
-                            // Layout flex (no grid) para que la fila no genere overflow al
-                            // sumar acciones. Las columnas intermedias se ocultan en
-                            // breakpoints chicos y los botones quedan fijos a la derecha.
+                            // Layout flex sin wrap. Las columnas intermedias se ocultan
+                            // a breakpoints chicos; los botones quedan fijos a la
+                            // derecha vía ml-auto y nunca bajan a otra línea.
                             <div
                                 key={co.id}
-                                className="bg-white border border-border rounded-xl px-4 py-3.5 flex flex-wrap md:flex-nowrap items-center gap-3 hover:shadow-md hover:border-primary/40 transition-all group"
+                                className="bg-white border border-border rounded-xl px-4 py-3.5 flex items-center gap-3 hover:shadow-md hover:border-primary/40 transition-all group"
                             >
                                 <Link href={`/companies/${co.id}`} className="flex items-center gap-3 min-w-0 flex-1">
                                     <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/15 flex items-center justify-center text-primary shrink-0">

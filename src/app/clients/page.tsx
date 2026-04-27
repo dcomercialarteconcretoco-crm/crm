@@ -608,11 +608,13 @@ export default function ClientsPage() {
                         // de la company; si no, fallback al string denormalizado.
                         const linkedCompany = client.companyId ? companies.find(c => c.id === client.companyId) : null;
                         const companyName = linkedCompany?.name || client.company || '';
-                        // Layout flex en vez de grid de 12 para que las acciones nunca
-                        // se salgan: las columnas intermedias se ocultan progresivamente
-                        // (md/lg/xl) y los botones quedan fijos a la derecha sin overflow.
+                        // Layout flex sin wrap — las columnas intermedias se esconden
+                        // progresivamente (md/lg/xl) y los botones quedan fijos a la
+                        // derecha vía ml-auto. Sin flex-wrap los items NO bajan a otra
+                        // línea: el name truncate cuando hace falta, los botones
+                        // siempre quedan visibles dentro del card.
                         return (
-                            <div key={client.id} className="bg-white border border-border rounded-xl px-4 py-3.5 flex flex-wrap md:flex-nowrap items-center gap-3 hover:shadow-md transition-shadow group">
+                            <div key={client.id} className="bg-white border border-border rounded-xl px-4 py-3.5 flex items-center gap-3 hover:shadow-md transition-shadow group">
                                 {/* Identidad: avatar + nombre + estado + email + fecha (subtítulo) */}
                                 <Link href={`/leads/${client.id}`} className="flex items-center gap-3 min-w-0 flex-1">
                                     <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/15 flex items-center justify-center text-sm font-bold text-primary shrink-0">
