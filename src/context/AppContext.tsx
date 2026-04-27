@@ -542,6 +542,10 @@ interface AppContextType {
     addClient: (client: Omit<Client, 'id'>) => string;
     /** Crea una empresa (o devuelve la existente si el nombre ya está registrado). */
     addCompany: (name: string) => Promise<Company | null>;
+    /** Renombra una empresa. Devuelve `{ ok: true }` o un mensaje de error legible (e.g. nombre duplicado). */
+    updateCompany: (id: string, name: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+    /** Borra la empresa. Los contactos asociados pierden el FK pero conservan el nombre como snapshot. */
+    deleteCompany: (id: string) => Promise<{ ok: true } | { ok: false; error: string }>;
     addTask: (task: Omit<Task, 'id'>) => string;
     addQuote: (quote: Omit<Quote, 'id'>) => string;
     createQuoteVersion: (quoteId: string) => string;
@@ -1844,11 +1848,70 @@ REGLAS DE ORO:
         }
     };
 
+    /**
+     * Renombra una empresa. Actualiza el state local optimistamente y propaga
+     * el nuevo nombre al campo denormalizado `company` de cada Client enlazado
+     * para que listados/PDFs no tengan que esperar al próximo refresh.
+     */
+    const updateCompany = async (id: string, name: string): Promise<{ ok: true } | { ok: false; error: string }> => {
+        const trimmed = name.trim();
+        if (!trimmed) return { ok: false, error: 'El nombre no puede estar vacío.' };
+        try {
+            const res = await fetch(`/api/companies/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: trimmed }),
+            });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                return { ok: false, error: data?.error || `Error ${res.status}` };
+            }
+            const data = await res.json();
+            const final: Company = data.company || { id, name: trimmed };
+            setCompanies(prev => {
+                const next = prev.map(c => c.id === id ? { ...c, name: final.name } : c);
+                next.sort((a, b) => a.name.localeCompare(b.name));
+                try { localStorage.setItem('crm_companies_cache', JSON.stringify(next)); } catch {}
+                return next;
+            });
+            // Propagar el rename al campo denormalizado de cada cliente local
+            setClients(prev => prev.map(c => c.companyId === id ? { ...c, company: final.name } : c));
+            return { ok: true };
+        } catch (error) {
+            return { ok: false, error: error instanceof Error ? error.message : 'Error de red' };
+        }
+    };
+
+    /**
+     * Borra una empresa. En el server los clientes pierden el FK pero
+     * conservan el `company` string. Localmente espejamos ese mismo cambio.
+     */
+    const deleteCompany = async (id: string): Promise<{ ok: true } | { ok: false; error: string }> => {
+        try {
+            const res = await fetch(`/api/companies/${id}`, { method: 'DELETE' });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                return { ok: false, error: data?.error || `Error ${res.status}` };
+            }
+            setCompanies(prev => {
+                const next = prev.filter(c => c.id !== id);
+                try { localStorage.setItem('crm_companies_cache', JSON.stringify(next)); } catch {}
+                return next;
+            });
+            // Los contactos quedan sueltos: dejamos el string `company` (snapshot)
+            // pero les sacamos el companyId.
+            setClients(prev => prev.map(c => c.companyId === id ? { ...c, companyId: undefined } : c));
+            return { ok: true };
+        } catch (error) {
+            return { ok: false, error: error instanceof Error ? error.message : 'Error de red' };
+        }
+    };
+
     const contextValue = useMemo(() => ({
             clients, tasks, quotes, sellers, notifications, settings, events, forms,
             companies,
             addClient, addTask, addQuote, createQuoteVersion, createAIUVersion, importClients, importQuotes, clearTestData,
-            addCompany,
+            addCompany, updateCompany, deleteCompany,
             addSeller, addNotification, addEvent, addForm,
             updateClient, deleteClient,
             updateTask, deleteTask,

@@ -21,7 +21,9 @@ import {
     Upload,
     Clock,
     MessageSquare,
-    Edit2
+    Edit2,
+    Trash2,
+    AlertTriangle
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import Link from 'next/link';
@@ -91,6 +93,11 @@ export default function ClientsPage() {
         key: 'name',
         direction: 'asc'
     });
+
+    // Confirmación de borrado del lead — el usuario debe ser SuperAdmin (gated
+    // por PermissionHide con `clients.delete`). Se centraliza acá en vez de
+    // por fila para no duplicar markup.
+    const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
 
     const formatCurrency = (val: number) => {
         return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
@@ -666,7 +673,7 @@ export default function ClientsPage() {
                                     <p className="text-xs font-semibold text-foreground whitespace-nowrap">{regDate || '—'}</p>
                                 </div>
 
-                                {/* Col 12: Acciones */}
+                                {/* Col 12: Acciones — Edit es un atajo al detalle (modal de edición vive ahí), Delete es SuperAdmin */}
                                 <div className="col-span-12 md:col-span-1 flex items-center justify-end gap-1.5 shrink-0">
                                     <button
                                         type="button"
@@ -677,9 +684,22 @@ export default function ClientsPage() {
                                     >
                                         <MessageSquare className="w-3.5 h-3.5"/>
                                     </button>
-                                    <Link href={`/leads/${client.id}`} className="p-2 rounded-lg bg-sky-50 hover:bg-sky-500 text-sky-600 hover:text-white transition-all border border-sky-100">
+                                    <Link href={`/leads/${client.id}`} title="Editar" className="p-2 rounded-lg bg-amber-50 hover:bg-amber-500 text-amber-600 hover:text-white transition-all border border-amber-100">
+                                        <Edit2 className="w-3.5 h-3.5"/>
+                                    </Link>
+                                    <Link href={`/leads/${client.id}`} title="Ver" className="p-2 rounded-lg bg-sky-50 hover:bg-sky-500 text-sky-600 hover:text-white transition-all border border-sky-100">
                                         <ExternalLink className="w-3.5 h-3.5"/>
                                     </Link>
+                                    <PermissionHide require="clients.delete">
+                                        <button
+                                            type="button"
+                                            title="Eliminar (sólo SuperAdmin)"
+                                            onClick={() => setClientToDelete(client)}
+                                            className="p-2 rounded-lg bg-rose-50 hover:bg-rose-500 text-rose-600 hover:text-white transition-all border border-rose-100"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5"/>
+                                        </button>
+                                    </PermissionHide>
                                 </div>
                             </div>
                         );
@@ -954,6 +974,43 @@ export default function ClientsPage() {
                             >
                                 <CheckCircle2 className="w-4 h-4" />
                                 Finalizar Registro
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Confirmación de borrado de lead — gateada por permission en cada
+                botón disparador. Mostrada acá una sola vez para evitar
+                duplicación de markup por fila. */}
+            {clientToDelete && (
+                <div className="fixed inset-0 flex items-center justify-center p-4 z-[200]" style={{ background: 'rgba(10,12,20,0.55)', backdropFilter: 'blur(6px)' }}>
+                    <div className="bg-white border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                        <div className="p-6 space-y-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0">
+                                    <AlertTriangle className="w-5 h-5" />
+                                </div>
+                                <h2 className="text-base font-bold text-foreground">Eliminar {clientToDelete.name}</h2>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                Esta acción no se puede deshacer. Se borra el contacto del directorio. Las cotizaciones históricas se conservan, pero quedan sin cliente vinculado.
+                            </p>
+                        </div>
+                        <div className="flex items-center justify-end gap-3 p-6 border-t border-border bg-muted/30">
+                            <button onClick={() => setClientToDelete(null)} className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted transition-colors">
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={() => {
+                                    deleteClient(clientToDelete.id);
+                                    addNotification({ title: 'Cliente eliminado', description: `${clientToDelete.name} fue removido del directorio.`, type: 'success' });
+                                    setClientToDelete(null);
+                                }}
+                                className="bg-rose-600 text-white font-bold rounded-xl px-4 py-2 hover:bg-rose-700 transition-colors flex items-center gap-2"
+                            >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Eliminar cliente
                             </button>
                         </div>
                     </div>

@@ -152,6 +152,26 @@ export async function ensureCrmSchema() {
       AND LOWER(co.name) = LOWER(TRIM(c.company));
   `);
 
+  // Normalización cosmética: pasamos los nombres a Title Case (Primera Letra
+  // Mayúscula Por Palabra) usando INITCAP de Postgres. Es idempotente: si ya
+  // está bien casado el WHERE no lo toca, así re-correr en cada boot no genera
+  // churn ni updates innecesarios. Sirve para limpiar los nombres legados que
+  // venían en MAYÚSCULAS desde imports CSV o desde WooCommerce.
+  await pool.query(`
+    UPDATE crm_companies
+    SET name = INITCAP(name), updated_at = NOW()
+    WHERE name <> INITCAP(name);
+  `);
+  // Propagamos a la denormalización en crm_clients para que listados/PDF que
+  // leen client.company string también se vean limpios.
+  await pool.query(`
+    UPDATE crm_clients c
+    SET company = co.name, updated_at = NOW()
+    FROM crm_companies co
+    WHERE c.company_id = co.id
+      AND c.company <> co.name;
+  `);
+
   // Migrate: add UNIQUE constraint on email (best-effort — skips if duplicates exist)
   await pool.query(`
     DO $$ BEGIN
