@@ -17,7 +17,8 @@ import {
     Sparkles,
     ExternalLink,
     Plus,
-    Send
+    Send,
+    Building2
 } from 'lucide-react';
 
 import Link from 'next/link';
@@ -40,7 +41,7 @@ export default function Lead360Page() {
     const params = useParams();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { clients, addAuditLog, sellers, tasks, quotes, auditLogs, currentUser, updateClient } = useApp();
+    const { clients, companies, addAuditLog, sellers, tasks, quotes, auditLogs, currentUser, updateClient } = useApp();
     const initialTab = searchParams?.get('tab');
     const [activeTab, setActiveTab] = useState(
         initialTab && VALID_TABS.includes(initialTab) ? initialTab : 'Actividad'
@@ -276,6 +277,32 @@ export default function Lead360Page() {
 
                         {/* Contact info rows */}
                         <div className="border-t border-border pt-4 space-y-0">
+                            {/* Empresa: si el lead está enlazado a una company por id, usamos el
+                                nombre de ahí (autoritativo). Si todavía no tiene companyId pero
+                                tiene company string (lead viejo o pre-backfill), lo mostramos
+                                igual. Sin nada → CTA "Asignar" que abre el modal de edición. */}
+                            {(() => {
+                                const linked = lead.companyId ? companies.find(c => c.id === lead.companyId) : null;
+                                const empresa = linked?.name || lead.company || '';
+                                return (
+                                    <div className="flex items-center justify-between py-3 border-b border-border">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
+                                            <span className="text-xs text-muted-foreground">Empresa</span>
+                                        </div>
+                                        {empresa ? (
+                                            <span className="text-sm font-semibold text-foreground truncate ml-2 max-w-[55%] text-right">{empresa}</span>
+                                        ) : (
+                                            <button
+                                                onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', companyId: lead.companyId || '', email: lead.email, phone: lead.phone || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
+                                                className="text-xs font-bold text-primary hover:underline"
+                                            >
+                                                + Asignar empresa
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            })()}
                             {[
                                 { icon: User, label: 'Contacto Principal', value: lead.name },
                                 { icon: Mail, label: 'Correo', value: lead.email },

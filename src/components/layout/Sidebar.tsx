@@ -20,7 +20,8 @@ import {
   Loader2,
   FolderOpen,
   CreditCard,
-  Upload
+  Upload,
+  Building2
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -41,6 +42,9 @@ const navGroups = [
       { name: 'Autorizaciones', href: '/autorizaciones',icon: ShieldCheck,     permission: null,             superAdminOnly: true },
       { name: 'Pipeline',       href: '/pipeline',      icon: Workflow,        permission: 'pipeline.view'   },
       { name: 'Clientes',       href: '/clients',       icon: Users,           permission: 'clients.view'    },
+      // Empresas reusa el permiso de clients.view: si podés ver clientes,
+      // podés ver las empresas que los agrupan. Nada nuevo en RBAC todavía.
+      { name: 'Empresas',       href: '/companies',     icon: Building2,       permission: 'clients.view'    },
     ],
   },
   {

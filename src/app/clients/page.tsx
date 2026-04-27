@@ -33,7 +33,7 @@ import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
 import { ownsRecord, canSeeAll } from '@/lib/scope';
 
 export default function ClientsPage() {
-    const { clients, addClient, deleteClient, addNotification, settings, sellers, quotes, currentUser: ctxUser } = useApp();
+    const { clients, companies, addClient, deleteClient, addNotification, settings, sellers, quotes, currentUser: ctxUser } = useApp();
     const [viewMode, setViewMode] = useState<'grid'|'list'>('list');
     const [searchTerm, setSearchTerm] = useState("");
     const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
@@ -81,7 +81,10 @@ export default function ClientsPage() {
         category: "",
         minScore: 0,
         startDate: "",
-        endDate: ""
+        endDate: "",
+        // companyId === 'none' filtra leads sin empresa; '' = sin filtrar; resto = id de empresa
+        companyId: "",
+        companyName: "",
     });
 
     const [sortConfig, setSortConfig] = useState<{ key: keyof Client | null, direction: 'asc' | 'desc' }>({
@@ -311,6 +314,9 @@ export default function ClientsPage() {
                 if (filters.status.length > 0 && !filters.status.includes(client.status)) return false;
                 if (filters.startDate && new Date(client.registrationDate) < new Date(filters.startDate)) return false;
                 if (filters.endDate && new Date(client.registrationDate) > new Date(filters.endDate)) return false;
+                // Filtro por empresa: '' = todas, 'none' = solo sin empresa, id = solo esa
+                if (filters.companyId === 'none' && client.companyId) return false;
+                if (filters.companyId && filters.companyId !== 'none' && client.companyId !== filters.companyId) return false;
 
                 return true;
             })
@@ -516,6 +522,28 @@ export default function ClientsPage() {
                                 ))}
                             </select>
                         </div>
+
+                        {/* Empresa Filter — incluye opción "Sin empresa" para encontrar leads sueltos */}
+                        <div className="space-y-2">
+                            <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Empresa</label>
+                            <select
+                                className="w-full bg-muted border border-border rounded-xl py-2.5 px-3 text-sm outline-none focus:border-primary focus:bg-white transition-all appearance-none"
+                                value={filters.companyId}
+                                onChange={(e) => {
+                                    const id = e.target.value;
+                                    const name = id && id !== 'none' ? (companies.find(c => c.id === id)?.name || '') : '';
+                                    setFilters({ ...filters, companyId: id, companyName: name });
+                                }}
+                            >
+                                <option value="">Todas las empresas</option>
+                                <option value="none">— Sin empresa —</option>
+                                {[...companies].sort((a,b) => a.name.localeCompare(b.name, 'es')).map(c => (
+                                    <option key={c.id} value={c.id}>
+                                        {c.name}{typeof c.clientCount === 'number' && c.clientCount > 0 ? ` (${c.clientCount})` : ''}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
 
                     <div className="pt-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-t border-border">
@@ -542,7 +570,7 @@ export default function ClientsPage() {
                         </div>
                         <div className="flex gap-3">
                             <button
-                                onClick={() => setFilters({ minLtv: "", maxLtv: "", status: [], city: "", category: "", minScore: 0, startDate: "", endDate: "" })}
+                                onClick={() => setFilters({ minLtv: "", maxLtv: "", status: [], city: "", category: "", minScore: 0, startDate: "", endDate: "", companyId: "", companyName: "" })}
                                 className="text-xs font-medium text-muted-foreground hover:text-rose-500 transition-colors"
                             >
                                 Limpiar Filtros
@@ -569,79 +597,84 @@ export default function ClientsPage() {
                             ? client.assignedToName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
                             : '';
                         const regDate = formatRegDate(client.registrationDate);
-                        const metaBits = [displayEmail(client.email), client.company, client.city, regDate ? `📅 ${regDate}` : ''].filter(Boolean);
+                        // Resolvemos empresa: si está enlazada por id, usamos el nombre canónico
+                        // de la company; si no, fallback al string denormalizado.
+                        const linkedCompany = client.companyId ? companies.find(c => c.id === client.companyId) : null;
+                        const companyName = linkedCompany?.name || client.company || '';
                         return (
-                            <div key={client.id} className="bg-white border border-border rounded-xl px-4 py-3 flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer group">
-                                {/* Avatar */}
-                                <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/15 flex items-center justify-center text-sm font-bold text-primary shrink-0">
-                                    {client.name.split(' ').map((n:string) => n[0]).join('').slice(0,2).toUpperCase()}
-                                </div>
-
-                                {/* Identity block: name + seller chip inline, meta line below */}
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        <Link href={`/leads/${client.id}`} className="min-w-0">
+                            <div key={client.id} className="bg-white border border-border rounded-xl px-4 py-3.5 grid grid-cols-12 items-center gap-3 hover:shadow-md transition-shadow group">
+                                {/* Col 1-4: Avatar + nombre + estado/score */}
+                                <Link href={`/leads/${client.id}`} className="col-span-12 md:col-span-4 flex items-center gap-3 min-w-0">
+                                    <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/15 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+                                        {client.name.split(' ').map((n:string) => n[0]).join('').slice(0,2).toUpperCase()}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-1.5 min-w-0">
                                             <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors truncate">{client.name}</p>
-                                        </Link>
-                                        {client.assignedToName && (
-                                            <span
-                                                title={`Vendedor: ${client.assignedToName}`}
-                                                className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-md border border-primary/15 shrink-0 whitespace-nowrap"
-                                            >
-                                                <span className="w-3.5 h-3.5 rounded-full bg-primary/20 flex items-center justify-center text-[8px] leading-none">{sellerInitials}</span>
-                                                {client.assignedToName.split(' ')[0]}
+                                            {openQuotes.length > 0 && (
+                                                <span title="Tiene propuesta abierta" className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                            <span className={clsx(
+                                                'inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide',
+                                                client.status === 'Active' ? 'bg-emerald-50 text-emerald-700' :
+                                                client.status === 'Lead' ? 'bg-amber-50 text-amber-700' :
+                                                'bg-slate-100 text-slate-500'
+                                            )}>
+                                                {client.status}
                                             </span>
-                                        )}
-                                        {openQuotes.length > 0 && (
-                                            <span title="Tiene propuesta abierta" className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-                                        )}
+                                            <span className="text-[10px] text-muted-foreground truncate">{displayEmail(client.email) || 'sin email'}</span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5 min-w-0">
-                                        {metaBits.map((bit, i) => (
-                                            <React.Fragment key={i}>
-                                                {i > 0 && <span className="text-muted-foreground/40 shrink-0">·</span>}
-                                                <span className={clsx('truncate', i === 0 ? 'max-w-[240px]' : 'max-w-[120px]')}>{bit}</span>
-                                            </React.Fragment>
-                                        ))}
+                                </Link>
+
+                                {/* Col 5-7: Empresa */}
+                                <div className="hidden md:flex md:col-span-3 items-center gap-2 min-w-0">
+                                    <Building2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                                    <div className="min-w-0">
+                                        <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Empresa</p>
+                                        <p className="text-xs font-semibold text-foreground truncate">{companyName || <span className="italic text-muted-foreground/60 font-normal">Sin empresa</span>}</p>
                                     </div>
                                 </div>
 
-                                {/* Badges: status + source */}
-                                <div className="hidden md:flex items-center gap-1.5 shrink-0">
-                                    <span className={clsx(
-                                        'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold',
-                                        client.status === 'Active' ? 'bg-emerald-50 text-emerald-700' :
-                                        client.status === 'Lead' ? 'bg-amber-50 text-amber-700' :
-                                        'bg-slate-100 text-slate-500'
-                                    )}>
-                                        {client.status}
-                                    </span>
-                                    {client.source === 'WooCommerce' && (
-                                        <span className="hidden lg:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-600">🛒 Web</span>
-                                    )}
-                                    {client.source === 'ConcreBot' && (
-                                        <span className="hidden lg:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-600">🤖 Bot</span>
-                                    )}
-                                    {(!client.source || client.source === 'Manual') && (
-                                        <span className="hidden lg:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-50 text-slate-400">✏️ Manual</span>
-                                    )}
-                                </div>
-
-                                {/* Stats: score + value, compact pair */}
-                                <div className="hidden lg:flex items-center gap-5 shrink-0">
-                                    <div className="text-center leading-tight">
-                                        <p className="text-sm font-bold text-foreground">{client.score || 0}</p>
-                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">score</p>
-                                    </div>
-                                    <div className="text-right leading-tight min-w-[72px]">
-                                        <p className="text-sm font-bold text-primary">{formatCurrency(client.ltv)}</p>
-                                        <p className="text-[10px] text-muted-foreground">{clientQuotes.length} cotiz.</p>
+                                {/* Col 8-9: Teléfono */}
+                                <div className="hidden md:flex md:col-span-2 items-center gap-2 min-w-0">
+                                    <Phone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                                    <div className="min-w-0">
+                                        <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Teléfono</p>
+                                        <p className="text-xs font-semibold text-foreground truncate">{client.phone || <span className="italic text-muted-foreground/60 font-normal">Sin teléfono</span>}</p>
                                     </div>
                                 </div>
 
-                                {/* Actions */}
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                    <button onClick={() => window.open(`https://wa.me/${client.phone?.replace(/\D/g,'')}`, '_blank')} className="p-2 rounded-lg bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white transition-all border border-emerald-100">
+                                {/* Col 10: Vendedor */}
+                                <div className="hidden lg:flex lg:col-span-2 items-center gap-2 min-w-0">
+                                    <div className="w-6 h-6 rounded-full bg-primary/15 flex items-center justify-center text-[9px] font-black text-primary shrink-0">
+                                        {sellerInitials || '—'}
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Vendedor</p>
+                                        <p className="text-xs font-semibold text-foreground truncate">
+                                            {client.assignedToName ? client.assignedToName.split(' ')[0] : <span className="italic text-muted-foreground/60 font-normal">Sin asignar</span>}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Col 11: Fecha + Score */}
+                                <div className="hidden xl:block xl:col-span-1 text-right leading-tight">
+                                    <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Registro</p>
+                                    <p className="text-xs font-semibold text-foreground whitespace-nowrap">{regDate || '—'}</p>
+                                </div>
+
+                                {/* Col 12: Acciones */}
+                                <div className="col-span-12 md:col-span-1 flex items-center justify-end gap-1.5 shrink-0">
+                                    <button
+                                        type="button"
+                                        title="WhatsApp"
+                                        disabled={!client.phone}
+                                        onClick={() => client.phone && window.open(`https://wa.me/${client.phone.replace(/\D/g,'')}`, '_blank')}
+                                        className="p-2 rounded-lg bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white transition-all border border-emerald-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                                    >
                                         <MessageSquare className="w-3.5 h-3.5"/>
                                     </button>
                                     <Link href={`/leads/${client.id}`} className="p-2 rounded-lg bg-sky-50 hover:bg-sky-500 text-sky-600 hover:text-white transition-all border border-sky-100">
