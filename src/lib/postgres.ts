@@ -102,6 +102,56 @@ export async function ensureCrmSchema() {
   await pool.query(`ALTER TABLE crm_clients ADD COLUMN IF NOT EXISTS assigned_to_name TEXT;`);
   await pool.query(`ALTER TABLE crm_clients ADD COLUMN IF NOT EXISTS source TEXT;`);
 
+  // ── Empresas (cliente corporativo) ────────────────────────────────────────
+  // Una empresa agrupa varios contactos (Client). El nombre se mantiene en la
+  // columna `company` de crm_clients como denormalización para no romper
+  // consumidores existentes (PDFs, listados, dashboards), pero la fuente de
+  // verdad pasa a ser company_id cuando existe. Leads sin empresa asignada
+  // mantienen company_id = NULL.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_companies (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  // Índice único case-insensitive para evitar "Constructora X" vs "constructora x"
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_companies_name_lower
+    ON crm_companies (LOWER(name));
+  `);
+  await pool.query(`ALTER TABLE crm_clients ADD COLUMN IF NOT EXISTS company_id TEXT;`);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_crm_clients_company_id
+    ON crm_clients (company_id);
+  `);
+
+  // Backfill idempotente: por cada nombre de empresa distinto que aparezca en
+  // crm_clients, crear la company (o usar la existente) y enlazar. Solo corre
+  // sobre filas que aún no tienen company_id, así re-ejecutar es seguro.
+  await pool.query(`
+    INSERT INTO crm_companies (id, name)
+    SELECT
+      'cmp-' || md5(LOWER(TRIM(company))),
+      TRIM(company)
+    FROM crm_clients
+    WHERE company IS NOT NULL
+      AND TRIM(company) <> ''
+      AND company_id IS NULL
+    GROUP BY TRIM(company), LOWER(TRIM(company))
+    ON CONFLICT DO NOTHING;
+  `);
+  await pool.query(`
+    UPDATE crm_clients c
+    SET company_id = co.id
+    FROM crm_companies co
+    WHERE c.company_id IS NULL
+      AND c.company IS NOT NULL
+      AND TRIM(c.company) <> ''
+      AND LOWER(co.name) = LOWER(TRIM(c.company));
+  `);
+
   // Migrate: add UNIQUE constraint on email (best-effort — skips if duplicates exist)
   await pool.query(`
     DO $$ BEGIN

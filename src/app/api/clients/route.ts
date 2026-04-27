@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
   const { rows } = await pool.query(
     `SELECT
-       id, name, company, email, phone, status,
+       id, name, company, company_id AS "companyId", email, phone, status,
        value_text AS value,
        ltv, last_contact AS "lastContact",
        city, score, category, registration_date AS "registrationDate",
@@ -59,15 +59,49 @@ export async function POST(request: NextRequest) {
   const payload = await request.json();
   const pool = getPool();
 
+  // Si vino companyId pero no companyName, lo resolvemos desde crm_companies
+  // para mantener la denormalización consistente. Y al revés: si vino un nombre
+  // de empresa libre sin id, creamos/buscamos la company y enlazamos.
+  let companyId: string | null = payload.companyId || null;
+  let companyName: string = (payload.company || '').trim();
+
+  if (companyId) {
+    const { rows: cr } = await pool.query(
+      `SELECT name FROM crm_companies WHERE id = $1 LIMIT 1`,
+      [companyId]
+    );
+    if (cr[0]) companyName = cr[0].name;
+    else companyId = null; // id inválido → no rompemos, pero quitamos referencia
+  } else if (companyName) {
+    // Buscar por nombre (case-insensitive); si no existe, crear.
+    const { rows: existing } = await pool.query(
+      `SELECT id, name FROM crm_companies WHERE LOWER(name) = LOWER($1) LIMIT 1`,
+      [companyName]
+    );
+    if (existing[0]) {
+      companyId = existing[0].id;
+      companyName = existing[0].name; // honra capitalización original
+    } else {
+      const newId = `cmp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      await pool.query(
+        `INSERT INTO crm_companies (id, name) VALUES ($1, $2)
+         ON CONFLICT DO NOTHING`,
+        [newId, companyName]
+      );
+      companyId = newId;
+    }
+  }
+
   await pool.query(
     `
       INSERT INTO crm_clients (
-        id, name, company, email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date,
+        id, name, company, company_id, email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date,
         assigned_to, assigned_to_name, source, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW())
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW())
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         company = EXCLUDED.company,
+        company_id = EXCLUDED.company_id,
         email = EXCLUDED.email,
         phone = EXCLUDED.phone,
         status = EXCLUDED.status,
@@ -86,7 +120,8 @@ export async function POST(request: NextRequest) {
     [
       payload.id,
       payload.name,
-      payload.company || '',
+      companyName,
+      companyId,
       payload.email || '',
       payload.phone || '',
       payload.status || 'Activo',
@@ -103,5 +138,5 @@ export async function POST(request: NextRequest) {
     ]
   );
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, companyId });
 }

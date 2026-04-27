@@ -9,6 +9,7 @@ import {
 import { clsx } from 'clsx';
 import { generateProposalPDF } from '@/lib/pdf-generator';
 import { useApp, Product, formatQuoteNumber } from '@/context/AppContext';
+import CompanyCombobox from '@/components/CompanyCombobox';
 import {
     calculateQuoteTotals,
     computeValidUntil,
@@ -89,7 +90,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     const [sentConfirm, setSentConfirm] = useState<{ quoteNumber: string; email: string; pending?: boolean; pendingAction?: 'send_email' | 'send_whatsapp' | 'generate_pdf' } | null>(null);
     const [showNewClientForm, setShowNewClientForm] = useState(false);
     const [productSearch, setProductSearch] = useState('');
-    const [newClient, setNewClient] = useState({ name: '', company: '', email: '', phone: '', city: '' });
+    const [newClient, setNewClient] = useState({ name: '', company: '', companyId: '', email: '', phone: '', city: '' });
     const [clientSearch, setClientSearch] = useState('');
     const [showClientDropdown, setShowClientDropdown] = useState(false);
 
@@ -327,6 +328,10 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     const getCommonQuoteFields = (client: typeof clients[0], quoteNumber: string, mappedItems: typeof items) => ({
         number: quoteNumber, client: client.name, clientId: client.id,
         clientEmail: client.email || '', clientCompany: client.company || '',
+        // Propagamos el companyId del cliente para que el detalle de empresa
+        // pueda agrupar todas las cotizaciones de sus contactos. Si el lead no
+        // tiene empresa asignada, queda undefined.
+        companyId: client.companyId || undefined,
         date: new Date().toLocaleDateString('es-CO'),
         total: formatCurrency(total), numericTotal: total, subtotal, tax,
         items: mappedItems.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity, productId: i.productId, image: i.image, dimensions: i.dimensions, isCustom: i.isCustom, weight: i.weight, length: i.length, width: i.width, height: i.height })),
@@ -753,7 +758,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         const id = addClient({ ...newClient, status: 'Active', value: '$0', ltv: 0, lastContact: 'Ahora', city: newClient.city || '', score: 10, category: 'Construcción', registrationDate: new Date().toISOString() });
         setSelectedClientId(id);
         setShowNewClientForm(false);
-        setNewClient({ name: '', company: '', email: '', phone: '', city: '' });
+        setNewClient({ name: '', company: '', companyId: '', email: '', phone: '', city: '' });
         addNotification({ title: 'Cliente creado', description: `${newClient.name} vinculado a la cotización.`, type: 'success' });
     };
 
@@ -883,8 +888,15 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                     <div className="grid grid-cols-2 gap-3">
                                         <input required placeholder="Nombre completo" value={newClient.name} onChange={e => setNewClient({ ...newClient, name: e.target.value })}
                                             className="bg-white border border-border/70 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-primary transition-all" />
-                                        <input placeholder="Empresa" value={newClient.company} onChange={e => setNewClient({ ...newClient, company: e.target.value })}
-                                            className="bg-white border border-border/70 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-primary transition-all" />
+                                        {/* Empresa: combobox con búsqueda + create-on-the-fly. */}
+                                        <CompanyCombobox
+                                            label=""
+                                            value={newClient.companyId}
+                                            valueName={newClient.company}
+                                            onChange={({ companyId, companyName }) =>
+                                                setNewClient({ ...newClient, companyId, company: companyName })
+                                            }
+                                        />
                                         <input type="email" required placeholder="Email" value={newClient.email} onChange={e => setNewClient({ ...newClient, email: e.target.value })}
                                             className="bg-white border border-border/70 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-primary transition-all" />
                                         <input required placeholder="Teléfono / WhatsApp" value={newClient.phone} onChange={e => setNewClient({ ...newClient, phone: e.target.value })}

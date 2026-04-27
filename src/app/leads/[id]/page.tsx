@@ -26,6 +26,7 @@ import { useApp, Activity } from '@/context/AppContext';
 import { ownsRecord } from '@/lib/scope';
 import { ClientAttachments } from '@/components/leads/ClientAttachments';
 import { ClientBotChats } from '@/components/leads/ClientBotChats';
+import CompanyCombobox from '@/components/CompanyCombobox';
 
 const STATUS_LABEL: Record<string, string> = {
     'Active': 'Activo',
@@ -46,7 +47,7 @@ export default function Lead360Page() {
     );
     const [noteText, setNoteText] = useState('');
     const [isEditOpen, setIsEditOpen] = useState(false);
-    const [editForm, setEditForm] = useState({ name: '', company: '', email: '', phone: '', city: '', status: '' });
+    const [editForm, setEditForm] = useState({ name: '', company: '', companyId: '', email: '', phone: '', city: '', status: '' });
     const isSuperAdmin = currentUser?.role?.toLowerCase().includes('superadmin') || currentUser?.role?.toLowerCase() === 'admin';
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [assignSellerId, setAssignSellerId] = useState('');
@@ -243,7 +244,7 @@ export default function Lead360Page() {
                         <span>Exportar</span>
                     </button>
                     <button
-                        onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', email: lead.email, phone: lead.phone || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
+                        onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', companyId: lead.companyId || '', email: lead.email, phone: lead.phone || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
                         className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] transition-all flex items-center gap-2 text-sm"
                     >
                         <Edit2 className="w-4 h-4" />
@@ -737,7 +738,6 @@ export default function Lead360Page() {
                         <div className="grid grid-cols-2 gap-4">
                             {([
                                 { label: 'Nombre', key: 'name', type: 'text' },
-                                { label: 'Empresa', key: 'company', type: 'text' },
                                 { label: 'Email', key: 'email', type: 'email' },
                                 { label: 'Teléfono', key: 'phone', type: 'tel' },
                                 { label: 'Ciudad', key: 'city', type: 'text' },
@@ -752,6 +752,19 @@ export default function Lead360Page() {
                                     />
                                 </div>
                             ))}
+                            {/* Empresa: combobox para asignar (o cambiar) la empresa
+                                del lead. Para leads que no la tenían, "Sin empresa"
+                                se mantiene; el vendedor la asigna acá cuando aprende
+                                de quién depende el contacto. */}
+                            <div className="col-span-2">
+                                <CompanyCombobox
+                                    value={editForm.companyId}
+                                    valueName={editForm.company}
+                                    onChange={({ companyId, companyName }) =>
+                                        setEditForm(prev => ({ ...prev, companyId, company: companyName }))
+                                    }
+                                />
+                            </div>
                             <div>
                                 <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Estado</label>
                                 <select

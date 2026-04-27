@@ -27,6 +27,7 @@ import { clsx } from 'clsx';
 import Link from 'next/link';
 import { useApp, Client } from '@/context/AppContext';
 import SearchableSelect from '@/components/SearchableSelect';
+import CompanyCombobox from '@/components/CompanyCombobox';
 import { hasPermission } from '@/lib/permissions';
 import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
 import { ownsRecord, canSeeAll } from '@/lib/scope';
@@ -58,10 +59,13 @@ export default function ClientsPage() {
     const canDeleteClients = hasPermission(currentUser, 'clients.delete');
     const canExport = canExportClients && settings.allowExports;
 
-    // Form state for new client
+    // Form state for new client. `companyId` queda vacío hasta que el vendedor
+    // selecciona/crea una empresa en el combobox; `company` es el snapshot del
+    // nombre que se persiste denormalizado.
     const [newClientForm, setNewClientForm] = useState({
         name: '',
         company: '',
+        companyId: '',
         email: '',
         phone: '',
         city: settings.cities[0]?.name || 'Bogotá',
@@ -98,7 +102,9 @@ export default function ClientsPage() {
     };
 
     const handleCreateClient = () => {
-        if (!newClientForm.name || !newClientForm.company) return;
+        // Empresa es opcional — un lead puede llegar sin empresa declarada (web,
+        // particulares) y luego asociarse a una desde el detalle del cliente.
+        if (!newClientForm.name) return;
 
         const isAdminUser = ctxUser?.role === 'SuperAdmin' || ctxUser?.role === 'Admin';
 
@@ -119,7 +125,9 @@ export default function ClientsPage() {
 
         addNotification({
             title: 'Cliente Registrado',
-            description: `${newClientForm.name} de ${newClientForm.company} se ha añadido al directorio industrial.`,
+            description: newClientForm.company
+                ? `${newClientForm.name} de ${newClientForm.company} se ha añadido al directorio industrial.`
+                : `${newClientForm.name} se ha añadido al directorio industrial.`,
             type: 'success'
         });
 
@@ -127,6 +135,7 @@ export default function ClientsPage() {
         setNewClientForm({
             name: '',
             company: '',
+            companyId: '',
             email: '',
             phone: '',
             city: settings.cities[0]?.name || 'Bogotá',
@@ -823,17 +832,13 @@ export default function ClientsPage() {
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Empresa / Entidad</label>
-                                    <div className="relative">
-                                        <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                        <input
-                                            type="text"
-                                            placeholder="Ej: Constructora Bolívar"
-                                            value={newClientForm.company}
-                                            onChange={(e) => setNewClientForm({ ...newClientForm, company: e.target.value })}
-                                            className="w-full bg-muted border border-border rounded-xl py-2.5 pl-10 pr-3 text-sm outline-none focus:border-primary focus:bg-white transition-all"
-                                        />
-                                    </div>
+                                    <CompanyCombobox
+                                        value={newClientForm.companyId}
+                                        valueName={newClientForm.company}
+                                        onChange={({ companyId, companyName }) =>
+                                            setNewClientForm({ ...newClientForm, companyId, company: companyName })
+                                        }
+                                    />
                                 </div>
                             </div>
 
@@ -911,7 +916,7 @@ export default function ClientsPage() {
                             </button>
                             <button
                                 onClick={handleCreateClient}
-                                disabled={!newClientForm.name || !newClientForm.company}
+                                disabled={!newClientForm.name}
                                 className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 transition-all shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                                 <CheckCircle2 className="w-4 h-4" />

@@ -54,10 +54,26 @@ export interface ClientNote {
     author: string;
 }
 
+/**
+ * Empresa (cliente corporativo). Una empresa agrupa varios contactos (Client).
+ * El nombre se mantiene en `Client.company` como denormalización para no
+ * romper PDFs, listados y dashboards que ya lo leen, pero la fuente de verdad
+ * cuando existe es `Client.companyId` → `Company.id`.
+ */
+export interface Company {
+    id: string;
+    name: string;
+    createdAt?: string;
+    /** Solo lo carga el GET de /api/companies — útil para el listado. */
+    clientCount?: number;
+}
+
 export interface Client {
     id: string;
     name: string;
     company: string;
+    /** FK opcional a Company.id. Los leads viejos (sin asignación) llevan undefined. */
+    companyId?: string;
     email: string;
     phone: string;
     status: 'Active' | 'Lead' | 'Inactive';
@@ -98,6 +114,13 @@ export interface Quote {
     clientId: string;
     clientEmail?: string;
     clientCompany?: string;
+    /**
+     * FK opcional a Company.id. Se resuelve desde el cliente al guardar la
+     * cotización para que el detalle de empresa pueda mostrar todas sus
+     * cotizaciones agrupadas. `clientCompany` (string) se mantiene como
+     * snapshot para el PDF, que es congelado en el momento del envío.
+     */
+    companyId?: string;
     date: string;
     total: string;
     numericTotal: number;
@@ -498,6 +521,7 @@ export interface FormDefinition {
 
 interface AppContextType {
     clients: Client[];
+    companies: Company[];
     tasks: Task[];
     quotes: Quote[];
     sellers: Seller[];
@@ -516,6 +540,8 @@ interface AppContextType {
     logout: () => void;
 
     addClient: (client: Omit<Client, 'id'>) => string;
+    /** Crea una empresa (o devuelve la existente si el nombre ya está registrado). */
+    addCompany: (name: string) => Promise<Company | null>;
     addTask: (task: Omit<Task, 'id'>) => string;
     addQuote: (quote: Omit<Quote, 'id'>) => string;
     createQuoteVersion: (quoteId: string) => string;
@@ -599,6 +625,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
 
     const [clients, setClients] = useState<Client[]>(() => loadData('crm_clients', []));
+    // Las empresas viven en crm_companies (Postgres). En localStorage sólo
+    // las cacheamos para el primer paint mientras llega el GET; la fuente de
+    // verdad es siempre el server.
+    const [companies, setCompanies] = useState<Company[]>(() => loadData('crm_companies_cache', []));
     const [tasks, setTasks] = useState<Task[]>(() => loadData('crm_tasks', []));
     const [quotes, setQuotes] = useState<Quote[]>(() => loadData('crm_quotes', []));
     const [sellers, setSellers] = useState<Seller[]>(() => loadData('crm_sellers', []));
@@ -876,10 +906,11 @@ REGLAS DE ORO:
     useEffect(() => {
         const syncSharedData = async () => {
             try {
-                const [meRes, teamRes, clientsRes, stateRes] = await Promise.all([
+                const [meRes, teamRes, clientsRes, companiesRes, stateRes] = await Promise.all([
                     fetch('/api/auth/me', { cache: 'no-store' }),
                     fetch('/api/team', { cache: 'no-store' }),
                     fetch('/api/clients', { cache: 'no-store' }),
+                    fetch('/api/companies', { cache: 'no-store' }),
                     fetch('/api/state', { cache: 'no-store' })
                 ]);
 
@@ -910,6 +941,14 @@ REGLAS DE ORO:
                 if (clientsRes.ok) {
                     const clientsData = await clientsRes.json();
                     if (Array.isArray(clientsData.clients)) setClients(clientsData.clients);
+                }
+
+                if (companiesRes.ok) {
+                    const companiesData = await companiesRes.json();
+                    if (Array.isArray(companiesData.companies)) {
+                        setCompanies(companiesData.companies);
+                        try { localStorage.setItem('crm_companies_cache', JSON.stringify(companiesData.companies)); } catch {}
+                    }
                 }
 
                 if (stateRes.ok) {
@@ -1761,9 +1800,55 @@ REGLAS DE ORO:
         return fallback;
     };
 
+    /**
+     * Crea (o reusa, si ya existe por nombre case-insensitive) una empresa.
+     * Devuelve el id de la empresa para enlazarla al cliente que se está
+     * creando. Optimista: actualiza el state local inmediatamente para que el
+     * combobox muestre la nueva opción sin esperar al server.
+     */
+    const addCompany = async (name: string): Promise<Company | null> => {
+        const trimmed = name.trim();
+        if (!trimmed) return null;
+        // Si ya existe en memoria por nombre exacto (case-insensitive), úsala.
+        const existing = companies.find(c => c.name.trim().toLowerCase() === trimmed.toLowerCase());
+        if (existing) return existing;
+
+        // Optimista: añade un placeholder con id temporal mientras llega la
+        // respuesta del server. Si el server devuelve un id distinto, lo
+        // reemplazamos. (Casi nunca pasa porque el server hace get-or-create.)
+        const tempId = `cmp-tmp-${Date.now().toString(36)}`;
+        setCompanies(prev => [...prev, { id: tempId, name: trimmed, clientCount: 0 }]);
+
+        try {
+            const res = await fetch('/api/companies', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: trimmed }),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            const company: Company = data.company;
+            setCompanies(prev => {
+                const next = prev.filter(c => c.id !== tempId);
+                if (!next.some(c => c.id === company.id)) next.push({ ...company, clientCount: 0 });
+                next.sort((a, b) => a.name.localeCompare(b.name));
+                try { localStorage.setItem('crm_companies_cache', JSON.stringify(next)); } catch {}
+                return next;
+            });
+            return company;
+        } catch (error) {
+            console.warn('Failed to create company:', error);
+            // Revertir el placeholder optimista — el cliente verá un toast/error.
+            setCompanies(prev => prev.filter(c => c.id !== tempId));
+            return null;
+        }
+    };
+
     const contextValue = useMemo(() => ({
             clients, tasks, quotes, sellers, notifications, settings, events, forms,
+            companies,
             addClient, addTask, addQuote, createQuoteVersion, createAIUVersion, importClients, importQuotes, clearTestData,
+            addCompany,
             addSeller, addNotification, addEvent, addForm,
             updateClient, deleteClient,
             updateTask, deleteTask,
@@ -1778,6 +1863,7 @@ REGLAS DE ORO:
             incrementOnboardingCount,
         }), [
             clients, tasks, quotes, sellers, notifications, settings, events, forms,
+            companies,
             auditLogs, anomalies, products, productSyncStatus, currentUser, isHydrating
         ]);
 
