@@ -360,6 +360,43 @@ export interface CalendarEvent {
     source?: 'local' | 'google' | 'local+google';
 }
 
+/**
+ * Configuración de una etapa del pipeline. El equipo puede agregar, renombrar
+ * o reordenar etapas desde /settings sin tocar código. Reglas de negocio:
+ *
+ *  - El pipeline arranca cuando una cotización entra al sistema (default
+ *    "Cotizado"). Los leads sin cotización viven sólo en /clients, no en el
+ *    kanban — ahí el vendedor los enriquece y dispara la cotización.
+ *
+ *  - `autoOnQuoteOpen`: cuando el cliente abre el correo/PDF de la cotización
+ *    (vía /api/track-open), la tarjeta salta automáticamente a esta etapa.
+ *    Sólo una etapa puede tener este flag activo a la vez (la primera que lo
+ *    tenga gana).
+ *
+ *  - `isWinStage`: marcar la etapa "ganada" o "facturada" — al mover una
+ *    tarjeta a esta columna se actualiza la cotización a `Approved`. También
+ *    una sola etapa puede tener este flag.
+ *
+ *  - "Perdido" no es una etapa propia del kanban: se registra como un estado
+ *    aparte en la cotización (status='Rejected') que aparece en la ficha del
+ *    cliente pero no infla el pipeline visible.
+ */
+export interface PipelineStage {
+    id: string;
+    label: string;
+    /** Tailwind color name (ej. 'blue', 'amber', 'emerald') — se mapea a clases pre-tokeneadas. */
+    color: string;
+    autoOnQuoteOpen?: boolean;
+    isWinStage?: boolean;
+}
+
+/** Default que se usa cuando no hay nada guardado todavía. */
+export const DEFAULT_PIPELINE_STAGES: PipelineStage[] = [
+    { id: 'cotizado',  label: 'Cotizado',    color: 'blue' },
+    { id: 'caliente',  label: 'En caliente', color: 'amber',   autoOnQuoteOpen: true },
+    { id: 'facturado', label: 'Facturado',   color: 'emerald', isWinStage: true },
+];
+
 export interface AppSettings {
     cities: City[];
     sectors: string[];
@@ -403,6 +440,9 @@ export interface AppSettings {
     shipping?: ShippingSettings;
     // Informe Diario — correo automático con resumen de actividad por vendedor
     dailyReport?: DailyReportSettings;
+    // Pipeline configurable. Si está vacío/undefined, el pipeline usa
+    // DEFAULT_PIPELINE_STAGES (Cotizado → En caliente → Facturado).
+    pipelineStages?: PipelineStage[];
 }
 
 export interface DailyReportSettings {
@@ -716,6 +756,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             sendTime: '19:00',
             weekdaysOnly: true,
         },
+        pipelineStages: DEFAULT_PIPELINE_STAGES,
         shipping: {
             enabled: true,
             defaultRatePerKg: 3500,        // COP/kg fallback nacional

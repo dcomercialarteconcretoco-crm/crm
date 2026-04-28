@@ -42,18 +42,24 @@ import {
     ShoppingBag,
     Loader2,
     Upload,
+    Workflow,
+    GripVertical,
+    Flame,
+    Trophy,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useApp } from '@/context/AppContext';
 import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
 import { hasPermission } from '@/lib/permissions';
 import { BiolinkGlobalSettings } from '@/components/settings/BiolinkGlobalSettings';
+import { PipelineStagesEditor } from '@/components/settings/PipelineStagesEditor';
 
 // `superAdminOnly: true` hides the tab unless currentUser.role is SuperAdmin/Admin.
 const categories = [
     { id: 'profile', name: 'Perfil de Usuario', icon: User },
     { id: 'biolinks', name: 'Tarjetas Digitales', icon: CreditCard },
     { id: 'intelligence', name: 'Cerebro IA (MiWibi)', icon: Activity },
+    { id: 'pipeline', name: 'Pipeline (Etapas)', icon: Workflow, superAdminOnly: true },
     { id: 'autosend', name: 'Cotizaciones automáticas', icon: Zap, superAdminOnly: true },
     { id: 'dailyreport', name: 'Informe Diario', icon: Mail, superAdminOnly: true },
     { id: 'notifications', name: 'Notificaciones', icon: Bell },
@@ -98,7 +104,7 @@ export default function SettingsPage() {
 
     // Prevent deep-linking into a tab the user can't see.
     useEffect(() => {
-        if ((activeTab === 'autosend' || activeTab === 'dailyreport') && !isSuperAdmin) setActiveTab('profile');
+        if ((activeTab === 'autosend' || activeTab === 'dailyreport' || activeTab === 'pipeline') && !isSuperAdmin) setActiveTab('profile');
     }, [activeTab, isSuperAdmin]);
     const [showPassword, setShowPassword] = useState(false);
     const [aiActive, setAiActive] = useState(true);
@@ -297,6 +303,13 @@ export default function SettingsPage() {
                         {/* Tab: Biolink global config */}
                         {activeTab === 'biolinks' && (
                             <BiolinkGlobalSettings />
+                        )}
+
+                        {/* Tab: Pipeline (etapas configurables) — SuperAdmin only */}
+                        {activeTab === 'pipeline' && isSuperAdmin && (
+                            <div className="animate-in fade-in slide-in-from-right-4 duration-500">
+                                <PipelineStagesEditor />
+                            </div>
                         )}
 
                         {/* Tab: Intelligence Engine (Cerebro) */}

@@ -49,7 +49,7 @@ import {
     Clock,
 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { useApp, Task, Activity, Seller, Client } from '@/context/AppContext';
+import { useApp, Task, Activity, Seller, Client, PipelineStage, DEFAULT_PIPELINE_STAGES } from '@/context/AppContext';
 import SearchableSelect from '@/components/SearchableSelect';
 import CompanyCombobox from '@/components/CompanyCombobox';
 import { hasPermission } from '@/lib/permissions';
@@ -57,58 +57,69 @@ import { ownsRecord, canSeeAll } from '@/lib/scope';
 import { PermissionGate } from '@/components/PermissionGate';
 
 // ─── Stage System ────────────────────────────────────────────────────────────
+//
+// El pipeline se simplifica a tres etapas (configurables desde /settings):
+// Cotizado → En caliente → Facturado. La lista activa se lee de
+// `settings.pipelineStages`; si está vacía cae al default que vive en
+// AppContext (DEFAULT_PIPELINE_STAGES).
+//
+// Decisiones de producto:
+//   - Los leads sin cotización NO aparecen en el kanban — viven sólo en
+//     /clients. La tarjeta nace cuando se envía una cotización.
+//   - "Perdido" no es columna: queda registrado como cotización con
+//     status='Rejected' visible en la ficha del cliente, pero el kanban no
+//     se infla con tarjetas muertas.
+//   - "En caliente" se activa automáticamente cuando el cliente abre el
+//     correo (vía /api/track-open) o manualmente cuando el asesor mueve la
+//     tarjeta. La lógica de auto-move vive en /api/track-open; este archivo
+//     sólo respeta el `stageId` que le llega.
 
-const STAGES = [
-    { id: 'lead',     label: 'Nuevo Lead',         color: 'text-gray-500',    bg: 'bg-gray-100',    border: 'border-gray-200'   },
-    { id: 'sent',     label: 'Propuesta Enviada',   color: 'text-blue-600',    bg: 'bg-blue-50',     border: 'border-blue-200'   },
-    { id: 'opened',   label: 'Propuesta Abierta',   color: 'text-violet-600',  bg: 'bg-violet-50',   border: 'border-violet-200' },
-    { id: 'followup', label: 'Contactado 2da vez',  color: 'text-amber-600',   bg: 'bg-amber-50',    border: 'border-amber-200'  },
-    { id: 'won',      label: 'Propuesta Ganada',    color: 'text-emerald-600', bg: 'bg-emerald-50',  border: 'border-emerald-200'},
-    { id: 'lost',     label: 'Propuesta Perdida',   color: 'text-rose-600',    bg: 'bg-rose-50',     border: 'border-rose-200'   },
-] as const;
+type StageId = string;
 
-type StageId = typeof STAGES[number]['id'];
-
-// Map old stageIds → new stageIds
-const STAGE_MIGRATION: Record<string, StageId> = {
-    lead:      'lead',
-    contacted: 'sent',
-    qualified: 'opened',
-    proposal:  'followup',
-    won:       'won',
-    lost:      'lost',
+/**
+ * Mapea stage IDs legacy del CRM v1 a los nuevos. Las legacy `lead` y `lost`
+ * se convierten en cadena vacía: el código de filtro las descarta y la
+ * tarjeta no aparece en el kanban (la cotización Rejected sigue existiendo
+ * en la ficha del cliente, pero no como columna).
+ */
+const LEGACY_STAGE_MAP: Record<string, StageId> = {
+    lead:       '',          // no aparece en pipeline
+    contacted:  'cotizado',
+    qualified:  'caliente',
+    proposal:   'cotizado',
+    sent:       'cotizado',
+    opened:     'caliente',
+    followup:   'caliente',
+    won:        'facturado',
+    lost:       '',          // no aparece en pipeline
 };
 
-function migrateStageId(raw: string | undefined): StageId {
-    if (!raw) return 'lead';
-    if (STAGE_MIGRATION[raw]) return STAGE_MIGRATION[raw];
-    // Already a new stageId?
-    if (STAGES.some(s => s.id === raw)) return raw as StageId;
-    return 'lead';
+/** Convierte un stageId persistido (legacy o nuevo) al equivalente actual. */
+function resolveStageId(raw: string | undefined): StageId {
+    if (!raw) return '';
+    if (LEGACY_STAGE_MAP[raw] !== undefined) return LEGACY_STAGE_MAP[raw];
+    return raw;
 }
 
-const STAGE_ORDER: StageId[] = ['lead', 'sent', 'opened', 'followup', 'won', 'lost'];
-const STAGE_LABEL: Record<StageId, string> = Object.fromEntries(STAGES.map(s => [s.id, s.label])) as Record<StageId, string>;
-
-// ─── Virtual task type (clients without any pipeline task) ───────────────────
-
-interface VirtualTask {
-    id: string;
-    title: string;
-    clientId: string;
-    clientName: string;
-    stageId: StageId;
-    score: number;
-    value: number;
-    numericValue: number;
-    notes: never[];
-    isVirtual: true;
+/** Tabla de estilos por color (tailwind safe-listed). */
+const COLOR_TOKENS: Record<string, { color: string; bg: string; border: string }> = {
+    blue:    { color: 'text-blue-600',    bg: 'bg-blue-50',    border: 'border-blue-200'    },
+    amber:   { color: 'text-amber-600',   bg: 'bg-amber-50',   border: 'border-amber-200'   },
+    emerald: { color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+    violet:  { color: 'text-violet-600',  bg: 'bg-violet-50',  border: 'border-violet-200'  },
+    rose:    { color: 'text-rose-600',    bg: 'bg-rose-50',    border: 'border-rose-200'    },
+    gray:    { color: 'text-gray-600',    bg: 'bg-gray-100',   border: 'border-gray-200'    },
+    sky:     { color: 'text-sky-600',     bg: 'bg-sky-50',     border: 'border-sky-200'     },
+    slate:   { color: 'text-slate-600',   bg: 'bg-slate-50',   border: 'border-slate-200'   },
+};
+function colorTokens(color: string) {
+    return COLOR_TOKENS[color] || COLOR_TOKENS.slate;
 }
 
 // ─── SortableTask (real tasks only — virtual tasks shown separately) ─────────
 
-function SortableTask({ task, onClick, onNote }: { task: Task; onClick: (task: Task) => void; onNote: (task: Task) => void }) {
-    const { sellers, quotes, updateTask, updateQuote, addNotification, addTask, clients, currentUser } = useApp();
+function SortableTask({ task, onClick, onNote, stages }: { task: Task; onClick: (task: Task) => void; onNote: (task: Task) => void; stages: PipelineStage[] }) {
+    const { sellers, quotes, updateTask, updateQuote, addNotification, currentUser } = useApp();
     const canApprove = hasPermission(currentUser, 'quotes.approve');
     const showOwnerBadge = canSeeAll(currentUser); // only Admin/Manager/SuperAdmin see "de quién es"
     const ownerSeller = sellers.find(s => s.id === task.assignedTo || s.name === task.assignedTo);
@@ -118,9 +129,18 @@ function SortableTask({ task, onClick, onNote }: { task: Task; onClick: (task: T
     const style = { transform: CSS.Translate.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
 
     const linkedQuote = quotes.find(q => q.id === (task as any).quoteId);
-    const currentStage = migrateStageId((task as any).stageId);
-    const currentIdx = STAGE_ORDER.indexOf(currentStage);
-    const nextStage: StageId | undefined = STAGE_ORDER[currentIdx + 1] !== 'lost' ? STAGE_ORDER[currentIdx + 1] : undefined;
+    const currentStageId = resolveStageId((task as any).stageId);
+    const stageOrder = stages.map(s => s.id);
+    const labelByStage = Object.fromEntries(stages.map(s => [s.id, s.label]));
+    const currentIdx = stageOrder.indexOf(currentStageId);
+    // La etapa "ganadora" (isWinStage) se considera final y no se sugiere
+    // como siguiente automática — el asesor la elige expresamente.
+    const winStageId = stages.find(s => s.isWinStage)?.id;
+    const nextStageId: string | undefined = (() => {
+        const candidate = stageOrder[currentIdx + 1];
+        if (!candidate || candidate === winStageId) return undefined;
+        return candidate;
+    })();
 
     const stop = (fn: () => void) => (e: React.MouseEvent) => { e.stopPropagation(); fn(); };
 
@@ -132,24 +152,33 @@ function SortableTask({ task, onClick, onNote }: { task: Task; onClick: (task: T
     });
 
     const handleAdvance = stop(() => {
-        if (!nextStage || nextStage === 'won') return;
-        updateTask(task.id, { stageId: nextStage } as any);
-        addNotification({ title: `Avanzó → ${STAGE_LABEL[nextStage]}`, description: task.title, type: 'success' });
+        if (!nextStageId) return;
+        updateTask(task.id, { stageId: nextStageId } as any);
+        addNotification({ title: `Avanzó → ${labelByStage[nextStageId]}`, description: task.title, type: 'success' });
     });
 
     const handleWon = stop(() => {
-        updateTask(task.id, { stageId: 'won' } as any);
+        if (!winStageId) return;
+        updateTask(task.id, { stageId: winStageId } as any);
         if (linkedQuote) updateQuote(linkedQuote.id, { status: 'Approved' });
-        addNotification({ title: 'Propuesta Ganada', description: `${task.title} marcado como ganado.`, type: 'success' });
+        addNotification({ title: `Marcado como ${labelByStage[winStageId]}`, description: task.title, type: 'success' });
     });
 
+    // "Perdido" ya no es una etapa del kanban — se registra a nivel de la
+    // cotización (status='Rejected') y la tarjeta sale del pipeline. La
+    // ficha del cliente muestra el histórico de intentos perdidos.
     const handleLost = stop(() => {
-        updateTask(task.id, { stageId: 'lost' } as any);
         if (linkedQuote) updateQuote(linkedQuote.id, { status: 'Rejected' });
-        addNotification({ title: 'Propuesta Perdida', description: `${task.title} cerrado como perdido.`, type: 'alert' });
+        // Marcamos la task con un stage especial '__lost__' que el filtro
+        // del pipeline descarta. La tarjeta desaparece del kanban pero queda
+        // persistida por si quieren rescatarla en el futuro.
+        updateTask(task.id, { stageId: '__lost__' } as any);
+        addNotification({ title: 'Marcado como perdido', description: `${task.title} salió del pipeline. Queda registrado en la ficha del cliente.`, type: 'alert' });
     });
 
-    const stage = STAGES.find(s => s.id === currentStage) || STAGES[0];
+    const currentStage = stages.find(s => s.id === currentStageId);
+    const stage = currentStage || stages[0] || { id: '', label: '—', color: 'slate' };
+    const tone = colorTokens(stage.color);
 
     return (
         <div ref={setNodeRef} style={style} {...attributes} className="bg-white border border-border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
@@ -218,14 +247,14 @@ function SortableTask({ task, onClick, onNote }: { task: Task; onClick: (task: T
                 <button onClick={stop(() => onNote(task))} title="Nota" className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-400 text-amber-600 hover:text-black transition-all border border-amber-200">
                     <FileText className="w-3 h-3" />
                 </button>
-                {nextStage && nextStage !== 'won' && (
-                    <button onClick={handleAdvance} title={`Avanzar → ${STAGE_LABEL[nextStage]}`} className="p-1.5 rounded-lg bg-primary/5 hover:bg-primary text-primary hover:text-black transition-all border border-primary/20">
+                {nextStageId && (
+                    <button onClick={handleAdvance} title={`Avanzar → ${labelByStage[nextStageId]}`} className="p-1.5 rounded-lg bg-primary/5 hover:bg-primary text-primary hover:text-black transition-all border border-primary/20">
                         <ChevronRight className="w-3 h-3" />
                     </button>
                 )}
-                {canApprove && (
+                {canApprove && winStageId && (
                     <>
-                        <button onClick={handleWon} title="Ganado" className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white transition-all border border-emerald-200">
+                        <button onClick={handleWon} title={labelByStage[winStageId] || 'Cierre ganado'} className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white transition-all border border-emerald-200">
                             <CheckCircle2 className="w-3 h-3" />
                         </button>
                         <button onClick={handleLost} title="Perdido" className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-500 text-rose-500 hover:text-white transition-all border border-rose-200">
@@ -233,32 +262,6 @@ function SortableTask({ task, onClick, onNote }: { task: Task; onClick: (task: T
                         </button>
                     </>
                 )}
-            </div>
-        </div>
-    );
-}
-
-// ─── VirtualLeadCard ─────────────────────────────────────────────────────────
-
-function VirtualLeadCard({ client, onStart }: { client: Client; onStart: (client: Client) => void }) {
-    return (
-        <div className="bg-white border border-dashed border-gray-300 rounded-xl overflow-hidden hover:border-primary/40 transition-all">
-            <div className="px-3 pt-2.5 pb-2 space-y-1.5">
-                <h4 className="text-xs font-black text-foreground leading-tight truncate">{client.company || client.name}</h4>
-                <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-1 truncate">
-                    <User className="w-2.5 h-2.5 shrink-0" />{client.name}
-                </p>
-                {(client.ltv ?? 0) > 0 && (
-                    <p className="text-xs font-black text-foreground">${(client.ltv ?? 0).toLocaleString('es-CO')}</p>
-                )}
-            </div>
-            <div className="border-t border-border/30 px-3 py-2">
-                <button
-                    onClick={() => onStart(client)}
-                    className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-primary/10 hover:bg-primary text-primary hover:text-black transition-all text-[9px] font-black uppercase border border-primary/20"
-                >
-                    <Plus className="w-3 h-3" /> Iniciar
-                </button>
             </div>
         </div>
     );
@@ -291,8 +294,17 @@ interface Column {
 export default function PipelinePage() {
     const { tasks, clients, sellers, quotes, addTask, addQuote, addNotification, addAuditLog, updateTask, updateQuote, deleteTask, addClient, settings, products, currentUser: loggedInUser } = useApp();
 
+    // Stages dinámicas — leídas de settings.pipelineStages, con fallback al
+    // default de Arte Concreto (Cotizado → En caliente → Facturado). El editor
+    // en /settings persiste la lista; acá la consumimos como fuente de verdad.
+    const stages: PipelineStage[] = settings.pipelineStages && settings.pipelineStages.length > 0
+        ? settings.pipelineStages
+        : DEFAULT_PIPELINE_STAGES;
+    const stageIds = stages.map(s => s.id);
+    const stageLabel = Object.fromEntries(stages.map(s => [s.id, s.label])) as Record<string, string>;
+
     const [columns, setColumns] = useState<Column[]>(
-        STAGES.map(s => ({ id: s.id, title: s.label, tasks: [] }))
+        stages.map(s => ({ id: s.id, title: s.label, tasks: [] }))
     );
 
     // Per-column search
@@ -327,22 +339,23 @@ export default function PipelinePage() {
         }
 
         setColumns(
-            STAGES.map(s => ({
+            stages.map(s => ({
                 id: s.id,
                 title: s.label,
                 tasks: dedupTasks(
                     tasks
-                        .filter((t: any) => migrateStageId(t.stageId) === s.id)
+                        // Sólo entra al pipeline lo que tiene cotización: el lead "pelado"
+                        // vive en /clients y no infla el kanban.
+                        .filter((t: any) => !!(t as any).quoteId)
+                        // Mapear stage legacy → nuevo, descartar tasks sin stage válido
+                        // (lead virtual / lost se resuelven a '' o '__lost__' y caen acá).
+                        .filter((t: any) => resolveStageId(t.stageId) === s.id)
                         .filter((t: any) => ownsRecord(loggedInUser, t))
                 ),
             }))
         );
-    }, [tasks, loggedInUser]);
-
-    // Virtual leads: clients without any pipeline task (respecting ownership)
-    const clientsWithoutTask = clients.filter(c =>
-        ownsRecord(loggedInUser, c) && !tasks.some((t: any) => t.clientId === c.id)
-    );
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tasks, loggedInUser, settings.pipelineStages]);
 
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -361,11 +374,12 @@ export default function PipelinePage() {
     const currentUser: Seller = loggedInUser || sellers.find(s => s.role === 'SuperAdmin') || sellers[0];
     const canReassign = hasPermission(currentUser, 'pipeline.reassign');
 
+    const firstStageId: StageId = stages[0]?.id || 'cotizado';
     const [newDeal, setNewDeal] = useState({
         title: '',
         clientId: '',
         priority: 'Medium' as 'High' | 'Medium' | 'Low',
-        stageId: 'lead' as StageId,
+        stageId: firstStageId as StageId,
         assignedTo: '',
         products: [] as { id: string; name: string; price: number; quantity: number }[]
     });
@@ -449,27 +463,6 @@ export default function PipelinePage() {
         addNotification({ title: 'Nota guardada', description: 'Actividad registrada en el pipeline.', type: 'success' });
         setNoteTask(null);
         setNoteText('');
-    };
-
-    // ─── Start virtual lead ───────────────────────────────────────────────────
-
-    const handleStartVirtualLead = (client: Client) => {
-        const taskId = addTask({
-            title: client.company || client.name,
-            client: client.company || client.name,
-            clientId: client.id,
-            contactName: client.name,
-            value: client.ltv ? `$${client.ltv.toLocaleString('es-CO')}` : '$0',
-            numericValue: client.ltv || 0,
-            priority: 'Medium',
-            tags: ['Lead'],
-            aiScore: client.score || 50,
-            source: 'CRM',
-            assignedTo: currentUser?.name || '',
-            activities: [{ id: `act-${Date.now()}`, type: 'system', content: 'Lead iniciado desde pipeline.', timestamp: new Date() }],
-            stageId: 'lead',
-        });
-        addNotification({ title: 'Lead iniciado', description: `${client.company || client.name} agregado al pipeline.`, type: 'success' });
     };
 
     const handleCreateDeal = async () => {
@@ -612,11 +605,11 @@ export default function PipelinePage() {
 
         const column = columns.find(c => c.id === overId);
         const otherTask = tasks.find(t => t.id === overId);
-        const destColId = column ? column.id : (otherTask ? migrateStageId((otherTask as any).stageId) : null);
+        const destColId = column ? column.id : (otherTask ? resolveStageId((otherTask as any).stageId) : null);
 
-        if (destColId && migrateStageId((movedTask as any).stageId) !== destColId) {
-            const fromLabel = STAGE_LABEL[migrateStageId((movedTask as any).stageId)] || (movedTask as any).stageId || 'Lead';
-            const toLabel = STAGE_LABEL[destColId as StageId] || destColId;
+        if (destColId && resolveStageId((movedTask as any).stageId) !== destColId) {
+            const fromLabel = stageLabel[resolveStageId((movedTask as any).stageId)] || (movedTask as any).stageId || '—';
+            const toLabel = stageLabel[destColId] || destColId;
             const stageActivity: Activity = {
                 id: `sys-${Date.now()}`,
                 type: 'system',
@@ -625,7 +618,10 @@ export default function PipelinePage() {
             };
             updateTask(activeId, { stageId: destColId, activities: [stageActivity, ...movedTask.activities] } as any);
             addAuditLog({ userId: currentUser.id, userName: currentUser.name, userRole: canReassign ? 'SuperAdmin' : 'Vendedor', action: 'LEAD_STATUS_CHANGE', targetId: activeId, targetName: movedTask.client, details: `Cambio de etapa: ${fromLabel} → ${toLabel}`, verified: true });
-            if (destColId === 'won') {
+            // Si la columna de destino está marcada como "ganadora" (isWinStage),
+            // disparamos la orden de producción como antes.
+            const destStage = stages.find(s => s.id === destColId);
+            if (destStage?.isWinStage) {
                 addNotification({ title: 'Venta Cerrada', description: `${movedTask.client} — $${movedTask.numericValue.toLocaleString()} COP. Enviando Orden de Producción...`, type: 'success' });
                 sendProductionOrder(movedTask, []);
             }
@@ -670,10 +666,15 @@ export default function PipelinePage() {
                     const assignedTo = values[9] || 'Sin Asignar';
                     const rawNotes = values[10] || '';
                     const creationDate = values[11] || new Date().toISOString().split('T')[0];
-                    let stageId: StageId = 'lead';
-                    if (rawStage.includes('contact') || rawStage.includes('llamada')) stageId = 'sent';
-                    if (rawStage.includes('propos') || rawStage.includes('cotiza')) stageId = 'followup';
-                    if (rawStage.includes('calif') || rawStage.includes('qualif')) stageId = 'opened';
+                    // En el modelo simplificado, todo lo importado entra como
+                    // "Cotizado" (primera etapa). El asesor lo mueve a En
+                    // caliente / Facturado a medida que avanza la venta. Si
+                    // el CSV trae una pista textual del estado, la usamos
+                    // para sugerir caliente.
+                    let stageId: StageId = firstStageId;
+                    if (rawStage.includes('calif') || rawStage.includes('qualif') || rawStage.includes('abr') || rawStage.includes('seguim')) {
+                        stageId = stages.find(s => s.autoOnQuoteOpen)?.id || firstStageId;
+                    }
                     const splitNotes = rawNotes.split('|').filter((n: string) => n.trim().length > 0);
                     const activities: Activity[] = splitNotes.map((note: string, idx: number) => ({ id: `act-${Date.now()}-${idx}`, type: 'note', content: note.trim(), timestamp: new Date() }));
                     if (activities.length === 0) activities.push({ id: `act-${Date.now()}-init`, type: 'system', content: 'Lead importado desde sistema heredado.', timestamp: new Date(creationDate) });
@@ -717,12 +718,10 @@ export default function PipelinePage() {
             <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden custom-scrollbar scroll-smooth pb-2">
                 <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd}>
                     <div className="flex flex-nowrap items-stretch gap-4 min-w-max h-full px-2">
-                        {STAGES.map((stage) => {
+                        {stages.map((stage) => {
                             const col = columns.find(c => c.id === stage.id);
                             const colTasks = col?.tasks || [];
-
-                            // Virtual leads only show in 'lead' column
-                            const showVirtuals = stage.id === 'lead';
+                            const tone = colorTokens(stage.color);
 
                             // Filter by column search
                             const search = (columnSearch[stage.id] || '').toLowerCase();
@@ -735,28 +734,19 @@ export default function PipelinePage() {
                                 )
                                 : colTasks;
 
-                            const filteredVirtuals = showVirtuals
-                                ? (search
-                                    ? clientsWithoutTask.filter(c =>
-                                        (c.company || '').toLowerCase().includes(search) ||
-                                        c.name.toLowerCase().includes(search)
-                                    )
-                                    : clientsWithoutTask)
-                                : [];
-
-                            const totalCount = filteredTasks.length + filteredVirtuals.length;
+                            const totalCount = filteredTasks.length;
                             const pipelineValue = filteredTasks.reduce((acc, t) => acc + (t.numericValue || 0), 0);
 
                             return (
                                 <div key={stage.id} className="w-64 h-full flex flex-col shrink-0">
                                     {/* Column header */}
-                                    <div className={clsx('rounded-t-2xl border px-3 pt-2.5 pb-0', stage.bg, stage.border)}>
+                                    <div className={clsx('rounded-t-2xl border px-3 pt-2.5 pb-0', tone.bg, tone.border)}>
                                         <div className="flex items-center justify-between mb-1">
-                                            <span className={clsx('text-xs font-bold uppercase tracking-widest', stage.color)}>{stage.label}</span>
-                                            <div className={clsx('w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black border', stage.bg, stage.border, stage.color)}>{totalCount}</div>
+                                            <span className={clsx('text-xs font-bold uppercase tracking-widest', tone.color)}>{stage.label}</span>
+                                            <div className={clsx('w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black border', tone.bg, tone.border, tone.color)}>{totalCount}</div>
                                         </div>
                                         {pipelineValue > 0 && (
-                                            <p className={clsx('text-[8px] font-bold mb-1.5', stage.color)}>${pipelineValue.toLocaleString('es-CO')}</p>
+                                            <p className={clsx('text-[8px] font-bold mb-1.5', tone.color)}>${pipelineValue.toLocaleString('es-CO')}</p>
                                         )}
                                         {/* Per-column search */}
                                         <div className="pb-2">
@@ -779,10 +769,7 @@ export default function PipelinePage() {
                                             <SortableContext items={filteredTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
                                                 <div className="flex flex-col gap-2.5 min-h-full">
                                                     {filteredTasks.map(task => (
-                                                        <SortableTask key={task.id} task={task} onClick={handleTaskClick} onNote={t => { setNoteTask(t); setNoteText(''); }} />
-                                                    ))}
-                                                    {filteredVirtuals.map(client => (
-                                                        <VirtualLeadCard key={`virtual-${client.id}`} client={client} onStart={handleStartVirtualLead} />
+                                                        <SortableTask key={task.id} task={task} onClick={handleTaskClick} onNote={t => { setNoteTask(t); setNoteText(''); }} stages={stages} />
                                                     ))}
                                                     {totalCount === 0 && (
                                                         <div className="min-h-[200px] border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center text-muted-foreground gap-2 opacity-50">
@@ -802,7 +789,7 @@ export default function PipelinePage() {
                     <DragOverlay>
                         {activeTask ? (
                             <div className="w-64 rotate-3 shadow-2xl opacity-90 cursor-grabbing pointer-events-none scale-105 z-[1000]">
-                                <SortableTask task={activeTask} onClick={() => { }} onNote={() => { }} />
+                                <SortableTask task={activeTask} onClick={() => { }} onNote={() => { }} stages={stages} />
                             </div>
                         ) : null}
                     </DragOverlay>
