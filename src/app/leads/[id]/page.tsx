@@ -18,7 +18,8 @@ import {
     ExternalLink,
     Plus,
     Send,
-    Building2
+    Building2,
+    Briefcase
 } from 'lucide-react';
 
 import Link from 'next/link';
@@ -48,7 +49,7 @@ export default function Lead360Page() {
     );
     const [noteText, setNoteText] = useState('');
     const [isEditOpen, setIsEditOpen] = useState(false);
-    const [editForm, setEditForm] = useState({ name: '', company: '', companyId: '', email: '', phone: '', city: '', status: '' });
+    const [editForm, setEditForm] = useState({ name: '', company: '', companyId: '', position: '', email: '', phone: '', city: '', status: '' });
     const isSuperAdmin = currentUser?.role?.toLowerCase().includes('superadmin') || currentUser?.role?.toLowerCase() === 'admin';
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [assignSellerId, setAssignSellerId] = useState('');
@@ -245,7 +246,7 @@ export default function Lead360Page() {
                         <span>Exportar</span>
                     </button>
                     <button
-                        onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', companyId: lead.companyId || '', email: lead.email, phone: lead.phone || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
+                        onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', companyId: lead.companyId || '', position: lead.position || '', email: lead.email, phone: lead.phone || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
                         className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] transition-all flex items-center gap-2 text-sm"
                     >
                         <Edit2 className="w-4 h-4" />
@@ -294,7 +295,7 @@ export default function Lead360Page() {
                                             <span className="text-sm font-semibold text-foreground truncate ml-2 max-w-[55%] text-right">{empresa}</span>
                                         ) : (
                                             <button
-                                                onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', companyId: lead.companyId || '', email: lead.email, phone: lead.phone || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
+                                                onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', companyId: lead.companyId || '', position: lead.position || '', email: lead.email, phone: lead.phone || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
                                                 className="text-xs font-bold text-primary hover:underline"
                                             >
                                                 + Asignar empresa
@@ -305,6 +306,7 @@ export default function Lead360Page() {
                             })()}
                             {[
                                 { icon: User, label: 'Contacto Principal', value: lead.name },
+                                { icon: Briefcase, label: 'Cargo', value: lead.position || 'Sin cargo registrado' },
                                 { icon: Mail, label: 'Correo', value: lead.email },
                                 { icon: Phone, label: 'Teléfono', value: lead.phone },
                                 { icon: MapPin, label: 'Ubicación', value: lead.city || 'No registrada' }
@@ -765,6 +767,7 @@ export default function Lead360Page() {
                         <div className="grid grid-cols-2 gap-4">
                             {([
                                 { label: 'Nombre', key: 'name', type: 'text' },
+                                { label: 'Cargo', key: 'position', type: 'text' },
                                 { label: 'Email', key: 'email', type: 'email' },
                                 { label: 'Teléfono', key: 'phone', type: 'tel' },
                                 { label: 'Ciudad', key: 'city', type: 'text' },

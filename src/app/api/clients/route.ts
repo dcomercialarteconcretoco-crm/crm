@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
   const { rows } = await pool.query(
     `SELECT
-       id, name, company, company_id AS "companyId", email, phone, status,
+       id, name, company, company_id AS "companyId", position, email, phone, status,
        value_text AS value,
        ltv, last_contact AS "lastContact",
        city, score, category, registration_date AS "registrationDate",
@@ -95,18 +95,22 @@ export async function POST(request: NextRequest) {
   // Email vacío → NULL para que no choque contra el UNIQUE index parcial
   // cuando varios contactos de la misma empresa no tienen correo declarado.
   const emailValue = (payload.email || '').trim() || null;
+  // Cargo: trim + cadena vacía → NULL para que el front pueda preguntar
+  // `if (client.position)` sin chequear espacios.
+  const positionValue = (payload.position || '').trim() || null;
 
   try {
     await pool.query(
       `
         INSERT INTO crm_clients (
-          id, name, company, company_id, email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date,
+          id, name, company, company_id, position, email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date,
           assigned_to, assigned_to_name, source, updated_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW())
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
         ON CONFLICT (id) DO UPDATE SET
           name = EXCLUDED.name,
           company = EXCLUDED.company,
           company_id = EXCLUDED.company_id,
+          position = EXCLUDED.position,
           email = EXCLUDED.email,
           phone = EXCLUDED.phone,
           status = EXCLUDED.status,
@@ -127,6 +131,7 @@ export async function POST(request: NextRequest) {
         payload.name,
         companyName,
         companyId,
+        positionValue,
         emailValue,
         payload.phone || '',
         payload.status || 'Activo',

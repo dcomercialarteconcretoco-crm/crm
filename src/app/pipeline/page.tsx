@@ -388,6 +388,7 @@ export default function PipelinePage() {
         name: string;
         company: string;
         companyId: string;
+        position: string;
         email: string;
         city: string;
         category: string;
@@ -395,6 +396,7 @@ export default function PipelinePage() {
         name: '',
         company: '',
         companyId: '',
+        position: '',
         email: '',
         city: settings.cities[0]?.name || 'Bogotá',
         category: settings.sectors[0] || 'Infraestructura'
@@ -475,6 +477,7 @@ export default function PipelinePage() {
                 name: inlineClient.name,
                 company: inlineClient.company,
                 companyId: inlineClient.companyId || undefined,
+                position: inlineClient.position || undefined,
                 email: inlineClient.email,
                 phone: '',
                 status: 'Lead',
@@ -551,7 +554,7 @@ export default function PipelinePage() {
         setIsNewModalOpen(false);
         setShowNewClientForm(false);
         setNewDeal({ title: '', clientId: '', priority: 'Medium', stageId: 'lead', assignedTo: '', products: [] });
-        setInlineClient({ name: '', company: '', companyId: '', email: '', city: settings.cities[0]?.name || 'Bogotá', category: settings.sectors[0] || 'Infraestructura' });
+        setInlineClient({ name: '', company: '', companyId: '', position: '', email: '', city: settings.cities[0]?.name || 'Bogotá', category: settings.sectors[0] || 'Infraestructura' });
     };
 
     const handleDelete = () => {
@@ -931,6 +934,7 @@ export default function PipelinePage() {
                                                         }
                                                     />
                                                     <input type="text" placeholder="Nombre del Contacto" value={inlineClient.name} onChange={e => setInlineClient({ ...inlineClient, name: e.target.value })} className="w-full bg-white border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-bold outline-none focus:border-primary" />
+                                                    <input type="text" placeholder="Cargo (Director de Compras, Asistente, ...)" value={inlineClient.position} onChange={e => setInlineClient({ ...inlineClient, position: e.target.value })} className="w-full bg-white border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-bold outline-none focus:border-primary" />
                                                     <input type="email" placeholder="Email Corporativo" value={inlineClient.email} onChange={e => setInlineClient({ ...inlineClient, email: e.target.value })} className="w-full bg-white border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-bold outline-none focus:border-primary" />
                                                     <div className="grid grid-cols-2 gap-3">
                                                         <SearchableSelect options={settings.cities} value={inlineClient.city} onChange={val => setInlineClient({ ...inlineClient, city: val })} placeholder="Ciudad" />

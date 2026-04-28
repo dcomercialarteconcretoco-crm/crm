@@ -44,6 +44,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   // Email vacío → NULL: ver comentario en /api/clients POST.
   const emailValue = (payload.email || '').trim() || null;
+  const positionValue = (payload.position || '').trim() || null;
 
   try {
     await pool.query(
@@ -53,19 +54,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           name = $2,
           company = $3,
           company_id = $4,
-          email = $5,
-          phone = $6,
-          status = $7,
-          value_text = $8,
-          ltv = $9,
-          last_contact = $10,
-          city = $11,
-          score = $12,
-          category = $13,
-          registration_date = $14,
-          assigned_to = COALESCE($15, assigned_to),
-          assigned_to_name = COALESCE($16, assigned_to_name),
-          source = COALESCE($17, source),
+          position = $5,
+          email = $6,
+          phone = $7,
+          status = $8,
+          value_text = $9,
+          ltv = $10,
+          last_contact = $11,
+          city = $12,
+          score = $13,
+          category = $14,
+          registration_date = $15,
+          assigned_to = COALESCE($16, assigned_to),
+          assigned_to_name = COALESCE($17, assigned_to_name),
+          source = COALESCE($18, source),
           updated_at = NOW()
         WHERE id = $1
       `,
@@ -74,6 +76,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         payload.name,
         companyName,
         companyId,
+        positionValue,
         emailValue,
         payload.phone || '',
         payload.status || 'Activo',

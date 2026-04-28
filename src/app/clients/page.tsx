@@ -68,6 +68,7 @@ export default function ClientsPage() {
         name: '',
         company: '',
         companyId: '',
+        position: '',
         email: '',
         phone: '',
         city: settings.cities[0]?.name || 'Bogotá',
@@ -146,6 +147,7 @@ export default function ClientsPage() {
             name: '',
             company: '',
             companyId: '',
+            position: '',
             email: '',
             phone: '',
             city: settings.cities[0]?.name || 'Bogotá',
@@ -642,12 +644,21 @@ export default function ClientsPage() {
                                     </div>
                                 </Link>
 
-                                {/* Empresa */}
+                                {/* Empresa + cargo del contacto.
+                                    El cargo va inmediatamente debajo del nombre de empresa porque
+                                    el par "dónde trabaja / qué hace ahí" se lee como una unidad.
+                                    En el espacio que antes quedaba vacío (la columna pesa 180px y
+                                    el nombre rara vez lo llena) ahora vive el cargo en gris suave. */}
                                 <div className="hidden md:flex items-center gap-2 min-w-0 w-[180px] shrink-0">
                                     <Building2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                                     <div className="min-w-0">
                                         <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Empresa</p>
                                         <p className="text-xs font-semibold text-foreground truncate">{companyName || <span className="italic text-muted-foreground/60 font-normal">Sin empresa</span>}</p>
+                                        {client.position && (
+                                            <p className="text-[10px] text-muted-foreground truncate leading-tight" title={client.position}>
+                                                {client.position}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
 
@@ -726,6 +737,11 @@ export default function ClientsPage() {
                                     <Link href={`/leads/${client.id}`}>
                                         <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors truncate">{client.name}</h3>
                                     </Link>
+                                    {client.position && (
+                                        <p className="text-[11px] text-muted-foreground truncate leading-tight mt-0.5" title={client.position}>
+                                            {client.position}
+                                        </p>
+                                    )}
                                     <div className="flex items-center gap-1.5 mt-0.5 truncate text-muted-foreground">
                                         <Mail className="w-3 h-3" />
                                         <p className="text-xs truncate">{displayEmail(client.email) || <span className="italic text-muted-foreground/60">sin email</span>}</p>
@@ -895,7 +911,20 @@ export default function ClientsPage() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Cargo</label>
+                                    <div className="relative">
+                                        <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                        <input
+                                            type="text"
+                                            placeholder="Director de Compras"
+                                            value={newClientForm.position}
+                                            onChange={(e) => setNewClientForm({ ...newClientForm, position: e.target.value })}
+                                            className="w-full bg-muted border border-border rounded-xl py-2.5 pl-10 pr-3 text-sm outline-none focus:border-primary focus:bg-white transition-all"
+                                        />
+                                    </div>
+                                </div>
                                 <div>
                                     <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Email Corporativo</label>
                                     <div className="relative">

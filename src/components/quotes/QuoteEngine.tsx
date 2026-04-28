@@ -90,7 +90,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     const [sentConfirm, setSentConfirm] = useState<{ quoteNumber: string; email: string; pending?: boolean; pendingAction?: 'send_email' | 'send_whatsapp' | 'generate_pdf' } | null>(null);
     const [showNewClientForm, setShowNewClientForm] = useState(false);
     const [productSearch, setProductSearch] = useState('');
-    const [newClient, setNewClient] = useState({ name: '', company: '', companyId: '', email: '', phone: '', city: '' });
+    const [newClient, setNewClient] = useState({ name: '', company: '', companyId: '', position: '', email: '', phone: '', city: '' });
     const [clientSearch, setClientSearch] = useState('');
     const [showClientDropdown, setShowClientDropdown] = useState(false);
 
@@ -758,7 +758,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         const id = addClient({ ...newClient, status: 'Active', value: '$0', ltv: 0, lastContact: 'Ahora', city: newClient.city || '', score: 10, category: 'Construcción', registrationDate: new Date().toISOString() });
         setSelectedClientId(id);
         setShowNewClientForm(false);
-        setNewClient({ name: '', company: '', companyId: '', email: '', phone: '', city: '' });
+        setNewClient({ name: '', company: '', companyId: '', position: '', email: '', phone: '', city: '' });
         addNotification({ title: 'Cliente creado', description: `${newClient.name} vinculado a la cotización.`, type: 'success' });
     };
 
@@ -901,6 +901,8 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                             className="bg-white border border-border/70 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-primary transition-all" />
                                         <input required placeholder="Teléfono / WhatsApp" value={newClient.phone} onChange={e => setNewClient({ ...newClient, phone: e.target.value })}
                                             className="bg-white border border-border/70 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-primary transition-all" />
+                                        <input placeholder="Cargo (Director de Compras, Asistente, ...)" value={newClient.position} onChange={e => setNewClient({ ...newClient, position: e.target.value })}
+                                            className="bg-white border border-border/70 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-primary transition-all col-span-2" />
                                         <input required placeholder="Ciudad" value={newClient.city} onChange={e => setNewClient({ ...newClient, city: e.target.value })}
                                             className="bg-white border border-border/70 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-primary transition-all col-span-2" />
                                     </div>

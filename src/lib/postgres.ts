@@ -197,6 +197,13 @@ export async function ensureCrmSchema() {
   await pool.query(`ALTER TABLE crm_clients DROP CONSTRAINT IF EXISTS crm_clients_email_unique;`);
   await pool.query(`DROP INDEX IF EXISTS idx_crm_clients_email_unique;`);
 
+  // ── Cargo del contacto ──────────────────────────────────────────────────
+  // Texto libre que el asesor escribe para identificar el rol del contacto
+  // dentro de la empresa: "Director de Compras", "Asistente Administrativo",
+  // "Gerente General", etc. No es taxonomía cerrada porque el universo de
+  // títulos en B2B es infinito y el asesor sabe mejor que cualquier dropdown.
+  await pool.query(`ALTER TABLE crm_clients ADD COLUMN IF NOT EXISTS position TEXT;`);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_state (
       key TEXT PRIMARY KEY,

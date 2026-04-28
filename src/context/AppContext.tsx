@@ -74,6 +74,13 @@ export interface Client {
     company: string;
     /** FK opcional a Company.id. Los leads viejos (sin asignación) llevan undefined. */
     companyId?: string;
+    /**
+     * Cargo o rol del contacto dentro de la empresa. Texto libre porque los
+     * títulos en B2B son demasiado heterogéneos para una taxonomía cerrada
+     * ("Director de Compras", "Asistente Administrativo", "Gerente General",
+     * "Coordinador de Proyectos"). El asesor lo escribe a mano.
+     */
+    position?: string;
     email: string;
     phone: string;
     status: 'Active' | 'Lead' | 'Inactive';

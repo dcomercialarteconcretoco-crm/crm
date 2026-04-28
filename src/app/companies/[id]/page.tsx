@@ -202,6 +202,11 @@ export default function CompanyDetailPage() {
                                             </div>
                                             <div className="min-w-0">
                                                 <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors truncate">{contact.name}</p>
+                                                {contact.position && (
+                                                    <p className="text-[11px] text-muted-foreground truncate leading-tight" title={contact.position}>
+                                                        {contact.position}
+                                                    </p>
+                                                )}
                                                 <span className={clsx(
                                                     'inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide mt-0.5',
                                                     contact.status === 'Active' ? 'bg-emerald-50 text-emerald-700' :
