@@ -1190,7 +1190,11 @@ REGLAS DE ORO:
     // --- Actions ---
 
     const addClient = (client: Omit<Client, 'id'>) => {
-        const id = `c-${Date.now()}`;
+        // ID con timestamp + sufijo aleatorio para evitar colisiones cuando el
+        // user crea varios contactos en el mismo milisegundo (bulk import,
+        // doble-click rápido). Antes era sólo Date.now() y dos creaciones
+        // simultáneas pisaban la misma fila vía ON CONFLICT (id) DO UPDATE.
+        const id = `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         // Auto-assign to the logged-in seller if no explicit assignment was provided.
         // Admin/Manager/SuperAdmin can create clients on behalf of others by passing assignedTo,
         // but Vendedores always end up as the owner of their own creations.
@@ -1203,11 +1207,34 @@ REGLAS DE ORO:
             assignedToName: autoAssignedToName,
         };
         setClients(prev => [...prev, newClient]);
+        // Persistencia + manejo de error visible para el user. Antes el .catch
+        // sólo consoleaba — si el server rechazaba el insert (e.g. duplicado
+        // de email) el cliente quedaba en localStorage pero nunca en DB, y al
+        // refrescar desaparecía. Ahora si vuelve no-OK lo notificamos.
         fetch('/api/clients', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(newClient),
-        }).catch((error) => console.warn('Failed to persist client:', error));
+        }).then(async res => {
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                addNotification({
+                    title: 'No se pudo guardar el contacto',
+                    description: data?.error || `Error ${res.status} al persistir ${newClient.name}.`,
+                    type: 'alert',
+                });
+                // Rollback local: si el server lo rechazó, sacamos al cliente
+                // del state así no se ve en la UI un registro fantasma.
+                setClients(prev => prev.filter(c => c.id !== id));
+            }
+        }).catch((error) => {
+            console.warn('Failed to persist client:', error);
+            addNotification({
+                title: 'Error de red',
+                description: `No se pudo guardar ${newClient.name}. Revisá la conexión.`,
+                type: 'alert',
+            });
+        });
 
         // Taxonomy bootstrap: if the seller registered a client with a city/sector that
         // isn't in the shared catalog yet, add it. Works for every role — the whole team

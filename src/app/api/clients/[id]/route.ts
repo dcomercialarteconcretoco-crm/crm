@@ -42,49 +42,67 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
   }
 
-  await pool.query(
-    `
-      UPDATE crm_clients
-      SET
-        name = $2,
-        company = $3,
-        company_id = $4,
-        email = $5,
-        phone = $6,
-        status = $7,
-        value_text = $8,
-        ltv = $9,
-        last_contact = $10,
-        city = $11,
-        score = $12,
-        category = $13,
-        registration_date = $14,
-        assigned_to = COALESCE($15, assigned_to),
-        assigned_to_name = COALESCE($16, assigned_to_name),
-        source = COALESCE($17, source),
-        updated_at = NOW()
-      WHERE id = $1
-    `,
-    [
-      id,
-      payload.name,
-      companyName,
-      companyId,
-      payload.email || '',
-      payload.phone || '',
-      payload.status || 'Activo',
-      payload.value || '$0',
-      payload.ltv || 0,
-      payload.lastContact || new Date().toISOString().split('T')[0],
-      payload.city || '',
-      payload.score || 0,
-      payload.category || 'General',
-      payload.registrationDate || new Date().toISOString().split('T')[0],
-      payload.assignedTo || null,
-      payload.assignedToName || null,
-      payload.source || null,
-    ]
-  );
+  // Email vacío → NULL: ver comentario en /api/clients POST.
+  const emailValue = (payload.email || '').trim() || null;
+
+  try {
+    await pool.query(
+      `
+        UPDATE crm_clients
+        SET
+          name = $2,
+          company = $3,
+          company_id = $4,
+          email = $5,
+          phone = $6,
+          status = $7,
+          value_text = $8,
+          ltv = $9,
+          last_contact = $10,
+          city = $11,
+          score = $12,
+          category = $13,
+          registration_date = $14,
+          assigned_to = COALESCE($15, assigned_to),
+          assigned_to_name = COALESCE($16, assigned_to_name),
+          source = COALESCE($17, source),
+          updated_at = NOW()
+        WHERE id = $1
+      `,
+      [
+        id,
+        payload.name,
+        companyName,
+        companyId,
+        emailValue,
+        payload.phone || '',
+        payload.status || 'Activo',
+        payload.value || '$0',
+        payload.ltv || 0,
+        payload.lastContact || new Date().toISOString().split('T')[0],
+        payload.city || '',
+        payload.score || 0,
+        payload.category || 'General',
+        payload.registrationDate || new Date().toISOString().split('T')[0],
+        payload.assignedTo || null,
+        payload.assignedToName || null,
+        payload.source || null,
+      ]
+    );
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : '';
+    if (msg.includes('idx_crm_clients_email_unique')) {
+      return NextResponse.json(
+        { error: 'Ya existe otro contacto con ese mismo email.' },
+        { status: 409 }
+      );
+    }
+    console.error('Failed to update client', error);
+    return NextResponse.json(
+      { error: msg || 'No se pudo guardar el contacto.' },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({ ok: true, companyId });
 }

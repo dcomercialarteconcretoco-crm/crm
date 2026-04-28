@@ -172,19 +172,29 @@ export async function ensureCrmSchema() {
       AND c.company <> co.name;
   `);
 
-  // Migrate: add UNIQUE constraint on email (best-effort — skips if duplicates exist)
+  // ── Email: nullable + partial unique index ──────────────────────────────
+  //
+  // Histórico: la columna era NOT NULL y un UNIQUE constraint impedía dos
+  // emails iguales. El bug que destapó esto es que cuando una empresa tiene
+  // varios contactos sin email declarado, el cliente lo manda como '' (string
+  // vacío). Como '' no es NULL, el segundo cliente con email='' viola el
+  // UNIQUE y el INSERT falla silenciosamente — el usuario terminaba viendo
+  // sólo 2 contactos por empresa por más que hubiera cargado 5.
+  //
+  // Fix:
+  //   1) email pasa a ser NULL-able. PostgreSQL trata múltiples NULL como
+  //      distintos en una UNIQUE constraint, así no hay colisión.
+  //   2) Cleanup: convertimos los '' existentes a NULL.
+  //   3) Reemplazamos el UNIQUE por un partial index que sólo aplica cuando
+  //      hay email real, en LOWER() para que mayúsculas/minúsculas no
+  //      generen duplicados (juan@x.co vs JUAN@x.co).
+  await pool.query(`ALTER TABLE crm_clients ALTER COLUMN email DROP NOT NULL;`);
+  await pool.query(`UPDATE crm_clients SET email = NULL WHERE email IS NOT NULL AND TRIM(email) = '';`);
+  await pool.query(`ALTER TABLE crm_clients DROP CONSTRAINT IF EXISTS crm_clients_email_unique;`);
   await pool.query(`
-    DO $$ BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'crm_clients_email_unique'
-      ) THEN
-        BEGIN
-          ALTER TABLE crm_clients ADD CONSTRAINT crm_clients_email_unique UNIQUE (email);
-        EXCEPTION WHEN OTHERS THEN
-          NULL; -- duplicate data exists, skip; API uses check-then-upsert anyway
-        END;
-      END IF;
-    END $$;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_clients_email_unique
+    ON crm_clients (LOWER(email))
+    WHERE email IS NOT NULL AND email <> '';
   `);
 
   await pool.query(`

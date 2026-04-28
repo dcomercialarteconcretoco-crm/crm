@@ -92,51 +92,73 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  await pool.query(
-    `
-      INSERT INTO crm_clients (
-        id, name, company, company_id, email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date,
-        assigned_to, assigned_to_name, source, updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW())
-      ON CONFLICT (id) DO UPDATE SET
-        name = EXCLUDED.name,
-        company = EXCLUDED.company,
-        company_id = EXCLUDED.company_id,
-        email = EXCLUDED.email,
-        phone = EXCLUDED.phone,
-        status = EXCLUDED.status,
-        value_text = EXCLUDED.value_text,
-        ltv = EXCLUDED.ltv,
-        last_contact = EXCLUDED.last_contact,
-        city = EXCLUDED.city,
-        score = EXCLUDED.score,
-        category = EXCLUDED.category,
-        registration_date = EXCLUDED.registration_date,
-        assigned_to = COALESCE(EXCLUDED.assigned_to, crm_clients.assigned_to),
-        assigned_to_name = COALESCE(EXCLUDED.assigned_to_name, crm_clients.assigned_to_name),
-        source = COALESCE(EXCLUDED.source, crm_clients.source),
-        updated_at = NOW()
-    `,
-    [
-      payload.id,
-      payload.name,
-      companyName,
-      companyId,
-      payload.email || '',
-      payload.phone || '',
-      payload.status || 'Activo',
-      payload.value || '$0',
-      payload.ltv || 0,
-      payload.lastContact || new Date().toISOString().split('T')[0],
-      payload.city || '',
-      payload.score || 0,
-      payload.category || 'General',
-      payload.registrationDate || new Date().toISOString().split('T')[0],
-      payload.assignedTo || null,
-      payload.assignedToName || null,
-      payload.source || null,
-    ]
-  );
+  // Email vacío → NULL para que no choque contra el UNIQUE index parcial
+  // cuando varios contactos de la misma empresa no tienen correo declarado.
+  const emailValue = (payload.email || '').trim() || null;
+
+  try {
+    await pool.query(
+      `
+        INSERT INTO crm_clients (
+          id, name, company, company_id, email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date,
+          assigned_to, assigned_to_name, source, updated_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW())
+        ON CONFLICT (id) DO UPDATE SET
+          name = EXCLUDED.name,
+          company = EXCLUDED.company,
+          company_id = EXCLUDED.company_id,
+          email = EXCLUDED.email,
+          phone = EXCLUDED.phone,
+          status = EXCLUDED.status,
+          value_text = EXCLUDED.value_text,
+          ltv = EXCLUDED.ltv,
+          last_contact = EXCLUDED.last_contact,
+          city = EXCLUDED.city,
+          score = EXCLUDED.score,
+          category = EXCLUDED.category,
+          registration_date = EXCLUDED.registration_date,
+          assigned_to = COALESCE(EXCLUDED.assigned_to, crm_clients.assigned_to),
+          assigned_to_name = COALESCE(EXCLUDED.assigned_to_name, crm_clients.assigned_to_name),
+          source = COALESCE(EXCLUDED.source, crm_clients.source),
+          updated_at = NOW()
+      `,
+      [
+        payload.id,
+        payload.name,
+        companyName,
+        companyId,
+        emailValue,
+        payload.phone || '',
+        payload.status || 'Activo',
+        payload.value || '$0',
+        payload.ltv || 0,
+        payload.lastContact || new Date().toISOString().split('T')[0],
+        payload.city || '',
+        payload.score || 0,
+        payload.category || 'General',
+        payload.registrationDate || new Date().toISOString().split('T')[0],
+        payload.assignedTo || null,
+        payload.assignedToName || null,
+        payload.source || null,
+      ]
+    );
+  } catch (error: unknown) {
+    // Detectar duplicado de email (otro contacto ya usa ese mismo correo) y
+    // devolver un mensaje legible en vez de un 500 críptico para que el
+    // frontend pueda mostrarle al user qué pasó.
+    const msg = error instanceof Error ? error.message : '';
+    if (msg.includes('idx_crm_clients_email_unique')) {
+      return NextResponse.json(
+        { error: 'Ya existe otro contacto con ese mismo email.' },
+        { status: 409 }
+      );
+    }
+    console.error('Failed to upsert client', error);
+    return NextResponse.json(
+      { error: msg || 'No se pudo guardar el contacto.' },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({ ok: true, companyId });
 }
