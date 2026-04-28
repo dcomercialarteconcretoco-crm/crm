@@ -143,16 +143,10 @@ export async function POST(request: NextRequest) {
       ]
     );
   } catch (error: unknown) {
-    // Detectar duplicado de email (otro contacto ya usa ese mismo correo) y
-    // devolver un mensaje legible en vez de un 500 críptico para que el
-    // frontend pueda mostrarle al user qué pasó.
+    // Si algo falla en el INSERT/UPDATE (rara vez ahora que email no es
+    // único), devolvemos un mensaje legible para que el front pueda
+    // notificarlo en vez de un 500 críptico.
     const msg = error instanceof Error ? error.message : '';
-    if (msg.includes('idx_crm_clients_email_unique')) {
-      return NextResponse.json(
-        { error: 'Ya existe otro contacto con ese mismo email.' },
-        { status: 409 }
-      );
-    }
     console.error('Failed to upsert client', error);
     return NextResponse.json(
       { error: msg || 'No se pudo guardar el contacto.' },

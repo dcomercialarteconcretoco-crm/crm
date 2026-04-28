@@ -91,12 +91,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     );
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : '';
-    if (msg.includes('idx_crm_clients_email_unique')) {
-      return NextResponse.json(
-        { error: 'Ya existe otro contacto con ese mismo email.' },
-        { status: 409 }
-      );
-    }
     console.error('Failed to update client', error);
     return NextResponse.json(
       { error: msg || 'No se pudo guardar el contacto.' },

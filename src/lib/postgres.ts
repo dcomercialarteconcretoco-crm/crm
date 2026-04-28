@@ -172,30 +172,30 @@ export async function ensureCrmSchema() {
       AND c.company <> co.name;
   `);
 
-  // ── Email: nullable + partial unique index ──────────────────────────────
+  // ── Email: dato, no clave ───────────────────────────────────────────────
   //
-  // Histórico: la columna era NOT NULL y un UNIQUE constraint impedía dos
-  // emails iguales. El bug que destapó esto es que cuando una empresa tiene
-  // varios contactos sin email declarado, el cliente lo manda como '' (string
-  // vacío). Como '' no es NULL, el segundo cliente con email='' viola el
-  // UNIQUE y el INSERT falla silenciosamente — el usuario terminaba viendo
-  // sólo 2 contactos por empresa por más que hubiera cargado 5.
+  // En B2B (constructoras, alcaldías, asociaciones — el universo del cliente)
+  // los correos corporativos los comparten varias personas: `compras@x.co`
+  // tiene a Juan, Marta y Andrés. Tratar el email como UNIQUE rompe ese
+  // workflow: el segundo INSERT con el mismo correo rebota con violación de
+  // constraint y el contacto se pierde silenciosamente. Eso fue lo que el
+  // cliente encontró cuando dijo "no me deja cargar más de 2 contactos".
   //
-  // Fix:
-  //   1) email pasa a ser NULL-able. PostgreSQL trata múltiples NULL como
-  //      distintos en una UNIQUE constraint, así no hay colisión.
-  //   2) Cleanup: convertimos los '' existentes a NULL.
-  //   3) Reemplazamos el UNIQUE por un partial index que sólo aplica cuando
-  //      hay email real, en LOWER() para que mayúsculas/minúsculas no
-  //      generen duplicados (juan@x.co vs JUAN@x.co).
+  // La política ahora: el email es un dato más, igual que phone o city. El
+  // identificador es `id`. Si dos contactos quedan con el mismo email, está
+  // bien — es la realidad del negocio. Si en el futuro queremos detectar
+  // duplicados accidentales, lo hacemos como un warning suave en el front,
+  // no como una constraint que bloquea.
+  //
+  // Por compatibilidad con datos históricos:
+  //   1) email pasa a NULL-able (queda así).
+  //   2) Limpiamos `''` → NULL para que `WHERE email IS NULL` funcione.
+  //   3) Quitamos cualquier UNIQUE / partial index sobre email que haya
+  //      quedado de versiones anteriores. Re-correr esto es seguro.
   await pool.query(`ALTER TABLE crm_clients ALTER COLUMN email DROP NOT NULL;`);
   await pool.query(`UPDATE crm_clients SET email = NULL WHERE email IS NOT NULL AND TRIM(email) = '';`);
   await pool.query(`ALTER TABLE crm_clients DROP CONSTRAINT IF EXISTS crm_clients_email_unique;`);
-  await pool.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_crm_clients_email_unique
-    ON crm_clients (LOWER(email))
-    WHERE email IS NOT NULL AND email <> '';
-  `);
+  await pool.query(`DROP INDEX IF EXISTS idx_crm_clients_email_unique;`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_state (
