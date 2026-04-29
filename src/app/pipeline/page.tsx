@@ -381,7 +381,12 @@ export default function PipelinePage() {
         priority: 'Medium' as 'High' | 'Medium' | 'Low',
         stageId: firstStageId as StageId,
         assignedTo: '',
-        products: [] as { id: string; name: string; price: number; quantity: number }[]
+        products: [] as { id: string; name: string; price: number; quantity: number }[],
+        // Valor manual del negocio cuando no se inyectan productos del catálogo.
+        // Caso típico: servicios, instalaciones, mano de obra, sondeos cuantificados
+        // por experiencia del vendedor. Si hay productos, este campo se ignora y el
+        // total sale de sumarlos. Si products.length === 0, este es el valor del deal.
+        manualValue: 0,
     });
 
     const [inlineClient, setInlineClient] = useState<{
@@ -422,7 +427,14 @@ export default function PipelinePage() {
         }
     };
 
-    const calculateNewDealTotal = () => newDeal.products.reduce((acc, p) => acc + p.price * p.quantity, 0);
+    // Total del negocio nuevo: si hay productos sumados del catálogo, gana la suma;
+    // si no, gana el valor manual que escribió el vendedor (servicios, mano de obra,
+    // estimaciones). Esto permite abrir un deal sin tener que inyectar SKUs cuando
+    // el negocio es por servicio o todavía no está cuantificado por línea.
+    const calculateNewDealTotal = () =>
+        newDeal.products.length > 0
+            ? newDeal.products.reduce((acc, p) => acc + p.price * p.quantity, 0)
+            : newDeal.manualValue;
 
     // ─── Production order email ───────────────────────────────────────────────
 
@@ -553,7 +565,7 @@ export default function PipelinePage() {
         setIsProcessing(false);
         setIsNewModalOpen(false);
         setShowNewClientForm(false);
-        setNewDeal({ title: '', clientId: '', priority: 'Medium', stageId: 'lead', assignedTo: '', products: [] });
+        setNewDeal({ title: '', clientId: '', priority: 'Medium', stageId: 'lead', assignedTo: '', products: [], manualValue: 0 });
         setInlineClient({ name: '', company: '', companyId: '', position: '', email: '', city: settings.cities[0]?.name || 'Bogotá', category: settings.sectors[0] || 'Infraestructura' });
     };
 
@@ -1001,13 +1013,45 @@ export default function PipelinePage() {
                                         </div>
                                     </div>
 
-                                    {/* Total */}
+                                    {/* Total — editable cuando no hay productos.
+                                        Si el vendedor inyectó SKUs del catálogo, mostramos la suma read-only
+                                        (los productos son la fuente de verdad). Si no hay productos, el
+                                        número grande se vuelve un input para tipear el valor del deal a mano:
+                                        sirve para servicios, mano de obra, e instalaciones que no viven
+                                        en el inventario. La etiqueta de abajo cambia para que el usuario
+                                        sepa cuál de las dos fuentes está mandando. */}
                                     <div className="p-8 bg-muted border border-border rounded-2xl mt-auto flex flex-col items-center justify-center text-center">
-                                        <p className="text-xs font-bold uppercase text-primary mb-3 tracking-widest">VALOR TOTAL DE OFERTA</p>
-                                        <div className="flex items-baseline gap-2">
-                                            <span className="text-xl font-black text-muted-foreground">$</span>
-                                            <span className="text-5xl font-black text-foreground tracking-tighter leading-none">{calculateNewDealTotal().toLocaleString()}</span>
-                                        </div>
+                                        <p className="text-xs font-bold uppercase text-primary mb-3 tracking-widest">Valor Total de Oferta</p>
+                                        {newDeal.products.length > 0 ? (
+                                            <>
+                                                <div className="flex items-baseline gap-2">
+                                                    <span className="text-xl font-black text-muted-foreground">$</span>
+                                                    <span className="text-5xl font-black text-foreground tracking-tighter leading-none">{calculateNewDealTotal().toLocaleString()}</span>
+                                                </div>
+                                                <p className="text-[10px] text-muted-foreground mt-2 uppercase tracking-widest">Calculado de {newDeal.products.length} {newDeal.products.length === 1 ? 'ítem' : 'ítems'}</p>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="flex items-baseline gap-2">
+                                                    <span className="text-xl font-black text-muted-foreground">$</span>
+                                                    <input
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        value={newDeal.manualValue ? newDeal.manualValue.toLocaleString('es-CO') : ''}
+                                                        onChange={e => {
+                                                            // Acepta puntos/comas/espacios y los descarta — el vendedor
+                                                            // suele escribir "12.500.000" o "12,500,000". Mantenemos
+                                                            // sólo dígitos y reformateamos al render.
+                                                            const cleaned = e.target.value.replace(/[^0-9]/g, '');
+                                                            setNewDeal({ ...newDeal, manualValue: cleaned ? parseInt(cleaned, 10) : 0 });
+                                                        }}
+                                                        placeholder="0"
+                                                        className="text-5xl font-black text-foreground tracking-tighter leading-none bg-transparent border-0 outline-none text-center w-[260px] placeholder:text-muted-foreground/30 focus:placeholder:text-transparent"
+                                                    />
+                                                </div>
+                                                <p className="text-[10px] text-muted-foreground mt-2 uppercase tracking-widest">Tipeá el valor manual del negocio</p>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -1024,7 +1068,10 @@ export default function PipelinePage() {
                             </div>
                             <div className="flex gap-3">
                                 <button onClick={() => setIsNewModalOpen(false)} className="bg-muted text-muted-foreground border border-border rounded-xl px-6 py-2.5 font-medium uppercase text-[10px] tracking-widest hover:bg-muted/80 transition-all">Cancelar</button>
-                                <button onClick={handleCreateDeal} disabled={isProcessing || (!newDeal.clientId && !showNewClientForm) || !newDeal.title || newDeal.products.length === 0} className="bg-primary text-black font-bold px-8 py-2.5 rounded-xl shadow-lg disabled:opacity-20 uppercase text-[10px] tracking-widest hover:brightness-105 active:scale-[0.98] transition-all flex items-center gap-2">
+                                {/* Disabled si: está procesando, no hay cliente vinculado/nuevo, no hay título,
+                                    o no hay valor monetario (ni de productos ni manual). Antes exigía
+                                    productos.length > 0, lo que bloqueaba el caso de servicios/mano de obra. */}
+                                <button onClick={handleCreateDeal} disabled={isProcessing || (!newDeal.clientId && !showNewClientForm) || !newDeal.title || calculateNewDealTotal() <= 0} className="bg-primary text-black font-bold px-8 py-2.5 rounded-xl shadow-lg disabled:opacity-20 uppercase text-[10px] tracking-widest hover:brightness-105 active:scale-[0.98] transition-all flex items-center gap-2">
                                     {isProcessing ? <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" /> : <><ShieldCheck className="w-4 h-4" /> Confirmar Lanzamiento</>}
                                 </button>
                             </div>
