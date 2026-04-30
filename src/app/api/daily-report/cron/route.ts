@@ -51,17 +51,44 @@ export async function GET(request: NextRequest) {
         .catch(() => ({ rows: [] as any[] }));
 
     const settings = (rows[0]?.value as any) || {};
-    const cfg = settings.dailyReport;
+    const cfg = settings.dailyReport || {};
 
-    if (!cfg || !cfg.enabled) {
-        return NextResponse.json({ skipped: true, reason: 'Daily report disabled' });
+    // Modo force=X desde query — útil para diagnóstico/testing.
+    // Si está presente, saltamos los gates de "enabled" y de cadencia (día de
+    // semana, último día hábil) — cuando alguien escribe ?force=weekly es
+    // explícito, contradice el toggle apagado tendría sentido.
+    const forceParam = request.nextUrl.searchParams.get('force');
+    // Modo debug=1: devuelve qué hay realmente persistido en la DB para que
+    // veamos si el toggle de la UI llegó a guardarse o no.
+    const debugParam = request.nextUrl.searchParams.get('debug');
+    if (debugParam) {
+        return NextResponse.json({
+            settingsRowExists: rows.length > 0,
+            dailyReport: {
+                enabled: cfg.enabled ?? null,
+                weekdaysOnly: cfg.weekdaysOnly ?? null,
+                sendTime: cfg.sendTime ?? null,
+                recipientsCount: Array.isArray(cfg.recipients) ? cfg.recipients.length : 0,
+                extraEmailsCount: Array.isArray(cfg.extraEmails) ? cfg.extraEmails.length : 0,
+                lastSentAt: cfg.lastSentAt ?? null,
+            },
+            envChecks: {
+                hasResendKey: !!process.env.RESEND_API_KEY,
+                hasCronSecret: !!process.env.CRON_SECRET,
+                superadminEmail: process.env.SUPERADMIN_EMAIL || null,
+            },
+        });
+    }
+
+    if (!forceParam && !cfg.enabled) {
+        return NextResponse.json({ skipped: true, reason: 'Daily report disabled (toggle apagado en Configuración → Informe Diario, o el toggle nunca se persistió a la DB — verificá con ?debug=1)' });
     }
 
     const recipientIds: string[] = Array.isArray(cfg.recipients) ? cfg.recipients : [];
     const extraEmails: string[] = Array.isArray(cfg.extraEmails) ? cfg.extraEmails : [];
 
     if (recipientIds.length === 0 && extraEmails.length === 0) {
-        return NextResponse.json({ skipped: true, reason: 'No recipients configured' });
+        return NextResponse.json({ skipped: true, reason: 'No recipients configured (no hay destinatarios seleccionados)' });
     }
 
     // Hoy en Bogotá. El truco "toLocaleString → new Date" produce un Date cuyas
@@ -72,9 +99,6 @@ export async function GET(request: NextRequest) {
     const today = new Date(nowBogota);
     const dow = today.getDay(); // 0=Sun, 6=Sat
     const todayBogotaStr = today.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-
-    // Modo force=daily|weekly|monthly|all desde query — útil para testing manual.
-    const forceParam = request.nextUrl.searchParams.get('force');
 
     // Decidimos qué reportes mandar. La lógica:
     //   - daily   → si es día hábil (L–V)

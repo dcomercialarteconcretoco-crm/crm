@@ -704,11 +704,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const [isHydrating, setIsHydrating] = useState(true);
 
     const persistSharedState = (patch: Record<string, unknown>) => {
+        // Antes este fetch tragaba TODO error en silencio (`.catch(console.warn)`).
+        // Eso ocultó por meses el bug del informe diario: el toggle se veía ON en
+        // la UI (state local) pero el PUT a /api/state retornaba 503 en algún
+        // momento y el dailyReport.enabled nunca llegó al row de Postgres. El cron
+        // leía el row viejo y se saltaba el envío con "disabled".
+        //
+        // Ahora: verificamos status. Si falla, lo logueamos visiblemente (console.error)
+        // y para los settings críticos disparamos una notificación. No reintentamos
+        // automáticamente — la UI siguiente cambio fuerza otra escritura.
         fetch('/api/state', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(patch),
-        }).catch((error) => console.warn('Failed to persist shared state:', error));
+        }).then(async (res) => {
+            if (!res.ok) {
+                const body = await res.text().catch(() => '');
+                console.error('[persistSharedState] PUT /api/state failed:', res.status, body, 'patch keys:', Object.keys(patch));
+                if (patch.settings) {
+                    // Settings es el patch que activa el informe diario y otros toggles
+                    // críticos; si no se guardó, el user debe saberlo en vez de creer
+                    // que está activo cuando en realidad la DB tiene el valor viejo.
+                    addNotification({
+                        title: 'No se pudo guardar la configuración',
+                        description: `Error ${res.status} al persistir cambios. Recargá y volvé a tocar el toggle.`,
+                        type: 'alert',
+                    });
+                }
+            }
+        }).catch((error) => {
+            console.error('[persistSharedState] network error:', error, 'patch keys:', Object.keys(patch));
+        });
     };
 
     const [settings, setSettings] = useState<AppSettings>(() => sanitizeSettingsForStorage(loadData('crm_settings', {
