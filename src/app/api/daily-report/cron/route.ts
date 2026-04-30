@@ -1,17 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hasDatabase, getPool, ensureCrmSchema } from '@/lib/postgres';
-import { executeDailyReport } from '@/lib/daily-report-engine';
+import {
+    executeDailyReport,
+    isLastWeekdayOfMonth,
+    readLastSent,
+    type ReportType,
+    type LastSentMap,
+} from '@/lib/daily-report-engine';
 
-// Vercel Cron: este endpoint se dispara por Vercel según la config en vercel.json.
-// Sólo envía el informe si:
-//   - dailyReport.enabled = true
-//   - hay al menos un destinatario (ID de vendedor o email extra)
-//   - no es sábado/domingo cuando weekdaysOnly = true
-// Cualquier 200 OK con { skipped: true } significa "día válido pero nada que hacer".
-
+/**
+ * Vercel Cron handler — único disparador de los reportes automáticos.
+ *
+ * Vercel Hobby permite 1 cron al día. Lo configuramos en vercel.json para
+ * fire L–V a las 23:00 UTC (= 18:00 Bogotá), y dentro del handler decidimos
+ * QUÉ reportes mandar:
+ *   - daily   → siempre que sea día hábil
+ *   - weekly  → si hoy es Viernes (Lun→Vie de la semana)
+ *   - monthly → si hoy es el último día hábil del mes (mes-a-fecha)
+ *
+ * Cada tipo se deduplica por su propio `lastSentAt[type]` así que si Vercel
+ * dispara dos veces el mismo día (raro pero posible), solo se envía una vez.
+ *
+ * Por qué desaparece el gate de `sendTime`: antes el cron se saltaba el envío
+ * si la hora configurada por el user (`cfg.sendTime`) aún no había pasado.
+ * Ese gate solo tenía sentido cuando el cron corría cada hora — con un cron
+ * único al día, el cron mismo ES el horario, y el gate solo introducía bugs
+ * silenciosos. Si el user quiere otra hora, se cambia el cron en vercel.json.
+ */
 export async function GET(request: NextRequest) {
-    // Protección: Vercel agrega el header automáticamente en crons configurados.
-    // En otros entornos aceptamos un CRON_SECRET via query param o header.
+    // Auth: Vercel agrega `x-vercel-cron` automáticamente cuando dispara el cron
+    // configurado. Para llamadas manuales (testing, force) aceptamos un secret.
     const cronSecret = process.env.CRON_SECRET;
     const vercelCronHeader = request.headers.get('x-vercel-cron');
     const providedSecret =
@@ -39,46 +57,6 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ skipped: true, reason: 'Daily report disabled' });
     }
 
-    // Check día de la semana en zona horaria Colombia
-    const nowBogota = new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' });
-    const today = new Date(nowBogota);
-    const dow = today.getDay(); // 0=Sun, 6=Sat
-
-    if (cfg.weekdaysOnly !== false && (dow === 0 || dow === 6)) {
-        return NextResponse.json({ skipped: true, reason: 'Weekend (weekdaysOnly=true)' });
-    }
-
-    // Check hora configurada por el usuario (HH:MM en Bogotá).
-    //
-    // Limitación Vercel Hobby: solo 1 cron/día. Ese cron fira al final del día
-    // (23:00 UTC = 18:00 Bogotá) y procesa CUALQUIER config cuya sendTime ya
-    // haya pasado hoy y que no se haya enviado aún. El dedup por lastSentAt
-    // más abajo previene doble envío. Con esto:
-    //   - sendTime 09:00 → al disparar a las 18:00 ya pasó → se envía
-    //   - sendTime 17:50 → al disparar a las 18:00 ya pasó → se envía ✓
-    //   - sendTime 20:00 → al disparar a las 18:00 aún NO ha pasado → se salta
-    //     (y como el cron solo corre 1x/día, no se alcanza a enviar ese día).
-    //     El SuperAdmin debería configurar sendTime ≤ 18:00 para que llegue.
-    const sendTime: string = typeof cfg.sendTime === 'string' && /^\d{2}:\d{2}$/.test(cfg.sendTime)
-        ? cfg.sendTime
-        : '17:50';
-    const [sendH, sendM] = sendTime.split(':').map(Number);
-    const currentMinutes = today.getHours() * 60 + today.getMinutes();
-    const targetMinutes  = sendH * 60 + sendM;
-    const delta = currentMinutes - targetMinutes;
-    if (delta < 0) {
-        return NextResponse.json({ skipped: true, reason: `sendTime ${sendTime} aún no ha pasado (ahora ${today.getHours()}:${String(today.getMinutes()).padStart(2,'0')})` });
-    }
-
-    // Evitar doble-envío: si ya se envió hoy (Bogotá), salir
-    if (cfg.lastSentAt) {
-        const lastSentBogota = new Date(cfg.lastSentAt).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-        const todayBogota    = today.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-        if (lastSentBogota === todayBogota) {
-            return NextResponse.json({ skipped: true, reason: 'Already sent today' });
-        }
-    }
-
     const recipientIds: string[] = Array.isArray(cfg.recipients) ? cfg.recipients : [];
     const extraEmails: string[] = Array.isArray(cfg.extraEmails) ? cfg.extraEmails : [];
 
@@ -86,28 +64,84 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ skipped: true, reason: 'No recipients configured' });
     }
 
-    // Llamar la lógica del envío DIRECTO como función — NO por HTTP.
-    //
-    // Por qué: antes el cron hacía `fetch('/api/daily-report/send', ...)` al
-    // mismo servidor, pero esa request interna no llevaba cookie de sesión y
-    // el middleware la devolvía con 401 ("No autorizado. Inicia sesión
-    // primero."). Resultado: el correo diario nunca salía, ni siquiera con el
-    // toggle ON y destinatarios válidos (por eso `lastSentAt` quedaba en
-    // undefined).
-    //
-    // Invocar la función importada salta el middleware completo y evita el
-    // round-trip de red.
-    const result = await executeDailyReport({
-        demo: false,
-        recipientIds,
-        extraEmails,
-    });
+    // Hoy en Bogotá. El truco "toLocaleString → new Date" produce un Date cuyas
+    // funciones .getHours()/.getDay() devuelven el wall-clock de Bogotá cuando
+    // el server corre en UTC (Vercel). Sirve para getDay() y getDate() — que
+    // es todo lo que necesitamos acá.
+    const nowBogota = new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' });
+    const today = new Date(nowBogota);
+    const dow = today.getDay(); // 0=Sun, 6=Sat
+    const todayBogotaStr = today.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 
-    // Marca lastSentAt en settings (no bloqueante)
-    if (result.ok) {
+    // Modo force=daily|weekly|monthly|all desde query — útil para testing manual.
+    const forceParam = request.nextUrl.searchParams.get('force');
+
+    // Decidimos qué reportes mandar. La lógica:
+    //   - daily   → si es día hábil (L–V)
+    //   - weekly  → si es Viernes (cierre de la semana)
+    //   - monthly → si es el último día hábil del mes
+    //
+    // En modo force=X mandamos solo ese tipo (saltando reglas de día y dedup).
+    const types: ReportType[] = [];
+    if (forceParam === 'daily' || forceParam === 'weekly' || forceParam === 'monthly') {
+        types.push(forceParam);
+    } else if (forceParam === 'all') {
+        types.push('daily', 'weekly', 'monthly');
+    } else {
+        // Modo automático: día hábil + reglas de cadencia.
+        if (dow >= 1 && dow <= 5) types.push('daily');
+        if (dow === 5) types.push('weekly');
+        if (isLastWeekdayOfMonth(today)) types.push('monthly');
+    }
+
+    if (types.length === 0) {
+        return NextResponse.json({
+            skipped: true,
+            reason: `No reports scheduled for ${todayBogotaStr} (dow=${dow})`,
+        });
+    }
+
+    const lastSent: LastSentMap = readLastSent(cfg.lastSentAt);
+    const sent: Array<{ type: ReportType; result: any }> = [];
+    const skipped: Array<{ type: ReportType; reason: string }> = [];
+
+    for (const type of types) {
+        // Dedup por tipo: si ya se envió ese tipo hoy y no es modo force, saltar.
+        if (!forceParam && lastSent[type]) {
+            const lastBogota = new Date(lastSent[type]!).toLocaleDateString('en-CA', {
+                timeZone: 'America/Bogota',
+            });
+            if (lastBogota === todayBogotaStr) {
+                skipped.push({ type, reason: 'Already sent today' });
+                continue;
+            }
+        }
+
+        try {
+            const result = await executeDailyReport({
+                demo: false,
+                recipientIds,
+                extraEmails,
+                reportType: type,
+            });
+            sent.push({ type, result });
+            if (result.ok) {
+                lastSent[type] = new Date().toISOString();
+            }
+        } catch (error) {
+            console.error(`[daily-report] error sending ${type}:`, error);
+            skipped.push({
+                type,
+                reason: `Engine threw: ${error instanceof Error ? error.message : 'unknown'}`,
+            });
+        }
+    }
+
+    // Persistir los lastSent actualizados (no bloqueante si falla).
+    if (sent.some((s) => s.result.ok)) {
         const nextSettings = {
             ...settings,
-            dailyReport: { ...cfg, lastSentAt: new Date().toISOString() },
+            dailyReport: { ...cfg, lastSentAt: lastSent },
         };
         await pool
             .query(
@@ -115,12 +149,20 @@ export async function GET(request: NextRequest) {
                  ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
                 [JSON.stringify(nextSettings)]
             )
-            .catch(() => undefined);
+            .catch((e) => console.warn('[daily-report] failed to persist lastSent:', e));
     }
 
     return NextResponse.json({
-        ok: result.ok,
-        status: result.ok ? 200 : result.status,
-        result,
+        ok: sent.some((s) => s.result.ok),
+        today: todayBogotaStr,
+        dow,
+        scheduled: types,
+        sent: sent.map((s) => ({
+            type: s.type,
+            ok: s.result.ok,
+            sentTo: s.result.ok ? s.result.sentTo : undefined,
+            error: !s.result.ok ? s.result.error : undefined,
+        })),
+        skipped,
     });
 }

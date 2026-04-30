@@ -775,6 +775,50 @@ export default function SettingsPage() {
                                 }
                             };
 
+                            // Disparo de cierre real (no demo) por tipo. Usa los mismos destinatarios
+                            // configurados arriba. Útil para forzar el cierre en cualquier momento
+                            // sin esperar al cron de las 18:00 — sirve también para probar el cierre
+                            // semanal sin esperar al viernes y el mensual sin esperar fin de mes.
+                            const sendReal = async (reportType: 'daily' | 'weekly' | 'monthly') => {
+                                setDailyReportTesting(true);
+                                try {
+                                    const recipientIds = dr.recipients || [];
+                                    const extraEmails = dr.extraEmails || [];
+                                    if (recipientIds.length === 0 && extraEmails.length === 0) {
+                                        addNotification({
+                                            title: 'Agrega destinatarios',
+                                            description: 'Selecciona al menos un vendedor o agrega un correo externo.',
+                                            type: 'alert',
+                                        });
+                                        return;
+                                    }
+                                    const res = await fetch('/api/daily-report/send', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ demo: false, recipientIds, extraEmails, reportType }),
+                                    });
+                                    const data = await res.json();
+                                    const labels = { daily: 'Cierre diario', weekly: 'Cierre semanal', monthly: 'Cierre mensual' };
+                                    if (res.ok) {
+                                        addNotification({
+                                            title: `✅ ${labels[reportType]} enviado`,
+                                            description: `Destinatarios: ${data.sentTo.join(', ')}`,
+                                            type: 'success',
+                                        });
+                                    } else {
+                                        addNotification({
+                                            title: `Error enviando ${labels[reportType]}`,
+                                            description: data.error || 'Revisa los logs del servidor.',
+                                            type: 'alert',
+                                        });
+                                    }
+                                } catch (err) {
+                                    addNotification({ title: 'Error de red', description: String(err), type: 'alert' });
+                                } finally {
+                                    setDailyReportTesting(false);
+                                }
+                            };
+
                             return (
                                 <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
                                     <div>
@@ -965,39 +1009,75 @@ export default function SettingsPage() {
                                         )}
                                     </div>
 
-                                    {/* Test / enviar ahora */}
+                                    {/* Disparar cierre real (daily/weekly/monthly) — bypassa el cron */}
                                     <div className="bg-gradient-to-br from-primary/5 to-amber-50 border border-primary/20 rounded-2xl p-6 space-y-4">
                                         <div className="flex items-center gap-3">
                                             <Zap className="w-5 h-5 text-primary" />
                                             <div>
-                                                <h4 className="text-sm font-black text-foreground">Probar el correo</h4>
+                                                <h4 className="text-sm font-black text-foreground">Disparar cierre ahora</h4>
                                                 <p className="text-xs text-muted-foreground mt-0.5">
-                                                    Envía un informe DEMO (con datos de ejemplo) a los destinatarios configurados para ver cómo se ve.
+                                                    Manda el correo con datos REALES a los destinatarios configurados. Útil si el cron no llegó o querés probar el cierre semanal/mensual sin esperar.
                                                 </p>
                                             </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                            <button
+                                                onClick={() => sendReal('daily')}
+                                                disabled={dailyReportTesting}
+                                                className="bg-primary text-black font-black rounded-xl px-4 py-3 hover:opacity-90 transition-opacity text-xs flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {dailyReportTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                                                Cierre diario
+                                            </button>
+                                            <button
+                                                onClick={() => sendReal('weekly')}
+                                                disabled={dailyReportTesting}
+                                                className="bg-foreground text-background font-black rounded-xl px-4 py-3 hover:opacity-90 transition-opacity text-xs flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {dailyReportTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
+                                                Cierre semanal
+                                            </button>
+                                            <button
+                                                onClick={() => sendReal('monthly')}
+                                                disabled={dailyReportTesting}
+                                                className="bg-foreground text-background font-black rounded-xl px-4 py-3 hover:opacity-90 transition-opacity text-xs flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {dailyReportTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
+                                                Cierre mensual
+                                            </button>
                                         </div>
                                         <button
                                             onClick={sendDemo}
                                             disabled={dailyReportTesting}
-                                            className="w-full bg-primary text-black font-black rounded-xl px-5 py-3 hover:opacity-90 transition-opacity text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            className="w-full bg-white border border-border text-muted-foreground font-medium rounded-xl px-4 py-2 text-xs hover:bg-muted transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                         >
-                                            {dailyReportTesting ? (
-                                                <>
-                                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                                    Enviando informe demo…
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Mail className="w-4 h-4" />
-                                                    Enviar informe DEMO ahora
-                                                </>
-                                            )}
+                                            <Mail className="w-3.5 h-3.5" />
+                                            Enviar DEMO con datos de prueba
                                         </button>
-                                        {dr.lastSentAt && (
-                                            <p className="text-xs text-muted-foreground text-center">
-                                                Último envío automático: {new Date(dr.lastSentAt).toLocaleString('es-CO', { dateStyle: 'long', timeStyle: 'short', timeZone: 'America/Bogota' })}
-                                            </p>
-                                        )}
+                                        {(() => {
+                                            // lastSentAt ahora es un objeto { daily?, weekly?, monthly? }; el formato
+                                            // viejo (string) se mostraba como "último envío automático" y se mantiene
+                                            // por compat. Si es objeto, mostramos cada tipo en una línea.
+                                            const ls = dr.lastSentAt;
+                                            if (!ls) return null;
+                                            if (typeof ls === 'string') {
+                                                return (
+                                                    <p className="text-xs text-muted-foreground text-center">
+                                                        Último envío automático: {new Date(ls).toLocaleString('es-CO', { dateStyle: 'long', timeStyle: 'short', timeZone: 'America/Bogota' })}
+                                                    </p>
+                                                );
+                                            }
+                                            const fmt = (iso?: string) => iso
+                                                ? new Date(iso).toLocaleString('es-CO', { dateStyle: 'long', timeStyle: 'short', timeZone: 'America/Bogota' })
+                                                : '—';
+                                            return (
+                                                <div className="text-xs text-muted-foreground space-y-0.5 text-center">
+                                                    <p>Cierre diario: <strong className="text-foreground/80">{fmt(ls.daily)}</strong></p>
+                                                    <p>Cierre semanal: <strong className="text-foreground/80">{fmt(ls.weekly)}</strong></p>
+                                                    <p>Cierre mensual: <strong className="text-foreground/80">{fmt(ls.monthly)}</strong></p>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
 
                                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3">

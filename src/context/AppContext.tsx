@@ -456,9 +456,15 @@ export interface DailyReportSettings {
     enabled: boolean;               // master switch
     recipients: string[];           // sellerIds que reciben el correo (además de los emails extra)
     extraEmails: string[];          // emails externos que NO están en la lista de vendedores
-    sendTime: string;               // "HH:MM" en hora Colombia, default "19:00"
+    sendTime: string;               // "HH:MM" — legado (ya no se usa para gating; el cron de Vercel define la hora)
     weekdaysOnly: boolean;          // true = lun-vie, false = todos los días
-    lastSentAt?: string;            // ISO — última vez que se envió automáticamente
+    /**
+     * Último envío de cada tipo de cierre. Antes era un string ISO único (sólo
+     * cierre diario). Ahora soportamos cierre diario, semanal y mensual con
+     * dedup independiente. El cron persiste el formato nuevo; los settings
+     * legados se siguen leyendo como `{ daily: <string viejo> }`.
+     */
+    lastSentAt?: string | { daily?: string; weekly?: string; monthly?: string };
 }
 
 export interface ShippingCityRate {

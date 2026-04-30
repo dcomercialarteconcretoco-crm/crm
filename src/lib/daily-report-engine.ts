@@ -120,6 +120,122 @@ function isSameBogotaDay(a: Date, b: Date): boolean {
     return fmt(a) === fmt(b);
 }
 
+/**
+ * Devuelve true si el timestamp `t` cae dentro del rango [start, end] en zona
+ * horaria Bogotá (inclusive en ambos extremos por día). Usamos comparación de
+ * "YYYY-MM-DD" en es-CA para evitar bugs de TZ al comparar con Date.getTime().
+ */
+function isInBogotaRange(t: Date, start: Date, end: Date): boolean {
+    const fmt = (x: Date) => x.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+    const tStr = fmt(t);
+    return tStr >= fmt(start) && tStr <= fmt(end);
+}
+
+/**
+ * Dado el día "today" en Bogotá, devuelve el rango Lunes..Viernes de ESA semana.
+ * Sirve para el cierre semanal: aunque el cron dispare Viernes a las 18:00,
+ * queremos resumir Lun→Vie de la misma semana.
+ */
+function getCurrentWeekRange(today: Date): { start: Date; end: Date } {
+    // getDay: 0=Sun, 1=Mon, ..., 5=Fri, 6=Sat
+    const dow = today.getDay();
+    // diasDesdeLunes — si hoy es Lun→0, Mar→1, …, Vie→4, Sab→5, Dom→6
+    const daysFromMonday = (dow + 6) % 7;
+    const start = new Date(today);
+    start.setDate(today.getDate() - daysFromMonday);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 4); // Lunes + 4 = Viernes
+    return { start, end };
+}
+
+/**
+ * Rango del primer día del mes hasta `today`. El cierre mensual lo lanzamos
+ * el último día hábil del mes, así que `today` ya es un buen cierre del mes
+ * en términos prácticos.
+ */
+function getCurrentMonthRange(today: Date): { start: Date; end: Date } {
+    const start = new Date(today);
+    start.setDate(1);
+    return { start, end: today };
+}
+
+/**
+ * ¿`today` (en Bogotá) es el último día hábil del mes? Es decir: ¿todos los
+ * días posteriores en este mes son sábado o domingo? Usado por el cron para
+ * decidir si dispara el cierre mensual hoy. Ejemplo: si el 30 cae Vie, ese
+ * es el último día hábil. Si el 30 cae Sab, el último hábil fue el 29 (Vie).
+ */
+function isLastWeekdayOfMonth(today: Date): boolean {
+    const dow = today.getDay();
+    if (dow === 0 || dow === 6) return false; // ya no estamos en día hábil
+    const month = today.getMonth();
+    const probe = new Date(today);
+    for (let i = 1; i <= 5; i++) {
+        probe.setDate(today.getDate() + i);
+        if (probe.getMonth() !== month) return true; // ya cambió de mes
+        const d = probe.getDay();
+        if (d !== 0 && d !== 6) return false; // queda otro día hábil
+    }
+    return false;
+}
+
+export type ReportType = 'daily' | 'weekly' | 'monthly';
+
+interface ReportWindow {
+    type: ReportType;
+    start: Date;
+    end: Date;
+    // Etiqueta humana para asunto + header del email.
+    label: string;
+    // Etiqueta corta tipo "DIARIO" / "SEMANAL" / "MENSUAL" para badges.
+    badge: string;
+}
+
+function buildWindow(type: ReportType, today: Date): ReportWindow {
+    if (type === 'weekly') {
+        const { start, end } = getCurrentWeekRange(today);
+        return {
+            type,
+            start,
+            end,
+            label: `Cierre semanal · ${formatDateLong(start)} → ${formatDateLong(end)}`,
+            badge: 'Semanal',
+        };
+    }
+    if (type === 'monthly') {
+        const { start, end } = getCurrentMonthRange(today);
+        const monthName = today.toLocaleDateString('es-CO', { month: 'long', year: 'numeric', timeZone: 'America/Bogota' });
+        return {
+            type,
+            start,
+            end,
+            label: `Cierre mensual · ${monthName}`,
+            badge: 'Mensual',
+        };
+    }
+    return {
+        type: 'daily',
+        start: today,
+        end: today,
+        label: `Cierre diario · ${formatDateLong(today)}`,
+        badge: 'Diario',
+    };
+}
+
+/**
+ * Clave persistida en settings.dailyReport.lastSentAt. Antes era un string
+ * (último envío diario). Ahora es un objeto con un campo por tipo de reporte
+ * para que daily/weekly/monthly se deduplican independientemente.
+ */
+type LastSentMap = { daily?: string; weekly?: string; monthly?: string };
+
+function readLastSent(raw: unknown): LastSentMap {
+    if (!raw) return {};
+    if (typeof raw === 'string') return { daily: raw }; // back-compat con formato viejo
+    if (typeof raw === 'object') return raw as LastSentMap;
+    return {};
+}
+
 function buildSellerSection(act: SellerActivity): string {
     const totalActions =
         act.clientsAdded.length +
@@ -429,7 +545,12 @@ function buildDemoActivities(targetDate: Date): SellerActivity[] {
     ];
 }
 
-async function loadRealActivities(targetDate: Date): Promise<SellerActivity[]> {
+/**
+ * Carga la actividad real en una ventana [start, end] (inclusive) en TZ Bogotá.
+ * Para reportes diarios `start === end === hoy`. Para semanal/mensual el rango
+ * es más amplio y los KPIs se acumulan dentro de él.
+ */
+async function loadRealActivities(start: Date, end: Date): Promise<SellerActivity[]> {
     if (!hasDatabase()) return [];
     await ensureCrmSchema();
     const pool = getPool();
@@ -464,7 +585,9 @@ async function loadRealActivities(targetDate: Date): Promise<SellerActivity[]> {
     const auditLogs: AuditLog[] = (stateMap.get('auditLogs') as AuditLog[]) || [];
     const events: CalendarEvent[] = (stateMap.get('events') as CalendarEvent[]) || [];
 
-    const targetDateStr = targetDate.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+    const fmtBogota = (x: Date) => x.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+    const startStr = fmtBogota(start);
+    const endStr = fmtBogota(end);
 
     return sellers
         .filter((s) => s.status !== 'Inactivo')
@@ -472,7 +595,7 @@ async function loadRealActivities(targetDate: Date): Promise<SellerActivity[]> {
         .filter((s) => s.role !== 'SuperAdmin' && s.role !== 'Admin')
         .map((seller): SellerActivity => {
             const sellerLogs = auditLogs.filter(
-                (l) => l.userId === seller.id && isSameBogotaDay(new Date(l.timestamp), targetDate)
+                (l) => l.userId === seller.id && isInBogotaRange(new Date(l.timestamp), start, end)
             );
 
             const logins = sellerLogs.filter((l) => l.action === 'SYSTEM_LOGIN').map((l) => new Date(l.timestamp));
@@ -481,12 +604,14 @@ async function loadRealActivities(targetDate: Date): Promise<SellerActivity[]> {
             const firstLogin = logins.length > 0 ? new Date(Math.min(...logins.map((d) => d.getTime()))) : null;
             const lastLogout = logouts.length > 0 ? new Date(Math.max(...logouts.map((d) => d.getTime()))) : null;
 
-            const sellerClients = clients.filter(
-                (c) =>
-                    c.assignedTo === seller.id &&
-                    c.registrationDate &&
-                    c.registrationDate.startsWith(targetDateStr)
-            );
+            // Clientes registrados dentro del rango: comparamos fecha (YYYY-MM-DD)
+            // contra startStr/endStr en lugar de startsWith para que weekly/monthly
+            // capturen TODOS los días, no sólo el target.
+            const sellerClients = clients.filter((c) => {
+                if (c.assignedTo !== seller.id || !c.registrationDate) return false;
+                const regStr = c.registrationDate.slice(0, 10);
+                return regStr >= startStr && regStr <= endStr;
+            });
 
             const clientsAdded = sellerClients.filter((c) => c.status !== 'Lead');
             const leadsCreated = sellerClients.filter((c) => c.status === 'Lead');
@@ -495,12 +620,14 @@ async function loadRealActivities(targetDate: Date): Promise<SellerActivity[]> {
                 (q) =>
                     (q.sentById === seller.id || q.sellerId === seller.id) &&
                     q.sentAt &&
-                    isSameBogotaDay(new Date(q.sentAt), targetDate)
+                    isInBogotaRange(new Date(q.sentAt), start, end)
             );
 
-            const sellerEvents = events.filter(
-                (e) => e.ownerUserId === seller.id && e.date === targetDateStr
-            );
+            const sellerEvents = events.filter((e) => {
+                if (e.ownerUserId !== seller.id || !e.date) return false;
+                const evStr = e.date.slice(0, 10);
+                return evStr >= startStr && evStr <= endStr;
+            });
 
             const totalRevenue = sellerQuotes.reduce((sum, q) => sum + (q.numericTotal || 0), 0);
 
@@ -525,11 +652,16 @@ async function loadRealActivities(targetDate: Date): Promise<SellerActivity[]> {
 }
 
 function buildEmailHtml(
-    targetDate: Date,
+    window: ReportWindow,
     activities: SellerActivity[],
     isDemo: boolean
 ): string {
-    const fecha = formatDateLong(targetDate);
+    // Para diario: muestra "Lunes 29 de abril". Para weekly/monthly: rango.
+    const fecha = window.type === 'daily'
+        ? formatDateLong(window.start)
+        : window.type === 'weekly'
+            ? `${formatDateLong(window.start)} → ${formatDateLong(window.end)}`
+            : window.start.toLocaleDateString('es-CO', { month: 'long', year: 'numeric', timeZone: 'America/Bogota' });
 
     const totals = activities.reduce(
         (acc, a) => ({
@@ -552,7 +684,7 @@ function buildEmailHtml(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Informe Diario — ${fecha}</title>
+  <title>${window.label}</title>
 </head>
 <body style="margin:0;padding:0;background:#f2ede4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
 <div style="max-width:680px;margin:0 auto;padding:28px 16px 48px;">
@@ -571,7 +703,7 @@ function buildEmailHtml(
             ${isDemo ? `<div style="margin-top:10px;display:inline-block;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;padding:5px 12px;border-radius:999px;font-size:10px;font-weight:900;letter-spacing:2px;text-transform:uppercase;">🧪 DEMO — Datos de prueba</div>` : ''}
           </td>
           <td style="padding:28px 32px 22px 0;vertical-align:middle;text-align:right;">
-            <div style="font-size:8px;color:#6b6b6b;letter-spacing:4px;text-transform:uppercase;font-weight:900;margin-bottom:8px;">Informe Diario</div>
+            <div style="font-size:8px;color:#6b6b6b;letter-spacing:4px;text-transform:uppercase;font-weight:900;margin-bottom:8px;">Cierre ${window.badge}</div>
             <div style="background:rgba(250,181,16,0.10);border:2px solid #fab510;border-radius:12px;padding:10px 20px;display:inline-block;">
               <span style="font-size:14px;color:#fab510;font-weight:900;letter-spacing:1px;">${fecha.toUpperCase()}</span>
             </div>
@@ -583,17 +715,21 @@ function buildEmailHtml(
 
       <div style="padding:18px 32px 28px;">
         <p style="margin:0;font-size:15px;color:#d0d0d0;line-height:1.7;">
-          Resumen de actividad del equipo comercial de <strong style="color:#ffffff;">ArteConcreto</strong>.
+          ${window.type === 'daily'
+              ? `Resumen de actividad del equipo comercial de <strong style="color:#ffffff;">ArteConcreto</strong>.`
+              : window.type === 'weekly'
+                  ? `Cierre semanal del equipo comercial de <strong style="color:#ffffff;">ArteConcreto</strong>.`
+                  : `Cierre mensual del equipo comercial de <strong style="color:#ffffff;">ArteConcreto</strong>.`}
         </p>
         <p style="margin:7px 0 0;font-size:13px;color:#7a7a7a;line-height:1.6;">
-          Generado automáticamente el ${fecha} · Zona horaria: Bogotá
+          Generado automáticamente · Zona horaria: Bogotá
         </p>
       </div>
     </div>
 
     <!-- RESUMEN GLOBAL -->
     <div style="padding:28px 32px 8px;">
-      <h2 style="margin:0 0 16px;font-size:11px;color:#aaa;font-weight:900;letter-spacing:3px;text-transform:uppercase;">Resumen del día</h2>
+      <h2 style="margin:0 0 16px;font-size:11px;color:#aaa;font-weight:900;letter-spacing:3px;text-transform:uppercase;">${window.type === 'daily' ? 'Resumen del día' : window.type === 'weekly' ? 'Resumen de la semana' : 'Resumen del mes'}</h2>
       <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border-radius:14px;overflow:hidden;background:#faf7f0;border:1px solid #ede8da;">
         <tr>
           <td style="width:16.66%;text-align:center;padding:18px 8px;border-right:1px solid #ede8da;">
@@ -629,7 +765,7 @@ function buildEmailHtml(
       <div style="margin-top:16px;background:linear-gradient(135deg,#1a1a1d 0%,#2a2a2d 100%);border-radius:14px;padding:18px 22px;">
         <table width="100%" cellpadding="0" cellspacing="0" border="0">
           <tr>
-            <td><div style="font-size:10px;color:#fab510;font-weight:900;text-transform:uppercase;letter-spacing:2.5px;">Valor total cotizado hoy</div></td>
+            <td><div style="font-size:10px;color:#fab510;font-weight:900;text-transform:uppercase;letter-spacing:2.5px;">${window.type === 'daily' ? 'Valor total cotizado hoy' : window.type === 'weekly' ? 'Valor cotizado en la semana' : 'Valor cotizado en el mes'}</div></td>
             <td style="text-align:right;"><div style="font-size:26px;color:#fab510;font-weight:900;letter-spacing:-0.5px;">${formatCOP(totals.revenue)}</div></td>
           </tr>
         </table>
@@ -647,7 +783,11 @@ function buildEmailHtml(
     <!-- FOOTER -->
     <div style="background:#1a1a1d;padding:22px 32px;">
       <p style="margin:0;font-size:12px;color:#888;line-height:1.6;">
-        Este informe se envía automáticamente cada día hábil desde el CRM de ArteConcreto.
+        ${window.type === 'daily'
+            ? 'Este informe se envía automáticamente cada día hábil desde el CRM de ArteConcreto.'
+            : window.type === 'weekly'
+                ? 'Cierre semanal automático: enviado los viernes al final del día.'
+                : 'Cierre mensual automático: enviado el último día hábil del mes.'}
       </p>
       <p style="margin:8px 0 0;font-size:11px;color:#555;">
         Para modificar destinatarios u horario: <span style="color:#fab510;">Configuración → Informe Diario</span>
@@ -706,6 +846,11 @@ export type DailyReportInput = {
     recipients?: string[];
     recipientIds?: string[];
     extraEmails?: string[];
+    /**
+     * Tipo de reporte. Si no se pasa, default es 'daily' (back-compat con el
+     * botón "Enviar ahora" del panel de configuración y con el cron viejo).
+     */
+    reportType?: ReportType;
 };
 
 export type DailyReportResult =
@@ -716,26 +861,29 @@ export type DailyReportResult =
           sellersCovered: number;
           date: string;
           resendId: string | null;
+          reportType: ReportType;
       }
     | {
           ok: false;
           status: number;
           error: string;
           from?: string;
+          reportType?: ReportType;
       };
 
 export async function executeDailyReport(input: DailyReportInput): Promise<DailyReportResult> {
-    const { demo = false, date, recipients, recipientIds, extraEmails } = input;
+    const { demo = false, date, recipients, recipientIds, extraEmails, reportType = 'daily' } = input;
 
     if (!RESEND_API_KEY) {
-        return { ok: false, status: 500, error: 'RESEND_API_KEY no configurada.' };
+        return { ok: false, status: 500, error: 'RESEND_API_KEY no configurada.', reportType };
     }
 
     const targetDate = date ? new Date(date) : new Date();
+    const window = buildWindow(reportType, targetDate);
 
     const activities = demo
         ? buildDemoActivities(targetDate)
-        : await loadRealActivities(targetDate);
+        : await loadRealActivities(window.start, window.end);
 
     const toEmails = await resolveRecipients(recipients, recipientIds, extraEmails);
     if (toEmails.length === 0) {
@@ -743,14 +891,17 @@ export async function executeDailyReport(input: DailyReportInput): Promise<Daily
             ok: false,
             status: 400,
             error: 'No hay destinatarios válidos. Configura al menos un correo en Configuración → Informe Diario.',
+            reportType,
         };
     }
 
-    const html = buildEmailHtml(targetDate, activities, demo);
-    const fecha = formatDateLong(targetDate);
-    const subject = demo
-        ? `🧪 [DEMO] Informe Diario ArteConcreto · ${fecha}`
-        : `Informe Diario ArteConcreto · ${fecha}`;
+    const html = buildEmailHtml(window, activities, demo);
+    const subjectPrefix = demo ? '🧪 [DEMO] ' : '';
+    const subject = reportType === 'weekly'
+        ? `${subjectPrefix}Cierre Semanal ArteConcreto · ${formatDateLong(window.start)} → ${formatDateLong(window.end)}`
+        : reportType === 'monthly'
+            ? `${subjectPrefix}Cierre Mensual ArteConcreto · ${window.start.toLocaleDateString('es-CO', { month: 'long', year: 'numeric', timeZone: 'America/Bogota' })}`
+            : `${subjectPrefix}Cierre Diario ArteConcreto · ${formatDateLong(targetDate)}`;
 
     const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -770,6 +921,7 @@ export async function executeDailyReport(input: DailyReportInput): Promise<Daily
 
     if (!res.ok) {
         console.error('[daily-report] Resend error:', {
+            reportType,
             status: res.status,
             from: FROM_EMAIL,
             toCount: toEmails.length,
@@ -784,11 +936,12 @@ export async function executeDailyReport(input: DailyReportInput): Promise<Daily
             status: 500,
             error: `Resend: ${message}`,
             from: FROM_EMAIL,
+            reportType,
         };
     }
 
     const resendId = (resendBody as { id?: string }).id || null;
-    console.log('[daily-report] Sent OK', { demo, resendId, to: toEmails });
+    console.log('[daily-report] Sent OK', { reportType, demo, resendId, to: toEmails });
 
     return {
         ok: true,
@@ -797,5 +950,10 @@ export async function executeDailyReport(input: DailyReportInput): Promise<Daily
         sellersCovered: activities.length,
         date: targetDate.toISOString(),
         resendId,
+        reportType,
     };
 }
+
+/** Helpers exportados para el cron handler. */
+export { isLastWeekdayOfMonth, readLastSent };
+export type { LastSentMap };
