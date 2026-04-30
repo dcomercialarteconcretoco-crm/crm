@@ -32,9 +32,13 @@ export async function GET(request: NextRequest) {
   }
   const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
 
+  // OJO: "position" es palabra reservada del SQL estándar (la función
+  // POSITION(substring IN string)). En PostgreSQL técnicamente se puede usar
+  // como nombre de columna sin comillas, pero algunos parsers / ORMs / pools
+  // se traban. La solución portable y segura es quotearla siempre.
   const { rows } = await pool.query(
     `SELECT
-       id, name, company, company_id AS "companyId", position, email, phone, status,
+       id, name, company, company_id AS "companyId", "position", email, phone, status,
        value_text AS value,
        ltv, last_contact AS "lastContact",
        city, score, category, registration_date AS "registrationDate",
@@ -103,14 +107,14 @@ export async function POST(request: NextRequest) {
     await pool.query(
       `
         INSERT INTO crm_clients (
-          id, name, company, company_id, position, email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date,
+          id, name, company, company_id, "position", email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date,
           assigned_to, assigned_to_name, source, updated_at
         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
         ON CONFLICT (id) DO UPDATE SET
           name = EXCLUDED.name,
           company = EXCLUDED.company,
           company_id = EXCLUDED.company_id,
-          position = EXCLUDED.position,
+          "position" = EXCLUDED."position",
           email = EXCLUDED.email,
           phone = EXCLUDED.phone,
           status = EXCLUDED.status,

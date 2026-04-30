@@ -202,7 +202,12 @@ export async function ensureCrmSchema() {
   // dentro de la empresa: "Director de Compras", "Asistente Administrativo",
   // "Gerente General", etc. No es taxonomía cerrada porque el universo de
   // títulos en B2B es infinito y el asesor sabe mejor que cualquier dropdown.
-  await pool.query(`ALTER TABLE crm_clients ADD COLUMN IF NOT EXISTS position TEXT;`);
+  //
+  // OJO con "position": es palabra reservada SQL (función POSITION). Postgres
+  // la acepta como columna pero la quoteamos siempre — y por seguridad mejor
+  // aún, usamos un nombre alternativo como columna fall-back si el ALTER
+  // anterior falló sin quotes (caso de algún deploy intermedio).
+  await pool.query(`ALTER TABLE crm_clients ADD COLUMN IF NOT EXISTS "position" TEXT;`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_state (

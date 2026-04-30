@@ -54,7 +54,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           name = $2,
           company = $3,
           company_id = $4,
-          position = $5,
+          "position" = $5,
           email = $6,
           phone = $7,
           status = $8,
