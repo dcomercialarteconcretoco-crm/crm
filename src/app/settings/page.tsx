@@ -13,6 +13,7 @@ import {
     LogOut,
     Save,
     Check,
+    CheckCircle,
     MessageCircle,
     Server,
     Calendar,
@@ -73,6 +74,15 @@ const categories = [
 export default function SettingsPage() {
     const { settings, updateSettings: rawUpdateSettings, currentUser, clearTestData, addNotification, sellers } = useApp();
     const [dailyReportTesting, setDailyReportTesting] = useState(false);
+    // Estado del último envío para mostrar feedback inline. addNotification se
+    // ve sólo en el dropdown de la campana, lejos del botón que el user acaba
+    // de tocar — el feedback necesita estar AHÍ, debajo del botón, sí o sí.
+    const [dailyReportLastSend, setDailyReportLastSend] = useState<{
+        kind: 'success' | 'error';
+        title: string;
+        detail: string;
+        timestamp: number;
+    } | null>(null);
     const [newExtraEmail, setNewExtraEmail] = useState('');
     const canManageSettings = hasPermission(currentUser, 'settings.manage');
     const isSuperAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
@@ -746,17 +756,20 @@ export default function SettingsPage() {
                                 });
                                 setNewExtraEmail('');
                             };
+                            // Helper: setea status inline + toast en notificaciones (doble canal).
+                            const setStatus = (kind: 'success' | 'error', title: string, detail: string) => {
+                                setDailyReportLastSend({ kind, title, detail, timestamp: Date.now() });
+                                addNotification({ title, description: detail, type: kind === 'success' ? 'success' : 'alert' });
+                            };
+
                             const sendDemo = async () => {
                                 setDailyReportTesting(true);
+                                setDailyReportLastSend(null);
                                 try {
                                     const recipientIds = dr.recipients || [];
                                     const extraEmails = dr.extraEmails || [];
                                     if (recipientIds.length === 0 && extraEmails.length === 0) {
-                                        addNotification({
-                                            title: 'Agrega destinatarios',
-                                            description: 'Selecciona al menos un vendedor o agrega un correo externo para probar el envío.',
-                                            type: 'alert',
-                                        });
+                                        setStatus('error', 'Agregá destinatarios', 'Marcá al menos un vendedor o agregá un correo externo arriba.');
                                         return;
                                     }
                                     const res = await fetch('/api/daily-report/send', {
@@ -766,24 +779,12 @@ export default function SettingsPage() {
                                     });
                                     const data = await res.json();
                                     if (res.ok) {
-                                        addNotification({
-                                            title: '✅ Informe demo enviado',
-                                            description: `Se envió a: ${data.sentTo.join(', ')}`,
-                                            type: 'success',
-                                        });
+                                        setStatus('success', '✅ Informe DEMO enviado', `Destinatarios: ${(data.sentTo || []).join(', ')}`);
                                     } else {
-                                        addNotification({
-                                            title: 'Error enviando demo',
-                                            description: data.error || 'Revisa RESEND_API_KEY',
-                                            type: 'alert',
-                                        });
+                                        setStatus('error', 'Error enviando DEMO', data.error || `HTTP ${res.status} — revisá RESEND_API_KEY`);
                                     }
                                 } catch (err) {
-                                    addNotification({
-                                        title: 'Error de red',
-                                        description: String(err),
-                                        type: 'alert',
-                                    });
+                                    setStatus('error', 'Error de red', String(err));
                                 } finally {
                                     setDailyReportTesting(false);
                                 }
@@ -794,16 +795,14 @@ export default function SettingsPage() {
                             // sin esperar al cron de las 18:00 — sirve también para probar el cierre
                             // semanal sin esperar al viernes y el mensual sin esperar fin de mes.
                             const sendReal = async (reportType: 'daily' | 'weekly' | 'monthly') => {
+                                const labels = { daily: 'Cierre diario', weekly: 'Cierre semanal', monthly: 'Cierre mensual' };
                                 setDailyReportTesting(true);
+                                setDailyReportLastSend(null);
                                 try {
                                     const recipientIds = dr.recipients || [];
                                     const extraEmails = dr.extraEmails || [];
                                     if (recipientIds.length === 0 && extraEmails.length === 0) {
-                                        addNotification({
-                                            title: 'Agrega destinatarios',
-                                            description: 'Selecciona al menos un vendedor o agrega un correo externo.',
-                                            type: 'alert',
-                                        });
+                                        setStatus('error', 'Agregá destinatarios', 'Marcá al menos un vendedor o agregá un correo externo arriba.');
                                         return;
                                     }
                                     const res = await fetch('/api/daily-report/send', {
@@ -812,22 +811,13 @@ export default function SettingsPage() {
                                         body: JSON.stringify({ demo: false, recipientIds, extraEmails, reportType }),
                                     });
                                     const data = await res.json();
-                                    const labels = { daily: 'Cierre diario', weekly: 'Cierre semanal', monthly: 'Cierre mensual' };
                                     if (res.ok) {
-                                        addNotification({
-                                            title: `✅ ${labels[reportType]} enviado`,
-                                            description: `Destinatarios: ${data.sentTo.join(', ')}`,
-                                            type: 'success',
-                                        });
+                                        setStatus('success', `✅ ${labels[reportType]} enviado`, `Destinatarios: ${(data.sentTo || []).join(', ')}`);
                                     } else {
-                                        addNotification({
-                                            title: `Error enviando ${labels[reportType]}`,
-                                            description: data.error || 'Revisa los logs del servidor.',
-                                            type: 'alert',
-                                        });
+                                        setStatus('error', `Error enviando ${labels[reportType]}`, data.error || `HTTP ${res.status} — revisá los logs del servidor`);
                                     }
                                 } catch (err) {
-                                    addNotification({ title: 'Error de red', description: String(err), type: 'alert' });
+                                    setStatus('error', 'Error de red', String(err));
                                 } finally {
                                     setDailyReportTesting(false);
                                 }
@@ -1068,6 +1058,38 @@ export default function SettingsPage() {
                                             <Mail className="w-3.5 h-3.5" />
                                             Enviar DEMO con datos de prueba
                                         </button>
+
+                                        {/* Banner inline — feedback inmediato del último envío.
+                                            Aparece JUSTO debajo del botón para que el user no tenga
+                                            que ir al dropdown de la campana a buscar el resultado. */}
+                                        {dailyReportLastSend && (
+                                            <div
+                                                key={dailyReportLastSend.timestamp}
+                                                className={clsx(
+                                                    'rounded-xl border px-4 py-3 flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300',
+                                                    dailyReportLastSend.kind === 'success'
+                                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                                        : 'bg-rose-50 border-rose-200 text-rose-800'
+                                                )}
+                                            >
+                                                {dailyReportLastSend.kind === 'success' ? (
+                                                    <CheckCircle className="w-5 h-5 shrink-0 mt-0.5 text-emerald-600" />
+                                                ) : (
+                                                    <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-rose-600" />
+                                                )}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-bold">{dailyReportLastSend.title}</p>
+                                                    <p className="text-xs mt-0.5 break-words">{dailyReportLastSend.detail}</p>
+                                                </div>
+                                                <button
+                                                    onClick={() => setDailyReportLastSend(null)}
+                                                    className="text-current/60 hover:text-current shrink-0"
+                                                    aria-label="Cerrar mensaje"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        )}
                                         {(() => {
                                             // lastSentAt ahora es un objeto { daily?, weekly?, monthly? }; el formato
                                             // viejo (string) se mostraba como "último envío automático" y se mantiene
