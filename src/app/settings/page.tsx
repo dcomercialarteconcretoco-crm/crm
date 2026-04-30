@@ -106,6 +106,20 @@ export default function SettingsPage() {
     useEffect(() => {
         if ((activeTab === 'autosend' || activeTab === 'dailyreport' || activeTab === 'pipeline') && !isSuperAdmin) setActiveTab('profile');
     }, [activeTab, isSuperAdmin]);
+
+    // Auto-heal del row crm_state.settings: cuando el SuperAdmin abre la pestaña
+    // "Informe Diario", reescribimos los settings actuales (state local) a la DB.
+    // Esto repara cualquier desync donde el toggle/recipients se ven configurados
+    // en la UI pero el row de Postgres tiene valores viejos o vacíos. Causa
+    // histórica: persistSharedState se tragaba 503/4xx en silencio.
+    useEffect(() => {
+        if (activeTab !== 'dailyreport' || !isSuperAdmin) return;
+        if (!settings.dailyReport) return;
+        // No await — fire and forget; la versión nueva de persistSharedState
+        // ya verifica res.ok y notifica si falla.
+        updateSettings({ dailyReport: { ...settings.dailyReport } });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab, isSuperAdmin]);
     const [showPassword, setShowPassword] = useState(false);
     const [aiActive, setAiActive] = useState(true);
     const [notifEnabled, setNotifEnabled] = useState([true, true, true, true]);

@@ -87,8 +87,30 @@ export async function GET(request: NextRequest) {
     const recipientIds: string[] = Array.isArray(cfg.recipients) ? cfg.recipients : [];
     const extraEmails: string[] = Array.isArray(cfg.extraEmails) ? cfg.extraEmails : [];
 
-    if (recipientIds.length === 0 && extraEmails.length === 0) {
-        return NextResponse.json({ skipped: true, reason: 'No recipients configured (no hay destinatarios seleccionados)' });
+    // Override de destinatarios desde la URL: ?emails=foo@bar.com,baz@bar.com
+    // Útil cuando la DB tiene los settings vacíos (bug histórico donde
+    // persistSharedState tragaba errores) — el user puede mandarse el correo
+    // sin tener que reparar la DB primero.
+    const emailsParam = request.nextUrl.searchParams.get('emails');
+    const urlEmails = emailsParam
+        ? emailsParam.split(',').map((e) => e.trim()).filter((e) => /.+@.+\..+/.test(e))
+        : [];
+
+    // Fallback: si la DB no tiene destinatarios y nadie pasó ?emails=, mandamos
+    // al SUPERADMIN_EMAIL (env var). Garantiza que el force= siempre llega a
+    // alguien — al menos al dueño del CRM.
+    const fallbackEmail = process.env.SUPERADMIN_EMAIL?.trim().toLowerCase();
+    const finalExtra = urlEmails.length > 0
+        ? [...extraEmails, ...urlEmails]
+        : (recipientIds.length === 0 && extraEmails.length === 0 && fallbackEmail)
+            ? [fallbackEmail]
+            : extraEmails;
+
+    if (recipientIds.length === 0 && finalExtra.length === 0) {
+        return NextResponse.json({
+            skipped: true,
+            reason: 'No recipients configured. Pasá ?emails=foo@bar.com o configurá SUPERADMIN_EMAIL en env, o reparalo en Configuración → Informe Diario.',
+        });
     }
 
     // Hoy en Bogotá. El truco "toLocaleString → new Date" produce un Date cuyas
@@ -145,7 +167,7 @@ export async function GET(request: NextRequest) {
             const result = await executeDailyReport({
                 demo: false,
                 recipientIds,
-                extraEmails,
+                extraEmails: finalExtra,
                 reportType: type,
             });
             sent.push({ type, result });
