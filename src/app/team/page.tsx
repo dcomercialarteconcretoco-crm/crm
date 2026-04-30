@@ -170,6 +170,37 @@ export default function TeamPage() {
         }
     };
 
+    // Track de cuál seller está reenviando activación para mostrar spinner sólo
+    // en su tarjeta (no en todas a la vez).
+    const [resendingId, setResendingId] = useState<string | null>(null);
+
+    const handleResendActivation = async (seller: Seller) => {
+        if (!seller.email) {
+            alert('Este usuario no tiene email registrado. Editalo y agregale uno antes de reenviar.');
+            return;
+        }
+        if (!confirm(`¿Reenviar correo de activación a ${seller.name} (${seller.email})?\n\nEl link será válido por 24 horas y reemplaza cualquier link anterior.`)) {
+            return;
+        }
+        setResendingId(seller.id);
+        try {
+            const res = await fetch(`/api/team/${seller.id}/resend-activation`, { method: 'POST' });
+            const data = await res.json();
+            if (res.ok && data.ok) {
+                alert(`✅ Correo de activación enviado a ${data.sentTo}.\n\nDecile al usuario que revise inbox y carpeta de Spam.`);
+            } else {
+                const fallback = data.activationUrl
+                    ? `\n\nPodés pasarle el link manualmente:\n${data.activationUrl}`
+                    : '';
+                alert(`❌ No se pudo enviar el correo.\n\n${data.error || `HTTP ${res.status}`}${fallback}`);
+            }
+        } catch (err) {
+            alert(`❌ Error de red: ${String(err)}`);
+        } finally {
+            setResendingId(null);
+        }
+    };
+
     // Count active permissions for a seller
     const countActivePerms = (seller: Seller) => {
         const perms = seller.permissions
@@ -291,25 +322,43 @@ export default function TeamPage() {
                                     </div>
                                 </div>
 
-                                {/* Action Footer */}
-                                <div className={clsx('grid gap-2 mt-4', canDelete ? 'grid-cols-2' : 'grid-cols-1')}>
-                                    <button
-                                        onClick={() => handleOpenModal(seller)}
-                                        className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-black font-bold text-xs transition-all border border-primary/20"
-                                    >
-                                        <Eye className="w-3.5 h-3.5" />
-                                        {canEditSeller && canManageTeam ? 'Ver / Editar' : 'Ver Perfil'}
-                                    </button>
-                                    {canDelete && (
-                                        <PermissionHide require="team.delete">
+                                {/* Action Footer.
+                                    Antes era 1 fila con [Ver/Editar] y [Eliminar]. Ahora intercalamos
+                                    [Reenviar invitación] cuando el seller no es el usuario actual y
+                                    el admin tiene team.manage — útil para usuarios viejos que se
+                                    crearon antes del fix de envío automático y nunca recibieron
+                                    correo (caso "gestor3"), o cuando el correo se cayó en Spam. */}
+                                <div className="space-y-2 mt-4">
+                                    <div className={clsx('grid gap-2', canDelete ? 'grid-cols-2' : 'grid-cols-1')}>
                                         <button
-                                            onClick={() => handleDelete(seller.id)}
-                                            className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white font-bold text-xs transition-all border border-rose-500/20"
+                                            onClick={() => handleOpenModal(seller)}
+                                            className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-black font-bold text-xs transition-all border border-primary/20"
                                         >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                            Eliminar
+                                            <Eye className="w-3.5 h-3.5" />
+                                            {canEditSeller && canManageTeam ? 'Ver / Editar' : 'Ver Perfil'}
                                         </button>
-                                        </PermissionHide>
+                                        {canDelete && (
+                                            <PermissionHide require="team.delete">
+                                            <button
+                                                onClick={() => handleDelete(seller.id)}
+                                                className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white font-bold text-xs transition-all border border-rose-500/20"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                                Eliminar
+                                            </button>
+                                            </PermissionHide>
+                                        )}
+                                    </div>
+                                    {canManageTeam && seller.id !== currentUser?.id && seller.email && (
+                                        <button
+                                            onClick={() => handleResendActivation(seller)}
+                                            disabled={resendingId === seller.id}
+                                            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-sky-50 hover:bg-sky-500 text-sky-600 hover:text-white font-bold text-xs transition-all border border-sky-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            title="Mandar/reenviar el correo de activación con el link para que defina su contraseña"
+                                        >
+                                            <Mail className="w-3.5 h-3.5" />
+                                            {resendingId === seller.id ? 'Enviando...' : 'Reenviar invitación'}
+                                        </button>
                                     )}
                                 </div>
                             </div>

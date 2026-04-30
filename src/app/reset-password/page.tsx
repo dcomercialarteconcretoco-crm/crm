@@ -9,6 +9,10 @@ function ResetPasswordForm() {
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get('token') || '';
+  // welcome=1 viene del correo de activación inicial (cuando un admin invita
+  // a un nuevo miembro). Cambia el copy para que sea "elegí tu contraseña"
+  // en vez de "restablecer", que confundía a usuarios que nunca tuvieron una.
+  const isWelcome = params.get('welcome') === '1';
 
   const [validating, setValidating] = useState(true);
   const [tokenValid, setTokenValid] = useState(false);
@@ -65,7 +69,7 @@ function ResetPasswordForm() {
             <img src="/logo-arteconcreto.png" alt="Logo" className="w-16 h-16 object-contain" />
           </div>
           <h1 className="text-2xl font-black text-foreground tracking-tight">
-            Nueva <span className="text-primary">Contraseña</span>
+            {isWelcome ? <>¡Bienvenido al <span className="text-primary">equipo</span>!</> : <>Nueva <span className="text-primary">Contraseña</span></>}
           </h1>
           <p className="text-xs text-muted-foreground mt-1 uppercase tracking-widest font-medium">CRM Intelligence · ArteConcreto</p>
         </div>
@@ -100,8 +104,12 @@ function ResetPasswordForm() {
             <form onSubmit={handleSubmit} className="space-y-5">
               {userName && (
                 <div className="px-4 py-3 rounded-xl bg-primary/10 border border-primary/20">
-                  <p className="text-xs font-bold text-primary">Hola, {userName}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Ingresa tu nueva contraseña a continuación.</p>
+                  <p className="text-xs font-bold text-primary">{isWelcome ? `Hola ${userName} 👋` : `Hola, ${userName}`}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {isWelcome
+                      ? 'Definí la contraseña que vas a usar para entrar al CRM.'
+                      : 'Ingresa tu nueva contraseña a continuación.'}
+                  </p>
                 </div>
               )}
 
