@@ -19,9 +19,9 @@ function parseCSV(text: string): Record<string, string>[] {
 }
 
 const CLIENT_TEMPLATE = [
-    'nombre,empresa,email,telefono,ciudad,estado,valor_texto,categoria',
-    'Juan García,Constructora XYZ,juan@xyz.co,3001234567,Bogotá,Active,$50.000.000,Construcción',
-    'María López,Obras & Diseño,maria@obras.co,3109876543,Medellín,Active,$25.000.000,Arquitectura',
+    'nombre,empresa,cargo,email,telefono,ciudad,estado,valor_texto,categoria',
+    'Juan García,Constructora XYZ,Director de Compras,juan@xyz.co,3001234567,Bogotá,Active,$50.000.000,Construcción',
+    'María López,Obras & Diseño,Arquitecta Senior,maria@obras.co,3109876543,Medellín,Active,$25.000.000,Arquitectura',
 ].join('\n');
 
 const QUOTE_TEMPLATE = [
@@ -86,6 +86,7 @@ export default function ImportPage() {
         const mapped = clientRows.map(r => ({
             name: r.nombre || r.name || '',
             company: r.empresa || r.company || '',
+            position: r.cargo || r.position || '',
             email: r.email || '',
             phone: r.telefono || r.phone || '',
             city: r.ciudad || r.city || '',
@@ -185,7 +186,7 @@ export default function ImportPage() {
                 onFileChange={f => handleClientFile(f)}
                 onImport={importClientRows}
                 onClear={() => { setClientRows([]); setClientError(''); setClientDone(false); }}
-                columnLabels={['nombre', 'empresa', 'email', 'telefono', 'ciudad', 'estado', 'valor_texto', 'categoria']}
+                columnLabels={['nombre', 'empresa', 'cargo', 'email', 'telefono', 'ciudad', 'estado', 'valor_texto', 'categoria']}
             />
 
             {/* Import Quotes */}

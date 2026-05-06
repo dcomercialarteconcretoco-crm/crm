@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
     const ids: string[] = [];
     const names: string[] = [];
     const companies: string[] = [];
+    const positions: (string | null)[] = [];
     const emails: (string | null)[] = [];
     const phones: string[] = [];
     const statuses: string[] = [];
@@ -46,6 +47,7 @@ export async function POST(request: NextRequest) {
         ids.push(c.id);
         names.push(c.name || '');
         companies.push(c.company || '');
+        positions.push(c.position && String(c.position).trim() ? String(c.position).trim() : null);
         // Email vacío → NULL para que el UNIQUE constraint no trate strings vacíos como duplicados.
         emails.push(c.email && String(c.email).trim() ? String(c.email).trim() : null);
         phones.push(c.phone || '');
@@ -63,24 +65,28 @@ export async function POST(request: NextRequest) {
     }
 
     try {
+        // OJO: "position" entre dobles comillas — palabra reservada del SQL
+        // estándar (función POSITION). Sin quotes rompe en INSERT/SELECT.
+        // Mismo fix que se aplicó en /api/clients en 7b2654a.
         const result = await pool.query(
             `INSERT INTO crm_clients (
-                id, name, company, email, phone, status, value_text, ltv, last_contact,
+                id, name, company, "position", email, phone, status, value_text, ltv, last_contact,
                 city, score, category, registration_date,
                 assigned_to, assigned_to_name, source, updated_at
             )
             SELECT * FROM UNNEST (
                 $1::text[],  $2::text[],  $3::text[],  $4::text[],  $5::text[],
-                $6::text[],  $7::text[],  $8::numeric[], $9::text[],
-                $10::text[], $11::numeric[], $12::text[], $13::text[],
-                $14::text[], $15::text[], $16::text[]
-            ) AS t(id, name, company, email, phone, status, value_text, ltv, last_contact,
+                $6::text[],  $7::text[],  $8::text[],  $9::numeric[], $10::text[],
+                $11::text[], $12::numeric[], $13::text[], $14::text[],
+                $15::text[], $16::text[], $17::text[]
+            ) AS t(id, name, company, "position", email, phone, status, value_text, ltv, last_contact,
                     city, score, category, registration_date,
                     assigned_to, assigned_to_name, source)
             CROSS JOIN (SELECT NOW() AS updated_at) u
             ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
                 company = EXCLUDED.company,
+                "position" = EXCLUDED."position",
                 email = EXCLUDED.email,
                 phone = EXCLUDED.phone,
                 status = EXCLUDED.status,
@@ -90,7 +96,7 @@ export async function POST(request: NextRequest) {
                 updated_at = NOW()
             RETURNING id`,
             [
-                ids, names, companies, emails, phones, statuses, values, ltvs,
+                ids, names, companies, positions, emails, phones, statuses, values, ltvs,
                 lastContacts, cities, scores, categories, registrationDates,
                 assignedTos, assignedToNames, sources,
             ]

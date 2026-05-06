@@ -168,10 +168,11 @@ export default function ClientsPage() {
             return;
         }
 
-        const headers = ['Nombre', 'Empresa', 'Email', 'Telefono', 'Ciudad', 'Categoria', 'Estado', 'Score', 'LTV', 'Fecha de Registro', 'Ultimo Contacto'];
+        const headers = ['Nombre', 'Empresa', 'Cargo', 'Email', 'Telefono', 'Ciudad', 'Categoria', 'Estado', 'Score', 'LTV', 'Fecha de Registro', 'Ultimo Contacto'];
         const rows = exportableClients.map(client => [
             `"${client.name.replace(/"/g, '""')}"`,
             `"${client.company.replace(/"/g, '""')}"`,
+            `"${(client.position || '').replace(/"/g, '""')}"`,
             `"${client.email.replace(/"/g, '""')}"`,
             `"${client.phone.replace(/"/g, '""')}"`,
             `"${client.city.replace(/"/g, '""')}"`,
@@ -203,6 +204,7 @@ export default function ClientsPage() {
         const headers = [
             'Nombre',
             'Empresa',
+            'Cargo',
             'Email',
             'Telefono',
             'Ciudad',
@@ -216,6 +218,7 @@ export default function ClientsPage() {
         const exampleRow = [
             'Juan Perez',
             'Constructora XYZ',
+            'Director de Compras',
             'juan@xyz.co',
             '3001234567',
             'Bogotá',
@@ -280,15 +283,16 @@ export default function ClientsPage() {
                     const clientData: Omit<Client, 'id'> = {
                         name: values[0] || 'Desconocido',
                         company: values[1] || 'Empresa Desconocida',
-                        email: values[2] || '',
-                        phone: values[3] || '',
-                        city: values[4] || settings.cities[0]?.name || 'Bogotá',
-                        category: values[5] || settings.sectors[0] || 'Infraestructura',
-                        status: (values[6] as 'Active' | 'Lead' | 'Inactive') || 'Lead',
-                        score: parseInt(values[7]) || 75,
-                        ltv: parseInt(values[8]) || 0,
-                        registrationDate: values[9] || new Date().toISOString().split('T')[0],
-                        lastContact: values[10] || 'Recién importado',
+                        position: values[2] || '',
+                        email: values[3] || '',
+                        phone: values[4] || '',
+                        city: values[5] || settings.cities[0]?.name || 'Bogotá',
+                        category: values[6] || settings.sectors[0] || 'Infraestructura',
+                        status: (values[7] as 'Active' | 'Lead' | 'Inactive') || 'Lead',
+                        score: parseInt(values[8]) || 75,
+                        ltv: parseInt(values[9]) || 0,
+                        registrationDate: values[10] || new Date().toISOString().split('T')[0],
+                        lastContact: values[11] || 'Recién importado',
                         value: '$0'
                     };
                     addClient(clientData);
