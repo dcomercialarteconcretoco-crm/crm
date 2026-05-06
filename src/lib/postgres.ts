@@ -365,4 +365,50 @@ export async function ensureCrmSchema() {
     CREATE INDEX IF NOT EXISTS idx_crm_client_attachments_client_id
     ON crm_client_attachments (client_id, uploaded_at DESC);
   `);
+
+  // ── Bandeja de Leads Crudos ─────────────────────────────────────────────
+  // Universo de leads "previos al directorio". El SuperAdmin sube datos
+  // masivos (CSV o manual) que el equipo aún no ha calificado. Cuando un
+  // vendedor (o el SuperAdmin) decide que un raw lead es buen prospecto, se
+  // promueve a crm_clients y desaparece de acá.
+  //
+  // Estados:
+  //   - new:        recién subido, sin asignar
+  //   - assigned:   ya tiene vendedor responsable
+  //   - contacted:  el vendedor ya intentó contacto (registra timestamp)
+  //   - approved:   movido a crm_clients (esta fila se borra al promover)
+  //   - discarded:  vendedor/admin lo descartó (se conserva por auditoría)
+  //
+  // No imponemos UNIQUE en email ni documento legal — datos crudos pueden
+  // venir duplicados desde la fuente; deduplicamos en la promoción.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_raw_leads (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      city TEXT,
+      country TEXT,
+      legal_id TEXT,
+      reference TEXT,
+      status TEXT NOT NULL DEFAULT 'new',
+      assigned_to TEXT,
+      assigned_to_name TEXT,
+      assigned_at TIMESTAMPTZ,
+      contacted_at TIMESTAMPTZ,
+      promoted_client_id TEXT,
+      uploaded_by TEXT,
+      uploaded_by_name TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_crm_raw_leads_status
+    ON crm_raw_leads (status, created_at DESC);
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_crm_raw_leads_assigned
+    ON crm_raw_leads (assigned_to, status);
+  `);
 }

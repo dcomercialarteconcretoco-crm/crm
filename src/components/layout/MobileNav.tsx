@@ -20,6 +20,7 @@ import {
     Shield,
     BarChart3,
     Users2,
+    Inbox,
     X,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -50,6 +51,7 @@ const primaryItems: PrimaryItem[] = [
 ];
 
 const moreItems: MoreItem[] = [
+    { name: 'Bandeja Crudos', href: '/raw-leads', icon: Inbox, require: 'clients.view', color: 'text-amber-600' },
     { name: 'Agenda', href: '/scheduler', icon: CalendarIcon, require: 'scheduler.view', color: 'text-sky-600' },
     { name: 'Cotizaciones', href: '/quotes', icon: FileText, require: 'quotes.view', color: 'text-primary' },
     { name: 'Bot IA', href: '/bot', icon: Bot, require: 'bot.use', color: 'text-violet-600' },
