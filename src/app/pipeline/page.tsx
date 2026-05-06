@@ -50,6 +50,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useApp, Task, Activity, Seller, Client, PipelineStage, DEFAULT_PIPELINE_STAGES } from '@/context/AppContext';
+import { openMailto, openWhatsApp } from '@/lib/contact-links';
 import SearchableSelect from '@/components/SearchableSelect';
 import CompanyCombobox from '@/components/CompanyCombobox';
 import { hasPermission } from '@/lib/permissions';
@@ -1220,7 +1221,7 @@ export default function PipelinePage() {
                                                 const email = selectedTask.email || clients.find(c => c.id === selectedTask.clientId)?.email || '';
                                                 if (email) {
                                                     logAction('email', `Email enviado a ${email}`);
-                                                    window.open(`mailto:${email}`, '_blank');
+                                                    openMailto(email);
                                                 }
                                             }}
                                             className="flex-1 bg-white border border-border text-foreground p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-blue-50 hover:border-blue-300 transition-all group"
@@ -1231,10 +1232,9 @@ export default function PipelinePage() {
                                         <button
                                             onClick={() => {
                                                 const rawPhone = selectedTask.phone || clients.find(c => c.id === selectedTask.clientId)?.phone || '';
-                                                const phone = rawPhone.replace(/\D/g, '');
-                                                if (phone) {
+                                                if (rawPhone) {
                                                     logAction('whatsapp', `WhatsApp enviado a ${selectedTask.contactName}`);
-                                                    window.open(`https://wa.me/${phone}`, '_blank');
+                                                    openWhatsApp(rawPhone);
                                                 }
                                             }}
                                             className="flex-1 bg-white border border-border text-foreground p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-emerald-50 hover:border-emerald-300 transition-all group"

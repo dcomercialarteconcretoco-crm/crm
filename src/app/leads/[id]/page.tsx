@@ -26,6 +26,7 @@ import Link from 'next/link';
 import { clsx } from 'clsx';
 import { useApp, Activity } from '@/context/AppContext';
 import { ownsRecord } from '@/lib/scope';
+import { openMailto, openTel, openWhatsApp } from '@/lib/contact-links';
 import { ClientAttachments } from '@/components/leads/ClientAttachments';
 import { ClientBotChats } from '@/components/leads/ClientBotChats';
 import CompanyCombobox from '@/components/CompanyCombobox';
@@ -176,7 +177,7 @@ export default function Lead360Page() {
 
     const handleRedactarCorreo = () => {
         if (!lead) return;
-        window.location.href = `mailto:${lead.email}`;
+        openMailto(lead.email);
     };
 
     const handleAssignSeller = () => {
@@ -352,7 +353,7 @@ export default function Lead360Page() {
                             <button
                                 onClick={() => {
                                     handleLogContact('QUOTE_SENT', 'Contacto por correo electrónico');
-                                    window.location.href = `mailto:${lead.email}`;
+                                    openMailto(lead.email);
                                 }}
                                 className="flex flex-col items-center justify-center gap-2 bg-muted hover:bg-primary/10 p-4 rounded-xl border border-border hover:border-primary/40 transition-all group"
                             >
@@ -362,7 +363,7 @@ export default function Lead360Page() {
                             <button
                                 onClick={() => {
                                     handleLogContact('CALL_MADE', 'Llamada telefónica (Seguimiento)');
-                                    window.location.href = `tel:${lead.phone}`;
+                                    openTel(lead.phone);
                                 }}
                                 className="flex flex-col items-center justify-center gap-2 bg-muted hover:bg-primary/10 p-4 rounded-xl border border-border hover:border-primary/40 transition-all group"
                             >
@@ -372,7 +373,7 @@ export default function Lead360Page() {
                             <button
                                 onClick={() => {
                                     handleLogContact('WHATSAPP_SENT', 'Contacto vía WhatsApp');
-                                    window.open(`https://wa.me/${lead.phone.replace(/\D/g, '')}`, '_blank');
+                                    openWhatsApp(lead.phone);
                                 }}
                                 className="flex flex-col items-center justify-center gap-2 bg-muted hover:bg-emerald-50 p-4 rounded-xl border border-border hover:border-emerald-300 transition-all group"
                             >
