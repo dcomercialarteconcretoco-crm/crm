@@ -92,13 +92,13 @@ export default function SettingsPage() {
     );
     const updateSettings: typeof rawUpdateSettings = canManageSettings
         ? rawUpdateSettings
-        : (() => {
+        : (async () => {
             addNotification({
                 title: 'Acceso restringido',
                 description: 'No tienes permiso para modificar la configuración.',
                 type: 'alert',
             });
-        }) as typeof rawUpdateSettings;
+        });
     const [clearConfirm, setClearConfirm] = useState(false);
     const [quotePrefix, setQuotePrefix] = useState('');
     const [quoteNextNum, setQuoteNextNum] = useState('');

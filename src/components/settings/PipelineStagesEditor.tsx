@@ -103,7 +103,11 @@ export function PipelineStagesEditor() {
         });
         setSaving(true);
         try {
-            updateSettings({ pipelineStages: final });
+            // updateSettings ahora es async — espera la confirmación del PUT a
+            // /api/state. Si la red falla revierte el cambio y dispara una
+            // notificación propia, así que acá no avisamos "guardado" hasta
+            // que el await termine sin error.
+            await updateSettings({ pipelineStages: final });
             setDraft(final);
             setSavedAt(Date.now());
             addNotification({ title: 'Pipeline guardado', description: 'Las etapas se actualizaron en todo el equipo.', type: 'success' });

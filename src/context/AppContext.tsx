@@ -622,7 +622,7 @@ interface AppContextType {
     deleteEvent: (eventId: string) => void;
     updateSeller: (sellerId: string, updates: Partial<Seller>) => void;
     deleteSeller: (sellerId: string) => void;
-    updateSettings: (updates: Partial<AppSettings>) => void;
+    updateSettings: (updates: Partial<AppSettings>) => Promise<void>;
     updateForm: (id: string, form: Partial<FormDefinition>) => void;
     deleteForm: (id: string) => void;
 
@@ -1845,12 +1845,38 @@ REGLAS DE ORO:
         });
     };
 
-    const updateSettings = (updates: Partial<AppSettings>) => {
+    // Settings es shared state crítico: las pipelineStages, sectores, ciudades,
+    // toggles del informe diario, etc. afectan a TODO el equipo. Antes esto era
+    // fire-and-forget — si la red fallaba al editar stages, el cambio quedaba
+    // fantasma sólo en el browser de quien lo hizo (caso real: Valentina veía
+    // sus columnas, los demás no). Ahora esperamos la respuesta del PUT y, si
+    // falla, revertimos el cambio localmente y avisamos al usuario.
+    const updateSettings = async (updates: Partial<AppSettings>) => {
+        let prevSnapshot: AppSettings | null = null;
         setSettings(prev => {
-            const next = { ...prev, ...updates };
-            persistSharedState({ settings: sanitizeSettingsForStorage(next) });
-            return next;
+            prevSnapshot = prev;
+            return { ...prev, ...updates };
         });
+        if (!prevSnapshot) return;
+        try {
+            const next = { ...(prevSnapshot as AppSettings), ...updates };
+            const res = await fetch('/api/state', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ settings: sanitizeSettingsForStorage(next) }),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        } catch (error) {
+            // Rollback al snapshot anterior — el user ve el cambio revertido y
+            // sabe que tiene que reintentar (vs creer que se guardó cuando no).
+            setSettings(prevSnapshot as AppSettings);
+            console.error('[updateSettings] persist failed, reverting:', error);
+            addNotification({
+                title: 'No se pudieron guardar los ajustes',
+                description: 'Hubo un problema con la red. El cambio fue revertido — volvé a intentarlo.',
+                type: 'alert',
+            });
+        }
     };
 
     const markNotificationAsRead = (id: string) => {
