@@ -117,7 +117,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     // Live preview of the quote number. Reacts to isAIU toggle.
     const versionForDisplay = editQuote?.version || 1;
     const newQuoteBase = `${settings.quotePrefix || 'ART'}-${settings.quoteNextNumber ?? 300}-${settings.quoteYear || new Date().getFullYear()}`;
-    const previewNumber = (() => {
+    const autoPreviewNumber = (() => {
         if (editQuote?.baseNumber) return formatQuoteNumber(editQuote.baseNumber, versionForDisplay, isAIU);
         if (editQuote?.quoteNumber) {
             const stripped = editQuote.quoteNumber.replace(/-AIU$/, '');
@@ -125,6 +125,21 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         }
         return formatQuoteNumber(newQuoteBase, 1, isAIU);
     })();
+
+    // Override manual del número de cotización. Vacío = usar el consecutivo
+    // automático (autoPreviewNumber). Solo aplica al crear cotizaciones nuevas
+    // — al editar una existente NO se permite cambiar el número porque rompe
+    // la trazabilidad de versiones (baseNumber, version, AIU sufijo).
+    //
+    // Caso de uso: el vendedor necesita usar la nomenclatura de la empresa
+    // del cliente, una cotización paralela del ERP, o continuar una
+    // numeración heredada. Antes esto era imposible y obligaba a meter el
+    // número como referencia comercial — quedaba en mensajes pero nunca era
+    // el "número de la cotización" real.
+    const [customQuoteNumber, setCustomQuoteNumber] = useState<string>('');
+    const previewNumber = (!editQuoteId && customQuoteNumber.trim())
+        ? customQuoteNumber.trim()
+        : autoPreviewNumber;
     const genQuoteNumber = () => previewNumber;
 
     useEffect(() => {
@@ -764,13 +779,40 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
 
     return (
         <>
-        {/* Quote number badge */}
+        {/* Quote number badge — editable para cotizaciones nuevas.
+            Si el vendedor deja el input vacío, usa el consecutivo automático
+            (autoPreviewNumber). Si escribe algo, ese valor reemplaza al consecutivo
+            y se guarda como quoteNumber real de la cotización. No incrementa el
+            contador interno cuando hay override (para no saltarse números). */}
         {!isEditMode ? (
-            <div className="mb-4 flex items-center gap-3 px-5 py-3 rounded-2xl bg-primary/10 border border-primary/30">
-                <Hash className="w-4 h-4 text-primary shrink-0" />
-                <p className="text-sm font-black text-foreground">
-                    Nueva cotización: <span className="text-primary">{previewNumber}</span>
-                </p>
+            <div className="mb-4 px-5 py-3 rounded-2xl bg-primary/10 border border-primary/30">
+                <div className="flex items-center gap-3">
+                    <Hash className="w-4 h-4 text-primary shrink-0" />
+                    <label className="text-sm font-black text-foreground">Nueva cotización:</label>
+                    <input
+                        type="text"
+                        value={customQuoteNumber}
+                        onChange={(e) => setCustomQuoteNumber(e.target.value)}
+                        placeholder={autoPreviewNumber}
+                        className="flex-1 min-w-[180px] bg-white/70 border border-primary/30 rounded-lg px-3 py-1.5 text-sm font-black text-primary outline-none focus:bg-white focus:border-primary transition-all placeholder:text-primary/60 placeholder:font-black"
+                        title="Dejá vacío para usar el consecutivo automático, o escribí un número distinto"
+                    />
+                    {customQuoteNumber.trim() && (
+                        <button
+                            type="button"
+                            onClick={() => setCustomQuoteNumber('')}
+                            className="text-[10px] font-black text-primary hover:underline uppercase tracking-widest shrink-0"
+                            title="Volver al consecutivo automático"
+                        >
+                            Auto
+                        </button>
+                    )}
+                </div>
+                {customQuoteNumber.trim() && (
+                    <p className="text-[10px] text-muted-foreground mt-2 ml-7">
+                        Sobreescribiendo el consecutivo. El número automático <strong>{autoPreviewNumber}</strong> queda libre para la próxima cotización.
+                    </p>
+                )}
             </div>
         ) : editQuoteId && (() => {
             const editingQuote = quotes.find(q => q.id === editQuoteId);
