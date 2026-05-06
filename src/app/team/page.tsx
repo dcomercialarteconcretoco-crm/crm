@@ -18,6 +18,7 @@ import {
     ChevronDown,
     ChevronUp,
     RefreshCw,
+    KeyRound,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useApp, Seller } from '@/context/AppContext';
@@ -173,6 +174,67 @@ export default function TeamPage() {
     // Track de cuál seller está reenviando activación para mostrar spinner sólo
     // en su tarjeta (no en todas a la vez).
     const [resendingId, setResendingId] = useState<string | null>(null);
+
+    // Estado del modal "Cambiar contraseña" — fix de emergencia para cuando
+    // Resend no entrega el correo de recuperación. Permite que el admin escriba
+    // la nueva contraseña directamente sin pasar por el flujo de mail.
+    const [forceResetSeller, setForceResetSeller] = useState<Seller | null>(null);
+    const [forceResetPwd, setForceResetPwd] = useState('');
+    const [forceResetPwd2, setForceResetPwd2] = useState('');
+    const [forceResetShow, setForceResetShow] = useState(false);
+    const [forceResetLoading, setForceResetLoading] = useState(false);
+    const [forceResetError, setForceResetError] = useState<string | null>(null);
+
+    const openForceReset = (seller: Seller) => {
+        setForceResetSeller(seller);
+        setForceResetPwd('');
+        setForceResetPwd2('');
+        setForceResetShow(false);
+        setForceResetError(null);
+    };
+
+    const closeForceReset = () => {
+        if (forceResetLoading) return;
+        setForceResetSeller(null);
+        setForceResetPwd('');
+        setForceResetPwd2('');
+        setForceResetError(null);
+    };
+
+    const handleForceReset = async () => {
+        if (!forceResetSeller) return;
+        const pwd = forceResetPwd.trim();
+        if (pwd.length < 6) {
+            setForceResetError('La contraseña debe tener al menos 6 caracteres.');
+            return;
+        }
+        if (pwd !== forceResetPwd2.trim()) {
+            setForceResetError('Las dos contraseñas no coinciden.');
+            return;
+        }
+        setForceResetLoading(true);
+        setForceResetError(null);
+        try {
+            const res = await fetch(`/api/team/${forceResetSeller.id}/force-reset-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: pwd }),
+            });
+            const data = await res.json();
+            if (res.ok && data.ok) {
+                alert(`✅ Contraseña actualizada para ${forceResetSeller.name}.\n\nDecile que entre con su email/usuario y la nueva clave.`);
+                setForceResetSeller(null);
+                setForceResetPwd('');
+                setForceResetPwd2('');
+            } else {
+                setForceResetError(data.error || `HTTP ${res.status}`);
+            }
+        } catch (err) {
+            setForceResetError(`Error de red: ${String(err)}`);
+        } finally {
+            setForceResetLoading(false);
+        }
+    };
 
     const handleResendActivation = async (seller: Seller) => {
         if (!seller.email) {
@@ -360,11 +422,116 @@ export default function TeamPage() {
                                             {resendingId === seller.id ? 'Enviando...' : 'Reenviar invitación'}
                                         </button>
                                     )}
+                                    {canManageTeam && seller.id !== currentUser?.id && canEditSeller && (
+                                        <button
+                                            onClick={() => openForceReset(seller)}
+                                            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-500 text-amber-700 hover:text-black font-bold text-xs transition-all border border-amber-200"
+                                            title="Definir una contraseña nueva manualmente. Útil cuando el correo de recuperación no llega."
+                                        >
+                                            <KeyRound className="w-3.5 h-3.5" />
+                                            Cambiar contraseña
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         );
                     })}
             </div>
+
+            {/* Force Reset Password Modal — fix de emergencia para cuando Resend no entrega correos.
+                El admin escribe la nueva contraseña y queda guardada bcrypteada en crm_users. */}
+            {forceResetSeller && (
+                <div
+                    className="fixed inset-0 flex items-center justify-center p-4 z-[110]"
+                    style={{ background: 'rgba(10,12,20,0.55)', backdropFilter: 'blur(6px)' }}
+                >
+                    <div className="bg-white border border-border rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+                            <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+                                <KeyRound className="w-4 h-4 text-amber-500" />
+                                Cambiar contraseña
+                            </h2>
+                            <button
+                                onClick={closeForceReset}
+                                disabled={forceResetLoading}
+                                className="w-8 h-8 flex items-center justify-center rounded-xl bg-muted border border-border text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="p-5 space-y-4">
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                                <p className="text-xs font-bold text-amber-800">{forceResetSeller.name}</p>
+                                <p className="text-[11px] text-amber-700 mt-0.5">{forceResetSeller.email || forceResetSeller.username}</p>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                Vas a definir una contraseña nueva directamente. Útil cuando el correo de recuperación no llega.
+                                Decile al usuario la clave por un canal seguro y que la cambie cuando entre.
+                            </p>
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">
+                                    Nueva contraseña
+                                </label>
+                                <div className="relative">
+                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                    <input
+                                        type={forceResetShow ? 'text' : 'password'}
+                                        value={forceResetPwd}
+                                        onChange={(e) => setForceResetPwd(e.target.value)}
+                                        placeholder="Mínimo 6 caracteres"
+                                        autoFocus
+                                        className="w-full bg-muted border border-border rounded-xl pl-9 pr-10 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:bg-white transition-all placeholder:text-muted-foreground/60"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setForceResetShow(v => !v)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
+                                    >
+                                        {forceResetShow ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">
+                                    Confirmar contraseña
+                                </label>
+                                <div className="relative">
+                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                    <input
+                                        type={forceResetShow ? 'text' : 'password'}
+                                        value={forceResetPwd2}
+                                        onChange={(e) => setForceResetPwd2(e.target.value)}
+                                        placeholder="Repetí la contraseña"
+                                        className="w-full bg-muted border border-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:bg-white transition-all placeholder:text-muted-foreground/60"
+                                    />
+                                </div>
+                            </div>
+                            {forceResetError && (
+                                <p className="text-xs font-medium text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
+                                    {forceResetError}
+                                </p>
+                            )}
+                        </div>
+                        <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-border">
+                            <button
+                                onClick={closeForceReset}
+                                disabled={forceResetLoading}
+                                className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted transition-colors text-sm disabled:opacity-50"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleForceReset}
+                                disabled={forceResetLoading}
+                                className="bg-amber-500 text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 transition-all shadow-[0_2px_8px_rgba(245,158,11,0.3)] flex items-center gap-2 text-sm disabled:opacity-60"
+                            >
+                                <KeyRound className="w-4 h-4" />
+                                {forceResetLoading ? 'Guardando…' : 'Establecer contraseña'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Add/Edit Modal */}
             {isModalOpen && (
