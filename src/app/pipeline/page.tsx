@@ -52,6 +52,7 @@ import { clsx } from 'clsx';
 import { useApp, Task, Activity, Seller, Client, PipelineStage, DEFAULT_PIPELINE_STAGES } from '@/context/AppContext';
 import { openMailto, openWhatsApp } from '@/lib/contact-links';
 import SearchableSelect from '@/components/SearchableSelect';
+import SectorSelect from '@/components/SectorSelect';
 import CompanyCombobox from '@/components/CompanyCombobox';
 import { hasPermission } from '@/lib/permissions';
 import { ownsRecord, canSeeAll } from '@/lib/scope';
@@ -969,9 +970,11 @@ export default function PipelinePage() {
                                                     <input type="email" placeholder="Email Corporativo" value={inlineClient.email} onChange={e => setInlineClient({ ...inlineClient, email: e.target.value })} className="w-full bg-white border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-bold outline-none focus:border-primary" />
                                                     <div className="grid grid-cols-2 gap-3">
                                                         <SearchableSelect options={settings.cities} value={inlineClient.city} onChange={val => setInlineClient({ ...inlineClient, city: val })} placeholder="Ciudad" />
-                                                        <select value={inlineClient.category} onChange={e => setInlineClient({ ...inlineClient, category: e.target.value })} className="w-full bg-white border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-bold outline-none focus:border-primary appearance-none">
-                                                            {settings.sectors.map(sector => <option key={sector} value={sector}>{sector}</option>)}
-                                                        </select>
+                                                        <SectorSelect
+                                                            value={inlineClient.category}
+                                                            onChange={(val) => setInlineClient({ ...inlineClient, category: val })}
+                                                            selectClassName="w-full bg-white border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-bold outline-none focus:border-primary appearance-none"
+                                                        />
                                                     </div>
                                                 </div>
                                             </div>

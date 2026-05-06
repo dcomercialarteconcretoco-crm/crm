@@ -30,6 +30,7 @@ import Link from 'next/link';
 import { useApp, Client } from '@/context/AppContext';
 import SearchableSelect from '@/components/SearchableSelect';
 import CompanyCombobox from '@/components/CompanyCombobox';
+import SectorSelect from '@/components/SectorSelect';
 import { hasPermission } from '@/lib/permissions';
 import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
 import { ownsRecord, canSeeAll } from '@/lib/scope';
@@ -968,15 +969,10 @@ export default function ClientsPage() {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Sector</label>
-                                    <select
+                                    <SectorSelect
                                         value={newClientForm.category}
-                                        onChange={(e) => setNewClientForm({ ...newClientForm, category: e.target.value })}
-                                        className="w-full bg-muted border border-border rounded-xl py-2.5 px-3 text-sm outline-none focus:border-primary focus:bg-white transition-all appearance-none"
-                                    >
-                                        {settings.sectors.map(sector => (
-                                            <option key={sector} value={sector}>{sector}</option>
-                                        ))}
-                                    </select>
+                                        onChange={(val) => setNewClientForm({ ...newClientForm, category: val })}
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Estado Inicial</label>
