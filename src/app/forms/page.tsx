@@ -41,6 +41,7 @@ export default function FormsPage() {
         phone: { active: true, label: 'Teléfono Móvil' },
         city: { active: true, label: 'Ciudad / Departamento' },
         company: { active: true, label: 'Empresa / Institución' },
+        position: { active: false, label: 'Cargo' },
         interested_products: { active: true, label: 'Selección de Productos' }, // Added target field
         project_type: { active: false, label: 'Tipo de Proyecto' },
         budget: { active: false, label: 'Presupuesto Estimado' }

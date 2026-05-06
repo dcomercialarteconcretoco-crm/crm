@@ -30,7 +30,8 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { formId, name, email, phone, city, company, interestedProducts = [] } = body;
+        const { formId, name, email, phone, city, company, position, interestedProducts = [] } = body;
+        const positionValue = (typeof position === 'string' && position.trim()) ? position.trim() : null;
 
         if (!name || !email) {
             return NextResponse.json({ error: 'name y email son requeridos' }, { status: 400, headers: CORS_HEADERS });
@@ -67,19 +68,23 @@ export async function POST(req: NextRequest) {
             clientId = existing[0].id;
             effectiveSellerId = existing[0].assigned_to || rrSellerId || '';
             effectiveSellerName = existing[0].assigned_to_name || rrSellerName || '';
+            // "position" entre dobles comillas — palabra reservada SQL (mismo
+            // patrón que /api/clients en 7b2654a). COALESCE preserva el cargo
+            // existente cuando el form no lo trajo (typeof != string).
             await pool.query(
                 `UPDATE crm_clients SET
                     name = COALESCE(NULLIF($1, ''), name),
                     phone = COALESCE(NULLIF($2, ''), phone),
                     city = COALESCE(NULLIF($3, ''), city),
                     company = COALESCE(NULLIF($4, ''), company),
-                    last_contact = $5,
-                    assigned_to = COALESCE(assigned_to, $6),
-                    assigned_to_name = COALESCE(assigned_to_name, $7),
+                    "position" = COALESCE($5, "position"),
+                    last_contact = $6,
+                    assigned_to = COALESCE(assigned_to, $7),
+                    assigned_to_name = COALESCE(assigned_to_name, $8),
                     source = COALESCE(source, 'Formulario QR'),
                     updated_at = NOW()
-                 WHERE id = $8`,
-                [name, phone || '', city || '', company || '', today, rrSellerId, rrSellerName, clientId]
+                 WHERE id = $9`,
+                [name, phone || '', city || '', company || '', positionValue, today, rrSellerId, rrSellerName, clientId]
             );
         } else {
             clientId = `c-form-${Date.now()}`;
@@ -87,14 +92,15 @@ export async function POST(req: NextRequest) {
             effectiveSellerName = rrSellerName || '';
             await pool.query(
                 `INSERT INTO crm_clients (
-                    id, name, company, email, phone, status, value_text, ltv, last_contact,
+                    id, name, company, "position", email, phone, status, value_text, ltv, last_contact,
                     city, score, category, registration_date,
                     assigned_to, assigned_to_name, source, updated_at
-                 ) VALUES ($1,$2,$3,$4,$5,'Lead','Por cotizar',0,$6,$7,70,'Formulario QR',$8,$9,$10,'Formulario QR',NOW())`,
+                 ) VALUES ($1,$2,$3,$4,$5,$6,'Lead','Por cotizar',0,$7,$8,70,'Formulario QR',$9,$10,$11,'Formulario QR',NOW())`,
                 [
                     clientId,
                     name,
                     company || name,
+                    positionValue,
                     normalizedEmail,
                     phone || '',
                     today,

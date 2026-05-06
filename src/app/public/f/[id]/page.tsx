@@ -10,6 +10,7 @@ import {
     Mail,
     Phone,
     Building2,
+    Briefcase,
     MapPin,
     Layers,
     TrendingUp,
@@ -104,6 +105,7 @@ export default function PublicFormPage() {
                     phone: formData.phone || '',
                     city: formData.city || '',
                     company: formData.company || '',
+                    position: formData.position || '',
                     interestedProducts: selectedProducts.map(p => ({ id: p.id, name: p.name, sku: p.sku })),
                 }),
             });
@@ -203,7 +205,8 @@ export default function PublicFormPage() {
                                                     field === 'email' ? 'Correo Electrónico' :
                                                         field === 'phone' ? 'Teléfono' :
                                                             field === 'company' ? 'Firma / Organización' :
-                                                                field === 'city' ? 'Ciudad' : field}
+                                                                field === 'position' ? 'Cargo' :
+                                                                    field === 'city' ? 'Ciudad' : field}
                                             </label>
                                             <div className="relative">
                                                 <div className={clsx(
@@ -214,10 +217,11 @@ export default function PublicFormPage() {
                                                         field === 'email' ? <Mail size={15} /> :
                                                             field === 'phone' ? <Phone size={15} /> :
                                                                 field === 'company' ? <Building2 size={15} /> :
-                                                                    field === 'city' ? <MapPin size={15} /> : <Layers size={15} />}
+                                                                    field === 'position' ? <Briefcase size={15} /> :
+                                                                        field === 'city' ? <MapPin size={15} /> : <Layers size={15} />}
                                                 </div>
                                                 <input
-                                                    required
+                                                    required={field !== 'position'}
                                                     autoComplete="off"
                                                     onFocus={() => setFocusedField(field)}
                                                     onBlur={() => setFocusedField(null)}
