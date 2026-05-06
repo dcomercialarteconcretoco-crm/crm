@@ -16,6 +16,15 @@ const DEFAULT_STATE: StateMap = {
     lastResult: "idle",
     syncedCount: 0,
   },
+  // settings vive en crm_state.key='settings' como JSONB. Tiene que aparecer
+  // en DEFAULT_STATE para que el GET sin ?keys= lo incluya en `requestedKeys`
+  // y por ende lo traiga de la DB. Sin esto, updateSettings persiste bien
+  // (PUT funciona) pero el siguiente boot nunca lo lee — cada usuario arranca
+  // con los defaults locales del cliente. Era el bug por el que las etapas
+  // del pipeline configuradas por Valentina no se veían en otros navegadores.
+  // null como default = "no hay settings persistidos" (el AppContext deja
+  // los defaults locales sin sobreescribir nada).
+  settings: null,
 };
 
 export async function GET(req: NextRequest) {
