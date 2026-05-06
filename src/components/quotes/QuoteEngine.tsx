@@ -142,6 +142,29 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         : autoPreviewNumber;
     const genQuoteNumber = () => previewNumber;
 
+    // Validación de duplicado: si el vendedor sobreescribe el número y ya
+    // existe otro registro con ese mismo quoteNumber, debemos bloquear el
+    // submit. Comparamos contra el snapshot actual de `quotes` ignorando la
+    // que está editándose. Caso real pedido: "que no haya duplicados de
+    // número en la misma cuenta — o avisar antes de guardar".
+    const normalizedQuoteNumber = previewNumber.trim().toLowerCase();
+    const conflictingQuote = !editQuoteId && normalizedQuoteNumber
+        ? quotes.find(q =>
+            (q.quoteNumber || q.number || '').trim().toLowerCase() === normalizedQuoteNumber
+        )
+        : null;
+    const isQuoteNumberConflict = !!conflictingQuote;
+    /** Bloquea el submit si hay conflicto y avisa por toast. Retorna true si todo bien. */
+    const assertNoQuoteNumberConflict = (): boolean => {
+        if (!isQuoteNumberConflict) return true;
+        addNotification({
+            title: 'Número de cotización duplicado',
+            description: `Ya existe ${conflictingQuote?.quoteNumber || conflictingQuote?.number}. Cambialo o dejá el campo vacío para usar el consecutivo automático.`,
+            type: 'alert',
+        });
+        return false;
+    };
+
     useEffect(() => {
         const doSync = async () => {
             setIsSyncing(true);
@@ -432,6 +455,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         const client = clients.find(c => c.id === selectedClientId);
         if (!client) { addNotification({ title: 'Cliente requerido', description: 'Selecciona un cliente.', type: 'alert' }); return; }
         if (items.length === 0) { addNotification({ title: 'Sin productos', description: 'Agrega al menos un producto.', type: 'alert' }); return; }
+        if (!assertNoQuoteNumberConflict()) return;
 
         const quoteNumber = genQuoteNumber();
         const requestedAt = new Date().toISOString();
@@ -545,6 +569,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             requestApproval();
             return;
         }
+        if (!assertNoQuoteNumberConflict()) return;
 
         setIsSaving(true);
         try {
@@ -678,6 +703,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             requestApproval();
             return;
         }
+        if (!assertNoQuoteNumberConflict()) return;
         const quoteNumber = genQuoteNumber();
         addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Sent' as const });
         const phone = client.phone.replace(/\D/g, '');
@@ -721,6 +747,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             requestApproval();
             return;
         }
+        if (!assertNoQuoteNumberConflict()) return;
 
         setIsSendingEmail(true);
         try {
@@ -808,7 +835,12 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                         </button>
                     )}
                 </div>
-                {customQuoteNumber.trim() && (
+                {customQuoteNumber.trim() && isQuoteNumberConflict && (
+                    <p className="text-[10px] text-rose-600 font-bold mt-2 ml-7">
+                        ⚠ Ya existe una cotización con este número. Cambialo o dejá el campo vacío para usar el consecutivo.
+                    </p>
+                )}
+                {customQuoteNumber.trim() && !isQuoteNumberConflict && (
                     <p className="text-[10px] text-muted-foreground mt-2 ml-7">
                         Sobreescribiendo el consecutivo. El número automático <strong>{autoPreviewNumber}</strong> queda libre para la próxima cotización.
                     </p>
