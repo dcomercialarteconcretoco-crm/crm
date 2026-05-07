@@ -589,6 +589,12 @@ interface AppContextType {
     isHydrating: boolean;
     productSyncStatus: ProductSyncStatus;
     refreshProducts: () => Promise<void>;
+    /** Re-fetch /api/clients y reemplaza el state local. Útil cuando otra
+     *  pestaña o usuario sube/edita contactos y la pestaña actual quedó
+     *  con un snapshot viejo (la app sólo hace syncSharedData al boot). */
+    refreshClients: () => Promise<void>;
+    /** Re-fetch /api/companies idem. */
+    refreshCompanies: () => Promise<void>;
     login: (username: string, password: string) => Promise<boolean>;
     logout: () => void;
 
@@ -895,6 +901,31 @@ REGLAS DE ORO:
         return () => window.clearTimeout(timeoutId);
     }, [clients, tasks, quotes, sellers, notifications, auditLogs, anomalies, settings, events, products, forms, currentUser, productSyncStatus, isInitialLoad]);
 
+    const refreshClients = async () => {
+        try {
+            const res = await fetch('/api/clients', { cache: 'no-store' });
+            if (!res.ok) return;
+            const data = await res.json();
+            if (Array.isArray(data.clients)) setClients(data.clients);
+        } catch (error) {
+            console.warn('refreshClients failed:', error);
+        }
+    };
+
+    const refreshCompanies = async () => {
+        try {
+            const res = await fetch('/api/companies', { cache: 'no-store' });
+            if (!res.ok) return;
+            const data = await res.json();
+            if (Array.isArray(data.companies)) {
+                setCompanies(data.companies);
+                try { localStorage.setItem('crm_companies_cache', JSON.stringify(data.companies)); } catch {}
+            }
+        } catch (error) {
+            console.warn('refreshCompanies failed:', error);
+        }
+    };
+
     const refreshProducts = async () => {
         const attemptAt = new Date().toISOString();
         setProductSyncStatus(prev => ({
@@ -1075,6 +1106,30 @@ REGLAS DE ORO:
 
         syncSharedData();
     }, [isProduction]);
+
+    // ── Revalidate on tab focus ──────────────────────────────────────────────
+    // Por qué: el syncSharedData de arriba sólo corre al montar el AppProvider
+    // (una vez por SPA boot). Si Valentina deja la pestaña abierta horas y
+    // mientras tanto otros vendedores suben contactos, ella sigue viendo el
+    // snapshot inicial. Cuando vuelve al tab, refrescamos clients/companies
+    // para que la pantalla refleje la verdad de la DB sin necesidad de F5.
+    //
+    // Solo refresh data "viva" (clients, companies). Settings y stages pesan
+    // poco pero se actualizan vía updateSettings; tasks/quotes idem por sus
+    // mutaciones. Mantener este efecto chico evita pegarle al servidor cada
+    // vez que el user pasa de pestaña.
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const onFocus = () => { refreshClients(); refreshCompanies(); };
+        window.addEventListener('focus', onFocus);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') onFocus();
+        });
+        return () => {
+            window.removeEventListener('focus', onFocus);
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // ── Migration: auto-create pipeline tasks for quotes that don't have one ──
     useEffect(() => {
@@ -2054,7 +2109,7 @@ REGLAS DE ORO:
             updateForm, deleteForm,
             markNotificationAsRead, clearNotifications, removeNotification, setNotifications,
             auditLogs, addAuditLog, purgeOldAuditLogs, anomalies, addAnomaly, updateAnomaly, deleteAnomaly,
-            products, productSyncStatus, refreshProducts, updateProduct, deleteProduct,
+            products, productSyncStatus, refreshProducts, refreshClients, refreshCompanies, updateProduct, deleteProduct,
             currentUser, isHydrating, login, logout,
             incrementOnboardingCount,
         }), [

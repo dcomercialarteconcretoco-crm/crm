@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Search,
     Plus,
@@ -36,7 +36,16 @@ import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
 import { ownsRecord, canSeeAll } from '@/lib/scope';
 
 export default function ClientsPage() {
-    const { clients, companies, addClient, deleteClient, addNotification, settings, sellers, quotes, currentUser: ctxUser } = useApp();
+    const { clients, companies, addClient, deleteClient, addNotification, settings, sellers, quotes, currentUser: ctxUser, refreshClients, refreshCompanies } = useApp();
+
+    // Refresh contra DB al entrar al listado de clientes — evita que el
+    // localStorage del browser siga mostrando un snapshot viejo cuando otros
+    // usuarios subieron contactos en otra sesión.
+    useEffect(() => {
+        refreshClients();
+        refreshCompanies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     const [viewMode, setViewMode] = useState<'grid'|'list'>('list');
     const [searchTerm, setSearchTerm] = useState("");
     const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);

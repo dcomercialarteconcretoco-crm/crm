@@ -12,15 +12,23 @@
  * que los agrupan). No hay un permiso companies.* nuevo todavía.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Building2, Plus, Search, Users, FileText, X, Edit2, Trash2, AlertTriangle } from 'lucide-react';
 import { useApp, type Company } from '@/context/AppContext';
 import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
 
 export default function CompaniesPage() {
-    const { companies, clients, quotes, addCompany, updateCompany, deleteCompany, addNotification } = useApp();
+    const { companies, clients, quotes, addCompany, updateCompany, deleteCompany, addNotification, refreshClients, refreshCompanies } = useApp();
     const [search, setSearch] = useState('');
+
+    // Refresh contra DB al entrar al listado para no mostrar snapshot stale
+    // del localStorage cuando otra sesión agregó/editó empresas o contactos.
+    useEffect(() => {
+        refreshClients();
+        refreshCompanies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     const [isCreating, setIsCreating] = useState(false);
     const [newName, setNewName] = useState('');
     const [submitting, setSubmitting] = useState(false);

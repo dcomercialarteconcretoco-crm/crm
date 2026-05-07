@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
     ArrowLeft,
@@ -43,7 +43,15 @@ export default function Lead360Page() {
     const params = useParams();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { clients, companies, addAuditLog, sellers, tasks, quotes, auditLogs, currentUser, updateClient } = useApp();
+    const { clients, companies, addAuditLog, sellers, tasks, quotes, auditLogs, currentUser, updateClient, refreshClients } = useApp();
+
+    // Refresh el snapshot de clients al entrar al detalle. Si el lead vivía
+    // en otra sesión (recién creado por compañero), evita la "página en blanco
+    // — lead no encontrado" cuando tu localStorage no lo tenía.
+    useEffect(() => {
+        refreshClients();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     const initialTab = searchParams?.get('tab');
     const [activeTab, setActiveTab] = useState(
         initialTab && VALID_TABS.includes(initialTab) ? initialTab : 'Actividad'

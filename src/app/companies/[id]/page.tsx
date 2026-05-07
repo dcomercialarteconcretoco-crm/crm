@@ -9,7 +9,7 @@
  * abre cuando quiere "ver todo lo que tengo con Constructora Marval".
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Building2, User, Mail, Phone, MapPin, FileText, Plus, Edit2, Trash2, X, AlertTriangle } from 'lucide-react';
@@ -21,7 +21,17 @@ export default function CompanyDetailPage() {
     const params = useParams();
     const router = useRouter();
     const companyId = params?.id as string;
-    const { companies, clients, quotes, updateCompany, deleteCompany, addNotification } = useApp();
+    const { companies, clients, quotes, updateCompany, deleteCompany, addNotification, refreshClients, refreshCompanies } = useApp();
+
+    // Refresh contra DB al entrar al detalle de empresa. Sin esto la lista de
+    // contactos puede mostrar un snapshot viejo del localStorage si otro
+    // vendedor agregó contactos a esta empresa en otra sesión (caso real
+    // reportado: UIS aparecía con 1 contacto en pantalla cuando la DB tenía 5).
+    useEffect(() => {
+        refreshClients();
+        refreshCompanies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [companyId]);
 
     const company = companies.find(c => c.id === companyId);
 
