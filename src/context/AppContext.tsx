@@ -145,6 +145,8 @@ export interface Quote {
     validUntil?: string;        // Vigencia: "15 de Abril de 2026"
     deliveryTime?: string;      // Plazo de entrega
     paymentTerms?: string;      // Forma de pago (texto libre)
+    /** Notas extras del vendedor — bloque opcional con bullets al final del PDF. */
+    observations?: string;
     sellerPhone?: string;       // Teléfono del asesor
     sellerId?: string;
     sellerName?: string;

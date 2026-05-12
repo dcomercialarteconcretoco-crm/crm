@@ -96,6 +96,11 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
 
     // Campos comerciales (formato Word oficial)
     const [referencia, setReferencia] = useState('');
+    // Observaciones libres del vendedor — opcionales. Se persisten en la
+    // cotización y aparecen como bloque destacado al final del PDF.
+    // Caso de uso pedido 7-may-2026: notas sobre materiales, condiciones de
+    // instalación, restricciones de transporte, etc.
+    const [observations, setObservations] = useState('');
     const [validUntil, setValidUntil] = useState('');
     const [deliveryTime, setDeliveryTime] = useState('A convenir con el cliente.');
     const [paymentTerms, setPaymentTerms] = useState('- Anticipo del 50% del total de la orden.\n- El saldo deberá cancelarse en su totalidad antes de la entrega de los productos. El producto que no sea cancelado en su totalidad, no podrá ser entregado.');
@@ -187,7 +192,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 name: i.name || '',
                 price: i.price || (i as any).unitPrice || 0,
                 quantity: i.quantity || 1,
-                unit: (i as any).unit || 'un',
+                unit: (i as any).unit || 'Und',
                 productId: (i as any).productId,
                 image: (i as any).image,
                 dimensions: (i as any).dimensions,
@@ -203,6 +208,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         if (existing.validUntil) setValidUntil(existing.validUntil);
         if (existing.deliveryTime) setDeliveryTime(existing.deliveryTime);
         if (existing.paymentTerms) setPaymentTerms(existing.paymentTerms);
+        if ((existing as any).observations) setObservations((existing as any).observations);
         // Modelo nuevo — hidrata el modo y campos asociados. Para cotizaciones
         // legacy sin quoteMode definido, se infiere desde el flag isAIU previo.
         const mode: QuoteMode = existing.quoteMode ?? (existing.isAIU ? 'aiu' : 'simple');
@@ -244,7 +250,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             name: 'Producto personalizado',
             price: 0,
             quantity: 1,
-            unit: 'un',
+            unit: 'Und',
             isCustom: true,
         }]);
     };
@@ -264,7 +270,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 name: product.name,
                 price: product.price || 0,
                 quantity: 1,
-                unit: 'un',
+                unit: 'Und',
                 productId: product.id,
                 image: product.image,
                 dimensions: product.dimensions || '',
@@ -381,6 +387,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         // (formatSpanishLongDate(today + validityDays)) así el PDF y el listado coinciden.
         validUntil: validUntil.trim() || computedValidUntil,
         deliveryTime, paymentTerms,
+        observations: observations.trim() || undefined,
         sellerPhone: currentUser?.phone || '',
         // Envío legacy (snapshot histórico — se queda por compatibilidad pero NO entra al total).
         shipping: shipping > 0 ? shipping : undefined,
@@ -447,6 +454,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         adminPercent: quoteMode === 'aiu' ? adminPercent : undefined,
         utilityPercent: quoteMode === 'aiu' ? utilityPercent : undefined,
         deliveryLocation: deliveryLocation.trim() || undefined,
+        observations: observations.trim() || undefined,
     });
 
     // ── Helper único para enviar cotización a aprobación ────────────────────
@@ -1189,6 +1197,22 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                 onChange={e => setPaymentTerms(e.target.value)}
                                 rows={4}
                                 className="w-full bg-white/80 border border-border/60 rounded-xl px-4 py-3 text-[11px] font-bold outline-none focus:border-primary transition-all text-foreground resize-none"
+                            />
+                        </div>
+                        {/* Observaciones — bloque opcional que aparece como caja
+                            destacada al final del PDF. Pedido del cliente 7-may-2026.
+                            Una línea por punto; cada línea se renderiza con bullet. */}
+                        <div className="space-y-1.5">
+                            <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest flex items-center justify-between">
+                                <span>Observaciones <span className="opacity-50">(opcional)</span></span>
+                                <span className="opacity-50">una línea por punto</span>
+                            </label>
+                            <textarea
+                                value={observations}
+                                onChange={e => setObservations(e.target.value)}
+                                rows={4}
+                                placeholder="Ej:&#10;Mobiliario fabricado en concreto arquitectónico de 4500PSI.&#10;Si las cantidades varían el precio podría estar sujeto a variación.&#10;Para la correcta instalación se requiere piso firme y nivelado."
+                                className="w-full bg-white/80 border border-border/60 rounded-xl px-4 py-3 text-[11px] font-bold outline-none focus:border-primary transition-all text-foreground resize-none placeholder:text-muted-foreground/50 placeholder:font-normal"
                             />
                         </div>
                     </div>

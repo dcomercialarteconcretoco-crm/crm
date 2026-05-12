@@ -54,6 +54,10 @@ export interface ProposalData {
     utilityPercent?: number;
     /** Texto que reemplaza el "se entrega en {ciudad cliente}" del Alcance. */
     deliveryLocation?: string;
+    /** Texto libre editable por el vendedor — aparece como bloque destacado
+     *  al final del PDF. Pedido del cliente: "una casilla opcional que
+     *  podamos llenar manual donde podamos incluir observaciones". */
+    observations?: string;
 
     // ── Campos LEGACY ──
     // Para que las cotizaciones viejas (las pocas pre-modelo-nuevo) sigan
@@ -346,74 +350,199 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
     doc.setFillColor(230, 230, 230);
     doc.rect(LM, y, 174, 0.3, 'F');
 
-    // ── SECTION 1: PRODUCTOS CON FOTO + CANTIDADES Y PRECIOS ─────────────────
-    y += 8;
+    // ── ORDEN DEL PDF (pedido del cliente 7-may-2026) ────────────────────────
+    // Antes: tabla de productos PRIMERO, luego condiciones (alcance, vigencia,
+    // pago). El cliente reportó que muchos clientes finales saltaban al
+    // total y no leían los términos. Nuevo orden: condiciones PRIMERO,
+    // tabla de productos al final como "Anexo 1" en página propia.
+    let fy = y + 4;
+    const pageH = doc.internal.pageSize.getHeight();
+    const ensureSpace = (need: number) => {
+        if (fy + need > pageH - 20) { doc.addPage(); fy = 25; }
+    };
+
+    // ── Sección 1: ALCANCE ───────────────────────────────────────────────────
+    ensureSpace(40);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(...DARK);
-    doc.text('1. CANTIDADES Y PRECIOS DEL PROYECTO:', LM, y);
-    y += 6;
+    doc.text('1. ALCANCE DE LA PROPUESTA:', LM, fy);
+    fy += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...DARKGRAY);
 
-    // ── 1a. Galería de imágenes (si hay) ──────────────────────────────────────
-    const itemsWithImages = data.items.filter(i => i.image);
-    if (itemsWithImages.length > 0) {
-        const IMG_SIZE = 32;
-        const IMG_GAP  = 4;
-        const perRow   = Math.floor((RM - LM + IMG_GAP) / (IMG_SIZE + IMG_GAP));
-        let imgX = LM;
-        for (let i = 0; i < itemsWithImages.length; i++) {
-            const item = itemsWithImages[i];
-            if (i > 0 && i % perRow === 0) {
-                y += IMG_SIZE + 14;
-                imgX = LM;
-            }
-            if (y + IMG_SIZE + 14 > doc.internal.pageSize.getHeight() - 20) {
-                doc.addPage();
-                y = 25;
-                imgX = LM;
-            }
-            try {
-                const src = item.image!;
-                if (src.startsWith('data:') || src.startsWith('http')) {
-                    let b64 = src;
-                    if (src.startsWith('http')) {
-                        const r = await fetch(src);
-                        if (r.ok) {
-                            const bl = await r.blob();
-                            b64 = await new Promise<string>((res, rej) => {
-                                const rd = new FileReader();
-                                rd.onload = () => res(rd.result as string);
-                                rd.onerror = rej;
-                                rd.readAsDataURL(bl);
-                            });
-                        } else { throw new Error('fetch failed'); }
-                    }
-                    const imgFmt = b64.includes('data:image/jpeg') || b64.includes('data:image/jpg') ? 'JPEG' : 'PNG';
-                    doc.setFillColor(245, 245, 245);
-                    doc.roundedRect(imgX, y, IMG_SIZE, IMG_SIZE, 2, 2, 'F');
-                    doc.addImage(b64, imgFmt, imgX, y, IMG_SIZE, IMG_SIZE, undefined, 'FAST');
-                }
-            } catch { /* skip image on error */ }
-            doc.setFontSize(6.5);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(...DARK);
-            const nameLines = doc.splitTextToSize(item.name, IMG_SIZE);
-            doc.text(nameLines.slice(0, 2), imgX, y + IMG_SIZE + 4);
-            if (item.dimensions) {
-                doc.setFontSize(6);
-                doc.setFont('helvetica', 'normal');
-                doc.setTextColor(...GRAY);
-                doc.text(item.dimensions, imgX, y + IMG_SIZE + 10);
-            }
-            imgX += IMG_SIZE + IMG_GAP;
+    const lugarEntrega = (data.deliveryLocation && data.deliveryLocation.trim())
+        ? data.deliveryLocation.trim()
+        : (data.leadCity && data.leadCity.trim() ? `la ciudad de ${data.leadCity.trim()}` : 'el sitio acordado con el cliente');
+
+    let alcanceText: string;
+    if (mode === 'aiu') {
+        alcanceText = `La presente oferta de los elementos en concreto se entrega en ${lugarEntrega}, basado en la solicitud del cliente.`;
+    } else {
+        alcanceText = data.deliveryLocation && data.deliveryLocation.trim()
+            ? `La presente oferta de los elementos en concreto se entrega en ${lugarEntrega}, basado en la solicitud del cliente.`
+            : 'La presente oferta de los elementos en concreto se entrega en la planta de producción, Anillo Vial Km 1 + 800 Floridablanca – Girón, basado en la solicitud del cliente.';
+    }
+    const alcanceLines = doc.splitTextToSize(alcanceText, 174);
+    doc.text(alcanceLines, LM, fy);
+    fy += alcanceLines.length * 4.5 + 3;
+
+    const includeRows: Array<{ verb: 'Sí incluye' | 'No incluye'; rest: string }> = (() => {
+        if (mode === 'aiu') {
+            return [
+                { verb: 'Sí incluye', rest: ' el transporte de los elementos al sitio de entrega.' },
+                { verb: 'Sí incluye', rest: ' el descargue del producto en concreto.' },
+                { verb: 'Sí incluye', rest: ' la instalación de las piezas cotizadas.' },
+            ];
         }
-        y += IMG_SIZE + 16;
+        return [
+            { verb: data.includesTransport ? 'Sí incluye' : 'No incluye', rest: ' el transporte de los elementos al sitio de entrega.' },
+            { verb: 'No incluye', rest: ' el descargue del producto en concreto.' },
+            { verb: 'No incluye', rest: ' la instalación de las piezas cotizadas.' },
+        ];
+    })();
+
+    for (const { verb, rest } of includeRows) {
+        ensureSpace(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text('La oferta ', LM + 3, fy);
+        const x1 = LM + 3 + doc.getTextWidth('La oferta ');
+        doc.setFont('helvetica', 'bold');
+        doc.text(verb, x1, fy);
+        const x2 = x1 + doc.getTextWidth(verb);
+        doc.setFont('helvetica', 'normal');
+        const restLines = doc.splitTextToSize(rest, 174 - (x2 - LM));
+        doc.text(restLines[0] || '', x2, fy);
+        if (restLines.length > 1) {
+            fy += 4.5;
+            doc.text(restLines.slice(1), LM + 3, fy);
+        }
+        fy += 5;
     }
 
-    // ── 1b. Tabla de precios + footer con desglose ───────────────────────────
-    if (y + 30 > doc.internal.pageSize.getHeight() - 20) { doc.addPage(); y = 25; }
+    // ── Sección 2: VIGENCIA ──────────────────────────────────────────────────
+    fy += 3;
+    ensureSpace(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...DARK);
+    doc.text('2. VIGENCIA DE LA OFERTA:', LM, fy);
+    fy += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...DARKGRAY);
+    doc.text(`La cotización tiene vigencia hasta el ${validUntil}.`, LM, fy);
 
-    let fy: number;
+    // ── Sección 3: PLAZO DE ENTREGA ──────────────────────────────────────────
+    fy += 10;
+    ensureSpace(20);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...DARK);
+    doc.text('3. PLAZO DE ENTREGA:', LM, fy);
+    fy += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...DARKGRAY);
+    const deliveryLines = doc.splitTextToSize(deliveryTime, 174);
+    doc.text(deliveryLines, LM, fy);
+    fy += deliveryLines.length * 4.5;
+
+    // ── Sección 4: FORMA DE PAGO ─────────────────────────────────────────────
+    fy += 6;
+    ensureSpace(30);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...DARK);
+    doc.text('4. FORMA DE PAGO:', LM, fy);
+    fy += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...DARKGRAY);
+    doc.text('La forma de pago pactada es de la siguiente manera:', LM, fy);
+    fy += 5.5;
+    for (const line of paymentTerms.split('\n')) {
+        if (!line.trim()) continue;
+        const wrapped = doc.splitTextToSize(line.trim(), 174);
+        ensureSpace(wrapped.length * 4.5 + 2);
+        doc.text(wrapped, LM, fy);
+        fy += wrapped.length * 4.5 + 1;
+    }
+
+    // ── Sección 5: CANTIDADES Y PRECIOS — referencia al anexo ────────────────
+    fy += 6;
+    ensureSpace(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...DARK);
+    doc.text('5. CANTIDADES Y PRECIOS DEL PROYECTO:', LM, fy);
+    fy += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...DARKGRAY);
+    doc.text('Se adjunta ', LM, fy);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Anexo 1', LM + doc.getTextWidth('Se adjunta '), fy);
+    doc.setFont('helvetica', 'normal');
+    doc.text(' con el detalle de productos, dimensiones y valores.', LM + doc.getTextWidth('Se adjunta Anexo 1'), fy);
+
+    // ── ANEXO 1: TABLA DE PRODUCTOS (página propia) ──────────────────────────
+    doc.addPage();
+    let ay = 25;
+
+    // Banner del anexo
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...DARK);
+    doc.text('ANEXO 1 — CUADRO DE PRECIOS Y CANTIDADES', LM, ay);
+    doc.setFillColor(...PRIMARY);
+    doc.rect(LM, ay + 2, 80, 1, 'F');
+    ay += 10;
+
+    // Pre-cargamos las imágenes a base64 ahora (fuera de autoTable) porque
+    // el callback didDrawCell es síncrono y no admite awaits.
+    const itemImages: Record<number, { b64: string; fmt: 'JPEG' | 'PNG' }> = {};
+    for (let i = 0; i < data.items.length; i++) {
+        const src = data.items[i].image;
+        if (!src) continue;
+        try {
+            let b64 = src;
+            if (src.startsWith('http')) {
+                const r = await fetch(src);
+                if (!r.ok) continue;
+                const bl = await r.blob();
+                b64 = await new Promise<string>((res, rej) => {
+                    const rd = new FileReader();
+                    rd.onload = () => res(rd.result as string);
+                    rd.onerror = rej;
+                    rd.readAsDataURL(bl);
+                });
+            } else if (!src.startsWith('data:')) {
+                continue;
+            }
+            const fmt = b64.includes('data:image/jpeg') || b64.includes('data:image/jpg') ? 'JPEG' : 'PNG';
+            itemImages[i] = { b64, fmt };
+        } catch { /* skip */ }
+    }
+
+    // Hook común para dibujar la imagen del producto en la columna 1 de la tabla.
+    // jspdf-autotable invoca didDrawCell para CADA celda; sólo nos interesa
+    // la columna 0 (imagen) del body. La altura de fila se controla con
+    // minCellHeight en bodyStyles para reservar espacio.
+    const drawImageCell = (data: any) => {
+        if (data.section !== 'body' || data.column.index !== 0) return;
+        const rowIdx = data.row.index;
+        const img = itemImages[rowIdx];
+        if (!img) return;
+        const cell = data.cell;
+        const size = Math.min(cell.height - 4, cell.width - 4, 26);
+        const cx = cell.x + (cell.width - size) / 2;
+        const cy = cell.y + (cell.height - size) / 2;
+        try {
+            doc.addImage(img.b64, img.fmt, cx, cy, size, size, undefined, 'FAST');
+        } catch { /* skip si el formato no es soportado */ }
+    };
 
     if (isLegacy) {
         // ── RAMA LEGACY (cotizaciones pre-modelo-nuevo) ────────────────────
@@ -421,32 +550,34 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
         // antigua tal como existía. Este código sólo lo ejecutan cotizaciones
         // viejas; nuevas siempre van por la rama de calc.
         autoTable(doc, {
-            startY: y,
-            head: [['Producto / Referencia', 'Dimensiones', 'Ud.', 'Cant.', 'P. Unitario', 'Total']],
+            startY: ay,
+            head: [['Imagen', 'Descripción', 'UM', 'Cantidad', 'Valor Unitario', 'Valor Total']],
             body: data.items.map(item => {
                 const lineTotal = item.unitPrice * item.quantity;
+                const desc = [item.name, item.dimensions ? '\n' + item.dimensions : ''].join('');
                 return [
-                    item.name,
-                    item.dimensions || '—',
-                    item.unit || 'un',
+                    '', // imagen via didDrawCell
+                    desc,
+                    item.unit || 'Und',
                     String(item.quantity),
                     fmt(item.unitPrice),
                     fmt(lineTotal),
                 ];
             }),
             theme: 'grid',
-            headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: 'bold', fontSize: 7.5, cellPadding: 3.5 },
-            bodyStyles: { fontSize: 7.5, cellPadding: 2.5, textColor: DARKGRAY },
+            headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: 'bold', fontSize: 7.5, cellPadding: 3.5, halign: 'center' },
+            bodyStyles: { fontSize: 7.5, cellPadding: 2.5, textColor: DARKGRAY, minCellHeight: 30, valign: 'middle' },
             alternateRowStyles: { fillColor: [250, 248, 244] as [number,number,number] },
             columnStyles: {
-                0: { cellWidth: 62 },
-                1: { cellWidth: 32 },
+                0: { cellWidth: 30 },
+                1: { cellWidth: 56 },
                 2: { cellWidth: 14, halign: 'center' },
-                3: { cellWidth: 12, halign: 'center' },
-                4: { cellWidth: 30, halign: 'right' },
-                5: { cellWidth: 24, halign: 'right' },
+                3: { cellWidth: 16, halign: 'center' },
+                4: { cellWidth: 28, halign: 'right' },
+                5: { cellWidth: 30, halign: 'right' },
             },
             margin: { left: LM, right: 18 },
+            didDrawCell: drawImageCell,
             foot: [
                 ['', '', '', '', 'Subtotal:', fmt(data.subtotal || 0)],
                 ['', '', '', '', 'IVA (19%):', fmt(data.tax || 0)],
@@ -456,7 +587,7 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
             ],
             footStyles: { fillColor: [245, 245, 245] as [number,number,number], textColor: DARKGRAY, fontStyle: 'bold', fontSize: 7.5, halign: 'right' },
         });
-        fy = ((doc as any).lastAutoTable?.finalY ?? y + 40) + 2;
+        fy = ((doc as any).lastAutoTable?.finalY ?? ay + 40) + 2;
 
         if (data.isAIU && data.aiuData) {
             fy += 8;
@@ -496,48 +627,52 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
         // Tabla con valor unitario ANTES de IVA + valor total ANTES de IVA. Si
         // hay transporte se inserta como una fila extra autogenerada.
         const c = calc!;
-        const bodyRows = data.items.map((item, idx) => [
-            item.name,
-            item.dimensions || '—',
-            item.unit || 'un',
-            String(item.quantity),
-            fmt(c.items[idx].unitPriceBeforeTax),
-            fmt(c.items[idx].lineTotalBeforeTax),
-        ]);
+        const bodyRows = data.items.map((item, idx) => {
+            const desc = [item.name, item.dimensions ? '\n' + item.dimensions : ''].join('');
+            return [
+                '', // imagen via didDrawCell
+                desc,
+                item.unit || 'Und',
+                String(item.quantity),
+                fmt(c.items[idx].unitPriceBeforeTax),
+                fmt(c.items[idx].lineTotalBeforeTax),
+            ];
+        });
         if (c.transportBeforeTax !== undefined) {
             bodyRows.push([
+                '',
                 transportItemDescription(data.transportCity || data.leadCity || ''),
-                '—',
-                'gl',
+                'Und',
                 '1',
                 fmt(c.transportBeforeTax),
                 fmt(c.transportBeforeTax),
             ]);
         }
         autoTable(doc, {
-            startY: y,
-            head: [['Producto / Referencia', 'Dimensiones', 'Ud.', 'Cant.', 'V. Unit. antes IVA', 'V. Total antes IVA']],
+            startY: ay,
+            head: [['Imagen', 'Descripción', 'UM', 'Cantidad', 'V. Unit. antes IVA', 'V. Total antes IVA']],
             body: bodyRows,
             theme: 'grid',
-            headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: 'bold', fontSize: 7.5, cellPadding: 3.5 },
-            bodyStyles: { fontSize: 7.5, cellPadding: 2.5, textColor: DARKGRAY },
+            headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: 'bold', fontSize: 7.5, cellPadding: 3.5, halign: 'center' },
+            bodyStyles: { fontSize: 7.5, cellPadding: 2.5, textColor: DARKGRAY, minCellHeight: 30, valign: 'middle' },
             alternateRowStyles: { fillColor: [250, 248, 244] as [number,number,number] },
             columnStyles: {
-                0: { cellWidth: 62 },
-                1: { cellWidth: 28 },
-                2: { cellWidth: 12, halign: 'center' },
-                3: { cellWidth: 12, halign: 'center' },
-                4: { cellWidth: 30, halign: 'right' },
+                0: { cellWidth: 30 },
+                1: { cellWidth: 56 },
+                2: { cellWidth: 14, halign: 'center' },
+                3: { cellWidth: 16, halign: 'center' },
+                4: { cellWidth: 28, halign: 'right' },
                 5: { cellWidth: 30, halign: 'right' },
             },
             margin: { left: LM, right: 18 },
+            didDrawCell: drawImageCell,
             foot: [
                 ['', '', '', '', 'Valor total antes de IVA:', fmt(c.subtotalLine1)],
                 ['', '', '', '', 'IVA (19%):', fmt(c.taxAmount)],
             ],
             footStyles: { fillColor: [245, 245, 245] as [number,number,number], textColor: DARKGRAY, fontStyle: 'bold', fontSize: 7.5, halign: 'right' },
         });
-        fy = ((doc as any).lastAutoTable?.finalY ?? y + 40) + 2;
+        fy = ((doc as any).lastAutoTable?.finalY ?? ay + 40) + 2;
 
         // Total destacado
         doc.setFillColor(...PRIMARY);
@@ -553,29 +688,33 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
         // Tabla productos + bloque Administración/Utilidad + IVA solo sobre util.
         const c = calc!;
         autoTable(doc, {
-            startY: y,
-            head: [['Producto / Referencia', 'Dimensiones', 'Ud.', 'Cant.', 'V. Unit. antes IVA', 'V. Total antes IVA']],
-            body: data.items.map((item, idx) => [
-                item.name,
-                item.dimensions || '—',
-                item.unit || 'un',
-                String(item.quantity),
-                fmt(c.items[idx].unitPriceBeforeTax),
-                fmt(c.items[idx].lineTotalBeforeTax),
-            ]),
+            startY: ay,
+            head: [['Imagen', 'Descripción', 'UM', 'Cantidad', 'V. Unit. antes IVA', 'V. Total antes IVA']],
+            body: data.items.map((item, idx) => {
+                const desc = [item.name, item.dimensions ? '\n' + item.dimensions : ''].join('');
+                return [
+                    '', // imagen via didDrawCell
+                    desc,
+                    item.unit || 'Und',
+                    String(item.quantity),
+                    fmt(c.items[idx].unitPriceBeforeTax),
+                    fmt(c.items[idx].lineTotalBeforeTax),
+                ];
+            }),
             theme: 'grid',
-            headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: 'bold', fontSize: 7.5, cellPadding: 3.5 },
-            bodyStyles: { fontSize: 7.5, cellPadding: 2.5, textColor: DARKGRAY },
+            headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: 'bold', fontSize: 7.5, cellPadding: 3.5, halign: 'center' },
+            bodyStyles: { fontSize: 7.5, cellPadding: 2.5, textColor: DARKGRAY, minCellHeight: 30, valign: 'middle' },
             alternateRowStyles: { fillColor: [250, 248, 244] as [number,number,number] },
             columnStyles: {
-                0: { cellWidth: 62 },
-                1: { cellWidth: 28 },
-                2: { cellWidth: 12, halign: 'center' },
-                3: { cellWidth: 12, halign: 'center' },
-                4: { cellWidth: 30, halign: 'right' },
+                0: { cellWidth: 30 },
+                1: { cellWidth: 56 },
+                2: { cellWidth: 14, halign: 'center' },
+                3: { cellWidth: 16, halign: 'center' },
+                4: { cellWidth: 28, halign: 'right' },
                 5: { cellWidth: 30, halign: 'right' },
             },
             margin: { left: LM, right: 18 },
+            didDrawCell: drawImageCell,
             foot: [
                 ['', '', '', '', 'Subtotal:', fmt(c.productsSubtotal)],
                 ['', '', '', '', `Administración (${data.adminPercent ?? 0}%):`, fmt(c.adminAmount ?? 0)],
@@ -585,7 +724,7 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
             ],
             footStyles: { fillColor: [245, 245, 245] as [number,number,number], textColor: DARKGRAY, fontStyle: 'bold', fontSize: 7.5, halign: 'right' },
         });
-        fy = ((doc as any).lastAutoTable?.finalY ?? y + 60) + 2;
+        fy = ((doc as any).lastAutoTable?.finalY ?? ay + 60) + 2;
 
         // Total destacado
         doc.setFillColor(...PRIMARY);
@@ -598,127 +737,52 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
         fy += 18;
     }
 
-    // ── CONDICIONES (después de precios) ──────────────────────────────────────
-    const pageH = doc.internal.pageSize.getHeight();
-    const ensureSpace = (need: number) => {
-        if (fy + need > pageH - 20) { doc.addPage(); fy = 25; }
-    };
-
-    // Section 2: ALCANCE
-    // El alcance habla de transporte/descargue/instalación. En cotizaciones
-    // SIMPLE con transporte activo, decimos "Sí incluye transporte" pero
-    // descargue e instalación siguen siendo "No incluye". En AIU, los 3 son
-    // "Sí incluye" porque están absorbidos por el % de Administración. Lo
-    // que el cliente lee aquí debe coincidir con lo que se le cobra.
-    ensureSpace(40);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...DARK);
-    doc.text('2. ALCANCE DE LA PROPUESTA:', LM, fy);
-    fy += 6;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(...DARKGRAY);
-
-    const lugarEntrega = (data.deliveryLocation && data.deliveryLocation.trim())
-        ? data.deliveryLocation.trim()
-        : (data.leadCity && data.leadCity.trim() ? `la ciudad de ${data.leadCity.trim()}` : 'el sitio acordado con el cliente');
-
-    let alcanceText: string;
-    if (mode === 'aiu') {
-        alcanceText = `La presente oferta de los elementos en concreto se entrega en ${lugarEntrega}, basado en la solicitud del cliente.`;
-    } else {
-        // simple: la oferta se entrega en planta o en la ciudad indicada
-        alcanceText = data.deliveryLocation && data.deliveryLocation.trim()
-            ? `La presente oferta de los elementos en concreto se entrega en ${lugarEntrega}, basado en la solicitud del cliente.`
-            : 'La presente oferta de los elementos en concreto se entrega en la planta de producción, Anillo Vial Km 1 + 800 Floridablanca – Girón, basado en la solicitud del cliente.';
-    }
-    const alcanceLines = doc.splitTextToSize(alcanceText, 174);
-    doc.text(alcanceLines, LM, fy);
-    fy += alcanceLines.length * 4.5 + 3;
-
-    // Bullets Sí/No incluye según modo
-    const includeRows: Array<{ verb: 'Sí incluye' | 'No incluye'; rest: string }> = (() => {
-        if (mode === 'aiu') {
-            return [
-                { verb: 'Sí incluye', rest: ' el transporte de los elementos al sitio de entrega.' },
-                { verb: 'Sí incluye', rest: ' el descargue del producto en concreto.' },
-                { verb: 'Sí incluye', rest: ' la instalación de las piezas cotizadas.' },
-            ];
+    // ── OBSERVACIONES (opcional, editable por el vendedor) ───────────────────
+    // El cliente pidió 7-may-2026: "una casilla opcional que podamos llenar
+    // manual donde podamos incluir observaciones". Renderizamos como caja
+    // redondeada con bullets si trae saltos de línea o '•' al inicio de línea.
+    if (data.observations && data.observations.trim()) {
+        fy += 8;
+        const obsRaw = data.observations.trim();
+        // Cada línea no-vacía se trata como un punto. Si la línea empieza
+        // con "• " o "- " la limpiamos para no duplicar viñetas.
+        const obsLines = obsRaw.split('\n').map(l => l.trim()).filter(Boolean).map(l =>
+            l.replace(/^[•\-]\s*/, '')
+        );
+        // Estimación de altura para reservar la caja
+        const wrapWidth = 168;
+        const lineHeight = 4.5;
+        let estHeight = 12; // título
+        for (const line of obsLines) {
+            const wrapped = doc.splitTextToSize(line, wrapWidth);
+            estHeight += wrapped.length * lineHeight + 1;
         }
-        // simple
-        return [
-            { verb: data.includesTransport ? 'Sí incluye' : 'No incluye', rest: ' el transporte de los elementos al sitio de entrega.' },
-            { verb: 'No incluye', rest: ' el descargue del producto en concreto.' },
-            { verb: 'No incluye', rest: ' la instalación de las piezas cotizadas.' },
-        ];
-    })();
+        ensureSpace(estHeight + 6);
 
-    for (const { verb, rest } of includeRows) {
-        ensureSpace(10);
-        doc.setFont('helvetica', 'normal');
-        doc.text('La oferta ', LM + 3, fy);
-        const x1 = LM + 3 + doc.getTextWidth('La oferta ');
+        const boxTop = fy;
+        const boxX   = LM;
+        const boxW   = 174;
+        // Título centrado
         doc.setFont('helvetica', 'bold');
-        doc.text(verb, x1, fy);
-        const x2 = x1 + doc.getTextWidth(verb);
+        doc.setFontSize(9);
+        doc.setTextColor(...DARK);
+        doc.text('OBSERVACIONES', boxX + boxW / 2, fy + 6, { align: 'center' });
+        let ofy = fy + 12;
         doc.setFont('helvetica', 'normal');
-        const restLines = doc.splitTextToSize(rest, 174 - (x2 - LM));
-        doc.text(restLines[0] || '', x2, fy);
-        if (restLines.length > 1) {
-            fy += 4.5;
-            doc.text(restLines.slice(1), LM + 3, fy);
+        doc.setFontSize(8.5);
+        doc.setTextColor(...DARKGRAY);
+        for (const line of obsLines) {
+            const wrapped = doc.splitTextToSize(line, wrapWidth - 6);
+            doc.text('•', boxX + 4, ofy);
+            doc.text(wrapped, boxX + 8, ofy);
+            ofy += wrapped.length * lineHeight + 1;
         }
-        fy += 5;
-    }
-
-    // Section 3: VIGENCIA
-    fy += 3;
-    ensureSpace(16);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...DARK);
-    doc.text('3. VIGENCIA DE LA OFERTA:', LM, fy);
-    fy += 6;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(...DARKGRAY);
-    doc.text(`La cotización tiene vigencia hasta el ${validUntil}.`, LM, fy);
-
-    // Section 4: PLAZO DE ENTREGA
-    fy += 10;
-    ensureSpace(20);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...DARK);
-    doc.text('4. PLAZO DE ENTREGA:', LM, fy);
-    fy += 6;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(...DARKGRAY);
-    const deliveryLines = doc.splitTextToSize(deliveryTime, 174);
-    doc.text(deliveryLines, LM, fy);
-    fy += deliveryLines.length * 4.5;
-
-    // Section 5: FORMA DE PAGO
-    fy += 6;
-    ensureSpace(30);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...DARK);
-    doc.text('5. FORMA DE PAGO:', LM, fy);
-    fy += 6;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.setTextColor(...DARKGRAY);
-    doc.text('La forma de pago pactada es de la siguiente manera:', LM, fy);
-    fy += 5.5;
-    for (const line of paymentTerms.split('\n')) {
-        if (!line.trim()) continue;
-        const wrapped = doc.splitTextToSize(line.trim(), 174);
-        ensureSpace(wrapped.length * 4.5 + 2);
-        doc.text(wrapped, LM, fy);
-        fy += wrapped.length * 4.5 + 1;
+        // Caja redondeada alrededor (color crema suave como el ejemplo)
+        doc.setDrawColor(...PRIMARY);
+        doc.setLineWidth(0.6);
+        doc.roundedRect(boxX, boxTop, boxW, ofy - boxTop + 2, 3, 3, 'S');
+        doc.setLineWidth(0.2);
+        fy = ofy + 6;
     }
 
     // ── CLOSING ───────────────────────────────────────────────────────────────

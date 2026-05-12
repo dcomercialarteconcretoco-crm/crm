@@ -110,7 +110,7 @@ export default function QuotesPage() {
                         name: i.name,
                         unitPrice: i.price,
                         quantity: i.quantity,
-                        unit: i.unit || 'un',
+                        unit: i.unit || 'Und',
                         image: i.image,
                         dimensions: i.dimensions,
                     })),
@@ -120,6 +120,7 @@ export default function QuotesPage() {
                     adminPercent: quote.adminPercent,
                     utilityPercent: quote.utilityPercent,
                     deliveryLocation: quote.deliveryLocation,
+                    observations: quote.observations,
                 });
             } else {
                 // Rama legacy: cotizaciones pre-modelo-nuevo. No pasamos `mode` para
@@ -141,7 +142,7 @@ export default function QuotesPage() {
                         name: i.name,
                         unitPrice: i.price,
                         quantity: i.quantity,
-                        unit: i.unit || 'un',
+                        unit: i.unit || 'Und',
                         image: i.image,
                         dimensions: i.dimensions,
                     })),
@@ -152,6 +153,7 @@ export default function QuotesPage() {
                     total: quote.numericTotal || 0,
                     shipping: quote.shipping,
                     shippingCity: quote.shippingCity,
+                    observations: quote.observations,
                 });
             }
             addNotification({ title: 'PDF generado', description: `Propuesta ${quote.number} descargada.`, type: 'success' });
