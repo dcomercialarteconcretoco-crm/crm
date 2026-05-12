@@ -371,6 +371,24 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     const formatCurrency = (v: number) =>
         new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v);
 
+    // Construye el string de dimensiones con etiquetas explícitas para el PDF.
+    // Si los campos vienen separados (de WooCommerce), generamos
+    // "Alto: Xcm\nAncho: Ycm\nLargo: Zcm\nPeso: Wkg". Si solo hay un string
+    // libre (porque el vendedor lo editó), lo usamos tal cual. Si no hay nada,
+    // retornamos undefined para que la celda quede limpia.
+    const formatDimensions = (i: { fallback?: string; height?: number | string; width?: number | string; length?: number | string; weight?: number | string }): string | undefined => {
+        const has = (v: any) => v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim() !== '0';
+        if (has(i.height) || has(i.width) || has(i.length) || has(i.weight)) {
+            const parts: string[] = [];
+            if (has(i.height)) parts.push(`Alto: ${i.height}cm`);
+            if (has(i.width))  parts.push(`Ancho: ${i.width}cm`);
+            if (has(i.length)) parts.push(`Largo: ${i.length}cm`);
+            if (has(i.weight)) parts.push(`Peso: ${i.weight}kg`);
+            return parts.join('\n');
+        }
+        return i.fallback && i.fallback.trim() ? i.fallback : undefined;
+    };
+
     const getCommonQuoteFields = (client: typeof clients[0], quoteNumber: string, mappedItems: typeof items) => ({
         number: quoteNumber, client: client.name, clientId: client.id,
         clientEmail: client.email || '', clientCompany: client.company || '',
@@ -435,6 +453,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         paymentTerms,
         sellerName: currentUser?.name || 'ArteConcreto',
         sellerPhone: currentUser?.phone || '',
+        sellerEmail: currentUser?.email || '',
         // Modo + datos crudos: el PDF llama a calculateQuoteTotals internamente
         // para no duplicar el cálculo aquí.
         mode: quoteMode,
@@ -444,7 +463,18 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             quantity: i.quantity,
             unit: i.unit,
             image: i.image,
-            dimensions: i.dimensions,
+            // Construimos el bloque de dimensiones con etiquetas explícitas
+            // (Alto/Ancho/Largo/Peso) — pedido del cliente 7-may-2026. Si
+            // WooCommerce trajo los campos separados los usamos; si solo viene
+            // el string libre, lo respetamos. Una persona puede haber editado
+            // dimensions manualmente y no queremos pisarle el texto.
+            dimensions: formatDimensions({
+                fallback: i.dimensions,
+                height: (i as any).height,
+                width:  (i as any).width,
+                length: (i as any).length,
+                weight: (i as any).weight,
+            }),
         })),
         includesTransport: quoteMode === 'simple' ? includesTransport : undefined,
         transportAmount: quoteMode === 'simple' && includesTransport ? transportAmount : undefined,

@@ -78,6 +78,11 @@ export default function QuotesPage() {
         setIsGenerating(quote.id);
         try {
             const client = clients.find(c => c.id === quote.clientId);
+            // El email del asesor sale en el footer y bajo la firma. Si la
+            // cotización guardó el sellerId, lo buscamos en el equipo actual
+            // para traer su email vigente; si no, cae al del usuario logueado.
+            const sellerForQuote = quote.sellerId ? sellers.find(s => s.id === quote.sellerId) : null;
+            const sellerEmailForQuote = sellerForQuote?.email || currentUser?.email || '';
             // Cotizaciones guardadas con el modelo NUEVO traen `quoteMode` y NO traen
             // `aiuData` con montos. Para esas pasamos los datos crudos y dejamos que
             // pdf-generator vuelva a calcular el desglose con `calculateQuoteTotals`.
@@ -105,6 +110,7 @@ export default function QuotesPage() {
                     paymentTerms: quote.paymentTerms,
                     sellerName: quote.sellerName,
                     sellerPhone: quote.sellerPhone,
+                    sellerEmail: sellerEmailForQuote,
                     mode: quote.quoteMode,
                     items: (quote.items || []).map(i => ({
                         name: i.name,
@@ -112,7 +118,22 @@ export default function QuotesPage() {
                         quantity: i.quantity,
                         unit: i.unit || 'Und',
                         image: i.image,
-                        dimensions: i.dimensions,
+                        // Reconstruimos las dimensiones con etiquetas (Alto/Ancho/
+                        // Largo/Peso) si la cotización guardó los campos separados.
+                        // Cotizaciones viejas que solo tienen el string libre se
+                        // muestran tal cual.
+                        dimensions: (() => {
+                            const has = (v: any) => v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim() !== '0';
+                            if (has(i.height) || has(i.width) || has(i.length) || has(i.weight)) {
+                                const parts: string[] = [];
+                                if (has(i.height)) parts.push(`Alto: ${i.height}cm`);
+                                if (has(i.width))  parts.push(`Ancho: ${i.width}cm`);
+                                if (has(i.length)) parts.push(`Largo: ${i.length}cm`);
+                                if (has(i.weight)) parts.push(`Peso: ${i.weight}kg`);
+                                return parts.join('\n');
+                            }
+                            return i.dimensions;
+                        })(),
                     })),
                     includesTransport: quote.includesTransport,
                     transportAmount: quote.transportAmount,
@@ -138,13 +159,29 @@ export default function QuotesPage() {
                     paymentTerms: quote.paymentTerms,
                     sellerName: quote.sellerName,
                     sellerPhone: quote.sellerPhone,
+                    sellerEmail: sellerEmailForQuote,
                     items: (quote.items || []).map(i => ({
                         name: i.name,
                         unitPrice: i.price,
                         quantity: i.quantity,
                         unit: i.unit || 'Und',
                         image: i.image,
-                        dimensions: i.dimensions,
+                        // Reconstruimos las dimensiones con etiquetas (Alto/Ancho/
+                        // Largo/Peso) si la cotización guardó los campos separados.
+                        // Cotizaciones viejas que solo tienen el string libre se
+                        // muestran tal cual.
+                        dimensions: (() => {
+                            const has = (v: any) => v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim() !== '0';
+                            if (has(i.height) || has(i.width) || has(i.length) || has(i.weight)) {
+                                const parts: string[] = [];
+                                if (has(i.height)) parts.push(`Alto: ${i.height}cm`);
+                                if (has(i.width))  parts.push(`Ancho: ${i.width}cm`);
+                                if (has(i.length)) parts.push(`Largo: ${i.length}cm`);
+                                if (has(i.weight)) parts.push(`Peso: ${i.weight}kg`);
+                                return parts.join('\n');
+                            }
+                            return i.dimensions;
+                        })(),
                     })),
                     isAIU: quote.isAIU,
                     aiuData: quote.aiuData,
