@@ -66,23 +66,34 @@ export default function Lead360Page() {
     const leadId = params.id as string;
     const lead = clients.find(c => c.id === leadId);
 
-    // Also find quotes linked to duplicate clients (same email)
-    const sameEmailClients = lead ? clients.filter(c =>
+    // Also find quotes linked to duplicate clients (same email).
+    // OJO: el match por email SÓLO aplica si el lead tiene un email no-vacío.
+    // Cuando lead.email es '' o null, '' === '' matcheaba todas las cotizaciones
+    // que tampoco tenían email — y un lead recién creado sin correo aparecía
+    // con un historial fantasma de cotizaciones ajenas (caso reportado:
+    // "Luis Diego Bayona Forero" con 4 cotizaciones Rejected sin haberle
+    // generado ninguna). Toda comparación por email ahora exige que el lead
+    // tenga email.
+    const normalizedLeadEmail = (lead?.email || '').toLowerCase().trim();
+    const hasLeadEmail = normalizedLeadEmail.length > 0;
+    const sameEmailClients = lead && hasLeadEmail ? clients.filter(c =>
         c.id !== leadId &&
-        c.email && lead.email &&
-        c.email.toLowerCase().trim() === lead.email.toLowerCase().trim()
+        c.email && c.email.toLowerCase().trim() === normalizedLeadEmail
     ) : [];
     const sameEmailIds = new Set([leadId, ...sameEmailClients.map(c => c.id)]);
-    const leadQuotesAll = quotes.filter(q => sameEmailIds.has(q.clientId) || q.clientEmail?.toLowerCase().trim() === lead?.email?.toLowerCase().trim());
+    const leadQuotesAll = quotes.filter(q =>
+        sameEmailIds.has(q.clientId) ||
+        (hasLeadEmail && q.clientEmail?.toLowerCase().trim() === normalizedLeadEmail)
+    );
 
     const normalize = (s?: string) => (s || '').toLowerCase().trim();
     const leadTasks = tasks.filter((t: any) =>
         sameEmailIds.has(t.clientId) ||
         leadQuotesAll.some(q => q.id === t.quoteId) ||
-        (lead?.email && t.email && normalize(t.email) === normalize(lead.email)) ||
+        (hasLeadEmail && t.email && normalize(t.email) === normalizedLeadEmail) ||
         (lead && t.client && (
-            normalize(t.client) === normalize(lead.company) ||
-            normalize(t.client) === normalize(lead.name)
+            (normalize(lead.company).length > 0 && normalize(t.client) === normalize(lead.company)) ||
+            (normalize(lead.name).length > 0 && normalize(t.client) === normalize(lead.name))
         ))
     );
     const leadQuotes = leadQuotesAll;

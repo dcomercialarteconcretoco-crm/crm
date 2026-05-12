@@ -142,13 +142,15 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         : autoPreviewNumber;
     const genQuoteNumber = () => previewNumber;
 
-    // Validación de duplicado: si el vendedor sobreescribe el número y ya
-    // existe otro registro con ese mismo quoteNumber, debemos bloquear el
-    // submit. Comparamos contra el snapshot actual de `quotes` ignorando la
-    // que está editándose. Caso real pedido: "que no haya duplicados de
-    // número en la misma cuenta — o avisar antes de guardar".
-    const normalizedQuoteNumber = previewNumber.trim().toLowerCase();
-    const conflictingQuote = !editQuoteId && normalizedQuoteNumber
+    // Validación de duplicado: SOLO aplica cuando el vendedor sobreescribió
+    // el consecutivo con un número manual. Si está usando el auto-preview
+    // (campo vacío), el contador del sistema garantiza unicidad y un
+    // false-positive bloquearía al vendedor de generar cualquier cotización
+    // (ej: contador desincronizado contra una cotización vieja con el mismo
+    // número — caso reportado el 7 de mayo: "no deja enviar a aprobación").
+    const isUsingCustomNumber = !editQuoteId && customQuoteNumber.trim().length > 0;
+    const normalizedQuoteNumber = customQuoteNumber.trim().toLowerCase();
+    const conflictingQuote = isUsingCustomNumber
         ? quotes.find(q =>
             (q.quoteNumber || q.number || '').trim().toLowerCase() === normalizedQuoteNumber
         )
