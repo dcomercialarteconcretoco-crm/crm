@@ -252,7 +252,19 @@ export default function QuotesPage() {
     };
 
     const handleAssignSeller = (quoteId: string, sellerName: string) => {
-        updateQuote(quoteId, { sellerName });
+        // El dropdown del vendedor manda el NAME, pero la cotización guarda
+        // sellerId Y sellerName (ambos los usa `ownsRecord` para decidir si
+        // un vendedor ve la cotización en su listado). Antes este handler
+        // sólo escribía sellerName, y entonces sellerId quedaba apuntando al
+        // dueño viejo — la cotización aparecía "de Juan" en el dropdown pero
+        // el filtro la seguía mostrando a Lisseth porque sellerId era el de
+        // ella. Caso reportado 13-may-2026: ART-352-2026 y ART-353-2026
+        // mostraban "Lisseth" en el dropdown aunque sellerId fuera Juan.
+        const seller = sellers.find(s => s.name === sellerName);
+        updateQuote(quoteId, {
+            sellerName,
+            sellerId: seller?.id || '',
+        });
         addNotification({ title: 'Vendedor asignado', description: `Cotización asignada a ${sellerName || 'Sin asignar'}.`, type: 'success' });
     };
 
