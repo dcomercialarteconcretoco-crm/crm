@@ -553,34 +553,59 @@ export default function PipelinePage() {
             } catch (error) { console.error("WooCommerce Sync Error", error); }
         }
 
-        const clientCompany = showNewClientForm ? inlineClient.company : clients.find(c => c.id === finalClientId)?.company || 'Cliente';
-        const clientName = showNewClientForm ? inlineClient.name : clients.find(c => c.id === finalClientId)?.name || 'Contacto';
+        const clientLookup = clients.find(c => c.id === finalClientId);
+        const clientCompany = showNewClientForm ? inlineClient.company : clientLookup?.company || 'Cliente';
+        const clientName = showNewClientForm ? inlineClient.name : clientLookup?.name || 'Contacto';
+        const clientEmail = showNewClientForm ? inlineClient.email : clientLookup?.email || '';
         const total = calculateNewDealTotal();
-        const quoteId = `QT-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`;
         const actualSeller = canReassign ? (sellers.find(s => s.id === newDeal.assignedTo) || currentUser) : currentUser;
 
-        const newTaskData: Omit<Task, 'id'> = {
-            title: newDeal.title || 'Nuevo Negocio',
+        // Una sola llamada a addQuote — AppContext genera el quoteNumber
+        // consecutivo (ART-XXX-YYYY) Y crea la task auto-ligada en stage
+        // 'proposal'. ANTES este flujo hacía addTask + addQuote por
+        // separado y se terminaba con DOS tasks: la manual (con quoteId
+        // "QT-YYYY-XXXXX" huérfano que no apuntaba a ninguna cotización
+        // real) + la auto. Ejemplo del bug en BD el 13-may-2026:
+        // t-1778688209755 con quoteId="QT-2026-09755" sin contraparte.
+        //
+        // Pasamos sellerId/sellerName EXPLÍCITOS desde `actualSeller`
+        // (no dependemos del `currentUser` que `getCommonQuoteFields`
+        // usaría en QuoteEngine) para no heredar el seller equivocado si
+        // la cookie del navegador está cruzada con otro vendedor (caso
+        // ART-352-2026: Juan creó la cotización en un navegador con
+        // sesión de Lisseth y quedó con seller de ella).
+        const quoteId = addQuote({
             client: clientCompany,
             clientId: finalClientId,
+            clientCompany: clientCompany,
+            clientEmail: clientEmail,
+            date: new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }),
+            total: `$${total.toLocaleString()}`,
+            numericTotal: total,
+            status: 'Sent',
+            sellerId: actualSeller.id,
+            sellerName: actualSeller.name,
+        });
+
+        // Override de la auto-task con los campos específicos que el
+        // modal del pipeline pidió: stage elegido, prioridad, título,
+        // tags y la actividad-de-sistema con el nombre del vendedor.
+        // React garantiza que el setTasks de addQuote se aplica antes
+        // que este updateTask (ambos van por la misma queue).
+        const autoTaskId = `t-qt-${quoteId}`;
+        updateTask(autoTaskId, {
+            title: newDeal.title || 'Nuevo Negocio',
             contactName: clientName,
-            value: `$${total.toLocaleString()}`,
-            numericValue: total,
             priority: newDeal.priority,
             tags: ['Nuevo', 'Cotizado'],
             aiScore: 0,
             source: 'Web',
-            assignedTo: actualSeller.name,
-            quoteId,
-            activities: [{ id: `sys-${Date.now()}`, type: 'system', content: `Negocio creado. Cotización ${quoteId} generada y enviada satisfactoriamente por ${actualSeller.name}.`, timestamp: new Date() }],
-            stageId: newDeal.stageId
-        };
+            stageId: newDeal.stageId,
+            activities: [{ id: `sys-${Date.now()}`, type: 'system', content: `Negocio creado por ${actualSeller.name}.`, timestamp: new Date() }],
+        });
 
-        const actualTaskId = addTask(newTaskData);
-
-        addQuote({ number: quoteId, client: clientCompany, clientId: finalClientId, date: new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }), total: `$${total.toLocaleString()}`, numericTotal: total, status: 'Sent', taskId: actualTaskId });
         addNotification({ title: 'Negocio Operativo', description: `Se ha vinculado a ${clientCompany} con el vendedor ${actualSeller.name}.`, type: 'success' });
-        addAuditLog({ userId: actualSeller.id, userName: actualSeller.name, userRole: sellers.find(s => s.id === actualSeller.id)?.role || 'Vendedor', action: 'QUOTE_SENT', targetId: actualTaskId, targetName: clientCompany, details: `Cotización ${quoteId} generada y enviada vía Motor IA`, verified: true });
+        addAuditLog({ userId: actualSeller.id, userName: actualSeller.name, userRole: sellers.find(s => s.id === actualSeller.id)?.role || 'Vendedor', action: 'QUOTE_SENT', targetId: autoTaskId, targetName: clientCompany, details: `Negocio creado en pipeline para ${clientCompany} · Total: $${total.toLocaleString()}`, verified: true });
 
         setIsProcessing(false);
         setIsNewModalOpen(false);

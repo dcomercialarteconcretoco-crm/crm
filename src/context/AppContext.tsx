@@ -1507,7 +1507,22 @@ REGLAS DE ORO:
         });
 
         setQuotes(prev => {
-            const next = [...prev, { ...quote, id: quoteId, taskId, quoteNumber, baseNumber: baseNumber || quoteNumber, version: quote.version || 1, sellerId, sellerName }];
+            const next = [...prev, {
+                ...quote,
+                id: quoteId,
+                taskId,
+                quoteNumber,
+                // Si el caller no pasó `number` explícito (p.ej. el flujo del
+                // pipeline "Crear nuevo negocio"), usar el quoteNumber generado
+                // para que `number` y `quoteNumber` queden coherentes. Antes
+                // pipeline pasaba `number="QT-YYYY-XXXXX"` y quedaba con dos
+                // identificadores incoherentes en la misma cotización.
+                number: quote.number || quoteNumber,
+                baseNumber: baseNumber || quoteNumber,
+                version: quote.version || 1,
+                sellerId,
+                sellerName,
+            }];
             persistSharedState({ quotes: next });
             return next;
         });
