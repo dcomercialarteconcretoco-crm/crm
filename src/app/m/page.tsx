@@ -126,7 +126,7 @@ export default function MobileDashboard() {
                         <div key={q.id} className="bg-white border border-border rounded-2xl p-4 flex items-center justify-between gap-3">
                             <div className="min-w-0">
                                 <p className="text-sm font-bold text-foreground truncate">{q.client}</p>
-                                <p className="text-xs text-muted-foreground">{q.number} · {q.total}</p>
+                                <p className="text-xs text-muted-foreground">{q.quoteNumber || q.number} · {q.total}</p>
                             </div>
                             <span className={clsx(
                                 'shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full',

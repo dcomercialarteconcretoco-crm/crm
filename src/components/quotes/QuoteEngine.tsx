@@ -41,7 +41,7 @@ interface QuoteEngineProps {
 }
 
 export default function QuoteEngine({ defaultClientId = '', editQuoteId }: QuoteEngineProps) {
-    const { products, clients, addClient, refreshProducts, addQuote, createQuoteVersion, updateQuote, quotes, currentUser, settings, addNotification, addAuditLog } = useApp();
+    const { products, clients, addClient, refreshProducts, addQuote, createQuoteVersion, updateQuote, quotes, currentUser, isHydrating, settings, addNotification, addAuditLog } = useApp();
     const isEditMode = !!editQuoteId;
     const editQuote = editQuoteId ? quotes.find(q => q.id === editQuoteId) : undefined;
     const genId = () => `${Date.now().toString(36)}-${Math.round(Math.random() * 1e4)}`;
@@ -389,51 +389,80 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         return i.fallback && i.fallback.trim() ? i.fallback : undefined;
     };
 
-    const getCommonQuoteFields = (client: typeof clients[0], quoteNumber: string, mappedItems: typeof items) => ({
-        number: quoteNumber, client: client.name, clientId: client.id,
-        clientEmail: client.email || '', clientCompany: client.company || '',
-        // Propagamos el companyId del cliente para que el detalle de empresa
-        // pueda agrupar todas las cotizaciones de sus contactos. Si el lead no
-        // tiene empresa asignada, queda undefined.
-        companyId: client.companyId || undefined,
-        date: new Date().toLocaleDateString('es-CO'),
-        total: formatCurrency(total), numericTotal: total, subtotal, tax,
-        items: mappedItems.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity, productId: i.productId, image: i.image, dimensions: i.dimensions, isCustom: i.isCustom, weight: i.weight, length: i.length, width: i.width, height: i.height })),
-        notes: '', sellerId: currentUser?.id || '', sellerName: currentUser?.name || '',
-        referencia,
-        // validUntil: si el vendedor no escribió uno manual, persistimos el computado
-        // (formatSpanishLongDate(today + validityDays)) así el PDF y el listado coinciden.
-        validUntil: validUntil.trim() || computedValidUntil,
-        deliveryTime, paymentTerms,
-        observations: observations.trim() || undefined,
-        sellerPhone: currentUser?.phone || '',
-        // Envío legacy (snapshot histórico — se queda por compatibilidad pero NO entra al total).
-        shipping: shipping > 0 ? shipping : undefined,
-        shippingCity: client.city || undefined,
-        shippingMode,
-        totalWeight: shippingMetrics.totalWeight || undefined,
-        totalVolume: shippingMetrics.totalVolume || undefined,
-        // Numbering
-        quoteNumber,
-        baseNumber: editQuote?.baseNumber || (editQuote ? undefined : newQuoteBase),
-        version: versionForDisplay,
-        // isAIU se mantiene por el sufijo "-AIU" del número y el listado de cotizaciones,
-        // pero la fuente de verdad es quoteMode. aiuData (legacy) se conserva tal cual si
-        // viene de una cotización vieja para que su PDF legacy siga renderizando bien.
-        isAIU,
-        aiuData: editQuote?.aiuData,
-        // ── Modelo nuevo ──────────────────────────────────────────────────────
-        quoteMode,
-        includesTransport: quoteMode === 'simple' ? includesTransport : undefined,
-        transportAmount: quoteMode === 'simple' && includesTransport ? (transportAmount || undefined) : undefined,
-        transportCity: quoteMode === 'simple' && includesTransport
-            ? (transportCity.trim() || client.city || undefined)
-            : undefined,
-        adminPercent: quoteMode === 'aiu' ? adminPercent : undefined,
-        utilityPercent: quoteMode === 'aiu' ? utilityPercent : undefined,
-        deliveryLocation: deliveryLocation.trim() || undefined,
-        validityDays,
-    });
+    const getQuoteOwner = (client: typeof clients[0]) => {
+        const sellerId = currentUser?.id || client.assignedTo || '';
+        const sellerName = currentUser?.name || client.assignedToName || '';
+        return { sellerId, sellerName };
+    };
+
+    const ensureQuoteOwnerReady = () => {
+        if (isHydrating) {
+            addNotification({
+                title: 'Sesión cargando',
+                description: 'Espera un momento y vuelve a guardar la cotización.',
+                type: 'alert',
+            });
+            return false;
+        }
+        if (!currentUser) {
+            addNotification({
+                title: 'Sesión requerida',
+                description: 'Vuelve a iniciar sesión antes de crear la cotización.',
+                type: 'alert',
+            });
+            return false;
+        }
+        return true;
+    };
+
+    const getCommonQuoteFields = (client: typeof clients[0], quoteNumber: string, mappedItems: typeof items) => {
+        const owner = getQuoteOwner(client);
+        return {
+            number: quoteNumber, client: client.name, clientId: client.id,
+            clientEmail: client.email || '', clientCompany: client.company || '',
+            // Propagamos el companyId del cliente para que el detalle de empresa
+            // pueda agrupar todas las cotizaciones de sus contactos. Si el lead no
+            // tiene empresa asignada, queda undefined.
+            companyId: client.companyId || undefined,
+            date: new Date().toLocaleDateString('es-CO'),
+            total: formatCurrency(total), numericTotal: total, subtotal, tax,
+            items: mappedItems.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity, productId: i.productId, image: i.image, dimensions: i.dimensions, isCustom: i.isCustom, weight: i.weight, length: i.length, width: i.width, height: i.height })),
+            notes: '', sellerId: owner.sellerId, sellerName: owner.sellerName,
+            referencia,
+            // validUntil: si el vendedor no escribió uno manual, persistimos el computado
+            // (formatSpanishLongDate(today + validityDays)) así el PDF y el listado coinciden.
+            validUntil: validUntil.trim() || computedValidUntil,
+            deliveryTime, paymentTerms,
+            observations: observations.trim() || undefined,
+            sellerPhone: currentUser?.phone || '',
+            // Envío legacy (snapshot histórico — se queda por compatibilidad pero NO entra al total).
+            shipping: shipping > 0 ? shipping : undefined,
+            shippingCity: client.city || undefined,
+            shippingMode,
+            totalWeight: shippingMetrics.totalWeight || undefined,
+            totalVolume: shippingMetrics.totalVolume || undefined,
+            // Numbering
+            quoteNumber,
+            baseNumber: editQuote?.baseNumber || (editQuote ? undefined : newQuoteBase),
+            version: versionForDisplay,
+            // isAIU se mantiene por el sufijo "-AIU" del número y el listado de cotizaciones,
+            // pero la fuente de verdad es quoteMode. aiuData (legacy) se conserva tal cual si
+            // viene de una cotización vieja para que su PDF legacy siga renderizando bien.
+            isAIU,
+            aiuData: editQuote?.aiuData,
+            // ── Modelo nuevo ──────────────────────────────────────────────────────
+            quoteMode,
+            includesTransport: quoteMode === 'simple' ? includesTransport : undefined,
+            transportAmount: quoteMode === 'simple' && includesTransport ? (transportAmount || undefined) : undefined,
+            transportCity: quoteMode === 'simple' && includesTransport
+                ? (transportCity.trim() || client.city || undefined)
+                : undefined,
+            adminPercent: quoteMode === 'aiu' ? adminPercent : undefined,
+            utilityPercent: quoteMode === 'aiu' ? utilityPercent : undefined,
+            deliveryLocation: deliveryLocation.trim() || undefined,
+            validityDays,
+        };
+    };
 
     // ── Datos para el PDF (un solo lugar) ───────────────────────────────────
     // Recibe quoteNumber porque puede ser nuevo o el mismo del editQuote, y
@@ -495,6 +524,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         const client = clients.find(c => c.id === selectedClientId);
         if (!client) { addNotification({ title: 'Cliente requerido', description: 'Selecciona un cliente.', type: 'alert' }); return; }
         if (items.length === 0) { addNotification({ title: 'Sin productos', description: 'Agrega al menos un producto.', type: 'alert' }); return; }
+        if (!ensureQuoteOwnerReady()) return;
         if (!assertNoQuoteNumberConflict()) return;
 
         const quoteNumber = genQuoteNumber();
@@ -603,6 +633,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     const executeGeneratePDF = async () => {
         const client = clients.find(c => c.id === selectedClientId);
         if (!client) return;
+        if (!ensureQuoteOwnerReady()) return;
         const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
 
         if (!isAdmin) {
@@ -781,6 +812,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     const executeEmail = async () => {
         const client = clients.find(c => c.id === selectedClientId);
         if (!client?.email) return;
+        if (!ensureQuoteOwnerReady()) return;
         const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
 
         if (!isAdmin) {

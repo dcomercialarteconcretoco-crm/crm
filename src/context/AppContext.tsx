@@ -928,6 +928,33 @@ REGLAS DE ORO:
         }
     };
 
+    // Revalida quotes y tasks contra la DB. Útil al volver al tab para que
+    // Valentina (que aprueba) vea cotizaciones nuevas que subieron los
+    // vendedores, y para que los vendedores vean cambios de status que hizo
+    // Valentina (Approved/ChangesRequested) sin necesidad de F5.
+    //
+    // Aplica la misma dedup-por-quoteNumber que el boot inicial — si dos rows
+    // comparten quoteNumber, gana la de id más alto (la más reciente).
+    const refreshQuotesAndTasks = async () => {
+        try {
+            const res = await fetch('/api/state?keys=quotes,tasks', { cache: 'no-store' });
+            if (!res.ok) return;
+            const data = await res.json();
+            if (Array.isArray(data.quotes)) {
+                const byNumber = new Map<string, Quote>();
+                for (const q of data.quotes as Quote[]) {
+                    const key = q.quoteNumber || q.id;
+                    const prev = byNumber.get(key);
+                    if (!prev || (q.id || '') > (prev.id || '')) byNumber.set(key, q);
+                }
+                setQuotes(Array.from(byNumber.values()));
+            }
+            if (Array.isArray(data.tasks)) setTasks(data.tasks);
+        } catch (error) {
+            console.warn('refreshQuotesAndTasks failed:', error);
+        }
+    };
+
     const refreshProducts = async () => {
         const attemptAt = new Date().toISOString();
         setProductSyncStatus(prev => ({
@@ -1112,17 +1139,16 @@ REGLAS DE ORO:
     // ── Revalidate on tab focus ──────────────────────────────────────────────
     // Por qué: el syncSharedData de arriba sólo corre al montar el AppProvider
     // (una vez por SPA boot). Si Valentina deja la pestaña abierta horas y
-    // mientras tanto otros vendedores suben contactos, ella sigue viendo el
-    // snapshot inicial. Cuando vuelve al tab, refrescamos clients/companies
-    // para que la pantalla refleje la verdad de la DB sin necesidad de F5.
+    // mientras tanto otros vendedores suben contactos o cotizaciones, ella
+    // sigue viendo el snapshot inicial. Cuando vuelve al tab, revalidamos
+    // contra la DB para que la pantalla refleje la verdad sin necesidad de F5.
     //
-    // Solo refresh data "viva" (clients, companies). Settings y stages pesan
-    // poco pero se actualizan vía updateSettings; tasks/quotes idem por sus
-    // mutaciones. Mantener este efecto chico evita pegarle al servidor cada
-    // vez que el user pasa de pestaña.
+    // Incluye quotes/tasks: caso reportado 13-may-2026 — Lisseth creó
+    // ART-352/ART-353 y Valentina (que ya las había autorizado en otra
+    // sesión) no las veía en /quotes hasta hacer F5 manual.
     useEffect(() => {
         if (typeof window === 'undefined') return;
-        const onFocus = () => { refreshClients(); refreshCompanies(); };
+        const onFocus = () => { refreshClients(); refreshCompanies(); refreshQuotesAndTasks(); };
         window.addEventListener('focus', onFocus);
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') onFocus();
@@ -1411,6 +1437,10 @@ REGLAS DE ORO:
     };
 
     const addQuote = (quote: Omit<Quote, 'id'>) => {
+        const clientForQuote = quote.clientId ? clients.find(c => c.id === quote.clientId) : undefined;
+        const sellerId = quote.sellerId || currentUser?.id || clientForQuote?.assignedTo || '';
+        const sellerName = quote.sellerName || currentUser?.name || clientForQuote?.assignedToName || '';
+
         // ── DEDUP GUARD ─────────────────────────────────────────────────────
         // Si llega con un quoteNumber que YA existe en memoria, significa que
         // alguien clickeó el botón dos veces o está re-entrando desde un
@@ -1420,7 +1450,7 @@ REGLAS DE ORO:
         if (quote.quoteNumber) {
             const dup = quotes.find(q => q.quoteNumber === quote.quoteNumber);
             if (dup) {
-                updateQuote(dup.id, quote);
+                updateQuote(dup.id, { ...quote, sellerId, sellerName });
                 return dup.id;
             }
         }
@@ -1458,7 +1488,7 @@ REGLAS DE ORO:
             tags: ['cotización'],
             aiScore: 50,
             source: 'Cotización CRM',
-            assignedTo: quote.sellerName || '',
+            assignedTo: sellerName,
             email: quote.clientEmail || '',
             activities: [{
                 id: `act-${Date.now()}`,
@@ -1477,7 +1507,7 @@ REGLAS DE ORO:
         });
 
         setQuotes(prev => {
-            const next = [...prev, { ...quote, id: quoteId, taskId, quoteNumber, baseNumber: baseNumber || quoteNumber, version: quote.version || 1 }];
+            const next = [...prev, { ...quote, id: quoteId, taskId, quoteNumber, baseNumber: baseNumber || quoteNumber, version: quote.version || 1, sellerId, sellerName }];
             persistSharedState({ quotes: next });
             return next;
         });

@@ -39,6 +39,10 @@ function fmt(n: number) {
     return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
 }
 
+function quoteDisplayNumber(quote: Quote) {
+    return quote.quoteNumber || quote.number || '';
+}
+
 export default function QuotesPage() {
     const { quotes, sellers, clients, tasks, currentUser, addNotification, deleteQuote, updateQuote } = useApp();
     const [searchTerm, setSearchTerm] = useState('');
@@ -47,7 +51,7 @@ export default function QuotesPage() {
 
     const validQuotes = useMemo(() =>
         quotes
-            .filter(q => q.number || q.client || q.total)
+            .filter(q => q.quoteNumber || q.number || q.client || q.total)
             .filter(q => ownsRecord(currentUser, q)),
         [quotes, currentUser]
     );
@@ -56,6 +60,8 @@ export default function QuotesPage() {
         const q = searchTerm.toLowerCase().trim();
         return validQuotes.filter(quote => {
             const matchSearch = !q ||
+                (quote.quoteNumber || '').toLowerCase().includes(q) ||
+                (quote.baseNumber || '').toLowerCase().includes(q) ||
                 (quote.number || '').toLowerCase().includes(q) ||
                 (quote.client || '').toLowerCase().includes(q) ||
                 (quote.clientEmail || '').toLowerCase().includes(q);
@@ -98,7 +104,7 @@ export default function QuotesPage() {
 
             if (isNewModel) {
                 await generateProposalPDF({
-                    quoteNumber: quote.number || 'AC-XXX',
+                    quoteNumber: quoteDisplayNumber(quote) || 'AC-XXX',
                     date: quote.date || new Date().toLocaleDateString('es-CO'),
                     leadName: quote.client || 'Cliente',
                     leadCompany: quote.clientCompany || client?.company || '',
@@ -147,7 +153,7 @@ export default function QuotesPage() {
                 // Rama legacy: cotizaciones pre-modelo-nuevo. No pasamos `mode` para
                 // que el PDF detecte legacy y use el formato antiguo con subtotal/tax/total.
                 await generateProposalPDF({
-                    quoteNumber: quote.number || 'AC-XXX',
+                    quoteNumber: quoteDisplayNumber(quote) || 'AC-XXX',
                     date: quote.date || new Date().toLocaleDateString('es-CO'),
                     leadName: quote.client || 'Cliente',
                     leadCompany: quote.clientCompany || client?.company || '',
@@ -193,7 +199,7 @@ export default function QuotesPage() {
                     observations: quote.observations,
                 });
             }
-            addNotification({ title: 'PDF generado', description: `Propuesta ${quote.number} descargada.`, type: 'success' });
+            addNotification({ title: 'PDF generado', description: `Propuesta ${quoteDisplayNumber(quote)} descargada.`, type: 'success' });
         } catch (e: any) {
             addNotification({ title: 'Error al generar PDF', description: e.message || 'Revisa la consola.', type: 'alert' });
         } finally {
@@ -204,7 +210,7 @@ export default function QuotesPage() {
     const handleSendWhatsApp = (quote: Quote) => {
         const client = clients.find(c => c.id === quote.clientId);
         const phone = client?.phone?.replace(/\D/g, '') || '';
-        const msg = encodeURIComponent(`Hola ${quote.client}, te enviamos la cotización ${quote.number} por valor de ${quote.total}. Quedamos atentos. ArteConcreto.`);
+        const msg = encodeURIComponent(`Hola ${quote.client}, te enviamos la cotización ${quoteDisplayNumber(quote)} por valor de ${quote.total}. Quedamos atentos. ArteConcreto.`);
         if (phone) {
             window.open(`https://wa.me/57${phone}?text=${msg}`, '_blank');
         } else {
@@ -222,7 +228,7 @@ export default function QuotesPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    quoteNumber: quote.number,
+                    quoteNumber: quoteDisplayNumber(quote),
                     clientName: quote.client,
                     clientEmail: quote.clientEmail,
                     clientCompany: quote.clientCompany || '',
@@ -253,7 +259,7 @@ export default function QuotesPage() {
     const exportCSV = () => {
         const rows = [
             ['Cotización', 'Cliente', 'Email', 'Monto', 'Estado', 'Vendedor', 'Fecha'],
-            ...filtered.map(q => [q.number || '', q.client || '', q.clientEmail || '', q.total || '', q.status || '', q.sellerName || '', q.date || '']),
+            ...filtered.map(q => [quoteDisplayNumber(q), q.client || '', q.clientEmail || '', q.total || '', q.status || '', q.sellerName || '', q.date || '']),
         ];
         const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
         const a = document.createElement('a');
@@ -384,7 +390,7 @@ export default function QuotesPage() {
                                         <Eye className="w-3.5 h-3.5 text-sky-500 shrink-0" />
                                     )}
                                     <div className="min-w-0">
-                                        <p className="text-sm font-bold text-foreground">{quote.number || '—'}</p>
+                                        <p className="text-sm font-bold text-foreground">{quoteDisplayNumber(quote) || '—'}</p>
                                         <p className="text-xs text-muted-foreground">{quote.date || '—'}</p>
                                     </div>
                                 </div>
