@@ -26,21 +26,30 @@ const PRIMARY_SECRET = (
 ).trim();
 
 // Every secret we'll accept when VERIFYING an incoming cookie — deduplicated,
-// trimmed, and filtered to non-empty. Verifying against each candidate means
-// a cookie signed under any historical member of the fallback chain still
-// works, which prevents the "every refresh logs me out" failure mode when
-// env vars change or drift between deploys.
-const CANDIDATE_SECRETS: string[] = Array.from(
-  new Set(
-    [
-      process.env.SESSION_SECRET,
-      process.env.SUPERADMIN_PASSWORD,
-      DEV_FALLBACK_SECRET,
-    ]
-      .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
-      .map((s) => s.trim())
-  )
-);
+// trimmed, and filtered to non-empty.
+//
+// Lógica de verificación:
+//   - Si SESSION_SECRET está set → SOLO ese secret verifica (no aceptamos
+//     cookies firmadas con SUPERADMIN_PASSWORD). Esto permite rotación de
+//     sesiones limpia: cuando seteamos un SESSION_SECRET nuevo, todas las
+//     cookies firmadas con el fallback viejo dejan de validar y todos
+//     re-loguean — caso de uso del 13-may-2026 para cortar sesiones cruzadas
+//     residuales entre vendedores.
+//   - Si NO está set (estado actual antes de la rotación) → caemos al
+//     fallback histórico de SUPERADMIN_PASSWORD + DEV_FALLBACK_SECRET para
+//     que el sistema siga funcionando sin downtime.
+const CANDIDATE_SECRETS: string[] = process.env.SESSION_SECRET
+  ? [process.env.SESSION_SECRET.trim()].filter((s) => s.length > 0)
+  : Array.from(
+      new Set(
+        [
+          process.env.SUPERADMIN_PASSWORD,
+          DEV_FALLBACK_SECRET,
+        ]
+          .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+          .map((s) => s.trim())
+      )
+    );
 
 export type SessionUser = {
   id: string;
