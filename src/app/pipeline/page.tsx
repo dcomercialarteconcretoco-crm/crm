@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     DndContext,
     closestCorners,
@@ -377,6 +377,17 @@ export default function PipelinePage() {
     const canReassign = hasPermission(currentUser, 'pipeline.reassign');
 
     const firstStageId: StageId = stages[0]?.id || 'cotizado';
+    // Search local del modal "Crear Nuevo Negocio". Con 275+ clientes en la
+    // BD scrollear el <select> era imposible — el cliente lo pidió explícito
+    // el 14-may-2026: "acá necesitamos un filtro! así es muy difícil".
+    const [clientSearch, setClientSearch] = useState('');
+    const filteredClients = useMemo(() => {
+        const q = clientSearch.trim().toLowerCase();
+        if (!q) return clients;
+        return clients.filter(c =>
+            ((c.company ?? '') + ' ' + (c.name ?? '') + ' ' + (c.email ?? '')).toLowerCase().includes(q)
+        );
+    }, [clients, clientSearch]);
     const [newDeal, setNewDeal] = useState({
         title: '',
         clientId: '',
@@ -972,12 +983,28 @@ export default function PipelinePage() {
                                             </button>
                                         </div>
                                         {!showNewClientForm ? (
-                                            <div className="relative">
-                                                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                                <select value={newDeal.clientId} onChange={e => setNewDeal({ ...newDeal, clientId: e.target.value })} className="w-full bg-muted border border-border rounded-xl pl-12 pr-4 py-3 text-foreground font-bold outline-none focus:border-primary focus:bg-white appearance-none">
-                                                    <option value="">Vincular Cliente existente...</option>
-                                                    {clients.map(c => <option key={c.id} value={c.id}>{c.company} • {c.name}</option>)}
-                                                </select>
+                                            <div className="space-y-2">
+                                                <div className="relative">
+                                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                                    <input
+                                                        type="text"
+                                                        value={clientSearch}
+                                                        onChange={e => setClientSearch(e.target.value)}
+                                                        placeholder="Buscar empresa, contacto o email…"
+                                                        className="w-full bg-white border border-border rounded-xl pl-12 pr-4 py-2.5 text-sm text-foreground outline-none focus:border-primary"
+                                                    />
+                                                </div>
+                                                <div className="relative">
+                                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                                    <select value={newDeal.clientId} onChange={e => setNewDeal({ ...newDeal, clientId: e.target.value })} className="w-full bg-muted border border-border rounded-xl pl-12 pr-4 py-3 text-foreground font-bold outline-none focus:border-primary focus:bg-white appearance-none">
+                                                        <option value="">
+                                                            {filteredClients.length === clients.length
+                                                                ? `Vincular Cliente existente… (${clients.length})`
+                                                                : `${filteredClients.length} de ${clients.length} coinciden`}
+                                                        </option>
+                                                        {filteredClients.map(c => <option key={c.id} value={c.id}>{c.company} • {c.name}</option>)}
+                                                    </select>
+                                                </div>
                                             </div>
                                         ) : (
                                             <div className="space-y-3 p-5 bg-muted border border-border rounded-2xl animate-in slide-in-from-top-2 duration-300">
