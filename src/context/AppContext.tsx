@@ -116,7 +116,14 @@ export interface QuoteItem {
 
 export interface Quote {
     id: string;
-    number: string;
+    /**
+     * Número legacy/display de la cotización. Antes era obligatorio, pero
+     * desde 14-may-2026 (fix del race del contador) `addQuote` puede recibir
+     * solo `quoteNumber` y resolver `number` server-side. Lo dejamos opcional
+     * para que callers como el pipeline no tengan que duplicar el string al
+     * pasárselo. addQuote garantiza que `number === quoteNumber` al persistir.
+     */
+    number?: string;
     client: string;
     clientId: string;
     clientEmail?: string;
