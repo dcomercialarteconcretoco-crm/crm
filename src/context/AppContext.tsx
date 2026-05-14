@@ -663,6 +663,49 @@ function sanitizeSettingsForStorage(settings: AppSettings): AppSettings {
     };
 }
 
+// Score-based dedup para `quotes`. Si dos cotizaciones comparten el mismo
+// quoteNumber (race condition del contador entre dos sesiones, p.ej. Juan
+// en QuoteEngine + Lisseth en pipeline al mismo tiempo), elegimos la que
+// tiene MÁS data — no la que tiene el id más nuevo. Antes el algoritmo
+// "higher id wins" descartaba cotizaciones llenas (con items, subtotal,
+// tax) en favor de versiones minimal-shape del pipeline.
+//
+// Score: 1 punto por cada campo "significativo" presente. Si empate,
+// gana la de id más alto (tiebreaker estable).
+function scoreQuoteCompleteness(q: Quote): number {
+    let s = 0;
+    if (Array.isArray(q.items) && q.items.length > 0) s += 5; // items pesa más
+    if (typeof q.subtotal === 'number' && q.subtotal > 0) s += 2;
+    if (typeof q.tax === 'number' && q.tax > 0) s += 2;
+    if (q.clientEmail && q.clientEmail.trim()) s += 1;
+    if (q.clientCompany && q.clientCompany.trim()) s += 1;
+    if (q.sellerPhone && q.sellerPhone.trim()) s += 1;
+    if (q.referencia && q.referencia.trim()) s += 1;
+    if (q.validUntil && q.validUntil.trim()) s += 1;
+    if (q.observations && q.observations.trim()) s += 1;
+    return s;
+}
+
+export function dedupQuotesByCompleteness(quotes: Quote[]): Quote[] {
+    const byNumber = new Map<string, Quote>();
+    for (const q of quotes) {
+        const key = q.quoteNumber || q.id;
+        const prev = byNumber.get(key);
+        if (!prev) {
+            byNumber.set(key, q);
+            continue;
+        }
+        const scoreQ = scoreQuoteCompleteness(q);
+        const scorePrev = scoreQuoteCompleteness(prev);
+        if (scoreQ > scorePrev) {
+            byNumber.set(key, q);
+        } else if (scoreQ === scorePrev && (q.id || '') > (prev.id || '')) {
+            byNumber.set(key, q);
+        }
+    }
+    return Array.from(byNumber.values());
+}
+
 // --- Provider ---
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -941,13 +984,7 @@ REGLAS DE ORO:
             if (!res.ok) return;
             const data = await res.json();
             if (Array.isArray(data.quotes)) {
-                const byNumber = new Map<string, Quote>();
-                for (const q of data.quotes as Quote[]) {
-                    const key = q.quoteNumber || q.id;
-                    const prev = byNumber.get(key);
-                    if (!prev || (q.id || '') > (prev.id || '')) byNumber.set(key, q);
-                }
-                setQuotes(Array.from(byNumber.values()));
+                setQuotes(dedupQuotesByCompleteness(data.quotes as Quote[]));
             }
             if (Array.isArray(data.tasks)) setTasks(data.tasks);
         } catch (error) {
@@ -1099,22 +1136,20 @@ REGLAS DE ORO:
                     const stateData = await stateRes.json();
                     if (Array.isArray(stateData.tasks)) setTasks(stateData.tasks);
                     if (Array.isArray(stateData.quotes)) {
-                        // Dedup por quoteNumber: si hay duplicadas históricas,
-                        // conservamos la más reciente (id más alto = creada después).
-                        // Evita que duplicadas viejas sigan apareciendo en la cola
-                        // de aprobaciones o en cotizaciones.
-                        const byNumber = new Map<string, Quote>();
-                        for (const q of stateData.quotes as Quote[]) {
-                            const key = q.quoteNumber || q.id;
-                            const prev = byNumber.get(key);
-                            if (!prev || (q.id || '') > (prev.id || '')) byNumber.set(key, q);
-                        }
-                        const deduped = Array.from(byNumber.values());
-                        setQuotes(deduped);
-                        // Si hubo reducción, persistir para limpiar la DB también.
-                        if (deduped.length !== stateData.quotes.length) {
-                            persistSharedState({ quotes: deduped });
-                        }
+                        // Dedup por quoteNumber: si dos sesiones generaron el
+                        // mismo número por race condition del contador, elegimos
+                        // la cotización con MÁS DATOS REALES (items, subtotal,
+                        // tax, sellerName explícito) en vez de la "más reciente
+                        // por id". Caso real 13-may-2026: Juan creó ART-353
+                        // con productos vía QuoteEngine y Lisseth creó otro
+                        // ART-353 vacío vía pipeline; el dedup viejo "higher
+                        // id wins" tiraba la full de Juan a la basura.
+                        //
+                        // No persistimos el dedup de vuelta a DB — solo
+                        // arreglamos la vista. Mantener los duplicados en
+                        // crm_state nos da chance de recuperar data si el
+                        // score-pick fue incorrecto.
+                        setQuotes(dedupQuotesByCompleteness(stateData.quotes as Quote[]));
                     }
                     if (Array.isArray(stateData.notifications)) setNotifications(stateData.notifications);
                     if (Array.isArray(stateData.auditLogs)) setAuditLogs(stateData.auditLogs);
@@ -1392,9 +1427,17 @@ REGLAS DE ORO:
             }
         }).catch((error) => {
             console.warn('Failed to persist client:', error);
+            // Rollback local también en error de red. Antes solo notificábamos
+            // y dejábamos al cliente en state — el siguiente F5 lo barría
+            // (porque /api/clients no lo tenía) y el vendedor sentía que "se
+            // perdió el contacto". Síntoma reportado 14-may-2026: "a veces
+            // suben clientes y nunca quedan guardados". Ahora si la red falla,
+            // el cliente desaparece de la UI inmediatamente y la notificación
+            // pide que se vuelva a intentar.
+            setClients(prev => prev.filter(c => c.id !== id));
             addNotification({
-                title: 'Error de red',
-                description: `No se pudo guardar ${newClient.name}. Revisá la conexión.`,
+                title: 'Error de red al guardar contacto',
+                description: `No se pudo guardar ${newClient.name}. Revisá la conexión e intentalo otra vez.`,
                 type: 'alert',
             });
         });
