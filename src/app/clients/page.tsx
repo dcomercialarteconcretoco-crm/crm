@@ -180,12 +180,15 @@ export default function ClientsPage() {
 
         const headers = ['Nombre', 'Empresa', 'Cargo', 'Email', 'Telefono', 'Ciudad', 'Categoria', 'Estado', 'Score', 'LTV', 'Fecha de Registro', 'Ultimo Contacto'];
         const rows = exportableClients.map(client => [
-            `"${client.name.replace(/"/g, '""')}"`,
-            `"${client.company.replace(/"/g, '""')}"`,
-            `"${(client.position || '').replace(/"/g, '""')}"`,
-            `"${client.email.replace(/"/g, '""')}"`,
-            `"${client.phone.replace(/"/g, '""')}"`,
-            `"${client.city.replace(/"/g, '""')}"`,
+            // Null-safe: cualquier campo opcional o NULL en DB (email, position,
+            // city, phone, etc.) explotaba el export si era undefined/null.
+            // Forzamos string vacío con `?? ''` antes de .replace.
+            `"${(client.name ?? '').replace(/"/g, '""')}"`,
+            `"${(client.company ?? '').replace(/"/g, '""')}"`,
+            `"${(client.position ?? '').replace(/"/g, '""')}"`,
+            `"${(client.email ?? '').replace(/"/g, '""')}"`,
+            `"${(client.phone ?? '').replace(/"/g, '""')}"`,
+            `"${(client.city ?? '').replace(/"/g, '""')}"`,
             `"${client.category}"`,
             `"${client.status}"`,
             client.score,
@@ -324,10 +327,17 @@ export default function ClientsPage() {
                 // Ownership scoping: Vendedores only see clients assigned to them
                 if (!ownsRecord(currentUser, client)) return false;
 
+                // Null-safe: client.email es nullable en DB (10+ clientes hoy
+                // sin email). Si el vendedor tipea cualquier cosa, el OR llega
+                // hasta client.email.toLowerCase() y crashea con
+                // "Cannot read properties of null (reading 'toLowerCase')".
+                // Reportado 14-may-2026: "error en clientes! no funciona".
+                // Lo mismo aplica defensivo a name/company por si llegan NULL
+                // de alguna importación bulk legacy.
                 const matchesSearch = normalizedSearch.length === 0 ||
-                    client.name.toLowerCase().includes(normalizedSearch) ||
-                    client.company.toLowerCase().includes(normalizedSearch) ||
-                    client.email.toLowerCase().includes(normalizedSearch);
+                    (client.name ?? '').toLowerCase().includes(normalizedSearch) ||
+                    (client.company ?? '').toLowerCase().includes(normalizedSearch) ||
+                    (client.email ?? '').toLowerCase().includes(normalizedSearch);
                 if (!matchesSearch) return false;
                 if (filters.minLtv && client.ltv < parseInt(filters.minLtv)) return false;
                 if (filters.maxLtv && client.ltv > parseInt(filters.maxLtv)) return false;
