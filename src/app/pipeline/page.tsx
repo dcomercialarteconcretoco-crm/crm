@@ -574,7 +574,7 @@ export default function PipelinePage() {
         // la cookie del navegador está cruzada con otro vendedor (caso
         // ART-352-2026: Juan creó la cotización en un navegador con
         // sesión de Lisseth y quedó con seller de ella).
-        const quoteId = addQuote({
+        const quoteId = await addQuote({
             client: clientCompany,
             clientId: finalClientId,
             clientCompany: clientCompany,

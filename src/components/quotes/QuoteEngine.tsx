@@ -520,7 +520,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     // Reemplaza el patrón anterior (3 variantes por acción) por un solo flujo
     // por cotización. Si la cotización ya existe y estaba en Approved/Sent, al
     // ser editada vuelve a PendingApproval automáticamente.
-    const requestApproval = () => {
+    const requestApproval = async () => {
         const client = clients.find(c => c.id === selectedClientId);
         if (!client) { addNotification({ title: 'Cliente requerido', description: 'Selecciona un cliente.', type: 'alert' }); return; }
         if (items.length === 0) { addNotification({ title: 'Sin productos', description: 'Agrega al menos un producto.', type: 'alert' }); return; }
@@ -551,7 +551,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 pendingAction: undefined,
             });
         } else {
-            addQuote({
+            await addQuote({
                 ...commonFields,
                 status: 'PendingApproval',
                 requestedBy: currentUser?.id || '',
@@ -654,7 +654,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 quoteId = editQuoteId;
             } else {
                 quoteNumber = genQuoteNumber();
-                quoteId = addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Draft' as const });
+                quoteId = await addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Draft' as const });
             }
             await generateProposalPDF(buildPdfData(client, quoteNumber));
             addAuditLog({ userId: currentUser?.id || '', userName: currentUser?.name || 'Sistema', userRole: currentUser?.role || 'Vendedor', action: 'QUOTE_SENT', targetId: client.id, targetName: client.company || client.name, details: `Cotización ${quoteNumber} ${isEditMode ? 'editada' : 'generada'} · Total: ${formatCurrency(total)}`, verified: true });
@@ -766,7 +766,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         }
     };
 
-    const executeWhatsApp = () => {
+    const executeWhatsApp = async () => {
         const client = clients.find(c => c.id === selectedClientId);
         if (!client?.phone) return;
         const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
@@ -776,7 +776,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         }
         if (!assertNoQuoteNumberConflict()) return;
         const quoteNumber = genQuoteNumber();
-        addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Sent' as const });
+        await addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Sent' as const });
         const phone = client.phone.replace(/\D/g, '');
         const intlPhone = phone.startsWith('57') ? phone : `57${phone}`;
         const itemsList = items.map(i => `  • ${i.name} x${i.quantity}`).join('\n');
@@ -825,7 +825,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         try {
             const sentAt = new Date().toISOString();
             const quoteNumber = genQuoteNumber();
-            const quoteId = addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Draft' as const, sentAt, sentByName: currentUser?.name || '', sentById: currentUser?.id || '' });
+            const quoteId = await addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Draft' as const, sentAt, sentByName: currentUser?.name || '', sentById: currentUser?.id || '' });
             const res = await fetch('/api/quotes/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -935,9 +935,9 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                     <div className="flex items-center gap-2 flex-wrap">
                         <button
                             type="button"
-                            onClick={() => {
+                            onClick={async () => {
                                 if (!editingQuote) return;
-                                const newId = createQuoteVersion(editingQuote.id);
+                                const newId = await createQuoteVersion(editingQuote.id);
                                 if (newId) addNotification({ title: 'Nueva versión creada', description: `Se creó V${editingQuote.version || 1} (revisión) para seguir editando`, type: 'success' });
                             }}
                             className="flex items-center gap-1.5 px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl bg-white border border-border/60 text-foreground hover:bg-accent/50 hover:border-primary/30 transition-all"

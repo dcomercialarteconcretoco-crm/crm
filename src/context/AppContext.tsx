@@ -608,9 +608,9 @@ interface AppContextType {
     /** Borra la empresa. Los contactos asociados pierden el FK pero conservan el nombre como snapshot. */
     deleteCompany: (id: string) => Promise<{ ok: true } | { ok: false; error: string }>;
     addTask: (task: Omit<Task, 'id'>) => string;
-    addQuote: (quote: Omit<Quote, 'id'>) => string;
-    createQuoteVersion: (quoteId: string) => string;
-    createAIUVersion: (quoteId: string) => string;
+    addQuote: (quote: Omit<Quote, 'id'>) => Promise<string>;
+    createQuoteVersion: (quoteId: string) => Promise<string>;
+    createAIUVersion: (quoteId: string) => Promise<string>;
     importClients: (rows: Omit<Client, 'id'>[]) => void;
     importQuotes: (rows: Omit<Quote, 'id'>[]) => void;
     clearTestData: () => void;
@@ -1479,7 +1479,7 @@ REGLAS DE ORO:
         return id;
     };
 
-    const addQuote = (quote: Omit<Quote, 'id'>) => {
+    const addQuote = async (quote: Omit<Quote, 'id'>): Promise<string> => {
         const clientForQuote = quote.clientId ? clients.find(c => c.id === quote.clientId) : undefined;
         const sellerId = quote.sellerId || currentUser?.id || clientForQuote?.assignedTo || '';
         const sellerName = quote.sellerName || currentUser?.name || clientForQuote?.assignedToName || '';
@@ -1501,21 +1501,56 @@ REGLAS DE ORO:
         const quoteId = `q-${Date.now()}`;
         const taskId = `t-qt-${quoteId}`;
 
-        // Auto-generate quote number ART-XXX-YYYY if not already provided
+        // Auto-generate quote number ART-XXX-YYYY si no vino explícito.
+        // FIX DEFINITIVO 14-may-2026: usamos un endpoint server-side que
+        // hace INCREMENT atómico del contador en una sola sentencia SQL.
+        // Antes dos sesiones podían leer settings.quoteNextNumber=352
+        // simultáneamente (cada tab tenía su propio React state stale),
+        // ambas generaban ART-352, ambas guardaban → duplicate quote y
+        // pérdida garantizada al primer dedup. Ahora el server serializa
+        // los increments por row-lock de Postgres y cada llamada recibe
+        // un número único garantizado.
+        //
+        // Fallback al método viejo (local counter) si el endpoint falla
+        // — preferimos cotización con número potencialmente duplicado
+        // antes que bloquear al vendedor por una falla de red.
         let quoteNumber = quote.quoteNumber;
         let baseNumber  = quote.baseNumber;
         if (!quoteNumber) {
-            const prefix  = settings.quotePrefix  || 'ART';
-            const year    = settings.quoteYear    || new Date().getFullYear();
-            const num     = settings.quoteNextNumber ?? 300;
-            quoteNumber = `${prefix}-${num}-${year}`;
-            baseNumber  = quoteNumber;
-            // Increment counter
-            setSettings(prev => {
-                const next = { ...prev, quoteNextNumber: (prev.quoteNextNumber ?? 300) + 1 };
-                persistSharedState({ settings: sanitizeSettingsForStorage(next) });
-                return next;
-            });
+            try {
+                const r = await fetch('/api/quotes/reserve-number', {
+                    method: 'POST',
+                    cache: 'no-store',
+                });
+                if (r.ok) {
+                    const data = await r.json();
+                    if (typeof data.quoteNumber === 'string' && data.quoteNumber) {
+                        quoteNumber = data.quoteNumber;
+                        baseNumber = quoteNumber;
+                        // Espejamos el contador en settings local para que la
+                        // UI de /settings muestre el próximo número actualizado
+                        // sin esperar al siguiente full-sync.
+                        if (typeof data.number === 'number') {
+                            setSettings(prev => ({ ...prev, quoteNextNumber: data.number + 1 }));
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn('[addQuote] reserve-number failed, falling back to local counter', err);
+            }
+            // Fallback (local counter, race-prone — solo si el endpoint falló)
+            if (!quoteNumber) {
+                const prefix  = settings.quotePrefix  || 'ART';
+                const year    = settings.quoteYear    || new Date().getFullYear();
+                const num     = settings.quoteNextNumber ?? 300;
+                quoteNumber = `${prefix}-${num}-${year}`;
+                baseNumber  = quoteNumber;
+                setSettings(prev => {
+                    const next = { ...prev, quoteNextNumber: (prev.quoteNextNumber ?? 300) + 1 };
+                    persistSharedState({ settings: sanitizeSettingsForStorage(next) });
+                    return next;
+                });
+            }
         }
 
         // Auto-create a pipeline task in "Propuesta Enviada" stage
@@ -1581,7 +1616,7 @@ REGLAS DE ORO:
     };
 
     // Create a new version of an existing quote (V1, V2, ... — inserted before the year)
-    const createQuoteVersion = (quoteId: string): string => {
+    const createQuoteVersion = async (quoteId: string): Promise<string> => {
         const original = quotes.find(q => q.id === quoteId);
         if (!original) return '';
         const base = original.baseNumber || original.quoteNumber || original.number || '';
@@ -1602,7 +1637,7 @@ REGLAS DE ORO:
     };
 
     // Create AIU version from an approved/sent quote — bumps V to the next consecutive
-    const createAIUVersion = (quoteId: string): string => {
+    const createAIUVersion = async (quoteId: string): Promise<string> => {
         const original = quotes.find(q => q.id === quoteId);
         if (!original) return '';
         const base = original.baseNumber || original.quoteNumber || original.number || '';

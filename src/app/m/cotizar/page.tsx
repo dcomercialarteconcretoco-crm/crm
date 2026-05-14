@@ -60,7 +60,7 @@ export default function MobileCotizar() {
         const now = new Date();
         const num = `COT-M-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${String(now.getTime()).slice(-4)}`;
 
-        addQuote({
+        await addQuote({
             number: num,
             client: clientName.trim(),
             clientId: '',
