@@ -1930,6 +1930,35 @@ REGLAS DE ORO:
                 });
             }
         }
+
+        // Sync pipeline task value/numericValue cuando la cotización cambia
+        // de monto. Caso reportado 15-may-2026: ART-356 se editó (3 bancas
+        // → 2 bancas) y /cotizaciones mostraba el nuevo total $4.644.000
+        // pero el card del pipeline seguía mostrando $5.853.782 viejo
+        // porque updateQuote solo sincronizaba `stageId`, no los campos
+        // financieros de la task vinculada.
+        //
+        // No tocamos title/contactName/stageId/assignedTo aquí — el vendedor
+        // pudo haberlos editado a mano en la card y no queremos pisarle.
+        // Solo sincronizamos value (currency string) y numericValue (para
+        // sumas del kanban) cuando la cotización los cambió.
+        const totalChanged = updates.total !== undefined && updates.total !== prevQuote?.total;
+        const numericChanged = updates.numericTotal !== undefined && updates.numericTotal !== prevQuote?.numericTotal;
+        if (totalChanged || numericChanged) {
+            setTasks(prev => {
+                const linked = prev.find(t => (t as any).quoteId === quoteId);
+                if (!linked) return prev;
+                const next = prev.map(t => {
+                    if ((t as any).quoteId !== quoteId) return t;
+                    const patch: Partial<Task> = {};
+                    if (totalChanged && updates.total !== undefined) patch.value = updates.total;
+                    if (numericChanged && updates.numericTotal !== undefined) patch.numericValue = updates.numericTotal;
+                    return { ...t, ...patch };
+                });
+                persistSharedState({ tasks: next });
+                return next;
+            });
+        }
     };
 
     const deleteQuote = (quoteId: string) => {
