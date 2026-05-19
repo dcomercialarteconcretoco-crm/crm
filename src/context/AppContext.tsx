@@ -154,6 +154,13 @@ export interface Quote {
     paymentTerms?: string;      // Forma de pago (texto libre)
     /** Notas extras del vendedor — bloque opcional con bullets al final del PDF. */
     observations?: string;
+    /**
+     * Si true, el PDF no muestra el nombre del contacto (persona) — solo
+     * empresa + ciudad. Default false (muestra ambos). Pedido del cliente
+     * 16-may-2026 sobre cotizaciones a instituciones donde el destinatario
+     * es la empresa sin persona específica.
+     */
+    hideContactName?: boolean;
     sellerPhone?: string;       // Teléfono del asesor
     sellerId?: string;
     sellerName?: string;

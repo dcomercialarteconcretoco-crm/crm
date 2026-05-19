@@ -59,6 +59,12 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     // El isAIU del número es derivado del mode; lo dejamos sincronizado con un
     // alias para no tocar el resto del flujo de numeración (formatQuoteNumber).
     const isAIU = quoteMode === 'aiu';
+    // PDF: ocultar nombre del contacto (solo mostrar empresa + ciudad).
+    // Pedido del cliente 16-may-2026 — cotizaciones a instituciones sin
+    // persona específica como destinatario.
+    const [hideContactName, setHideContactName] = useState<boolean>(
+        editQuote?.hideContactName ?? false
+    );
     // (modo simple) — checkbox + monto (CON IVA, lo escribe el vendedor) + ciudad
     const [includesTransport, setIncludesTransport] = useState<boolean>(
         editQuote?.includesTransport ?? false
@@ -434,6 +440,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             validUntil: validUntil.trim() || computedValidUntil,
             deliveryTime, paymentTerms,
             observations: observations.trim() || undefined,
+            hideContactName,
             sellerPhone: currentUser?.phone || '',
             // Envío legacy (snapshot histórico — se queda por compatibilidad pero NO entra al total).
             shipping: shipping > 0 ? shipping : undefined,
@@ -476,6 +483,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         leadCompany: client.company,
         leadEmail: client.email,
         leadCity: client.city,
+        hideContactName,
         referencia,
         validUntil: validUntil.trim() || computedValidUntil,
         deliveryTime,
@@ -1026,6 +1034,31 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                 </div>
                             )}
                         </div>
+
+                        {/* Opción: ocultar nombre del contacto en el PDF.
+                            Solo aparece cuando hay un cliente seleccionado (no tiene
+                            sentido configurarlo antes de elegir destinatario).
+                            Pedido del cliente 16-may-2026 — cotizaciones a
+                            instituciones donde el destinatario es la empresa sin
+                            persona específica (ej. "NM ARQUITECTOS" sin Valery). */}
+                        {selectedClientId && !showNewClientForm && (
+                            <label className="flex items-start gap-3 px-4 py-3 rounded-2xl border border-border/60 bg-white/60 cursor-pointer hover:bg-white/80 transition-all">
+                                <input
+                                    type="checkbox"
+                                    checked={hideContactName}
+                                    onChange={e => setHideContactName(e.target.checked)}
+                                    className="mt-0.5 w-4 h-4 accent-primary cursor-pointer"
+                                />
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-black text-foreground">
+                                        Ocultar nombre del contacto en el PDF
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                                        En el PDF solo aparece la empresa y la ciudad. Útil cuando la cotización va dirigida a la institución sin persona específica.
+                                    </p>
+                                </div>
+                            </label>
+                        )}
 
                         {showNewClientForm && (
                             <div className="rounded-2xl border border-primary/20 bg-white/80 p-5 space-y-4">

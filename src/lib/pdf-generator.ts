@@ -26,6 +26,14 @@ export interface ProposalData {
     leadCompany?: string;
     leadEmail?: string;
     leadCity?: string;
+    /**
+     * Si true, el PDF NO muestra `leadName` (la persona de contacto), solo
+     * empresa + ciudad. Útil cuando la cotización va dirigida a la
+     * institución sin destinatario nominado. Default: false (muestra ambos).
+     * Pedido del cliente 16-may-2026 sobre ART-369-2026 dirigida a
+     * "NM ARQUITECTOS" donde no querían el nombre de Valery Castellanos.
+     */
+    hideContactName?: boolean;
     referencia?: string;
     validUntil?: string;     // string ya formateado (ej: "24 de Mayo de 2026")
     deliveryTime?: string;
@@ -393,14 +401,19 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
         doc.setTextColor(...DARK);
         doc.text(company.toUpperCase(), LM, y);
 
-        if (name && name.toLowerCase().trim() !== company.toLowerCase().trim()) {
+        // El nombre de la persona se muestra solo si:
+        //  1. El vendedor NO activó `hideContactName` (opción explícita en el form), Y
+        //  2. La persona es distinta del nombre de la empresa (evita "NM ARQUITECTOS\nNM ARQUITECTOS")
+        if (!data.hideContactName && name && name.toLowerCase().trim() !== company.toLowerCase().trim()) {
             y += 6;
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(10);
             doc.text(name.toUpperCase(), LM, y);
         }
-    } else {
-        // Sin empresa: la persona pasa a ser el destinatario principal.
+    } else if (!data.hideContactName) {
+        // Sin empresa Y sin hideContactName: la persona pasa a ser el destinatario
+        // principal. Si hideContactName=true Y no hay empresa, el bloque queda en
+        // blanco — caso raro que el vendedor maneja explícitamente.
         y += 7;
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(11);
