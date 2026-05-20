@@ -59,7 +59,6 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     const user = await loadFreshSession(request);
     if (!user) return NextResponse.json({ error: 'No autorizado.' }, { status: 401 });
-    if (!isAdmin(user.role)) return NextResponse.json({ error: 'Requiere SuperAdmin/Admin.' }, { status: 403 });
     if (!hasDatabase()) return NextResponse.json({ error: 'DB no configurada.' }, { status: 503 });
 
     const body = await request.json();
@@ -70,6 +69,16 @@ export async function POST(request: NextRequest) {
         : (body.lead ? [body.lead] : []);
     if (incoming.length === 0) {
         return NextResponse.json({ error: 'lead o leads[] requerido' }, { status: 400 });
+    }
+
+    // Bulk (CSV) requiere admin — toca la cola compartida del equipo.
+    // Single lead (formulario manual del vendedor) lo puede hacer cualquier
+    // usuario logueado: caso reportado 20-may-2026 — los chicos necesitan
+    // poner manualmente leads de licitaciones en pre-directorio antes de
+    // saber si ganan el proyecto.
+    const isBulk = Array.isArray(body.leads);
+    if (isBulk && !isAdmin(user.role)) {
+        return NextResponse.json({ error: 'Bulk requiere SuperAdmin/Admin.' }, { status: 403 });
     }
 
     await ensureCrmSchema();

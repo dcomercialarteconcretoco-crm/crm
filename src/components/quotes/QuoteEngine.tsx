@@ -296,6 +296,15 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         }));
     };
 
+    // Set directo de cantidad — pedido 20-may-2026: "que nos deje poner las
+    // cantidades también manual, esa cotización lleva 200 unidades, nos toco
+    // dar click 200 veces al +". Clampea a mínimo 1 (parseInt('') o 0 quedan
+    // en 1 para no romper el total).
+    const setQty = (id: string, val: number) => {
+        const safe = Number.isFinite(val) && val >= 1 ? Math.floor(val) : 1;
+        setItems(prev => prev.map(i => i.id === id ? { ...i, quantity: safe } : i));
+    };
+
     const updatePrice = (id: string, val: number) => {
         setItems(prev => prev.map(i => i.id === id ? { ...i, price: val } : i));
     };
@@ -1400,7 +1409,22 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                                     className="w-6 h-6 rounded-lg bg-white border border-border/60 flex items-center justify-center hover:bg-rose-50 hover:border-rose-300 transition-all">
                                                     <Minus className="w-3 h-3" />
                                                 </button>
-                                                <span className="w-6 text-center text-xs font-black">{item.quantity}</span>
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    step={1}
+                                                    inputMode="numeric"
+                                                    value={item.quantity}
+                                                    onFocus={(e) => e.currentTarget.select()}
+                                                    onChange={(e) => setQty(item.id, parseInt(e.target.value, 10))}
+                                                    onBlur={(e) => {
+                                                        // Si el vendedor borró todo y dejó vacío, restaurar a 1.
+                                                        const v = parseInt(e.target.value, 10);
+                                                        if (!Number.isFinite(v) || v < 1) setQty(item.id, 1);
+                                                    }}
+                                                    className="w-12 text-center text-xs font-black bg-white border border-border/60 rounded-lg outline-none focus:border-primary px-1 py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                    aria-label={`Cantidad de ${item.name}`}
+                                                />
                                                 <button onClick={() => updateQty(item.id, 1)}
                                                     className="w-6 h-6 rounded-lg bg-white border border-border/60 flex items-center justify-center hover:bg-primary/10 hover:border-primary/40 transition-all">
                                                     <Plus className="w-3 h-3" />

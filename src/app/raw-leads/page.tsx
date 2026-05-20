@@ -298,35 +298,42 @@ export default function RawLeadsPage() {
                         Pre-directorio. Sube datos masivos, asigná a vendedor, y al aprobar pasan al directorio principal.
                     </p>
                 </div>
-                {isAdmin && (
-                    <div className="flex flex-wrap gap-2">
-                        <button
-                            onClick={() => downloadCSV(RAW_TEMPLATE, 'plantilla-leads-crudos.csv')}
-                            className="bg-white border border-border rounded-xl px-3 py-2 text-xs font-bold flex items-center gap-2 hover:border-primary/40 hover:bg-primary/5 transition-all"
-                        >
-                            <Download className="w-3.5 h-3.5" /> Plantilla CSV
-                        </button>
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept=".csv"
-                            className="hidden"
-                            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }}
-                        />
-                        <button
-                            onClick={() => fileInputRef.current?.click()}
-                            className="bg-white border border-border rounded-xl px-3 py-2 text-xs font-bold flex items-center gap-2 hover:border-primary/40 hover:bg-primary/5 transition-all"
-                        >
-                            <Upload className="w-3.5 h-3.5" /> Subir CSV
-                        </button>
-                        <button
-                            onClick={() => setShowManualForm(true)}
-                            className="bg-primary text-black font-bold rounded-xl px-3 py-2 text-xs flex items-center gap-2 hover:brightness-105 shadow transition-all"
-                        >
-                            <Plus className="w-3.5 h-3.5" /> Lead Manual
-                        </button>
-                    </div>
-                )}
+                {/* Acciones del header. "Lead Manual" lo ven TODOS los vendedores
+                    (pedido 20-may-2026: los chicos necesitan crear leads de
+                    licitaciones en pre-directorio sin esperar a un admin).
+                    Plantilla/Subir CSV se quedan admin-only porque son bulk
+                    operations que tocan la cola compartida. */}
+                <div className="flex flex-wrap gap-2">
+                    {isAdmin && (
+                        <>
+                            <button
+                                onClick={() => downloadCSV(RAW_TEMPLATE, 'plantilla-leads-crudos.csv')}
+                                className="bg-white border border-border rounded-xl px-3 py-2 text-xs font-bold flex items-center gap-2 hover:border-primary/40 hover:bg-primary/5 transition-all"
+                            >
+                                <Download className="w-3.5 h-3.5" /> Plantilla CSV
+                            </button>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".csv"
+                                className="hidden"
+                                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }}
+                            />
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="bg-white border border-border rounded-xl px-3 py-2 text-xs font-bold flex items-center gap-2 hover:border-primary/40 hover:bg-primary/5 transition-all"
+                            >
+                                <Upload className="w-3.5 h-3.5" /> Subir CSV
+                            </button>
+                        </>
+                    )}
+                    <button
+                        onClick={() => setShowManualForm(true)}
+                        className="bg-primary text-black font-bold rounded-xl px-3 py-2 text-xs flex items-center gap-2 hover:brightness-105 shadow transition-all"
+                    >
+                        <Plus className="w-3.5 h-3.5" /> Lead Manual
+                    </button>
+                </div>
             </div>
 
             {/* Status tabs */}
