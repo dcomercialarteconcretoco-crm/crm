@@ -287,6 +287,93 @@ function useDebounce<T>(value: T, ms: number): T {
     return debounced;
 }
 
+// Combobox típico: input para tipear + lista desplegable. Lo usamos para
+// sectores (300+ opciones) donde el <select> nativo es imposible de navegar.
+// Cuando hay un valor seleccionado, lo mostramos como placeholder del input
+// para que el usuario sepa cuál tiene activo sin perder el campo de búsqueda.
+function SearchableSelect({
+    placeholder, anyLabel, value, onChange, options, minWidth = 220,
+}: {
+    placeholder: string;
+    anyLabel: string;
+    value: string;
+    onChange: (v: string) => void;
+    options: FacetOption[];
+    minWidth?: number;
+}) {
+    const [query, setQuery] = useState('');
+    const [open, setOpen] = useState(false);
+    const filtered = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        if (!q) return options.slice(0, 80);
+        return options.filter(o => o.value.toLowerCase().includes(q)).slice(0, 80);
+    }, [options, query]);
+    return (
+        <div className="relative" style={{ minWidth }}>
+            <input
+                type="text"
+                placeholder={value ? `▼ ${value.length > 30 ? value.slice(0, 30) + '…' : value}` : placeholder}
+                value={query}
+                onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+                onFocus={() => setOpen(true)}
+                onBlur={() => setTimeout(() => setOpen(false), 180)}
+                className={clsx(
+                    "w-full bg-muted border border-border rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-primary focus:bg-white",
+                    value && "border-primary/40 bg-primary/5"
+                )}
+            />
+            {value && (
+                <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => { onChange(''); setQuery(''); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 hover:bg-rose-100 rounded transition-colors"
+                    title="Limpiar"
+                >
+                    <X className="w-3 h-3 text-muted-foreground" />
+                </button>
+            )}
+            {open && (
+                <ul className="absolute top-full left-0 right-0 mt-1 max-h-72 overflow-y-auto bg-white border border-border rounded-xl shadow-xl z-30">
+                    <li>
+                        <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { onChange(''); setQuery(''); setOpen(false); }}
+                            className={clsx(
+                                'block w-full text-left px-3 py-2 text-xs hover:bg-primary/5 transition-colors border-b border-border/50',
+                                !value && 'bg-primary/10 font-black'
+                            )}
+                        >
+                            {anyLabel}
+                        </button>
+                    </li>
+                    {filtered.map(o => (
+                        <li key={o.value}>
+                            <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => { onChange(o.value); setQuery(''); setOpen(false); }}
+                                className={clsx(
+                                    'flex w-full items-start justify-between gap-2 text-left px-3 py-2 text-xs hover:bg-primary/5 transition-colors',
+                                    value === o.value && 'bg-primary/10 font-bold'
+                                )}
+                                title={o.value}
+                            >
+                                <span className="line-clamp-2 flex-1">{o.value}</span>
+                                <span className="text-muted-foreground shrink-0 tabular-nums">{o.count.toLocaleString()}</span>
+                            </button>
+                        </li>
+                    ))}
+                    {filtered.length === 0 && (
+                        <li className="px-3 py-3 text-xs text-muted-foreground text-center">Sin coincidencias</li>
+                    )}
+                </ul>
+            )}
+        </div>
+    );
+}
+
 export default function RawLeadsPage() {
     const { currentUser, sellers, addNotification } = useApp();
     const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
@@ -668,16 +755,14 @@ export default function RawLeadsPage() {
                         <option key={d.value} value={d.value}>{d.value} ({d.count.toLocaleString()})</option>
                     ))}
                 </select>
-                <select
+                <SearchableSelect
+                    placeholder="Todas las ciudades"
+                    anyLabel="Todas las ciudades"
                     value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    className="bg-muted border border-border rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-primary min-w-[150px]"
-                >
-                    <option value="">Todas las ciudades</option>
-                    {facets.cities.map(c => (
-                        <option key={c.value} value={c.value}>{c.value} ({c.count.toLocaleString()})</option>
-                    ))}
-                </select>
+                    onChange={setCity}
+                    options={facets.cities}
+                    minWidth={180}
+                />
                 <select
                     value={size}
                     onChange={(e) => setSize(e.target.value)}
@@ -690,18 +775,14 @@ export default function RawLeadsPage() {
                         </option>
                     ))}
                 </select>
-                <select
+                <SearchableSelect
+                    placeholder="Cualquier sector (escribir para buscar)"
+                    anyLabel="Cualquier sector"
                     value={activity}
-                    onChange={(e) => setActivity(e.target.value)}
-                    className="bg-muted border border-border rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-primary min-w-[200px] max-w-[260px]"
-                >
-                    <option value="">Cualquier sector</option>
-                    {facets.activities.map(a => (
-                        <option key={a.value} value={a.value} title={a.value}>
-                            {a.value.length > 40 ? a.value.slice(0, 40) + '…' : a.value} ({a.count})
-                        </option>
-                    ))}
-                </select>
+                    onChange={setActivity}
+                    options={facets.activities}
+                    minWidth={260}
+                />
                 {isAdmin && (
                     <select
                         value={assignedFilter}
