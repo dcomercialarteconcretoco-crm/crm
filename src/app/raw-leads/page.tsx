@@ -806,11 +806,14 @@ export default function RawLeadsPage() {
                         className="w-full bg-muted border border-border rounded-xl pl-10 pr-3 py-2 text-xs outline-none focus:border-primary focus:bg-white"
                     />
                 </div>
-                {hasAnyFilter && (
-                    <button onClick={clearFilters} className="text-xs font-bold text-muted-foreground hover:text-rose-600 flex items-center gap-1 px-2">
-                        <X className="w-3 h-3" /> Limpiar
-                    </button>
-                )}
+                <button
+                    onClick={clearFilters}
+                    disabled={!hasAnyFilter}
+                    className="bg-white border border-border rounded-xl px-3 py-2 text-xs font-bold text-muted-foreground hover:border-rose-300 hover:text-rose-700 hover:bg-rose-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 transition-all"
+                    title={hasAnyFilter ? 'Limpiar todos los filtros activos' : 'No hay filtros activos'}
+                >
+                    <X className="w-3 h-3" /> Limpiar filtros
+                </button>
             </div>
 
             {/* Bulk actions */}
