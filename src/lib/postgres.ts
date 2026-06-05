@@ -34,7 +34,23 @@ export function getPool() {
   return global.__crmPool;
 }
 
-export async function ensureCrmSchema() {
+// Singleton: ejecutamos los CREATE/ALTER IF NOT EXISTS una sola vez por
+// proceso. Antes corrían en cada request, sumando varios cientos de ms a cada
+// endpoint que llama a la DB. En Vercel cada lambda warm reusa esta promesa.
+let schemaPromise: Promise<void> | null = null;
+
+export async function ensureCrmSchema(): Promise<void> {
+  if (!schemaPromise) {
+    schemaPromise = doEnsureCrmSchema().catch(err => {
+      // Si falla, permitimos retry en la próxima request.
+      schemaPromise = null;
+      throw err;
+    });
+  }
+  return schemaPromise;
+}
+
+async function doEnsureCrmSchema() {
   const pool = getPool();
 
   await pool.query(`
@@ -403,6 +419,18 @@ export async function ensureCrmSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
+  // Columnas para bases masivas (ej. +70k empresas CO). Se agregan vía ALTER
+  // para no perder los registros existentes cuando ya hay tabla.
+  await pool.query(`
+    ALTER TABLE crm_raw_leads
+      ADD COLUMN IF NOT EXISTS department TEXT,
+      ADD COLUMN IF NOT EXISTS address TEXT,
+      ADD COLUMN IF NOT EXISTS activities TEXT[],
+      ADD COLUMN IF NOT EXISTS company_size TEXT,
+      ADD COLUMN IF NOT EXISTS id_type TEXT,
+      ADD COLUMN IF NOT EXISTS legal_rep TEXT,
+      ADD COLUMN IF NOT EXISTS registration_date DATE
+  `);
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_crm_raw_leads_status
     ON crm_raw_leads (status, created_at DESC);
@@ -411,4 +439,36 @@ export async function ensureCrmSchema() {
     CREATE INDEX IF NOT EXISTS idx_crm_raw_leads_assigned
     ON crm_raw_leads (assigned_to, status);
   `);
+  // Filtros por geografía y tamaño usados en la UI de Leads Crudos cuando hay
+  // bases masivas. Btree porque la cardinalidad de departamento/tamaño es baja
+  // y permitimos combinarlos con status.
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_crm_raw_leads_department
+    ON crm_raw_leads (department) WHERE department IS NOT NULL;
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_crm_raw_leads_city
+    ON crm_raw_leads (city) WHERE city IS NOT NULL;
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_crm_raw_leads_size
+    ON crm_raw_leads (company_size) WHERE company_size IS NOT NULL;
+  `);
+  // GIN sobre array de actividades CIIU — soporta "match any of these" con &&.
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_crm_raw_leads_activities
+    ON crm_raw_leads USING GIN (activities);
+  `);
+  // pg_trgm habilita búsqueda ILIKE rápida en 70k+ filas. Si la extensión no
+  // está disponible (raro en Neon), seguimos con seq scan — funciona aunque
+  // más lento.
+  try {
+    await pool.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_crm_raw_leads_name_trgm
+      ON crm_raw_leads USING GIN (LOWER(name) gin_trgm_ops);
+    `);
+  } catch {
+    // Sin trigram: la búsqueda ILIKE igual funciona, solo más lenta.
+  }
 }
