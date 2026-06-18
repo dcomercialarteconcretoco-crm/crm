@@ -86,7 +86,7 @@ interface SidebarProps {
 export function Sidebar({ isCompact }: SidebarProps) {
   const pathname = usePathname();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
-  const { currentUser, quotes } = useApp();
+  const { currentUser, quotes, assignedLeadsCount } = useApp();
 
   const isSuperAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
 
@@ -191,7 +191,24 @@ export function Sidebar({ isCompact }: SidebarProps) {
                     )
                   )}
 
-                  {isActive && !isCompact && item.name !== 'Autorizaciones' && (
+                  {/* Badge "leads por trabajar" en "Leads Crudos" — cuántos le
+                      asignaron al vendedor y aún no contactó. Es el aviso EVIDENTE
+                      de que tiene cola pendiente del día. Solo para vendedores: el
+                      admin no recibe leads, asigna (su counts.assigned sería el
+                      total del equipo, no una cola personal). */}
+                  {item.name === 'Leads Crudos' && !isSuperAdmin && assignedLeadsCount > 0 && (
+                    isCompact ? (
+                      <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-primary text-black text-[9px] font-black flex items-center justify-center">
+                        {assignedLeadsCount > 9 ? '9+' : assignedLeadsCount}
+                      </span>
+                    ) : (
+                      <span className="ml-auto min-w-[20px] h-[18px] px-1.5 rounded-full bg-primary text-black text-[10px] font-black flex items-center justify-center animate-pulse">
+                        {assignedLeadsCount > 99 ? '99+' : assignedLeadsCount}
+                      </span>
+                    )
+                  )}
+
+                  {isActive && !isCompact && item.name !== 'Autorizaciones' && item.name !== 'Leads Crudos' && (
                     <div className="absolute right-3 w-1.5 h-1.5 bg-primary rounded-full" />
                   )}
                 </Link>

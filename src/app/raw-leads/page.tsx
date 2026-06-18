@@ -41,6 +41,7 @@ import {
     ChevronLeft,
     ChevronRight,
     X,
+    RotateCcw,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { clsx } from 'clsx';
@@ -374,8 +375,32 @@ function SearchableSelect({
     );
 }
 
+// ¿La fecha ISO cae hoy? Usado para marcar "NUEVO HOY" los leads que el admin
+// asignó en la jornada actual, así el vendedor distingue los del día de los que
+// arrastra de días anteriores (pedido de Valentina 18-jun-2026).
+function isToday(iso: string | null): boolean {
+    if (!iso) return false;
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return false;
+    const now = new Date();
+    return d.getFullYear() === now.getFullYear()
+        && d.getMonth() === now.getMonth()
+        && d.getDate() === now.getDate();
+}
+
+// Link de WhatsApp a partir de un teléfono colombiano. Deja que el vendedor
+// escriba al lead con un toque (clave para "que los trabajen"). Si no logra un
+// número confiable, devuelve null y la UI cae a un tel: normal.
+function waLink(phone: string | null): string | null {
+    if (!phone) return null;
+    let d = phone.replace(/\D/g, '').replace(/^0+/, '');
+    if (d.length === 10) d = '57' + d;
+    if (d.length === 12 && d.startsWith('57')) return `https://wa.me/${d}`;
+    return null;
+}
+
 export default function RawLeadsPage() {
-    const { currentUser, sellers, addNotification } = useApp();
+    const { currentUser, sellers, addNotification, refreshAssignedLeadsCount } = useApp();
     const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
 
     const [leads, setLeads] = useState<RawLead[]>([]);
@@ -386,6 +411,10 @@ export default function RawLeadsPage() {
 
     // Filtros
     const [statusFilter, setStatusFilter] = useState<string>('all');
+    // Los vendedores arrancan viendo su cola "Por trabajar" (assigned), no el
+    // 'all' que mezcla contactados/aprobados. Lo seteamos una sola vez cuando ya
+    // se conoce el rol (currentUser puede llegar null en el primer render).
+    const didInitFilter = useRef(false);
     const [department, setDepartment] = useState('');
     const [city, setCity] = useState('');
     const [size, setSize] = useState('');
@@ -461,6 +490,15 @@ export default function RawLeadsPage() {
 
     // Reset paginación cuando cambia cualquier filtro.
     useEffect(() => { setPage(1); }, [statusFilter, department, city, size, activity, assignedFilter, search]);
+
+    // Default por rol (una sola vez): el vendedor cae en "Por trabajar".
+    useEffect(() => {
+        if (didInitFilter.current || !currentUser) return;
+        didInitFilter.current = true;
+        if (currentUser.role !== 'SuperAdmin' && currentUser.role !== 'Admin') {
+            setStatusFilter('assigned');
+        }
+    }, [currentUser]);
 
     const allSelected = leads.length > 0 && leads.every(l => selected.has(l.id));
     const toggleSelectAll = () => {
@@ -595,6 +633,7 @@ export default function RawLeadsPage() {
             addNotification({ title: 'Promovidos', description: `${data.promoted} leads pasaron al directorio.`, type: 'success' });
             setSelected(new Set());
             await refresh();
+            refreshAssignedLeadsCount();
         } else {
             addNotification({ title: 'Error al promover', description: data.error || 'No se pudo aprobar.', type: 'alert' });
         }
@@ -612,6 +651,7 @@ export default function RawLeadsPage() {
             addNotification({ title: 'Descartados', description: `${selected.size} leads marcados como descartados.`, type: 'success' });
             setSelected(new Set());
             await refresh();
+            refreshAssignedLeadsCount();
         }
     };
 
@@ -626,6 +666,33 @@ export default function RawLeadsPage() {
             addNotification({ title: 'Contactados', description: `${selected.size} marcados como contactados.`, type: 'success' });
             setSelected(new Set());
             await refresh();
+            refreshAssignedLeadsCount();
+        }
+    };
+
+    // Cierre del día manual: devuelve a la bandeja los asignados sin contactar.
+    // Lo mismo que dispara el cron a las 18:00, pero a demanda del admin.
+    const handleReleaseStale = async () => {
+        if (!confirm('¿Devolver a la bandeja TODOS los leads asignados que aún no se contactaron?\n\nVolverán a "Sin asignar" y quedarán libres para reasignar. Los que ya tienen contacto registrado (o aprobados) NO se tocan.')) return;
+        const res = await fetch('/api/raw-leads', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'release-stale' }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+            addNotification({
+                title: data.released > 0 ? 'Leads devueltos a la bandeja' : 'Nada que devolver',
+                description: data.released > 0
+                    ? `${data.released} lead(s) no trabajados volvieron a "Sin asignar".`
+                    : 'No había leads asignados sin contactar.',
+                type: 'success',
+            });
+            setSelected(new Set());
+            await Promise.all([refresh(), refreshFacets()]);
+            refreshAssignedLeadsCount();
+        } else {
+            addNotification({ title: 'Error', description: data.error || 'No se pudo devolver los leads.', type: 'alert' });
         }
     };
 
@@ -657,10 +724,12 @@ export default function RawLeadsPage() {
                         <span className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center">
                             <Inbox className="w-5 h-5 text-primary" />
                         </span>
-                        Bandeja de Leads Crudos
+                        {isAdmin ? 'Bandeja de Leads Crudos' : 'Mis Leads Asignados'}
                     </h1>
                     <p className="text-sm text-muted-foreground mt-1">
-                        Pre-directorio. Sube datos masivos, asigná a vendedor, y al aprobar pasan al directorio principal.
+                        {isAdmin
+                            ? 'Pre-directorio. Sube datos masivos, asigná a vendedor, y al aprobar pasan al directorio principal.'
+                            : 'Estos son los leads que te asignaron para trabajar. Contactá cada uno y marcá Aprobado (al directorio) o Descartado.'}
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -685,6 +754,13 @@ export default function RawLeadsPage() {
                                 className="bg-white border border-border rounded-xl px-3 py-2 text-xs font-bold flex items-center gap-2 hover:border-primary/40 hover:bg-primary/5 transition-all disabled:opacity-50"
                             >
                                 <Upload className="w-3.5 h-3.5" /> Subir CSV
+                            </button>
+                            <button
+                                onClick={handleReleaseStale}
+                                title="Devolver a la bandeja los leads asignados que no se alcanzaron a contactar (cierre del día). También corre solo a las 18:00 lun-vie."
+                                className="bg-white border border-border rounded-xl px-3 py-2 text-xs font-bold flex items-center gap-2 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700 transition-all"
+                            >
+                                <RotateCcw className="w-3.5 h-3.5" /> Devolver no trabajados
                             </button>
                         </>
                     )}
@@ -718,16 +794,23 @@ export default function RawLeadsPage() {
                 </div>
             )}
 
-            {/* Status tabs */}
+            {/* Status tabs — para el vendedor arrancan en "Por trabajar" y se
+                ocultan las pestañas que no le aplican (Sin asignar). */}
             <div className="flex flex-wrap gap-2">
-                {[
+                {(isAdmin ? [
                     { id: 'all', label: 'Todos', count: counts.all || 0 },
                     { id: 'new', label: 'Sin asignar', count: counts.new || 0 },
                     { id: 'assigned', label: 'Asignados', count: counts.assigned || 0 },
                     { id: 'contacted', label: 'Contactados', count: counts.contacted || 0 },
                     { id: 'approved', label: 'Aprobados', count: counts.approved || 0 },
                     { id: 'discarded', label: 'Descartados', count: counts.discarded || 0 },
-                ].map(tab => (
+                ] : [
+                    { id: 'assigned', label: 'Por trabajar', count: counts.assigned || 0 },
+                    { id: 'contacted', label: 'Contactados', count: counts.contacted || 0 },
+                    { id: 'approved', label: 'Aprobados', count: counts.approved || 0 },
+                    { id: 'discarded', label: 'Descartados', count: counts.discarded || 0 },
+                    { id: 'all', label: 'Todos', count: counts.all || 0 },
+                ]).map(tab => (
                     <button
                         key={tab.id}
                         onClick={() => { setStatusFilter(tab.id); setSelected(new Set()); }}
@@ -868,7 +951,11 @@ export default function RawLeadsPage() {
                         {!loading && leads.length === 0 && (
                             <tr><td colSpan={9} className="text-center py-12 text-muted-foreground">
                                 <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                                <p className="text-sm">No hay leads en este filtro.</p>
+                                {!isAdmin && statusFilter === 'assigned' && !hasAnyFilter ? (
+                                    <p className="text-sm font-bold">No tenés leads por trabajar ahora mismo. 🎉</p>
+                                ) : (
+                                    <p className="text-sm">No hay leads en este filtro.</p>
+                                )}
                                 {isAdmin && statusFilter === 'all' && !hasAnyFilter && (
                                     <p className="text-xs mt-1">Subí un CSV o creá uno manual para empezar.</p>
                                 )}
@@ -883,6 +970,11 @@ export default function RawLeadsPage() {
                                     <input type="checkbox" checked={selected.has(lead.id)} onChange={() => toggleOne(lead.id)} className="rounded" />
                                 </td>
                                 <td className="px-3 py-3 max-w-[260px]">
+                                    {lead.status === 'assigned' && isToday(lead.assignedAt) && (
+                                        <span className="inline-flex items-center gap-1 mb-1 px-1.5 py-0.5 rounded bg-emerald-500 text-white text-[9px] font-black uppercase tracking-wider">
+                                            ● Nuevo hoy
+                                        </span>
+                                    )}
                                     <p className="font-bold text-foreground truncate" title={lead.name}>{lead.name}</p>
                                     {lead.legalRep && (
                                         <p className="text-[10px] text-muted-foreground truncate" title={lead.legalRep}>
@@ -897,8 +989,26 @@ export default function RawLeadsPage() {
                                     )}
                                 </td>
                                 <td className="px-3 py-3 text-xs">
-                                    {lead.email && <p className="flex items-center gap-1 text-muted-foreground truncate max-w-[200px]" title={lead.email}><Mail className="w-3 h-3 shrink-0" /> {lead.email}</p>}
-                                    {lead.phone && <p className="flex items-center gap-1 text-muted-foreground"><Phone className="w-3 h-3 shrink-0" /> {lead.phone}</p>}
+                                    {lead.email && (
+                                        <a href={`mailto:${lead.email}`} className="flex items-center gap-1 text-muted-foreground hover:text-primary truncate max-w-[200px]" title={`Escribir a ${lead.email}`}>
+                                            <Mail className="w-3 h-3 shrink-0" /> {lead.email}
+                                        </a>
+                                    )}
+                                    {lead.phone && (() => {
+                                        const wa = waLink(lead.phone);
+                                        return (
+                                            <a
+                                                href={wa || `tel:${lead.phone}`}
+                                                target={wa ? '_blank' : undefined}
+                                                rel={wa ? 'noopener noreferrer' : undefined}
+                                                className="flex items-center gap-1 text-muted-foreground hover:text-emerald-600 font-bold"
+                                                title={wa ? 'Abrir WhatsApp' : 'Llamar'}
+                                            >
+                                                <Phone className="w-3 h-3 shrink-0" /> {lead.phone}
+                                                {wa && <span className="text-[9px] text-emerald-600 font-black">WA</span>}
+                                            </a>
+                                        );
+                                    })()}
                                 </td>
                                 <td className="px-3 py-3 text-xs text-muted-foreground">
                                     {(lead.city || lead.department) && (

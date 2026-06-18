@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
 import { loadFreshSession } from '@/lib/auth-session';
+import { releaseUnworkedAssignedLeads } from '@/lib/raw-leads';
 
 // ── Bandeja de Leads Crudos ─────────────────────────────────────────────
 // Universo de pre-leads que el SuperAdmin sube y el equipo aún no ha
@@ -14,8 +15,6 @@ import { loadFreshSession } from '@/lib/auth-session';
 //   - SuperAdmin/Admin: lee todo, crea, asigna, descarta, promueve.
 //   - Vendedor: sólo lee los que tiene asignados; puede marcarlos contacted
 //     o descartar/aprobar; NO puede crear ni asignar a otros.
-
-type RawLeadStatus = 'new' | 'assigned' | 'contacted' | 'approved' | 'discarded';
 
 function isAdmin(role: string | undefined): boolean {
     return role === 'SuperAdmin' || role === 'Admin';
@@ -236,13 +235,28 @@ export async function PATCH(request: NextRequest) {
 
     const body = await request.json();
     const ids: string[] = Array.isArray(body.ids) ? body.ids : [];
-    const action: 'assign' | 'mark-contacted' | 'discard' = body.action;
-    if (ids.length === 0 || !action) {
-        return NextResponse.json({ error: 'ids[] y action requeridos' }, { status: 400 });
+    const action: 'assign' | 'mark-contacted' | 'discard' | 'release-stale' = body.action;
+    if (!action) {
+        return NextResponse.json({ error: 'action requerido' }, { status: 400 });
+    }
+    // release-stale es una operación masiva (no por ids): libera todos los
+    // 'assigned' sin contactar. El resto de acciones sí operan sobre ids[].
+    if (action !== 'release-stale' && ids.length === 0) {
+        return NextResponse.json({ error: 'ids[] requeridos' }, { status: 400 });
     }
 
     await ensureCrmSchema();
     const pool = getPool();
+
+    if (action === 'release-stale') {
+        // Devolver a la bandeja los leads asignados-sin-contactar. Solo Admin/
+        // SuperAdmin (es el "cierre del día" manual; también lo dispara el cron).
+        // Si viene sellerId, libera solo los de ese vendedor.
+        if (!isAdmin(user.role)) return NextResponse.json({ error: 'Solo Admin/SuperAdmin.' }, { status: 403 });
+        const sellerId = body.sellerId ? String(body.sellerId).trim() : undefined;
+        const released = await releaseUnworkedAssignedLeads(pool, sellerId || undefined);
+        return NextResponse.json({ ok: true, released });
+    }
 
     if (action === 'assign') {
         if (!isAdmin(user.role)) return NextResponse.json({ error: 'Solo Admin/SuperAdmin asigna.' }, { status: 403 });

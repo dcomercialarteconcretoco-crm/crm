@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hasDatabase, getPool, ensureCrmSchema } from '@/lib/postgres';
+import { releaseUnworkedAssignedLeads } from '@/lib/raw-leads';
 import {
     executeDailyReport,
     isLastWeekdayOfMonth,
@@ -80,8 +81,24 @@ export async function GET(request: NextRequest) {
         });
     }
 
+    // ── Cierre del día: devolver leads no trabajados a la bandeja cruda ───────
+    // Piggyback sobre este cron porque Vercel Hobby permite 1 solo cron diario,
+    // y las 18:00 Bogotá (lun-vie) son justo el cierre de jornada. Corre SIEMPRE
+    // que el cron dispare — es independiente del toggle del informe diario, así
+    // que va ACÁ, después del bloque ?debug (read-only) y antes del gate de
+    // `cfg.enabled`. Los leads 'assigned' sin contactar vuelven a 'new'; los
+    // 'contacted' conservan su asignación. No bloqueante: si falla, el informe
+    // diario sigue su curso.
+    let releasedLeads = 0;
+    try {
+        releasedLeads = await releaseUnworkedAssignedLeads(pool);
+        if (releasedLeads > 0) console.log(`[cierre-dia] ${releasedLeads} leads no trabajados devueltos a la bandeja cruda.`);
+    } catch (error) {
+        console.error('[cierre-dia] error liberando leads asignados:', error);
+    }
+
     if (!forceParam && !cfg.enabled) {
-        return NextResponse.json({ skipped: true, reason: 'Daily report disabled (toggle apagado en Configuración → Informe Diario, o el toggle nunca se persistió a la DB — verificá con ?debug=1)' });
+        return NextResponse.json({ releasedLeads, skipped: true, reason: 'Daily report disabled (toggle apagado en Configuración → Informe Diario, o el toggle nunca se persistió a la DB — verificá con ?debug=1)' });
     }
 
     const recipientIds: string[] = Array.isArray(cfg.recipients) ? cfg.recipients : [];
@@ -108,6 +125,7 @@ export async function GET(request: NextRequest) {
 
     if (recipientIds.length === 0 && finalExtra.length === 0) {
         return NextResponse.json({
+            releasedLeads,
             skipped: true,
             reason: 'No recipients configured. Pasá ?emails=foo@bar.com o configurá SUPERADMIN_EMAIL en env, o reparalo en Configuración → Informe Diario.',
         });
@@ -142,6 +160,7 @@ export async function GET(request: NextRequest) {
 
     if (types.length === 0) {
         return NextResponse.json({
+            releasedLeads,
             skipped: true,
             reason: `No reports scheduled for ${todayBogotaStr} (dow=${dow})`,
         });
@@ -202,6 +221,7 @@ export async function GET(request: NextRequest) {
         ok: sent.some((s) => s.result.ok),
         today: todayBogotaStr,
         dow,
+        releasedLeads,
         scheduled: types,
         sent: sent.map((s) => ({
             type: s.type,

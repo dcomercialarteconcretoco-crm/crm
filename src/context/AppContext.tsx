@@ -611,6 +611,13 @@ interface AppContextType {
     refreshClients: () => Promise<void>;
     /** Re-fetch /api/companies idem. */
     refreshCompanies: () => Promise<void>;
+    /** Cuántos leads crudos tiene asignados el usuario logueado y todavía no
+     *  trabajó (status='assigned'). Alimenta el badge "tenés N por trabajar"
+     *  en el sidebar y el mobile nav para que sea EVIDENTE qué le asignaron. */
+    assignedLeadsCount: number;
+    /** Re-fetch del conteo de leads asignados (badge). Se llama al boot, al
+     *  volver al tab, y después de que el vendedor trabaja un lead. */
+    refreshAssignedLeadsCount: () => Promise<void>;
     login: (username: string, password: string) => Promise<boolean>;
     logout: () => void;
 
@@ -767,6 +774,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }));
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     const [isHydrating, setIsHydrating] = useState(true);
+    // Badge "leads por trabajar": cuántos leads crudos tiene asignados el
+    // vendedor logueado y aún no contactó (status='assigned').
+    const [assignedLeadsCount, setAssignedLeadsCount] = useState(0);
 
     const persistSharedState = (patch: Record<string, unknown>) => {
         // Antes este fetch tragaba TODO error en silencio (`.catch(console.warn)`).
@@ -985,6 +995,22 @@ REGLAS DE ORO:
         }
     };
 
+    // Conteo de leads crudos asignados a MÍ y todavía sin trabajar
+    // (status='assigned'). El GET de /api/raw-leads ya escopa por dueño cuando
+    // el rol no es Admin/SuperAdmin, así que `counts.assigned` es exactamente la
+    // cola pendiente del vendedor logueado. Pedimos pageSize=1 porque solo nos
+    // interesa el número del badge, no las filas.
+    const refreshAssignedLeadsCount = async () => {
+        try {
+            const res = await fetch('/api/raw-leads?status=assigned&pageSize=1', { cache: 'no-store' });
+            if (!res.ok) { setAssignedLeadsCount(0); return; }
+            const data = await res.json();
+            setAssignedLeadsCount(data?.counts?.assigned || 0);
+        } catch (error) {
+            console.warn('refreshAssignedLeadsCount failed:', error);
+        }
+    };
+
     // Revalida quotes y tasks contra la DB. Útil al volver al tab para que
     // Valentina (que aprueba) vea cotizaciones nuevas que subieron los
     // vendedores, y para que los vendedores vean cambios de status que hizo
@@ -1179,6 +1205,9 @@ REGLAS DE ORO:
             } finally {
                 setIsHydrating(false);
                 setIsInitialLoad(false);
+                // Badge de leads por trabajar (fire-and-forget; la cookie ya se
+                // validó en el /api/auth/me de arriba).
+                refreshAssignedLeadsCount();
             }
         };
 
@@ -1197,7 +1226,7 @@ REGLAS DE ORO:
     // sesión) no las veía en /quotes hasta hacer F5 manual.
     useEffect(() => {
         if (typeof window === 'undefined') return;
-        const onFocus = () => { refreshClients(); refreshCompanies(); refreshQuotesAndTasks(); };
+        const onFocus = () => { refreshClients(); refreshCompanies(); refreshQuotesAndTasks(); refreshAssignedLeadsCount(); };
         window.addEventListener('focus', onFocus);
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') onFocus();
@@ -2278,12 +2307,14 @@ REGLAS DE ORO:
             markNotificationAsRead, clearNotifications, removeNotification, setNotifications,
             auditLogs, addAuditLog, purgeOldAuditLogs, anomalies, addAnomaly, updateAnomaly, deleteAnomaly,
             products, productSyncStatus, refreshProducts, refreshClients, refreshCompanies, updateProduct, deleteProduct,
+            assignedLeadsCount, refreshAssignedLeadsCount,
             currentUser, isHydrating, login, logout,
             incrementOnboardingCount,
         }), [
             clients, tasks, quotes, sellers, notifications, settings, events, forms,
             companies,
-            auditLogs, anomalies, products, productSyncStatus, currentUser, isHydrating
+            auditLogs, anomalies, products, productSyncStatus, currentUser, isHydrating,
+            assignedLeadsCount
         ]);
 
     return (
