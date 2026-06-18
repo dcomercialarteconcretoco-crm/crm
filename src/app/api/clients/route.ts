@@ -44,7 +44,8 @@ export async function GET(request: NextRequest) {
        city, score, category, registration_date AS "registrationDate",
        assigned_to AS "assignedTo",
        assigned_to_name AS "assignedToName",
-       source
+       source,
+       notes
      FROM crm_clients
      ${whereSql}
      ORDER BY created_at DESC`,
@@ -108,8 +109,8 @@ export async function POST(request: NextRequest) {
       `
         INSERT INTO crm_clients (
           id, name, company, company_id, "position", email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date,
-          assigned_to, assigned_to_name, source, updated_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
+          assigned_to, assigned_to_name, source, notes, updated_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,COALESCE($19::jsonb,'[]'::jsonb),NOW())
         ON CONFLICT (id) DO UPDATE SET
           name = EXCLUDED.name,
           company = EXCLUDED.company,
@@ -128,6 +129,7 @@ export async function POST(request: NextRequest) {
           assigned_to = COALESCE(EXCLUDED.assigned_to, crm_clients.assigned_to),
           assigned_to_name = COALESCE(EXCLUDED.assigned_to_name, crm_clients.assigned_to_name),
           source = COALESCE(EXCLUDED.source, crm_clients.source),
+          notes = COALESCE($19::jsonb, crm_clients.notes),
           updated_at = NOW()
       `,
       [
@@ -149,6 +151,12 @@ export async function POST(request: NextRequest) {
         payload.assignedTo || null,
         payload.assignedToName || null,
         payload.source || null,
+        // Bitácora de notas. Si el caller mandó el array lo persistimos; si vino
+        // undefined pasamos null: en el INSERT el COALESCE lo vuelve '[]' (alta
+        // normal de contacto), y en el ON CONFLICT el COALESCE($19, notes)
+        // conserva las notas que ya tiene la fila en DB en vez de pisarlas con
+        // vacío. Así un re-upsert (import, retry) nunca borra la bitácora.
+        payload.notes !== undefined ? JSON.stringify(payload.notes) : null,
       ]
     );
   } catch (error: unknown) {

@@ -68,6 +68,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           assigned_to = COALESCE($16, assigned_to),
           assigned_to_name = COALESCE($17, assigned_to_name),
           source = COALESCE($18, source),
+          notes = COALESCE($19::jsonb, notes),
           updated_at = NOW()
         WHERE id = $1
       `,
@@ -90,6 +91,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         payload.assignedTo || null,
         payload.assignedToName || null,
         payload.source || null,
+        // Notas: si el caller mandó el array (aunque sea vacío tras borrar una
+        // nota) lo persistimos; si vino undefined pasamos null y el COALESCE
+        // conserva las notas que ya están en DB. Así un PUT que solo edita el
+        // teléfono no borra la bitácora, y "Guardar Nota" sí la actualiza.
+        payload.notes !== undefined ? JSON.stringify(payload.notes) : null,
       ]
     );
   } catch (error: unknown) {

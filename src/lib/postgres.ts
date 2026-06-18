@@ -225,6 +225,17 @@ async function doEnsureCrmSchema() {
   // anterior falló sin quotes (caso de algún deploy intermedio).
   await pool.query(`ALTER TABLE crm_clients ADD COLUMN IF NOT EXISTS "position" TEXT;`);
 
+  // ── Notas internas del cliente ──────────────────────────────────────────
+  // Bitácora de notas que el asesor escribe sobre el lead/cliente (visitas,
+  // llamadas, contexto del proyecto). Antes esta columna NO existía: el front
+  // mandaba `notes` en el PUT de /api/clients/[id] pero el server las tiraba a
+  // la basura, y en producción localStorage para crm_clients está deshabilitado
+  // → la nota desaparecía en el primer F5. Reportado 18-jun-2026 ("subimos
+  // notas y al recargar no quedan"). Se guarda como array JSONB de
+  // { text, date, author }. Default '[]' para que los clientes existentes
+  // queden con bitácora vacía en vez de NULL.
+  await pool.query(`ALTER TABLE crm_clients ADD COLUMN IF NOT EXISTS notes JSONB NOT NULL DEFAULT '[]'::jsonb;`);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_state (
       key TEXT PRIMARY KEY,
