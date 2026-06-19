@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadFreshSession } from '@/lib/auth-session';
 import { generateCatalogPdfBuffer } from '@/lib/catalog/catalog-data';
-import { getFromEmail } from '@/lib/email';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,6 +8,11 @@ export const maxDuration = 60;
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const LOGO_URL = 'https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png';
+
+// Remitente del email. Inline (sin depender de helpers externos) para no
+// acoplar esta ruta a archivos que pudieran no estar versionados.
+const FROM_ADDR = (process.env.FROM_EMAIL || '').trim() || 'cotizaciones@arteconcreto.co';
+const FROM_EMAIL = FROM_ADDR.includes('<') ? FROM_ADDR : `ArteConcreto <${FROM_ADDR}>`;
 
 /**
  * POST /api/catalogo/send — el vendedor envía el catálogo PDF a un cliente desde
@@ -84,7 +88,7 @@ export async function POST(request: NextRequest) {
             method: 'POST',
             headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                from: getFromEmail('ArteConcreto'),
+                from: FROM_EMAIL,
                 to: [clientEmail],
                 subject: 'Catálogo de productos — ArteConcreto',
                 html,
