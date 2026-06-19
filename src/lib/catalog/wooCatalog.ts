@@ -26,7 +26,9 @@ export interface CatalogProduct {
     category: string;           // nombre de la categoría (sección del catálogo)
     image: string | null;       // url de la foto principal
     shortDescription: string;   // texto corto sin HTML
+    description: string;         // descripción completa sin HTML (suele ser más rica)
     dimensions: string;         // "120 × 60 × 45 cm" o ''
+    weightKg: number | null;    // peso en kg (info técnica), o null
     // Precios (números en COP). Solo se RENDERIZAN si showPrice === true.
     regularPrice: number;
     salePrice: number | null;   // null si no está en oferta
@@ -50,6 +52,7 @@ interface WooProduct {
     type?: string;
     status?: string;
     stock_status?: string;
+    weight?: string;
     short_description?: string;
     description?: string;
     regular_price?: string;
@@ -137,7 +140,9 @@ function mapProduct(w: WooProduct): CatalogProduct {
         category: section.name,
         image: w.images?.[0]?.src || null,
         shortDescription: stripHtml(w.short_description),
+        description: stripHtml(w.description),
         dimensions,
+        weightKg: toDim(w.weight),
         regularPrice: regular,
         salePrice: onSale ? sale : null,
         price,

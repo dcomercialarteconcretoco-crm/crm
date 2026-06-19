@@ -14,6 +14,15 @@ import { loadBrandLogo } from './logo';
 import { CatalogDocument, type CatalogData, type CatalogCard, type CatalogSection } from './catalog-document';
 
 const CARD_BG = '#fbfaf7'; // mismo color del contenedor de imagen en el PDF
+const INK_BG = '#1a1a1d';  // fondo del banner de portada
+
+// Banner principal de la portada.
+const HERO_BANNER_URL = 'https://arteconcreto.co/wp-content/uploads/2026/03/4.Banner-caneca.jpg';
+
+// WhatsApp comercial de ArteConcreto para "Cotizar por WhatsApp".
+const WHATSAPP_NUMBER = '573178929477';
+const waLinkFor = (productName: string) =>
+    `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(`Hola, me interesa cotizar el producto: ${productName}`)}`;
 
 const CATEGORY_TAGLINES: Record<string, string> = {
     'Bancas': 'Bancas y asientos urbanos en concreto para espacio público y privado.',
@@ -60,17 +69,23 @@ function sectionRank(name: string): number {
 
 function buildCard(p: CatalogProduct, image: string | null): CatalogCard {
     const priceConsult = !p.showPrice;
+    // Usamos la descripción más rica (a veces la "completa" trae más que la corta).
+    const richDesc = (p.description && p.description.length > p.shortDescription.length)
+        ? p.description : p.shortDescription;
     return {
         id: p.id,
         name: safe(p.name),
         permalink: p.permalink,
         eyebrow: 'ARTECONCRETO',
-        description: truncate(p.shortDescription, 115),
+        description: truncate(richDesc, 210),
         dimensions: safe(p.dimensions),
+        weight: p.weightKg ? `${p.weightKg.toLocaleString('es-CO', { maximumFractionDigits: 1 })} kg` : null,
         badge: !priceConsult && p.onSale ? 'En oferta' : null,
         priceConsult,
         priceBig: priceConsult ? null : formatCOP(p.onSale && p.salePrice ? p.salePrice : (p.price || p.regularPrice)),
         priceStruck: !priceConsult && p.onSale && p.salePrice ? formatCOP(p.regularPrice) : null,
+        // Solo los "sin precio" llevan CTA de WhatsApp (con el nombre del producto).
+        whatsappUrl: priceConsult ? waLinkFor(p.name) : null,
         image,
     };
 }
@@ -115,13 +130,8 @@ export async function buildCatalogData(
             };
         });
 
-    // Portada: banda de 4 fotos (una por sección de las primeras, para variar).
-    const heroSeed: string[] = [];
-    for (const sec of sections) {
-        const withImg = sec.cards.find((c) => c.image);
-        if (withImg?.image) heroSeed.push(withImg.image);
-        if (heroSeed.length >= 4) break;
-    }
+    // Portada: banner principal de marca (más ancho, sobre fondo oscuro).
+    const heroBanner = await loadImageDataUrl(HERO_BANNER_URL, { maxPx: 1400, quality: 82, bg: INK_BG });
 
     const logo = await loadBrandLogo();
 
@@ -134,7 +144,8 @@ export async function buildCatalogData(
         generatedAt,
         totalProducts: products.length,
         logo,
-        heroImages: heroSeed,
+        heroBanner,
+        advisorWhatsapp: `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Hola, quiero cotizar con un asesor de ArteConcreto.')}`,
         categories: sections.map((s) => s.title),
         sections,
         recipient: recipient || null,

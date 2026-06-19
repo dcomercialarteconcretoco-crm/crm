@@ -18,10 +18,12 @@ export interface CatalogCard {
     eyebrow: string;          // marca / sku ("ARTECONCRETO")
     description: string;
     dimensions: string;       // "120 × 60 × 45 cm" o ''
+    weight: string | null;    // "220 kg" o null (chip técnico)
     badge: string | null;     // "En oferta" | "A pedido" | null
-    priceConsult: boolean;    // true ⇒ "Precio a consultar" (NO precio)
+    priceConsult: boolean;    // true ⇒ "Cotizar por WhatsApp" (NO precio)
     priceBig: string | null;  // "$ 15.000" si priceConsult=false
     priceStruck: string | null; // precio tachado (oferta) o null
+    whatsappUrl: string | null; // link wa.me con el producto (para "Cotizar por WhatsApp")
     image: string | null;     // data URL
 }
 export interface CatalogSection {
@@ -35,8 +37,9 @@ export interface CatalogData {
     generatedAt: string;
     totalProducts: number;
     logo: string | null;
-    heroImages: string[];     // data URLs para la banda de la portada
+    heroBanner: string | null; // data URL del banner principal de la portada
     categories: string[];     // chips de la portada
+    advisorWhatsapp: string;  // link wa.me para "Cotiza con uno de nuestros asesores"
     sections: CatalogSection[];
     recipient?: { name?: string; company?: string } | null;
 }
@@ -51,30 +54,35 @@ const LINE = '#ede8da';
 
 const s = StyleSheet.create({
     page: { backgroundColor: PAPER, fontFamily: 'Helvetica', fontSize: 8.5, color: INK, paddingBottom: 46 },
+    coverPage: { backgroundColor: PAPER, fontFamily: 'Helvetica', fontSize: 8.5, color: INK },
 
     // ── Portada ──
     coverBanner: { backgroundColor: INK, paddingTop: 0 },
     coverGoldRule: { height: 5, backgroundColor: GOLD },
     coverLogoWrap: { position: 'absolute', top: 26, left: 36, backgroundColor: PAPER, borderRadius: 12, paddingVertical: 9, paddingHorizontal: 16 },
     coverLogo: { width: 150, height: 56, objectFit: 'contain' },
-    heroStrip: { flexDirection: 'row', height: 196, marginTop: 0 },
-    heroCell: { flex: 1, borderLeftWidth: 2, borderLeftColor: INK },
+    heroBanner: { height: 250, width: '100%', backgroundColor: INK },
     heroImg: { width: '100%', height: '100%', objectFit: 'cover' },
-    coverBody: { paddingHorizontal: 40, paddingTop: 16 },
+    // flexGrow + centrado: el bloque del título toma el espacio entre el banner
+    // y el footer, repartiendo el contenido en toda la página.
+    coverBody: { paddingHorizontal: 40, flexGrow: 1, justifyContent: 'center' },
     eyebrow: { fontSize: 10, letterSpacing: 5, color: GOLD, fontFamily: 'Helvetica-Bold' },
-    coverTitle: { fontSize: 30, fontFamily: 'Helvetica-Bold', color: INK, marginTop: 7, letterSpacing: -0.5 },
-    coverSubtitle: { fontSize: 11.5, color: '#555', marginTop: 8, lineHeight: 1.45, maxWidth: 640 },
-    chipsRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 14 },
+    coverTitle: { fontSize: 32, fontFamily: 'Helvetica-Bold', color: INK, marginTop: 9, letterSpacing: -0.5 },
+    coverSubtitle: { fontSize: 11.5, color: '#555', marginTop: 10, lineHeight: 1.5, maxWidth: 640 },
+    chipsRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 18 },
     chip: { borderWidth: 1, borderColor: GOLD, borderRadius: 20, paddingVertical: 5, paddingHorizontal: 13, marginRight: 8, marginBottom: 8, fontSize: 9, color: '#333', fontFamily: 'Helvetica-Bold' },
     chipFilled: { backgroundColor: GOLD, borderColor: GOLD, color: INK },
-    coverRule: { height: 1, backgroundColor: LINE, marginTop: 14, marginBottom: 10 },
+    // Bloque del pie (flujo normal, último hijo → queda abajo gracias al
+    // flexGrow del body).
+    coverFooterBlock: { paddingBottom: 22 },
+    coverRule: { height: 1, backgroundColor: LINE, marginHorizontal: 40, marginBottom: 12 },
     coverFooter: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 40 },
     coverContact: { fontSize: 10, color: '#444', lineHeight: 1.6 },
     coverContactBold: { fontFamily: 'Helvetica-Bold', color: INK },
     coverGen: { textAlign: 'right' },
     coverGenLabel: { fontSize: 8, letterSpacing: 3, color: MUTED, fontFamily: 'Helvetica-Bold' },
     coverGenDate: { fontSize: 11, color: '#333', marginTop: 4, fontFamily: 'Helvetica-Bold' },
-    disclaimer: { fontSize: 7.5, color: '#a9a9a9', marginTop: 10, paddingHorizontal: 40, lineHeight: 1.45 },
+    disclaimer: { fontSize: 7.5, color: '#a9a9a9', marginTop: 12, paddingHorizontal: 40, lineHeight: 1.45 },
 
     // ── Header/footer corrido en páginas de contenido ──
     runHeader: { position: 'absolute', top: 18, left: 36, right: 36, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -109,8 +117,13 @@ const s = StyleSheet.create({
     cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 8 },
     priceBig: { fontSize: 13, color: INK, fontFamily: 'Helvetica-Bold' },
     priceStruck: { fontSize: 8.5, color: '#b0b0b0', textDecoration: 'line-through', marginLeft: 5 },
-    priceConsult: { fontSize: 10, color: '#6a7280', fontFamily: 'Helvetica-Bold' },
+    priceConsult: { fontSize: 8, color: '#9a9a9a', fontFamily: 'Helvetica' },
+    waBtn: { backgroundColor: '#16a34a', borderRadius: 6, paddingTop: 4, paddingBottom: 4, paddingHorizontal: 9, color: '#ffffff', fontSize: 7.5, fontFamily: 'Helvetica-Bold' },
+    buyBtn: { backgroundColor: GOLD, borderRadius: 6, paddingTop: 4, paddingBottom: 4, paddingHorizontal: 11, color: INK, fontSize: 7.5, fontFamily: 'Helvetica-Bold' },
     webLink: { fontSize: 8, color: '#2563eb', fontFamily: 'Helvetica-Bold' },
+    // CTA de portada "Cotiza con uno de nuestros asesores"
+    advisorBtn: { backgroundColor: '#16a34a', color: PAPER, fontSize: 11, fontFamily: 'Helvetica-Bold', borderRadius: 11, paddingTop: 10, paddingBottom: 10, paddingHorizontal: 20 },
+    advisorRow: { marginTop: 20, flexDirection: 'row' },
 });
 
 const RunningHeader = ({ data }: { data: CatalogData }) => (
@@ -148,19 +161,31 @@ const ProductCard = ({ c }: { c: CatalogCard }) => (
                 ? <Link src={c.permalink} style={s.cardName}><Text>{c.name}</Text></Link>
                 : <Text style={s.cardName}>{c.name}</Text>}
             {!!c.description && <Text style={s.cardDesc}>{c.description}</Text>}
-            {!!c.dimensions && (
-                <View style={s.chipsSpec}><Text style={s.specChip}>{c.dimensions}</Text></View>
+            {(!!c.dimensions || !!c.weight) && (
+                <View style={s.chipsSpec}>
+                    {!!c.dimensions && <Text style={s.specChip}>{c.dimensions}</Text>}
+                    {!!c.weight && <Text style={s.specChip}>{c.weight}</Text>}
+                </View>
             )}
             <View style={s.cardBottom}>
-                <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
-                    {c.priceConsult
-                        ? <Text style={s.priceConsult}>Precio a consultar</Text>
-                        : <>
+                {c.priceConsult ? (
+                    // Sin precio → CTA a WhatsApp + link a la web.
+                    <>
+                        {c.whatsappUrl
+                            ? <Link src={c.whatsappUrl}><Text style={s.waBtn}>Cotizar por WhatsApp</Text></Link>
+                            : <Text style={s.priceConsult}>Precio a consultar</Text>}
+                        {c.permalink ? <Link src={c.permalink} style={s.webLink}><Text>Ver en la web ›</Text></Link> : null}
+                    </>
+                ) : (
+                    // Con precio → precio + botón "Comprar" que lleva a la web.
+                    <>
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
                             <Text style={s.priceBig}>{c.priceBig}</Text>
                             {c.priceStruck && <Text style={s.priceStruck}>{c.priceStruck}</Text>}
-                          </>}
-                </View>
-                {c.permalink ? <Link src={c.permalink} style={s.webLink}><Text>Ver en la web ›</Text></Link> : null}
+                        </View>
+                        {c.permalink ? <Link src={c.permalink}><Text style={s.buyBtn}>Comprar</Text></Link> : null}
+                    </>
+                )}
             </View>
         </View>
     </View>
@@ -188,13 +213,11 @@ export function CatalogDocument({ data }: { data: CatalogData }) {
     return (
         <Document title="Catálogo ArteConcreto" author="ArteConcreto S.A.S">
             {/* ── PORTADA ── */}
-            <Page size="A4" orientation="landscape" style={s.page}>
+            <Page size="A4" orientation="landscape" style={s.coverPage}>
                 <View style={s.coverBanner}>
                     <View style={s.coverGoldRule} />
-                    <View style={s.heroStrip}>
-                        {data.heroImages.slice(0, 4).map((src, i) => (
-                            <View key={i} style={s.heroCell}><Image style={s.heroImg} src={src} /></View>
-                        ))}
+                    <View style={s.heroBanner}>
+                        {data.heroBanner ? <Image style={s.heroImg} src={data.heroBanner} /> : null}
                     </View>
                     <View style={s.coverLogoWrap}>
                         {data.logo ? <Image style={s.coverLogo} src={data.logo} /> : <Text style={{ fontSize: 18, fontFamily: 'Helvetica-Bold', color: INK }}>ArteConcreto</Text>}
@@ -212,6 +235,14 @@ export function CatalogDocument({ data }: { data: CatalogData }) {
                             <Text key={cat} style={[s.chip, i === 0 ? s.chipFilled : {}]}>{cat}</Text>
                         ))}
                     </View>
+                    <View style={s.advisorRow}>
+                        <Link src={data.advisorWhatsapp}>
+                            <Text style={s.advisorBtn}>Cotiza con uno de nuestros asesores</Text>
+                        </Link>
+                    </View>
+                </View>
+                {/* Bloque del pie (último hijo → abajo por el flexGrow del body) */}
+                <View style={s.coverFooterBlock}>
                     <View style={s.coverRule} />
                     <View style={s.coverFooter}>
                         <View>
@@ -226,10 +257,10 @@ export function CatalogDocument({ data }: { data: CatalogData }) {
                             <Text style={[s.coverContact, { color: MUTED, fontSize: 8 }]}>hora Colombia (UTC-5)</Text>
                         </View>
                     </View>
+                    <Text style={s.disclaimer}>
+                        {'Documento informativo — NO es una cotización. Precios, descuentos y disponibilidad corresponden al momento exacto de generación de este PDF y pueden variar sin previo aviso. Los productos marcados "Precio a consultar" se cotizan según especificaciones del proyecto.'}
+                    </Text>
                 </View>
-                <Text style={s.disclaimer}>
-                    {'Documento informativo — NO es una cotización. Precios, descuentos y disponibilidad corresponden al momento exacto de generación de este PDF y pueden variar sin previo aviso. Los productos marcados "Precio a consultar" se cotizan según especificaciones del proyecto.'}
-                </Text>
             </Page>
 
             {/* ── SECCIONES ── */}
