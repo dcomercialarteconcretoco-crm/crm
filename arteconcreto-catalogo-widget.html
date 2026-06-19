@@ -1,0 +1,153 @@
+<!--
+  ════════════════════════════════════════════════════════════════════════════
+  WIDGET "DESCARGAR CATÁLOGO" — ArteConcreto  (para pegar en WordPress)
+  ════════════════════════════════════════════════════════════════════════════
+  CÓMO USARLO EN WORDPRESS:
+    1. Editá la página/sección donde querés el botón.
+    2. Agregá un bloque "HTML personalizado" (Gutenberg) o un widget "HTML"
+       (Elementor → "HTML").
+    3. Pegá TODO este contenido.
+    4. ⚠️ IMPORTANTE: cambiá la constante CRM_URL (abajo en el <script>) por la
+       URL real de tu CRM si es distinta a la de ejemplo.
+
+  Qué hace: muestra un botón → abre un popup que pide Nombre/Empresa, Teléfono,
+  Correo y Ciudad → guarda el lead en la bandeja del CRM (source "Catálogo Web")
+  → descarga el catálogo PDF en el navegador del visitante.
+
+  Es vanilla JS autocontenido (sin dependencias) y los estilos van "scoped" con
+  el prefijo .ac-cat- para no chocar con el tema.
+-->
+
+<div id="ac-cat-root">
+  <button type="button" class="ac-cat-trigger" onclick="acCatOpen()">
+    <span class="ac-cat-trigger-ico">📄</span> Descargar catálogo gratis
+  </button>
+
+  <div class="ac-cat-overlay" id="ac-cat-overlay" onclick="if(event.target===this)acCatClose()">
+    <div class="ac-cat-modal" role="dialog" aria-modal="true" aria-label="Descargar catálogo">
+      <button type="button" class="ac-cat-x" onclick="acCatClose()" aria-label="Cerrar">×</button>
+      <div class="ac-cat-head">
+        <div class="ac-cat-eyebrow">CATÁLOGO DE PRODUCTOS</div>
+        <h3 class="ac-cat-title">Descargá nuestro catálogo</h3>
+        <p class="ac-cat-sub">Dejanos tus datos y te enviamos el PDF con todo el mobiliario urbano en concreto.</p>
+      </div>
+      <form id="ac-cat-form" class="ac-cat-form" onsubmit="return acCatSubmit(event)">
+        <input class="ac-cat-input" name="name" type="text" placeholder="Nombre o empresa *" autocomplete="organization" />
+        <input class="ac-cat-input" name="phone" type="tel" placeholder="Teléfono / WhatsApp *" autocomplete="tel" />
+        <input class="ac-cat-input" name="email" type="email" placeholder="Correo electrónico" autocomplete="email" />
+        <input class="ac-cat-input" name="city" type="text" placeholder="Ciudad" autocomplete="address-level2" />
+        <p class="ac-cat-error" id="ac-cat-error"></p>
+        <button type="submit" class="ac-cat-submit" id="ac-cat-submit">
+          <span id="ac-cat-submit-label">Descargar catálogo PDF</span>
+        </button>
+        <p class="ac-cat-legal">Al descargar aceptás que ArteConcreto te contacte. Documento informativo, no es una cotización.</p>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+  #ac-cat-root { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
+  .ac-cat-trigger {
+    display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    background: #1a1a1d; color: #fab510; font-weight: 800; font-size: 15px;
+    border: none; border-radius: 14px; padding: 14px 26px; transition: filter .15s;
+    box-shadow: 0 6px 20px rgba(0,0,0,.18);
+  }
+  .ac-cat-trigger:hover { filter: brightness(1.15); }
+  .ac-cat-trigger-ico { font-size: 18px; }
+  .ac-cat-overlay {
+    display: none; position: fixed; inset: 0; z-index: 99999;
+    background: rgba(8,8,10,.6); backdrop-filter: blur(3px);
+    align-items: center; justify-content: center; padding: 16px;
+  }
+  .ac-cat-overlay.ac-open { display: flex; }
+  .ac-cat-modal {
+    position: relative; width: 100%; max-width: 420px; background: #fff;
+    border-radius: 22px; overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.4);
+    animation: ac-cat-in .2s ease;
+  }
+  @keyframes ac-cat-in { from { transform: translateY(12px); opacity: 0 } to { transform: none; opacity: 1 } }
+  .ac-cat-x {
+    position: absolute; top: 12px; right: 14px; background: rgba(255,255,255,.15);
+    color: #fff; border: none; width: 30px; height: 30px; border-radius: 50%;
+    font-size: 20px; line-height: 1; cursor: pointer; z-index: 2;
+  }
+  .ac-cat-head { background: #1a1a1d; padding: 26px 26px 22px; }
+  .ac-cat-head::before { content: ''; display: block; height: 4px; margin: -26px -26px 18px;
+    background: linear-gradient(90deg,#c88a00,#fab510,#ffd966,#fab510,#c88a00); }
+  .ac-cat-eyebrow { font-size: 9px; letter-spacing: 4px; color: #fab510; font-weight: 900; }
+  .ac-cat-title { margin: 8px 0 0; font-size: 22px; color: #fff; font-weight: 900; }
+  .ac-cat-sub { margin: 8px 0 0; font-size: 13px; color: #a0a0a0; line-height: 1.5; }
+  .ac-cat-form { padding: 22px 26px 26px; display: flex; flex-direction: column; gap: 11px; }
+  .ac-cat-input {
+    width: 100%; box-sizing: border-box; background: #f6f4ef; border: 1.5px solid #e7e2d6;
+    border-radius: 12px; padding: 13px 15px; font-size: 15px; color: #1a1a1d !important; outline: none;
+    transition: border-color .15s, background .15s;
+  }
+  .ac-cat-input::placeholder { color: #9a958b; }
+  .ac-cat-input:focus { border-color: #fab510; background: #fff; }
+  .ac-cat-error { color: #d11; font-size: 12.5px; margin: 2px 0 0; min-height: 0; display: none; }
+  .ac-cat-error.ac-show { display: block; }
+  .ac-cat-submit {
+    margin-top: 4px; background: #fab510; color: #1a1a1d; font-weight: 900; font-size: 15px;
+    border: none; border-radius: 12px; padding: 14px; cursor: pointer; transition: filter .15s;
+  }
+  .ac-cat-submit:hover { filter: brightness(1.05); }
+  .ac-cat-submit:disabled { opacity: .6; cursor: progress; }
+  .ac-cat-legal { margin: 4px 0 0; font-size: 10.5px; color: #b0aca3; line-height: 1.45; text-align: center; }
+</style>
+
+<script>
+(function () {
+  // ⚠️ CAMBIÁ ESTO por la URL real de tu CRM si es distinta:
+  var CRM_URL = 'https://crm-sand-three.vercel.app';
+
+  var overlay = document.getElementById('ac-cat-overlay');
+  window.acCatOpen = function () { overlay.classList.add('ac-open'); };
+  window.acCatClose = function () { overlay.classList.remove('ac-open'); };
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') window.acCatClose(); });
+
+  window.acCatSubmit = function (e) {
+    e.preventDefault();
+    var form = e.target;
+    var err = document.getElementById('ac-cat-error');
+    var btn = document.getElementById('ac-cat-submit');
+    var label = document.getElementById('ac-cat-submit-label');
+    var data = {
+      name: form.name.value.trim(),
+      company: form.name.value.trim(),
+      phone: form.phone.value.trim(),
+      email: form.email.value.trim(),
+      city: form.city.value.trim()
+    };
+    err.classList.remove('ac-show');
+    if (!data.name) { err.textContent = 'Escribí tu nombre o empresa.'; err.classList.add('ac-show'); return false; }
+    if (!data.phone && !data.email) { err.textContent = 'Dejanos un teléfono o un correo.'; err.classList.add('ac-show'); return false; }
+
+    btn.disabled = true; label.textContent = 'Generando tu catálogo…';
+
+    fetch(CRM_URL + '/api/public/catalogo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }).then(function (res) {
+      if (!res.ok) return res.json().then(function (j) { throw new Error(j.error || 'Error ' + res.status); });
+      return res.blob();
+    }).then(function (blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = 'Catalogo-ArteConcreto.pdf';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000); // delay: no abortar en Firefox/WebView
+      label.textContent = '¡Listo! Descargado ✓';
+      setTimeout(function () { window.acCatClose(); btn.disabled = false; label.textContent = 'Descargar catálogo PDF'; form.reset(); }, 1800);
+    }).catch(function (e2) {
+      err.textContent = (e2 && e2.message) ? e2.message : 'No se pudo generar el catálogo. Intentá de nuevo.';
+      err.classList.add('ac-show');
+      btn.disabled = false; label.textContent = 'Descargar catálogo PDF';
+    });
+    return false;
+  };
+})();
+</script>

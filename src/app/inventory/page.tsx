@@ -15,6 +15,8 @@ import {
     Trash,
     Download,
     Upload,
+    FileText,
+    Loader2,
     X
 } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -58,6 +60,41 @@ export default function InventoryPage() {
 
     const [isSyncing, setIsSyncing] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const [isCatalogLoading, setIsCatalogLoading] = useState(false);
+
+    // Descarga el catálogo PDF (lo genera el servidor leyendo WooCommerce en
+    // vivo). Damos feedback porque el render tarda unos segundos. Respeta la
+    // visibilidad de precios server-side (flag _cq_disponible_online).
+    const handleDownloadCatalog = async () => {
+        if (isCatalogLoading) return;
+        setIsCatalogLoading(true);
+        try {
+            const res = await fetch('/api/catalogo', { cache: 'no-store' });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data?.error || `Error ${res.status}`);
+            }
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Catalogo-ArteConcreto-${new Date().toISOString().slice(0, 10)}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            // No revocar de inmediato: aborta la descarga en Firefox/WebViews.
+            setTimeout(() => URL.revokeObjectURL(url), 4000);
+            addNotification({ title: 'Catálogo generado', description: 'Se descargó el catálogo PDF.', type: 'success' });
+        } catch (e) {
+            addNotification({
+                title: 'No se pudo generar el catálogo',
+                description: e instanceof Error ? e.message : 'Intentá de nuevo.',
+                type: 'alert',
+            });
+        } finally {
+            setIsCatalogLoading(false);
+        }
+    };
     const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
     const [viewMode, setViewMode] = useState<'active' | 'inactive' | 'deleted'>('active');
     const [searchQuery, setSearchQuery] = useState('');
@@ -476,6 +513,17 @@ export default function InventoryPage() {
                     )}
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                        onClick={handleDownloadCatalog}
+                        disabled={isCatalogLoading}
+                        className="flex items-center gap-2 bg-foreground text-primary font-bold rounded-xl px-4 py-2.5 hover:brightness-125 transition-all text-xs disabled:opacity-60 shadow"
+                        title="Genera y descarga el catálogo PDF con los productos en vivo (respeta qué productos muestran precio)"
+                    >
+                        {isCatalogLoading
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <FileText className="w-3.5 h-3.5" />}
+                        {isCatalogLoading ? "Generando catálogo…" : "Catálogo PDF"}
+                    </button>
                     <button
                         onClick={handleRefresh}
                         disabled={isSyncing}

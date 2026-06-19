@@ -12,6 +12,7 @@ import {
     MapPin,
     Clock,
     FileText,
+    Loader2,
     StickyNote,
     MessageSquare,
     Sparkles,
@@ -43,7 +44,7 @@ export default function Lead360Page() {
     const params = useParams();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { clients, companies, addAuditLog, sellers, tasks, quotes, auditLogs, currentUser, updateClient, refreshClients } = useApp();
+    const { clients, companies, addAuditLog, sellers, tasks, quotes, auditLogs, currentUser, updateClient, refreshClients, addNotification } = useApp();
 
     // Refresh el snapshot de clients al entrar al detalle. Si el lead vivía
     // en otra sesión (recién creado por compañero), evita la "página en blanco
@@ -57,6 +58,7 @@ export default function Lead360Page() {
         initialTab && VALID_TABS.includes(initialTab) ? initialTab : 'Actividad'
     );
     const [noteText, setNoteText] = useState('');
+    const [isSendingCatalog, setIsSendingCatalog] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [editForm, setEditForm] = useState({ name: '', company: '', companyId: '', position: '', email: '', phone: '', city: '', status: '' });
     const isSuperAdmin = currentUser?.role?.toLowerCase().includes('superadmin') || currentUser?.role?.toLowerCase() === 'admin';
@@ -197,6 +199,39 @@ export default function Lead360Page() {
     const handleRedactarCorreo = () => {
         if (!lead) return;
         openMailto(lead.email);
+    };
+
+    // Envía el catálogo PDF al correo del cliente (portada personalizada). El
+    // PDF lo genera el servidor leyendo WooCommerce y respeta la visibilidad de
+    // precios. Registra el envío como contacto en la bitácora.
+    const handleSendCatalog = async () => {
+        if (!lead || isSendingCatalog) return;
+        if (!lead.email || !/.+@.+\..+/.test(lead.email)) {
+            addNotification({ title: 'Sin correo válido', description: 'Este cliente no tiene un email para enviarle el catálogo.', type: 'alert' });
+            return;
+        }
+        setIsSendingCatalog(true);
+        try {
+            const res = await fetch('/api/catalogo/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    clientEmail: lead.email,
+                    clientName: lead.name,
+                    clientCompany: lead.company || '',
+                    sellerName: currentUser?.name || '',
+                    sellerPhone: (currentUser as { phone?: string } | null)?.phone || '',
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data?.error || `Error ${res.status}`);
+            handleLogContact('QUOTE_SENT', `Catálogo PDF enviado a ${lead.email}`);
+            addNotification({ title: 'Catálogo enviado', description: `Se envió el catálogo a ${lead.email}.`, type: 'success' });
+        } catch (e) {
+            addNotification({ title: 'No se pudo enviar el catálogo', description: e instanceof Error ? e.message : 'Intentá de nuevo.', type: 'alert' });
+        } finally {
+            setIsSendingCatalog(false);
+        }
     };
 
     const handleAssignSeller = () => {
@@ -400,6 +435,18 @@ export default function Lead360Page() {
                                 <span className="font-bold text-[10px] uppercase tracking-wide text-foreground">WhatsApp</span>
                             </button>
                         </div>
+
+                        {/* Enviar catálogo PDF al cliente */}
+                        <button
+                            onClick={handleSendCatalog}
+                            disabled={isSendingCatalog}
+                            title={lead.email ? `Enviar el catálogo PDF a ${lead.email}` : 'Este cliente no tiene correo'}
+                            className="w-full flex items-center justify-center gap-2 bg-foreground text-primary font-bold rounded-xl px-4 py-3 hover:brightness-125 transition-all text-xs disabled:opacity-60 shadow"
+                        >
+                            {isSendingCatalog
+                                ? <><Loader2 className="w-4 h-4 animate-spin" /> Generando y enviando…</>
+                                : <><FileText className="w-4 h-4" /> Enviar catálogo PDF</>}
+                        </button>
                     </div>
 
                     {/* Metrics Card */}

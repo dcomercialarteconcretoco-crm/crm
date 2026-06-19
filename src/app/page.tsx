@@ -13,6 +13,8 @@ import {
   Target,
   TrendingUp,
   Users,
+  Loader2,
+  Download,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useApp } from "@/context/AppContext";
@@ -39,7 +41,35 @@ const QUOTE_STATUS_LABEL: Record<string, string> = {
 };
 
 export default function Home() {
-  const { clients, tasks, quotes, sellers, settings, currentUser, auditLogs, events } = useApp();
+  const { clients, tasks, quotes, sellers, settings, currentUser, auditLogs, events, addNotification } = useApp();
+  const [isCatalogLoading, setIsCatalogLoading] = useState(false);
+
+  // Descarga el catálogo PDF actualizado (lo genera el servidor leyendo
+  // WooCommerce en vivo; lleva impresa la fecha/hora de generación). Disponible
+  // para cualquier usuario logueado.
+  const handleDownloadCatalog = async () => {
+    if (isCatalogLoading) return;
+    setIsCatalogLoading(true);
+    try {
+      const res = await fetch('/api/catalogo', { cache: 'no-store' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || `Error ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Catalogo-ArteConcreto-${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      addNotification({ title: 'Catálogo descargado', description: 'PDF generado con la fecha y hora actual.', type: 'success' });
+    } catch (e) {
+      addNotification({ title: 'No se pudo generar el catálogo', description: e instanceof Error ? e.message : 'Intentá de nuevo.', type: 'alert' });
+    } finally {
+      setIsCatalogLoading(false);
+    }
+  };
   const isLeadership = canSeeAll(currentUser);
   // ⚠️ Top vendedores SOLO SuperAdmin/Admin — nunca Manager ni Vendedor
   const canSeePerformance = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
@@ -480,6 +510,20 @@ export default function Home() {
               </Link>
             )}
           </div>
+
+          {/* Descargar catálogo PDF actualizado — disponible para todo el equipo */}
+          <button
+            onClick={handleDownloadCatalog}
+            disabled={isCatalogLoading}
+            title="Genera y descarga el catálogo de productos en PDF, con la fecha y hora de generación impresas"
+            className="mt-3 w-full flex items-center justify-between rounded-xl border border-foreground bg-foreground px-4 py-4 text-xs font-bold text-primary hover:brightness-125 transition-all disabled:opacity-60 shadow"
+          >
+            <span className="flex items-center gap-2">
+              {isCatalogLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+              {isCatalogLoading ? 'Generando catálogo PDF…' : 'Descargar catálogo PDF'}
+            </span>
+            {!isCatalogLoading && <Download className="h-3.5 w-3.5" />}
+          </button>
 
           {/* Live leads grid */}
           <div className="surface-card">
