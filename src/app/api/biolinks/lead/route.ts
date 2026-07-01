@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { hasDatabase, getPool, ensureCrmSchema } from '@/lib/postgres';
 import { rateLimit } from '@/lib/rate-limit';
 import { pickNextSeller } from '@/lib/round-robin';
+import { getFromEmail } from '@/lib/email';
 
 const CORS_HEADERS = {
     'Access-Control-Allow-Origin': '*',
@@ -128,7 +129,7 @@ export async function POST(req: NextRequest) {
                 method: 'POST',
                 headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    from: 'ArteConcreto CRM <noreply@arteconcreto.co>',
+                    from: getFromEmail(),
                     to: ['marketing@arteconcreto.co'],
                     subject: `🪪 Nuevo lead desde tarjeta de ${employeeName}`,
                     html: `<p><strong>${name}</strong> dejó sus datos en la tarjeta digital de <strong>${employeeName}</strong>.<br>

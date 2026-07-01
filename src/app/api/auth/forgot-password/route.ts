@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hasDatabase, getPool } from '@/lib/postgres';
+import { getFromEmail } from '@/lib/email';
 import crypto from 'crypto';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://crm-sand-three.vercel.app';
+function getAppUrl(req: NextRequest) {
+  return (process.env.NEXT_PUBLIC_APP_URL?.trim() || req.nextUrl.origin).replace(/\/$/, '');
+}
 
 export async function POST(req: NextRequest) {
   try {
     const { username } = await req.json();
-    if (!username?.trim()) {
+    const lookup = typeof username === 'string' ? username.trim().toLowerCase() : '';
+    if (!lookup) {
       return NextResponse.json({ error: 'Usuario requerido' }, { status: 400 });
     }
 
@@ -26,8 +30,8 @@ export async function POST(req: NextRequest) {
 
     // Look up user by username OR email
     const { rows } = await pool.query(
-      `SELECT id, name, email FROM crm_users WHERE username = $1 OR email = $1 LIMIT 1`,
-      [username.trim()]
+      `SELECT id, name, email FROM crm_users WHERE lower(username) = $1 OR lower(email) = $1 LIMIT 1`,
+      [lookup]
     );
 
     // Always return success to prevent user enumeration
@@ -44,12 +48,15 @@ export async function POST(req: NextRequest) {
       [token, expires.toISOString(), user.id]
     );
 
-    const resetUrl = `${APP_URL}/reset-password?token=${token}`;
+    const resetUrl = `${getAppUrl(req)}/reset-password?token=${token}`;
 
     const resendKey = process.env.RESEND_API_KEY;
     if (!resendKey) {
       console.error('RESEND_API_KEY not configured — reset link:', resetUrl);
-      return NextResponse.json({ ok: true });
+      return NextResponse.json(
+        { error: 'El servicio de correo no está configurado. Pide un enlace manual al administrador.' },
+        { status: 503 }
+      );
     }
 
     const emailHtml = `<!DOCTYPE html>
@@ -95,18 +102,33 @@ export async function POST(req: NextRequest) {
 </body>
 </html>`;
 
-    await fetch('https://api.resend.com/emails', {
+    const emailRes = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${resendKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'ArteConcreto CRM <noreply@arteconcreto.co>',
+        from: getFromEmail(),
         to: [user.email],
         subject: 'Recuperación de contraseña — CRM Intelligence',
         html: emailHtml,
       }),
+    });
+
+    if (!emailRes.ok) {
+      const body = await emailRes.text().catch(() => '');
+      console.error('forgot-password Resend error:', emailRes.status, body);
+      return NextResponse.json(
+        { error: 'No se pudo enviar el correo de recuperación. Intenta más tarde o pide un enlace manual al administrador.' },
+        { status: 502 }
+      );
+    }
+
+    const emailData = await emailRes.json().catch(() => ({} as { id?: string }));
+    console.info('forgot-password Resend accepted:', {
+      to: user.email,
+      resendId: emailData.id,
     });
 
     return NextResponse.json({ ok: true });

@@ -27,11 +27,16 @@ export default function LoginPage() {
         setForgotLoading(true);
         setForgotError('');
         try {
-            await fetch('/api/auth/forgot-password', {
+            const res = await fetch('/api/auth/forgot-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username: forgotUsername.trim() }),
             });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                setForgotError(data.error || 'No se pudo enviar el enlace. Intenta de nuevo.');
+                return;
+            }
             setForgotSent(true);
         } catch {
             setForgotError('Error de conexión. Intenta de nuevo.');

@@ -4,9 +4,12 @@ import { hashPassword, isBcryptHash } from "@/lib/password";
 import { isGodUser } from "@/lib/god-user";
 import { loadFreshSession } from "@/lib/auth-session";
 import { hasPermission } from "@/lib/permissions";
+import { getFromEmail } from "@/lib/email";
 import crypto from "crypto";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://crm-sand-three.vercel.app";
+function getAppUrl(request: NextRequest) {
+  return (process.env.NEXT_PUBLIC_APP_URL?.trim() || request.nextUrl.origin).replace(/\/$/, "");
+}
 
 export async function GET() {
   if (!hasDatabase()) {
@@ -88,6 +91,7 @@ async function sendActivationEmail(opts: {
   email: string;
   role: string;
   inviterName: string;
+  appUrl: string;
 }): Promise<{ ok: boolean; error?: string }> {
   // Reusamos las mismas columnas que el reset-password — un token y un
   // expires. Garantizamos que existen (idempotente, mismo ALTER del flujo
@@ -111,7 +115,7 @@ async function sendActivationEmail(opts: {
   // Reusamos /reset-password como página de seteo de contraseña — funciona
   // idéntico para "primera contraseña" que para "olvidé contraseña" desde
   // la perspectiva del backend (ambos validan el token y guardan el hash).
-  const activationUrl = `${APP_URL}/reset-password?token=${token}&welcome=1`;
+  const activationUrl = `${opts.appUrl}/reset-password?token=${token}&welcome=1`;
 
   const resendKey = process.env.RESEND_API_KEY;
   if (!resendKey) {
@@ -129,7 +133,7 @@ async function sendActivationEmail(opts: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "ArteConcreto CRM <noreply@arteconcreto.co>",
+        from: getFromEmail(),
         to: [opts.email],
         subject: `Bienvenido al CRM ArteConcreto — Activá tu cuenta`,
         html,
@@ -140,6 +144,11 @@ async function sendActivationEmail(opts: {
       console.error("[team/activation] Resend rechazó:", res.status, body);
       return { ok: false, error: `Resend HTTP ${res.status}: ${body.slice(0, 200)}` };
     }
+    const data = await res.json().catch(() => ({} as { id?: string }));
+    console.info("[team/activation] Resend accepted:", {
+      to: opts.email,
+      resendId: data.id,
+    });
     return { ok: true };
   } catch (err) {
     console.error("[team/activation] error de red:", err);
@@ -245,6 +254,7 @@ export async function POST(request: NextRequest) {
       email: payload.email,
       role: payload.role || 'Vendedor',
       inviterName: session.name || '',
+      appUrl: getAppUrl(request),
     });
     activation = { sent: r.ok, error: r.error };
   }

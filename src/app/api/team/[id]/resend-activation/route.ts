@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { ensureCrmSchema, getPool, hasDatabase } from "@/lib/postgres";
 import { loadFreshSession } from "@/lib/auth-session";
 import { hasPermission } from "@/lib/permissions";
+import { getFromEmail } from "@/lib/email";
 import crypto from "crypto";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://crm-sand-three.vercel.app";
+function getAppUrl(request: NextRequest) {
+  return (process.env.NEXT_PUBLIC_APP_URL?.trim() || request.nextUrl.origin).replace(/\/$/, "");
+}
 
 /**
  * POST /api/team/:id/resend-activation
@@ -65,7 +68,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     [token, expires.toISOString(), user.id]
   );
 
-  const activationUrl = `${APP_URL}/reset-password?token=${token}&welcome=1`;
+  const activationUrl = `${getAppUrl(request)}/reset-password?token=${token}&welcome=1`;
   const resendKey = process.env.RESEND_API_KEY;
 
   if (!resendKey) {
@@ -128,7 +131,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "ArteConcreto CRM <noreply@arteconcreto.co>",
+        from: getFromEmail(),
         to: [user.email],
         subject: "Bienvenido al CRM ArteConcreto — Activá tu cuenta",
         html,
@@ -142,6 +145,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         activationUrl,
       }, { status: 500 });
     }
+    const data = await res.json().catch(() => ({} as { id?: string }));
+    console.info("[team/resend-activation] Resend accepted:", {
+      to: user.email,
+      resendId: data.id,
+    });
     return NextResponse.json({ ok: true, sentTo: user.email });
   } catch (err) {
     return NextResponse.json({

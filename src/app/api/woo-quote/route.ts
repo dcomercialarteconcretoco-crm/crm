@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
 import { pickNextSeller } from '@/lib/round-robin';
 import { isAutoSendEnabledForChannel } from '@/lib/system-settings';
+import { getFromEmail } from '@/lib/email';
 
 // CORS headers so the WooCommerce site (arteconcreto.co) can call this endpoint
 const CORS = {
@@ -233,7 +234,7 @@ export async function POST(req: NextRequest) {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    from: 'CRM ArteConcreto <noreply@arteconcreto.co>',
+                    from: getFromEmail(),
                     to: ['ventas@arteconcreto.co'],
                     subject: `🧾 Nueva solicitud de cotización — ${product.name}`,
                     html: `
