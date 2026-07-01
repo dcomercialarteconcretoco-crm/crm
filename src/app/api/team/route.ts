@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
         status = EXCLUDED.status,
         sales = EXCLUDED.sales,
         commission = EXCLUDED.commission,
-        password = EXCLUDED.password,
+        password = COALESCE(EXCLUDED.password, crm_users.password),
         permissions = EXCLUDED.permissions,
         receives_leads = EXCLUDED.receives_leads,
         updated_at = NOW()
