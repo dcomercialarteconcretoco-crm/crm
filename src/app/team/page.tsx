@@ -636,6 +636,22 @@ export default function TeamPage() {
                                 </p>
                             </div>
 
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">
+                                    Teléfono
+                                </label>
+                                <div className="relative">
+                                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                    <input
+                                        type="tel"
+                                        placeholder="Ej: 3165105675"
+                                        value={form.phone || ''}
+                                        onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))}
+                                        className="w-full bg-muted border border-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:bg-white transition-all placeholder:text-muted-foreground/60"
+                                    />
+                                </div>
+                            </div>
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">
