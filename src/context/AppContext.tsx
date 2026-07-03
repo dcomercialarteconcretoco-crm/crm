@@ -280,7 +280,7 @@ export interface Seller {
     id: string;
     name: string;
     avatar?: string;
-    role: 'Vendedor' | 'Manager' | 'Admin' | 'SuperAdmin';
+    role: 'Vendedor' | 'Manager' | 'Admin' | 'SuperAdmin' | 'Auditor';
     email: string;
     phone?: string;
     username?: string;

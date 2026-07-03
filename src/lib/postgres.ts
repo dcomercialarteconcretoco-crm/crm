@@ -498,6 +498,45 @@ async function doEnsureCrmSchema() {
     ON crm_contact_events (seller_id, created_at DESC);
   `);
 
+  // ── Cliente Oculto (mystery shopper) ────────────────────────────────────
+  //
+  // Misiones del programa de cliente oculto (plan URB jul-2026): el Auditor
+  // contacta a la empresa con una identidad ficticia por un canal real y
+  // registra acá todo el ciclo (1ª respuesta, cotización, seguimientos,
+  // rúbrica de 100 puntos). El sistema cruza el alias contra crm_clients y
+  // crm_contact_events para generar "avisos de incógnito" cuando el vendedor
+  // no hace lo que debe. Solo la ven SuperAdmin/Admin/Auditor.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_mystery_missions (
+      id TEXT PRIMARY KEY,
+      code TEXT NOT NULL,
+      profile TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      alias_name TEXT NOT NULL,
+      alias_company TEXT,
+      alias_phone TEXT,
+      alias_email TEXT,
+      status TEXT NOT NULL DEFAULT 'planned',
+      contact_at TIMESTAMPTZ,
+      first_response_at TIMESTAMPTZ,
+      quote_at TIMESTAMPTZ,
+      quote_format TEXT,
+      attended_by TEXT,
+      scores JSONB NOT NULL DEFAULT '{}'::jsonb,
+      touches JSONB NOT NULL DEFAULT '[]'::jsonb,
+      notes TEXT,
+      linked_client_id TEXT,
+      created_by TEXT,
+      created_by_name TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_crm_mystery_status
+    ON crm_mystery_missions (status, created_at DESC);
+  `);
+
   // pg_trgm habilita búsqueda ILIKE rápida en 70k+ filas. Si la extensión no
   // está disponible (raro en Neon), seguimos con seq scan — funciona aunque
   // más lento.

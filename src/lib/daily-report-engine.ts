@@ -14,7 +14,7 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || 'ordenes@arteconcreto.co';
 const LOGO_URL = 'https://arteconcreto.co/wp-content/uploads/2026/03/cropped-Logo-Web-72ppi-237x96-1.png';
 
-type Role = 'Vendedor' | 'Manager' | 'Admin' | 'SuperAdmin';
+type Role = 'Vendedor' | 'Manager' | 'Admin' | 'SuperAdmin' | 'Auditor';
 
 interface Seller {
     id: string;

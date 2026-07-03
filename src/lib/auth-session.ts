@@ -56,7 +56,7 @@ export type SessionUser = {
   name: string;
   username?: string;
   email: string;
-  role: "Vendedor" | "Manager" | "Admin" | "SuperAdmin";
+  role: "Vendedor" | "Manager" | "Admin" | "SuperAdmin" | "Auditor";
   status: "Activo" | "Inactivo";
   avatar?: string;
   phone?: string;

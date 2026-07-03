@@ -98,7 +98,7 @@ function isoDaysAgo(days: number): string {
 
 export default function ManagementAuditPage() {
     const { currentUser, isHydrating } = useApp();
-    const isLeadership = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
+    const isLeadership = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin' || currentUser?.role === 'Auditor';
 
     const [sellerOptions, setSellerOptions] = useState<SellerOption[]>([]);
     const [selected, setSelected] = useState<Set<string>>(new Set());

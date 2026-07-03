@@ -667,6 +667,7 @@ export default function TeamPage() {
                                         <option value="Admin">Administrador</option>
                                         <option value="Manager">Manager Operativo</option>
                                         <option value="Vendedor">Vendedor Senior</option>
+                                        <option value="Auditor">Auditor (Cliente Oculto)</option>
                                     </select>
                                 </div>
                                 <div>

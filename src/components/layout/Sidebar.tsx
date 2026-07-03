@@ -22,7 +22,8 @@ import {
   CreditCard,
   Upload,
   Building2,
-  Inbox
+  Inbox,
+  Eye as EyeIcon
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -74,9 +75,12 @@ const navGroups = [
 ] as const;
 
 const systemItems = [
-  { name: 'Importar Datos', href: '/import',   icon: Upload,   permission: 'settings.view' },
-  { name: 'Auditoría',      href: '/audit',    icon: Shield,   permission: 'audit.view'    },
-  { name: 'Configuración',  href: '/settings', icon: Settings, permission: 'settings.view' },
+  { name: 'Importar Datos', href: '/import',           icon: Upload,   permission: 'settings.view' },
+  { name: 'Auditoría',      href: '/audit',            icon: Shield,   permission: 'audit.view'    },
+  // Cliente Oculto: confidencial — solo SuperAdmin/Admin/Auditor (auditRoles).
+  // Los vendedores jamás deben ver que existe.
+  { name: 'Cliente Oculto', href: '/audit/incognito',  icon: EyeIcon,  permission: 'audit.view', auditRoles: true },
+  { name: 'Configuración',  href: '/settings',         icon: Settings, permission: 'settings.view' },
 ] as const;
 
 interface SidebarProps {
@@ -97,8 +101,11 @@ export function Sidebar({ isCompact }: SidebarProps) {
     : 0;
 
   /** Hides nav items the user has no permission for */
-  const canSee = (item: { permission: string | null; superAdminOnly?: boolean }) => {
+  const canSee = (item: { permission: string | null; superAdminOnly?: boolean; auditRoles?: boolean }) => {
     if (item.superAdminOnly && !isSuperAdmin) return false;
+    // auditRoles: módulos confidenciales de auditoría (Cliente Oculto) —
+    // solo SuperAdmin/Admin/Auditor, nunca vendedores ni managers.
+    if (item.auditRoles && !(isSuperAdmin || currentUser?.role === 'Auditor')) return false;
     return !item.permission || hasPermission(currentUser, item.permission as PermissionKey);
   };
   const displayName =

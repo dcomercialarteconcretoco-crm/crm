@@ -79,8 +79,8 @@ async function requireLeadership(request: NextRequest) {
     if (!session) {
         return { error: NextResponse.json({ error: 'Sesión requerida.' }, { status: 401 }) };
     }
-    if (session.role !== 'SuperAdmin' && session.role !== 'Admin') {
-        return { error: NextResponse.json({ error: 'Solo administradores pueden lanzar auditorías.' }, { status: 403 }) };
+    if (session.role !== 'SuperAdmin' && session.role !== 'Admin' && session.role !== 'Auditor') {
+        return { error: NextResponse.json({ error: 'Solo administradores y auditores pueden lanzar auditorías.' }, { status: 403 }) };
     }
     return { session };
 }

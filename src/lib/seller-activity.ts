@@ -73,7 +73,7 @@ export function aggregateSellerActivity(input: AggregateInput): SellerActivity[]
 
     return sellers
         .filter((s) => !excludeInactive || s.status !== 'Inactivo')
-        .filter((s) => !excludeAdmins || (s.role !== 'SuperAdmin' && s.role !== 'Admin'))
+        .filter((s) => !excludeAdmins || (s.role !== 'SuperAdmin' && s.role !== 'Admin' && s.role !== 'Auditor'))
         .map((seller): SellerActivity => {
             const sellerLogs = auditLogs.filter(
                 (l) => l.userId === seller.id && isInRange(new Date(l.timestamp), from, to)
