@@ -209,6 +209,9 @@ export default function Lead360Page() {
 
     const handleRedactarCorreo = () => {
         if (!lead) return;
+        // El click en correo también cuenta como contacto (regla gerencial),
+        // aunque el asesor no deje anotación.
+        logContactEvent(lead.id, 'email', 'Correo redactado desde hoja de vida');
         openMailto(lead.email);
     };
 

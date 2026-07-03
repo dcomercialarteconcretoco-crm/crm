@@ -28,6 +28,7 @@ import {
 import { clsx } from 'clsx';
 import Link from 'next/link';
 import { useApp, Client } from '@/context/AppContext';
+import { logContactEvent } from '@/lib/contact-events';
 import SearchableSelect from '@/components/SearchableSelect';
 import CompanyCombobox from '@/components/CompanyCombobox';
 import SectorSelect from '@/components/SectorSelect';
@@ -714,7 +715,12 @@ export default function ClientsPage() {
                                         type="button"
                                         title="WhatsApp"
                                         disabled={!client.phone}
-                                        onClick={() => client.phone && window.open(`https://wa.me/${client.phone.replace(/\D/g,'')}`, '_blank')}
+                                        onClick={() => {
+                                            if (!client.phone) return;
+                                            // El click cuenta como contacto aunque no dejen anotación.
+                                            logContactEvent(client.id, 'whatsapp', 'WhatsApp desde listado de clientes');
+                                            window.open(`https://wa.me/${client.phone.replace(/\D/g,'')}`, '_blank');
+                                        }}
                                         className="p-2 rounded-lg bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white transition-all border border-emerald-100 disabled:opacity-30 disabled:cursor-not-allowed"
                                     >
                                         <MessageSquare className="w-3.5 h-3.5"/>
@@ -808,7 +814,11 @@ export default function ClientsPage() {
                             {/* Action Footer */}
                             <div className="grid grid-cols-2 gap-2 mt-4">
                                 <button
-                                    onClick={() => window.open(`https://wa.me/${client.phone.replace(/\D/g, '')}`, '_blank')}
+                                    onClick={() => {
+                                        // El click cuenta como contacto aunque no dejen anotación.
+                                        logContactEvent(client.id, 'whatsapp', 'WhatsApp desde tarjeta de clientes');
+                                        window.open(`https://wa.me/${client.phone.replace(/\D/g, '')}`, '_blank');
+                                    }}
                                     className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white font-medium text-xs transition-all border border-emerald-100"
                                 >
                                     <MessageSquare className="w-3.5 h-3.5" />

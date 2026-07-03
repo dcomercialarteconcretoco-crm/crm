@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
+import { logContactEvent } from '@/lib/contact-events';
 import { Search, Phone, Mail, MapPin, X, Building2, TrendingUp } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -123,6 +124,7 @@ export default function MobileClientes() {
                         <div className="space-y-2.5">
                             {selected.email && (
                                 <a href={`mailto:${selected.email}`}
+                                    onClick={() => logContactEvent(selected.id, 'email', 'Correo desde app móvil')}
                                     className="flex items-center gap-3 p-3 bg-muted rounded-xl active:bg-muted/80">
                                     <Mail className="w-4 h-4 text-primary shrink-0" />
                                     <span className="text-sm text-foreground truncate">{selected.email}</span>
@@ -130,6 +132,7 @@ export default function MobileClientes() {
                             )}
                             {selected.phone && (
                                 <a href={`tel:${selected.phone}`}
+                                    onClick={() => logContactEvent(selected.id, 'call', 'Llamada desde app móvil')}
                                     className="flex items-center gap-3 p-3 bg-muted rounded-xl active:bg-muted/80">
                                     <Phone className="w-4 h-4 text-primary shrink-0" />
                                     <span className="text-sm text-foreground">{selected.phone}</span>
@@ -150,12 +153,14 @@ export default function MobileClientes() {
                             {selected.phone && (
                                 <a href={`https://wa.me/${selected.phone.replace(/\D/g,'')}`}
                                     target="_blank" rel="noopener noreferrer"
+                                    onClick={() => logContactEvent(selected.id, 'whatsapp', 'WhatsApp desde app móvil')}
                                     className="flex items-center justify-center gap-2 py-3.5 bg-emerald-500 text-white font-bold rounded-xl text-sm active:scale-95 transition-transform">
                                     WhatsApp
                                 </a>
                             )}
                             {selected.email && (
                                 <a href={`mailto:${selected.email}`}
+                                    onClick={() => logContactEvent(selected.id, 'email', 'Correo desde app móvil')}
                                     className="flex items-center justify-center gap-2 py-3.5 bg-primary text-black font-bold rounded-xl text-sm active:scale-95 transition-transform">
                                     Email
                                 </a>
