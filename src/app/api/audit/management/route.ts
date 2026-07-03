@@ -74,6 +74,22 @@ function inRange(d: Date | null, fromDate: Date, toDate: Date): boolean {
     return !!d && d >= fromDate && d <= toDate;
 }
 
+/** Días hábiles (lun–vie) dentro del rango — denominador de la meta diaria. */
+function businessDays(from: Date, to: Date): number {
+    let n = 0;
+    const d = new Date(from);
+    while (d <= to) {
+        const w = d.getDay();
+        if (w !== 0 && w !== 6) n++;
+        d.setDate(d.getDate() + 1);
+    }
+    return Math.max(n, 1);
+}
+
+// Meta gerencial de contactos diarios por asesor (definida por dirección:
+// entre 5 y 10; usamos 5 como piso exigible).
+const DAILY_CONTACT_GOAL = 5;
+
 async function requireLeadership(request: NextRequest) {
     const session = await loadFreshSession(request);
     if (!session) {
@@ -234,6 +250,12 @@ export async function POST(request: NextRequest) {
         avgThirdContactDays: number | null;
         avgFirstResponseApproxDays: number | null;
         clientsWithTrackedContacts: number;
+        // Meta diaria de contactos: eventos de bitácora en el rango + fechas de
+        // contacto históricas en el rango + base fría contactada en el rango,
+        // dividido entre días hábiles. Histórico = estimado; exacto desde jul-2026.
+        contactsInRange: number;
+        contactsPerDay: number;
+        goalCompliancePct: number;
         contactedClients: ClientRow[];
         neverContactedClients: ClientRow[];
     };
@@ -252,6 +274,7 @@ export async function POST(request: NextRequest) {
                 rawContactedInRange: 0, rawPendingAssigned: 0,
                 avgFirstResponseDays: null, avgSecondContactDays: null, avgThirdContactDays: null,
                 avgFirstResponseApproxDays: null, clientsWithTrackedContacts: 0,
+                contactsInRange: 0, contactsPerDay: 0, goalCompliancePct: 0,
                 contactedClients: [], neverContactedClients: [],
             };
             perSeller.set(key, s);
@@ -309,6 +332,15 @@ export async function POST(request: NextRequest) {
             contacts: cEvents.length,
             unregistered: hasEvidence && !fieldRegistered,
         };
+        // Meta diaria: eventos de bitácora dentro del rango cuentan uno a uno;
+        // si no hay eventos, la fecha del campo último contacto dentro del
+        // rango cuenta como 1 contacto (estimación histórica).
+        const eventsInRange = cEvents.filter((d) => inRange(d, fromDate, toDate)).length;
+        if (eventsInRange > 0) {
+            s.contactsInRange += eventsInRange;
+        } else if (/^\d{4}-\d{2}-\d{2}$/.test(c.last_contact || '') && inRange(new Date(`${c.last_contact}T12:00:00-05:00`), fromDate, toDate)) {
+            s.contactsInRange += 1;
+        }
         // Tiempos de respuesta: la asignación al asesor ocurre al crear el
         // cliente (round-robin / registro manual), así que created_at es el
         // punto de partida. 1º/2º/3º contacto salen de la bitácora inmutable.
@@ -444,8 +476,16 @@ export async function POST(request: NextRequest) {
     const avg = (arr: number[] | undefined) =>
         arr && arr.length ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10 : null;
 
-    const rows = Array.from(perSeller.values()).map((s) => ({
+    const rangeBusinessDays = businessDays(fromDate, toDate);
+    const rows = Array.from(perSeller.values()).map((s) => {
+        // La base fría contactada en el rango también es gestión diaria.
+        const totalContacts = s.contactsInRange + s.rawContactedInRange;
+        const perDay = Math.round((totalContacts / rangeBusinessDays) * 10) / 10;
+        return {
         ...s,
+        contactsInRange: totalContacts,
+        contactsPerDay: perDay,
+        goalCompliancePct: Math.round((100 * perDay) / DAILY_CONTACT_GOAL),
         contactedClients: [...s.contactedClients].sort((a, b) => b.quotesValue - a.quotesValue),
         neverContactedClients: [...s.neverContactedClients].sort((a, b) => b.daysWaiting - a.daysWaiting),
         pctNeverContacted: s.totalClients ? Math.round((100 * s.neverContacted) / s.totalClients) : 0,
@@ -455,7 +495,8 @@ export async function POST(request: NextRequest) {
         avgSecondContactDays: avg(secondRespDays.get(s.sellerId)),
         avgThirdContactDays: avg(thirdRespDays.get(s.sellerId)),
         avgFirstResponseApproxDays: avg(firstRespApproxDays.get(s.sellerId)),
-    })).sort((a, b) => b.totalClients - a.totalClients);
+        };
+    }).sort((a, b) => b.totalClients - a.totalClients);
 
     const totals = rows.reduce(
         (acc, s) => ({
@@ -497,6 +538,8 @@ export async function POST(request: NextRequest) {
             closed: totals.closedInRange,
         },
         avgTicket: totals.quotesInRange ? Math.round(totals.quotesValueInRange / totals.quotesInRange) : 0,
+        dailyGoal: DAILY_CONTACT_GOAL,
+        rangeBusinessDays,
         monthly: Array.from(monthly.entries())
             .sort(([a], [b]) => a.localeCompare(b))
             .map(([month, m]) => ({ month, ...m })),

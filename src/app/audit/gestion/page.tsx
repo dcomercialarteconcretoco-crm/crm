@@ -60,6 +60,9 @@ type SellerRow = {
     avgThirdContactDays: number | null;
     avgFirstResponseApproxDays: number | null;
     clientsWithTrackedContacts: number;
+    contactsInRange: number;
+    contactsPerDay: number;
+    goalCompliancePct: number;
     contactedClients: ClientRow[];
     neverContactedClients: ClientRow[];
 };
@@ -83,6 +86,8 @@ type AuditResult = {
     };
     funnel: { clients: number; contacted: number; quotedClients: number; closed: number };
     avgTicket: number;
+    dailyGoal: number;
+    rangeBusinessDays: number;
     monthly: Array<{ month: string; quotes: number; value: number }>;
     perSeller: SellerRow[];
     abandonedQuotes: Array<{
@@ -401,7 +406,7 @@ export default function ManagementAuditPage() {
                                     <table className="w-full text-sm">
                                         <thead>
                                             <tr className="bg-muted/50 border-b border-border">
-                                                {['Asesor', 'Clientes', 'Nuevos', 'Sin contactar', '% sin contacto', 'Sin registrar gestión', '1ª resp. (días)', '2ª / 3ª (días)', 'Cotiz.', 'Valor cotizado', 'Sin seguim.', 'Lead→Cotiz (días)', 'Cerrados', 'Valor cerrado', 'Cotiz→Cierre (días)', 'Base prospección'].map((h) => (
+                                                {['Asesor', 'Clientes', 'Nuevos', 'Sin contactar', '% sin contacto', 'Sin registrar gestión', `Contactos/día (meta ${result.dailyGoal})`, '1ª resp. (días)', '2ª / 3ª (días)', 'Cotiz.', 'Valor cotizado', 'Sin seguim.', 'Lead→Cotiz (días)', 'Cerrados', 'Valor cerrado', 'Cotiz→Cierre (días)', 'Base prospección'].map((h) => (
                                                     <th key={h} className="text-left px-3 py-3 text-xs font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{h}</th>
                                                 ))}
                                             </tr>
@@ -418,6 +423,12 @@ export default function ManagementAuditPage() {
                                                     </td>
                                                     <td className={clsx('px-3 py-3', s.unregisteredManagement > 0 && 'text-amber-600 font-bold')} title="Clientes con evidencia de contacto (ej. cotización) donde el asesor nunca registró la gestión en el CRM">
                                                         {s.unregisteredManagement}
+                                                    </td>
+                                                    <td
+                                                        className={clsx('px-3 py-3 font-bold whitespace-nowrap', s.contactsPerDay >= result.dailyGoal ? 'text-emerald-600' : s.contactsPerDay >= result.dailyGoal / 2 ? 'text-amber-600' : 'text-red-600')}
+                                                        title={`${s.contactsInRange} contactos en ${result.rangeBusinessDays} días hábiles (bitácora + fechas registradas + base de prospección). Histórico estimado; exacto desde jul-2026.`}
+                                                    >
+                                                        {s.contactsPerDay} ({s.goalCompliancePct}%)
                                                     </td>
                                                     <td className="px-3 py-3 whitespace-nowrap" title="Días desde la asignación hasta el primer contacto registrado (bitácora); 'aprox' usa el histórico de último contacto">
                                                         {s.avgFirstResponseDays !== null
