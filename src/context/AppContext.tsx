@@ -45,6 +45,9 @@ export interface Task {
     activities: Activity[];
     quoteId?: string;
     stageId?: string;
+    // Motivo de pérdida cuando el negocio se descarta/marca perdido —
+    // requerido por gerencia para saber por qué se pierden los negocios.
+    lossReason?: string;
     notes?: { text: string; date: string; author: string }[];
 }
 
@@ -169,7 +172,13 @@ export interface Quote {
     //              │                 │
     //              ▼                 ▼ (si Resend falla: deliveryFailed=true)
     //         ChangesRequested    Sent (deliveryFailed? → retry)
-    status: 'Draft' | 'PendingApproval' | 'ChangesRequested' | 'Approved' | 'Sent' | 'Rejected' | 'PENDING_APPROVAL';
+    status: 'Draft' | 'PendingApproval' | 'ChangesRequested' | 'Approved' | 'Sent' | 'Rejected' | 'Expired' | 'PENDING_APPROVAL';
+    // Fecha del último cambio de status — la estampa updateQuote. Permite
+    // medir el ciclo real cotización→cierre (auditoría de gestión, jul-2026).
+    statusChangedAt?: string;
+    // Motivo de pérdida — se pide al marcar Rejected. Sin esto la gerencia no
+    // sabe si se pierde por precio, tiempo de respuesta o producto.
+    lossReason?: string;
     taskId?: string;
     opens?: number;
     sentAt?: string;
@@ -1916,6 +1925,12 @@ REGLAS DE ORO:
     const updateQuote = (quoteId: string, updates: Partial<Quote>) => {
         const prevQuote = quotes.find(q => q.id === quoteId);
 
+        // Estampar la fecha de cada cambio de estado — es lo que permite medir
+        // el ciclo cotización→cierre en la auditoría.
+        if (updates.status && prevQuote && updates.status !== prevQuote.status && !updates.statusChangedAt) {
+            updates = { ...updates, statusChangedAt: new Date().toISOString() };
+        }
+
         setQuotes(prev => {
             const next = prev.map(q => q.id === quoteId ? { ...q, ...updates } : q);
             persistSharedState({ quotes: next });
@@ -1929,6 +1944,7 @@ REGLAS DE ORO:
                 'Viewed': { title: 'Cotización vista por cliente', type: 'lead' },
                 'Approved': { title: 'Cotización aprobada', type: 'success' },
                 'Rejected': { title: 'Cotización rechazada', type: 'alert' },
+                'Expired': { title: 'Cotización vencida', type: 'alert' },
             };
             const cfg = notifMap[updates.status];
             if (cfg) {

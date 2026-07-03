@@ -51,6 +51,7 @@ import {
 import { clsx } from 'clsx';
 import { useApp, Task, Activity, Seller, Client, PipelineStage, DEFAULT_PIPELINE_STAGES } from '@/context/AppContext';
 import { openMailto, openWhatsApp } from '@/lib/contact-links';
+import { logContactEvent } from '@/lib/contact-events';
 import SearchableSelect from '@/components/SearchableSelect';
 import SectorSelect from '@/components/SectorSelect';
 import CompanyCombobox from '@/components/CompanyCombobox';
@@ -170,12 +171,18 @@ function SortableTask({ task, onClick, onNote, stages }: { task: Task; onClick: 
     // cotización (status='Rejected') y la tarjeta sale del pipeline. La
     // ficha del cliente muestra el histórico de intentos perdidos.
     const handleLost = stop(() => {
-        if (linkedQuote) updateQuote(linkedQuote.id, { status: 'Rejected' });
+        // Motivo de pérdida obligatorio — la gerencia necesita saber si se
+        // pierde por precio, tiempo de respuesta, producto o competencia.
+        const motivo = window.prompt('Motivo de pérdida (precio, tiempo de respuesta, producto, competencia, etc.):', task.lossReason || '');
+        if (motivo === null) return; // canceló — no se marca perdido
+        const lossReason = motivo.trim() || 'Sin motivo especificado';
+        if (linkedQuote) updateQuote(linkedQuote.id, { status: 'Rejected', lossReason });
         // Marcamos la task con un stage especial '__lost__' que el filtro
         // del pipeline descarta. La tarjeta desaparece del kanban pero queda
         // persistida por si quieren rescatarla en el futuro.
-        updateTask(task.id, { stageId: '__lost__' } as any);
-        addNotification({ title: 'Marcado como perdido', description: `${task.title} salió del pipeline. Queda registrado en la ficha del cliente.`, type: 'alert' });
+        const lossActivity = { id: `act-${Date.now()}`, type: 'system' as const, content: `❌ Negocio perdido — Motivo: ${lossReason}`, timestamp: new Date() };
+        updateTask(task.id, { stageId: '__lost__', lossReason, activities: [lossActivity, ...(task.activities || [])] } as any);
+        addNotification({ title: 'Marcado como perdido', description: `${task.title} salió del pipeline. Motivo: ${lossReason}`, type: 'alert' });
     });
 
     const currentStage = stages.find(s => s.id === currentStageId);
@@ -638,12 +645,17 @@ export default function PipelinePage() {
         if (!selectedTask) return;
         const newActivity: Activity = { id: Date.now().toString(), type, content, timestamp: new Date() };
         updateTask(selectedTask.id, { activities: [newActivity, ...selectedTask.activities] });
+        // Bitácora persistente para la Auditoría de Gestión (1ª/2ª/3ª respuesta).
+        if (selectedTask.clientId && (type === 'whatsapp' || type === 'call' || type === 'email' || type === 'note')) {
+            logContactEvent(selectedTask.clientId, type as 'whatsapp' | 'call' | 'email' | 'note', content.slice(0, 200));
+        }
     };
 
     const handleSaveCall = () => {
         if (!selectedTask || !callNoteText.trim()) return;
         const newActivity: Activity = { id: Date.now().toString(), type: 'call', content: callNoteText.trim(), timestamp: new Date() };
         updateTask(selectedTask.id, { activities: [newActivity, ...selectedTask.activities] });
+        if (selectedTask.clientId) logContactEvent(selectedTask.clientId, 'call', callNoteText.trim().slice(0, 200));
         addAuditLog({
             userId: currentUser?.id || 'system',
             userName: currentUser?.name || 'Sistema',
@@ -681,13 +693,25 @@ export default function PipelinePage() {
         if (destColId && resolveStageId((movedTask as any).stageId) !== destColId) {
             const fromLabel = stageLabel[resolveStageId((movedTask as any).stageId)] || (movedTask as any).stageId || '—';
             const toLabel = stageLabel[destColId] || destColId;
+
+            // Arrastrar a una etapa de descarte pide motivo de pérdida —
+            // misma regla que el botón "Perdido" de la tarjeta.
+            let lossReason: string | undefined;
+            if (/descart|perdid/i.test(toLabel)) {
+                const motivo = window.prompt('Motivo de pérdida (precio, tiempo de respuesta, producto, competencia, etc.):', (movedTask as any).lossReason || '');
+                if (motivo === null) return; // canceló — la tarjeta no se mueve
+                lossReason = motivo.trim() || 'Sin motivo especificado';
+            }
+
             const stageActivity: Activity = {
                 id: `sys-${Date.now()}`,
                 type: 'system',
-                content: `📌 Etapa cambiada: ${fromLabel} → ${toLabel}`,
+                content: lossReason
+                    ? `📌 Etapa cambiada: ${fromLabel} → ${toLabel} — Motivo: ${lossReason}`
+                    : `📌 Etapa cambiada: ${fromLabel} → ${toLabel}`,
                 timestamp: new Date(),
             };
-            updateTask(activeId, { stageId: destColId, activities: [stageActivity, ...movedTask.activities] } as any);
+            updateTask(activeId, { stageId: destColId, activities: [stageActivity, ...movedTask.activities], ...(lossReason ? { lossReason } : {}) } as any);
             addAuditLog({ userId: currentUser.id, userName: currentUser.name, userRole: canReassign ? 'SuperAdmin' : 'Vendedor', action: 'LEAD_STATUS_CHANGE', targetId: activeId, targetName: movedTask.client, details: `Cambio de etapa: ${fromLabel} → ${toLabel}`, verified: true });
             // Si la columna de destino está marcada como "ganadora" (isWinStage),
             // disparamos la orden de producción como antes.

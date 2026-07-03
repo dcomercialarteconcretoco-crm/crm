@@ -470,6 +470,34 @@ async function doEnsureCrmSchema() {
     CREATE INDEX IF NOT EXISTS idx_crm_raw_leads_activities
     ON crm_raw_leads USING GIN (activities);
   `);
+  // ── Eventos de contacto (bitácora inmutable) ────────────────────────────
+  //
+  // Registro append-only de cada contacto real con un cliente: click en
+  // WhatsApp, click en llamar, envío de correo y anotaciones. A diferencia de
+  // crm_state.auditLogs (que el front sobreescribe completo y no retiene
+  // historial), esta tabla solo recibe INSERTs, así que sirve para medir
+  // tiempo de 1ª/2ª/3ª respuesta por asesor (auditoría de gestión, jul-2026).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_contact_events (
+      id TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      client_name TEXT,
+      seller_id TEXT,
+      seller_name TEXT,
+      type TEXT NOT NULL,
+      detail TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_crm_contact_events_client
+    ON crm_contact_events (client_id, created_at ASC);
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_crm_contact_events_seller
+    ON crm_contact_events (seller_id, created_at DESC);
+  `);
+
   // pg_trgm habilita búsqueda ILIKE rápida en 70k+ filas. Si la extensión no
   // está disponible (raro en Neon), seguimos con seq scan — funciona aunque
   // más lento.

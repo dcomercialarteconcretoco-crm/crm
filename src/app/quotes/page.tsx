@@ -21,7 +21,18 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
     'Approved':          { label: 'Aprobada',           className: 'bg-emerald-500/10 text-emerald-600' },
     'Sent':              { label: 'Enviada',            className: 'bg-blue-500/10 text-blue-600' },
     'Rejected':          { label: 'Perdida',            className: 'bg-rose-500/10 text-rose-500' },
+    'Expired':           { label: 'Vencida',            className: 'bg-orange-500/10 text-orange-600' },
 };
+
+// Transiciones que el asesor puede marcar manualmente sobre una cotización ya
+// enviada. Aprobada/Perdida/Vencida quedan con fecha (statusChangedAt) para que
+// la auditoría pueda medir el ciclo real cotización→cierre.
+const MANUAL_STATUS_OPTIONS: Array<{ value: Quote['status']; label: string }> = [
+    { value: 'Sent',     label: 'Enviada' },
+    { value: 'Approved', label: 'Aprobada (ganada)' },
+    { value: 'Rejected', label: 'Perdida' },
+    { value: 'Expired',  label: 'Vencida' },
+];
 
 function ScoreBar({ score }: { score: number }) {
     const color = score >= 70 ? 'bg-emerald-500' : score >= 40 ? 'bg-amber-500' : 'bg-rose-500';
@@ -270,6 +281,21 @@ export default function QuotesPage() {
         addNotification({ title: 'Vendedor asignado', description: `Cotización asignada a ${sellerName || 'Sin asignar'}.`, type: 'success' });
     };
 
+    const handleChangeStatus = (quote: Quote, next: Quote['status']) => {
+        if (next === quote.status) return;
+        let lossReason: string | undefined;
+        if (next === 'Rejected') {
+            const motivo = window.prompt(
+                'Motivo de pérdida (precio, tiempo de respuesta, producto, competencia, etc.):',
+                quote.lossReason || ''
+            );
+            if (motivo === null) return; // canceló el cambio
+            lossReason = motivo.trim() || 'Sin motivo especificado';
+        }
+        // updateQuote estampa statusChangedAt y dispara la notificación.
+        updateQuote(quote.id, { status: next, ...(lossReason ? { lossReason } : {}) });
+    };
+
     const exportCSV = () => {
         const rows = [
             ['Cotización', 'Cliente', 'Email', 'Monto', 'Estado', 'Vendedor', 'Fecha'],
@@ -356,6 +382,7 @@ export default function QuotesPage() {
                             { value: 'Sent', label: 'Visto' },
                             { value: 'Approved', label: 'Ganado' },
                             { value: 'Rejected', label: 'Perdido' },
+                            { value: 'Expired', label: 'Vencida' },
                         ].map(opt => (
                             <button
                                 key={opt.value}
@@ -420,14 +447,33 @@ export default function QuotesPage() {
                                 {/* Amount */}
                                 <p className="text-sm font-bold text-foreground tabular-nums py-1 md:py-0">{quote.total || '—'}</p>
 
-                                {/* Status badge */}
+                                {/* Status badge / selector manual */}
                                 <div className="py-1 md:py-0">
-                                    <span className={clsx(
-                                        'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold',
-                                        statusCfg.className
-                                    )}>
-                                        {statusCfg.label}
-                                    </span>
+                                    {MANUAL_STATUS_OPTIONS.some(o => o.value === quote.status) ? (
+                                        // Enviada/Aprobada/Perdida/Vencida: el asesor puede actualizar el
+                                        // desenlace. Cada cambio queda con fecha (statusChangedAt) y las
+                                        // pérdidas piden motivo.
+                                        <select
+                                            value={quote.status}
+                                            onChange={e => handleChangeStatus(quote, e.target.value as Quote['status'])}
+                                            title={quote.lossReason ? `Motivo: ${quote.lossReason}` : 'Actualizar desenlace de la cotización'}
+                                            className={clsx(
+                                                'rounded-full px-2.5 py-1 text-xs font-bold outline-none cursor-pointer border-0 appearance-none',
+                                                statusCfg.className
+                                            )}
+                                        >
+                                            {MANUAL_STATUS_OPTIONS.map(o => (
+                                                <option key={o.value} value={o.value}>{o.label}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <span className={clsx(
+                                            'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold',
+                                            statusCfg.className
+                                        )}>
+                                            {statusCfg.label}
+                                        </span>
+                                    )}
                                 </div>
 
                                 {/* Score */}

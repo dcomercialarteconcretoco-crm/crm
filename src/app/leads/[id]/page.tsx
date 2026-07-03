@@ -28,6 +28,7 @@ import { clsx } from 'clsx';
 import { useApp, Activity } from '@/context/AppContext';
 import { ownsRecord } from '@/lib/scope';
 import { openMailto, openTel, openWhatsApp } from '@/lib/contact-links';
+import { logContactEvent } from '@/lib/contact-events';
 import { ClientAttachments } from '@/components/leads/ClientAttachments';
 import { ClientBotChats } from '@/components/leads/ClientBotChats';
 import CompanyCombobox from '@/components/CompanyCombobox';
@@ -172,6 +173,14 @@ export default function Lead360Page() {
 
     const handleLogContact = (type: 'WHATSAPP_SENT' | 'CALL_MADE' | 'QUOTE_SENT', details: string) => {
         if (!lead || !currentUser) return;
+        // Bitácora persistente (crm_contact_events): alimenta el tiempo de
+        // 1ª/2ª/3ª respuesta en la Auditoría de Gestión. El auditLog de abajo
+        // solo vive en crm_state y no retiene historial.
+        logContactEvent(
+            lead.id,
+            type === 'WHATSAPP_SENT' ? 'whatsapp' : type === 'CALL_MADE' ? 'call' : 'email',
+            details
+        );
         addAuditLog({
             userId: currentUser.id,
             userName: currentUser.name,
@@ -193,6 +202,8 @@ export default function Lead360Page() {
         };
         const existingNotes = lead.notes || [];
         updateClient(lead.id, { notes: [newNote, ...existingNotes] });
+        // Una anotación cuenta como contacto (regla de la gerencia, jul-2026).
+        logContactEvent(lead.id, 'note', newNote.text.slice(0, 200));
         setNoteText('');
     };
 

@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
     Shield,
+    Rocket,
     Search,
     Filter,
     Calendar,
@@ -215,6 +217,17 @@ export default function AuditPage() {
                 </div>
 
                 <div className="flex items-center gap-3">
+                    {/* Auditoría de Gestión — análisis de cartera/seguimiento por asesor.
+                        Solo liderazgo: expone datos de todo el equipo. */}
+                    {(currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin') && (
+                        <Link
+                            href="/audit/gestion"
+                            className="bg-foreground text-background font-bold rounded-xl px-4 py-2.5 hover:opacity-90 transition-all flex items-center gap-2 text-xs"
+                        >
+                            <Rocket className="w-4 h-4" />
+                            Auditoría de Gestión
+                        </Link>
+                    )}
                     {/* View toggle */}
                     <div className="bg-muted border border-border rounded-xl p-1 flex">
                         <button
