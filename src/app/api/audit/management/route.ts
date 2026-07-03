@@ -192,13 +192,25 @@ export async function POST(request: NextRequest) {
         quotesValue: number;
         notes: number;
         contacts: number;
+        // true = hay evidencia de contacto (cotización/bitácora/nota) pero el
+        // asesor nunca registró la gestión en el CRM (last_contact sigue en
+        // "Recién registrado"). Es la falla de gestión-de-registro, distinta
+        // de "nunca contactado".
+        unregistered: boolean;
     };
     type SellerStats = {
         sellerId: string;
         sellerName: string;
         totalClients: number;
         newClientsInRange: number;
+        // "Nunca contactado" = CERO evidencia: sin cotización, sin eventos en
+        // bitácora, sin notas y sin fecha de contacto. (Definición corregida
+        // 3-jul-2026: antes se miraba solo el campo last_contact y eso inflaba
+        // el número — un cliente con cotización enviada SÍ fue contactado.)
         neverContacted: number;
+        // Contactado con evidencia pero sin registro del asesor en el CRM
+        // (ej. cotizó y el campo sigue en "Recién registrado").
+        unregisteredManagement: number;
         pctNeverContacted: number;
         oldestWaitingDays: number;
         touchedInRange: number;
@@ -233,7 +245,7 @@ export async function POST(request: NextRequest) {
             s = {
                 sellerId: key,
                 sellerName: name || '(sin asignar)',
-                totalClients: 0, newClientsInRange: 0, neverContacted: 0, pctNeverContacted: 0,
+                totalClients: 0, newClientsInRange: 0, neverContacted: 0, unregisteredManagement: 0, pctNeverContacted: 0,
                 oldestWaitingDays: 0, touchedInRange: 0, lastActivity: null,
                 quotesInRange: 0, quotesValueInRange: 0, quotesNoFollowUp: 0, avgDaysLeadToQuote: null,
                 closedInRange: 0, closedValueInRange: 0, avgCycleDays: null,
@@ -280,6 +292,11 @@ export async function POST(request: NextRequest) {
         if (inRange(created, fromDate, toDate)) s.newClientsInRange++;
         const cQuotes = quotesByClient.get(c.id) || [];
         const cEvents = eventsByClient.get(c.id) || [];
+        // ¿Hay EVIDENCIA de contacto? Una cotización enviada, un evento en la
+        // bitácora, una nota o una fecha registrada — cualquiera cuenta.
+        // El campo last_contact solo, sin nada más, NO define la métrica.
+        const fieldRegistered = (c.last_contact || '') !== 'Recién registrado';
+        const hasEvidence = cQuotes.length > 0 || cEvents.length > 0 || (Number(c.notes_count) || 0) > 0 || fieldRegistered;
         const row = {
             id: c.id,
             name: c.name,
@@ -290,6 +307,7 @@ export async function POST(request: NextRequest) {
             quotesValue: cQuotes.reduce((a, q) => a + (q.numericTotal || 0), 0),
             notes: Number(c.notes_count) || 0,
             contacts: cEvents.length,
+            unregistered: hasEvidence && !fieldRegistered,
         };
         // Tiempos de respuesta: la asignación al asesor ocurre al crear el
         // cliente (round-robin / registro manual), así que created_at es el
@@ -305,11 +323,12 @@ export async function POST(request: NextRequest) {
             // contacto, sirve como aproximación del primer contacto.
             pushTo(firstRespApproxDays, s.sellerId, (new Date(c.last_contact).getTime() - created.getTime()) / MS_DAY);
         }
-        if ((c.last_contact || '') === 'Recién registrado') {
+        if (!hasEvidence) {
             s.neverContacted++;
             s.oldestWaitingDays = Math.max(s.oldestWaitingDays, row.daysWaiting);
             s.neverContactedClients.push(row);
         } else {
+            if (row.unregistered) s.unregisteredManagement++;
             s.contactedClients.push(row);
         }
         if (inRange(updated, fromDate, toDate) && updated > created) s.touchedInRange++;
@@ -443,6 +462,7 @@ export async function POST(request: NextRequest) {
             clients: acc.clients + s.totalClients,
             newClientsInRange: acc.newClientsInRange + s.newClientsInRange,
             neverContacted: acc.neverContacted + s.neverContacted,
+            unregisteredManagement: acc.unregisteredManagement + s.unregisteredManagement,
             touchedInRange: acc.touchedInRange + s.touchedInRange,
             quotesInRange: acc.quotesInRange + s.quotesInRange,
             quotesValueInRange: acc.quotesValueInRange + s.quotesValueInRange,
@@ -452,7 +472,7 @@ export async function POST(request: NextRequest) {
             rawContactedInRange: acc.rawContactedInRange + s.rawContactedInRange,
         }),
         {
-            clients: 0, newClientsInRange: 0, neverContacted: 0, touchedInRange: 0,
+            clients: 0, newClientsInRange: 0, neverContacted: 0, unregisteredManagement: 0, touchedInRange: 0,
             quotesInRange: 0, quotesValueInRange: 0, quotesNoFollowUp: 0,
             closedInRange: 0, closedValueInRange: 0, rawContactedInRange: 0,
         }
@@ -483,9 +503,10 @@ export async function POST(request: NextRequest) {
         perSeller: rows,
         abandonedQuotes: abandonedQuotes.slice(0, 50),
         notes: [
-            'Tiempo de 1ª/2ª/3ª respuesta: desde la asignación del cliente al asesor hasta cada contacto registrado en la bitácora inmutable (clicks de WhatsApp/llamada/correo y anotaciones cuentan como contacto). La bitácora registra desde jul-2026; la columna "aprox" estima el histórico anterior con el campo último contacto.',
-            'Cotización sin seguimiento = el cliente no tuvo ninguna actividad posterior a +24h del envío.',
-            'Cierres = negocios en la etapa ganadora del pipeline; el ciclo cotización→cierre también usa la fecha de cambio de estado de la cotización cuando existe.',
+            '"Nunca contactado" = cero evidencia de contacto: sin cotización, sin eventos en bitácora, sin notas y sin fecha registrada. Un cliente con cotización enviada cuenta como CONTACTADO aunque el asesor no haya registrado la gestión.',
+            '"Sin registrar gestión" = hay evidencia de contacto (ej. cotización) pero el asesor nunca actualizó el CRM — es la falla de registro/seguimiento que debe corregirse con la bitácora.',
+            'Tiempo de 1ª/2ª/3ª respuesta: desde la asignación hasta cada contacto en la bitácora inmutable (clicks de WhatsApp/llamada/correo y anotaciones). La bitácora existe desde el 3-jul-2026: "sin seguimiento" en fechas anteriores puede reflejar ausencia de registro, no necesariamente ausencia de gestión.',
+            'Cierres = etapa ganadora del pipeline; ojo: hay cierres registrados retroactivamente, el ciclo real puede ser mayor.',
         ],
     });
 }

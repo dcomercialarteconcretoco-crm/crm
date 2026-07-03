@@ -32,6 +32,7 @@ type ClientRow = {
     quotesValue: number;
     notes: number;
     contacts: number;
+    unregistered: boolean;
 };
 
 type SellerRow = {
@@ -40,6 +41,7 @@ type SellerRow = {
     totalClients: number;
     newClientsInRange: number;
     neverContacted: number;
+    unregisteredManagement: number;
     pctNeverContacted: number;
     oldestWaitingDays: number;
     touchedInRange: number;
@@ -69,6 +71,7 @@ type AuditResult = {
         clients: number;
         newClientsInRange: number;
         neverContacted: number;
+        unregisteredManagement: number;
         pctNeverContacted: number;
         touchedInRange: number;
         quotesInRange: number;
@@ -158,14 +161,14 @@ export default function ManagementAuditPage() {
     const exportCSV = () => {
         if (!result) return;
         const headers = [
-            'Asesor', 'Clientes', 'Nuevos en rango', 'Nunca contactados', '% sin contacto',
-            'Clientes tocados en rango', 'Cotizaciones', 'Valor cotizado', 'Cotiz. sin seguimiento',
+            'Asesor', 'Clientes', 'Nuevos en rango', 'Nunca contactados (cero evidencia)', '% sin contacto',
+            'Contactados sin registrar gestión', 'Clientes tocados en rango', 'Cotizaciones', 'Valor cotizado', 'Cotiz. sin seguimiento',
             'Días prom. lead→cotización', 'Negocios cerrados', 'Valor cerrado', 'Días prom. cotiz→cierre',
-            'Base fría contactados', 'Base fría pendientes',
+            'Base prospección contactados', 'Base prospección pendientes',
         ];
         const rows = result.perSeller.map((s) => [
             s.sellerName, s.totalClients, s.newClientsInRange, s.neverContacted, s.pctNeverContacted + '%',
-            s.touchedInRange, s.quotesInRange, s.quotesValueInRange, s.quotesNoFollowUp,
+            s.unregisteredManagement, s.touchedInRange, s.quotesInRange, s.quotesValueInRange, s.quotesNoFollowUp,
             s.avgDaysLeadToQuote ?? '', s.closedInRange, s.closedValueInRange, s.avgCycleDays ?? '',
             s.rawContactedInRange, s.rawPendingAssigned,
         ]);
@@ -185,9 +188,9 @@ export default function ManagementAuditPage() {
         const t = result.totals;
         return [
             {
-                label: 'Clientes sin contactar',
+                label: 'Sin contactar (cero evidencia)',
                 value: `${t.neverContacted} (${t.pctNeverContacted}%)`,
-                sub: `de ${t.clients} clientes en cartera`,
+                sub: `de ${t.clients} en cartera · +${t.unregisteredManagement} contactados sin registrar gestión`,
                 icon: PhoneOff,
                 alert: t.pctNeverContacted > 30,
             },
@@ -398,7 +401,7 @@ export default function ManagementAuditPage() {
                                     <table className="w-full text-sm">
                                         <thead>
                                             <tr className="bg-muted/50 border-b border-border">
-                                                {['Asesor', 'Clientes', 'Nuevos', 'Sin contactar', '% sin contacto', '1ª resp. (días)', '2ª / 3ª (días)', 'Cotiz.', 'Valor cotizado', 'Sin seguim.', 'Lead→Cotiz (días)', 'Cerrados', 'Valor cerrado', 'Cotiz→Cierre (días)', 'Base fría'].map((h) => (
+                                                {['Asesor', 'Clientes', 'Nuevos', 'Sin contactar', '% sin contacto', 'Sin registrar gestión', '1ª resp. (días)', '2ª / 3ª (días)', 'Cotiz.', 'Valor cotizado', 'Sin seguim.', 'Lead→Cotiz (días)', 'Cerrados', 'Valor cerrado', 'Cotiz→Cierre (días)', 'Base prospección'].map((h) => (
                                                     <th key={h} className="text-left px-3 py-3 text-xs font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{h}</th>
                                                 ))}
                                             </tr>
@@ -412,6 +415,9 @@ export default function ManagementAuditPage() {
                                                     <td className="px-3 py-3">{s.neverContacted}</td>
                                                     <td className={clsx('px-3 py-3 font-bold', s.pctNeverContacted >= 50 ? 'text-red-600' : s.pctNeverContacted >= 25 ? 'text-amber-600' : 'text-emerald-600')}>
                                                         {s.pctNeverContacted}%
+                                                    </td>
+                                                    <td className={clsx('px-3 py-3', s.unregisteredManagement > 0 && 'text-amber-600 font-bold')} title="Clientes con evidencia de contacto (ej. cotización) donde el asesor nunca registró la gestión en el CRM">
+                                                        {s.unregisteredManagement}
                                                     </td>
                                                     <td className="px-3 py-3 whitespace-nowrap" title="Días desde la asignación hasta el primer contacto registrado (bitácora); 'aprox' usa el histórico de último contacto">
                                                         {s.avgFirstResponseDays !== null
@@ -596,7 +602,11 @@ export default function ManagementAuditPage() {
                                                                             </td>
                                                                             <td className="px-4 py-2.5 text-muted-foreground">{c.company || '—'}</td>
                                                                             <td className={clsx('px-4 py-2.5', annex.key === 'neverContactedClients' && c.daysWaiting > 30 && 'text-red-600 font-bold')}>
-                                                                                {annex.key === 'neverContactedClients' ? `${c.daysWaiting} días` : c.lastContact}
+                                                                                {annex.key === 'neverContactedClients'
+                                                                                    ? `${c.daysWaiting} días`
+                                                                                    : c.unregistered
+                                                                                        ? <span className="text-amber-600 font-bold" title="Hay evidencia de contacto (cotización/bitácora) pero el asesor no registró la gestión">cotizó — sin registro</span>
+                                                                                        : c.lastContact}
                                                                             </td>
                                                                             <td className="px-4 py-2.5" title="Contactos registrados en la bitácora (WhatsApp, llamada, correo, nota)">{c.contacts || '—'}</td>
                                                                             <td className="px-4 py-2.5" title="Anotaciones en la hoja de vida">{c.notes || '—'}</td>
