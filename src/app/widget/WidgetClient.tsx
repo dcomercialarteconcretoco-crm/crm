@@ -97,6 +97,18 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
     // The conversations endpoint handles client upsert + round-robin seller assignment server-side
     setClientSaved(true);
     await saveConversation(newMessages);
+
+    // Avisar a la página padre que se capturó un lead, para que dispare el
+    // pixel de conversión (Meta/Google) fuera del iframe. El widget vive en
+    // otro dominio, así que este postMessage es el único canal hacia la web
+    // host. Origin "*" porque el widget es multi-tenant (se embebe en varios
+    // sitios): la seguridad la aplica el listener del host verificando
+    // event.origin === el dominio del CRM. Payload sin PII a propósito.
+    try {
+      window.parent.postMessage({ type: "concrebot_lead", source: "widget" }, "*");
+    } catch {
+      /* iframe sin parent accesible: no bloquea la captura */
+    }
   };
 
   const sendMessage = async () => {
