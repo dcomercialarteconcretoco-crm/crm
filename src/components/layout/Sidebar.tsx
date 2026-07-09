@@ -29,6 +29,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useApp } from '@/context/AppContext';
 import { hasPermission, PermissionKey } from '@/lib/permissions';
+import { useConcrebotLiveCount } from '@/hooks/useConcrebotLiveCount';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -91,6 +92,7 @@ export function Sidebar({ isCompact }: SidebarProps) {
   const pathname = usePathname();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const { currentUser, quotes, assignedLeadsCount } = useApp();
+  const concrebotLiveCount = useConcrebotLiveCount();
 
   const isSuperAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
 
@@ -198,6 +200,19 @@ export function Sidebar({ isCompact }: SidebarProps) {
                     )
                   )}
 
+                  {/* Badge de conversaciones activas/en espera en "ConcreBOT" */}
+                  {item.name === 'ConcreBOT' && concrebotLiveCount > 0 && (
+                    isCompact ? (
+                      <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-primary text-black text-[9px] font-black flex items-center justify-center border border-white">
+                        {concrebotLiveCount > 9 ? '9+' : concrebotLiveCount}
+                      </span>
+                    ) : (
+                      <span className="ml-auto min-w-[20px] h-[18px] px-1.5 rounded-full bg-primary text-black text-[10px] font-black flex items-center justify-center shadow-[0_0_0_3px_rgba(250,181,16,0.16)] animate-pulse">
+                        {concrebotLiveCount > 99 ? '99+' : concrebotLiveCount}
+                      </span>
+                    )
+                  )}
+
                   {/* Badge "leads por trabajar" en "Leads Crudos" — cuántos le
                       asignaron al vendedor y aún no contactó. Es el aviso EVIDENTE
                       de que tiene cola pendiente del día. Solo para vendedores: el
@@ -215,7 +230,7 @@ export function Sidebar({ isCompact }: SidebarProps) {
                     )
                   )}
 
-                  {isActive && !isCompact && item.name !== 'Autorizaciones' && item.name !== 'Leads Crudos' && (
+                  {isActive && !isCompact && item.name !== 'Autorizaciones' && item.name !== 'ConcreBOT' && item.name !== 'Leads Crudos' && (
                     <div className="absolute right-3 w-1.5 h-1.5 bg-primary rounded-full" />
                   )}
                 </Link>

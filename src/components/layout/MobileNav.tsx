@@ -26,6 +26,7 @@ import {
 import { cn } from '../../lib/utils';
 import { useApp } from '@/context/AppContext';
 import { hasPermission, PermissionKey } from '@/lib/permissions';
+import { useConcrebotLiveCount } from '@/hooks/useConcrebotLiveCount';
 
 type PrimaryItem = {
     name: string;
@@ -68,6 +69,7 @@ const moreItems: MoreItem[] = [
 export function MobileNav() {
     const pathname = usePathname();
     const { currentUser, assignedLeadsCount } = useApp();
+    const concrebotLiveCount = useConcrebotLiveCount();
     // El badge "por trabajar" es para vendedores; el admin asigna, no recibe.
     const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
     const showLeadsBadge = !isAdmin && assignedLeadsCount > 0;
@@ -141,6 +143,11 @@ export function MobileNav() {
                                             {assignedLeadsCount > 99 ? '99+' : assignedLeadsCount}
                                         </span>
                                     )}
+                                    {item.href === '/bot' && concrebotLiveCount > 0 && (
+                                        <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-black text-[10px] font-black flex items-center justify-center border border-white">
+                                            {concrebotLiveCount > 99 ? '99+' : concrebotLiveCount}
+                                        </span>
+                                    )}
                                     <item.icon className={cn("w-5 h-5", !isActive && item.color)} />
                                     <span className="text-[10px] font-bold text-center leading-tight">{item.name}</span>
                                 </Link>
@@ -193,9 +200,9 @@ export function MobileNav() {
                         {/* Aviso de leads por trabajar: la Bandeja Crudos vive
                             dentro de "Más", así que el badge tiene que asomar acá
                             para que sea EVIDENTE sin abrir el panel. */}
-                        {showLeadsBadge && (
+                        {(showLeadsBadge || concrebotLiveCount > 0) && (
                             <span className="absolute top-0 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-black text-[10px] font-black flex items-center justify-center border-2 border-white">
-                                {assignedLeadsCount > 99 ? '99+' : assignedLeadsCount}
+                                {Math.min(assignedLeadsCount + concrebotLiveCount, 99)}{assignedLeadsCount + concrebotLiveCount > 99 ? '+' : ''}
                             </span>
                         )}
                         <MoreHorizontal className="w-5 h-5" />
