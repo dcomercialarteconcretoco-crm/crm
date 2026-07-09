@@ -93,6 +93,7 @@ export function stripTax(amountWithTax: number): number {
 
 export function calculateQuoteTotals(input: QuoteCalcInput): QuoteCalcResult {
   const items = (input.items || []).map((it) => {
+    const hasCustomTaxInput = Number.isFinite(Number(it.priceBeforeTax)) || Number.isFinite(Number(it.taxRate));
     const taxRate = Number.isFinite(Number(it.taxRate)) ? Math.max(0, Number(it.taxRate)) : VAT_RATE;
     const explicitBefore = Number.isFinite(Number(it.priceBeforeTax)) ? Number(it.priceBeforeTax) : null;
     const unitBefore = explicitBefore !== null
@@ -108,6 +109,7 @@ export function calculateQuoteTotals(input: QuoteCalcInput): QuoteCalcResult {
       taxRate,
       lineTaxAmount,
       lineTotalWithTax: lineTotalBeforeTax + lineTaxAmount,
+      hasCustomTaxInput,
     };
   });
 
@@ -142,7 +144,13 @@ export function calculateQuoteTotals(input: QuoteCalcInput): QuoteCalcResult {
     : undefined;
 
   const subtotalLine1 = productsSubtotal + (transportBeforeTax || 0);
-  const productsTaxAmount = items.reduce((acc, it) => acc + it.lineTaxAmount, 0);
+  const catalogSubtotal = items
+    .filter((it) => !it.hasCustomTaxInput)
+    .reduce((sum, it) => sum + it.lineTotalBeforeTax, 0);
+  const customTaxAmount = items
+    .filter((it) => it.hasCustomTaxInput)
+    .reduce((acc, it) => acc + it.lineTaxAmount, 0);
+  const productsTaxAmount = round(catalogSubtotal * VAT_RATE) + customTaxAmount;
   const transportTaxAmount = transportBeforeTax ? round(transportBeforeTax * VAT_RATE) : 0;
   const taxAmount = productsTaxAmount + transportTaxAmount;
 
