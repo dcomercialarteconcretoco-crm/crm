@@ -146,10 +146,48 @@ function monthLabel(key: string): string {
     return new Date(year, month - 1, 1).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
 }
 
+function normalizeQuoteRef(value: any): string {
+    return String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+}
+
+function quoteRefCandidates(input: any): string[] {
+    const fields = [
+        input?.id,
+        input?.quoteId,
+        input?.quoteNumber,
+        input?.number,
+        input?.baseNumber,
+        input?.title,
+    ];
+    const raw = fields.filter(Boolean).join(' ').toUpperCase();
+    const matches = raw.match(/[A-Z]{2,5}-[A-Z0-9-]+/g) || [];
+    return Array.from(new Set([...fields, ...matches].map(normalizeQuoteRef).filter(Boolean)));
+}
+
 function quoteYearHint(input: any): number {
-    const raw = `${input?.quoteNumber || input?.number || input?.baseNumber || input?.id || ''}`;
+    const raw = [
+        input?.quoteNumber,
+        input?.number,
+        input?.baseNumber,
+        input?.title,
+        input?.quoteId,
+        input?.id,
+    ].filter(Boolean).join(' ');
     const match = raw.match(/(20\d{2})/);
     return match ? Number(match[1]) : new Date().getFullYear();
+}
+
+function dateFromEpochId(value: any): Date | null {
+    const match = String(value || '').match(/(1[6-9]\d{11})/);
+    if (!match) return null;
+    const date = new Date(Number(match[1]));
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function earliestDate(dates: Array<Date | null | undefined>): Date | null {
+    const valid = dates.filter((date): date is Date => !!date && !Number.isNaN(date.getTime()));
+    if (valid.length === 0) return null;
+    return valid.sort((a, b) => a.getTime() - b.getTime())[0];
 }
 
 function parseCRMDate(value: any, fallbackYear = new Date().getFullYear()): Date | null {
@@ -409,18 +447,41 @@ export default function PipelinePage() {
 
     const currentMonthKey = useMemo(() => monthKey(new Date()), []);
     const quoteById = useMemo(() => new Map(quotes.map(q => [q.id, q])), [quotes]);
+    const quoteByRef = useMemo(() => {
+        const map = new Map<string, typeof quotes[number]>();
+        for (const quote of quotes) {
+            for (const ref of quoteRefCandidates(quote)) {
+                if (!map.has(ref)) map.set(ref, quote);
+            }
+        }
+        return map;
+    }, [quotes]);
 
     const taskEffectiveDate = (task: Task): Date => {
-        const quote = quoteById.get((task as any).quoteId);
+        const quote = quoteById.get((task as any).quoteId)
+            || quoteRefCandidates(task).map(ref => quoteByRef.get(ref)).find(Boolean);
         const fallbackYear = quoteYearHint(quote || task);
-        const oldestActivity = [...(task.activities || [])].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())[0];
-        return (
-            parseCRMDate((task as any).retakenAt, fallbackYear) ||
-            parseCRMDate((quote as any)?.sentAt, fallbackYear) ||
-            parseCRMDate(quote?.date, fallbackYear) ||
-            parseCRMDate(oldestActivity?.timestamp, fallbackYear) ||
-            new Date()
-        );
+        const retakenDate = parseCRMDate((task as any).retakenAt, fallbackYear);
+        if (retakenDate) return retakenDate;
+
+        const currentYear = new Date().getFullYear();
+        if (fallbackYear < currentYear) {
+            return new Date(fallbackYear, 0, 1);
+        }
+
+        const activityDates = (task.activities || []).map(activity => parseCRMDate(activity.timestamp, fallbackYear));
+        const originalDate = earliestDate([
+            parseCRMDate(quote?.date, fallbackYear),
+            parseCRMDate((quote as any)?.sentAt, fallbackYear),
+            dateFromEpochId((task as any).quoteId),
+            dateFromEpochId(task.id),
+            ...activityDates,
+        ]);
+        if (originalDate) return originalDate;
+
+        const hintedYear = quoteYearHint(task);
+        if (hintedYear < currentYear) return new Date(hintedYear, 0, 1);
+        return new Date();
     };
 
     const taskMonthKey = (task: Task) => monthKey(taskEffectiveDate(task));
