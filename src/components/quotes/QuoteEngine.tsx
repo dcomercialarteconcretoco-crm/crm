@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
     Plus, Minus, Trash2, Search,
     CheckCircle, UserPlus, Box, RefreshCw, ShoppingCart,
-    Building2, Package, Eye, X, FileText, Send, GitBranch, Wrench, Hash, ImagePlus
+    Building2, Package, Eye, X, FileText, Send, GitBranch, Hash, ImagePlus
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { generateProposalPDF } from '@/lib/pdf-generator';
@@ -1651,36 +1651,36 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                         )}
                     </div>
 
-                    {/* ── Selector de modo: Sencilla vs AIU ─────────────────────── */}
+                    {/* ── Selector de modo: cotización normal vs AIU ────────────── */}
                     <div className="px-5 py-4 border-t border-border/40 bg-blue-50/30 space-y-3">
                         <div>
                             <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-2">Tipo de cotización</span>
-                            <div className="grid grid-cols-2 gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setQuoteMode('simple')}
-                                    className={clsx(
-                                        "text-[10px] font-black uppercase tracking-widest py-3 rounded-xl border-2 transition-all",
-                                        quoteMode === 'simple'
-                                            ? "border-primary bg-primary text-black shadow-md"
-                                            : "border-border/50 bg-white/70 text-muted-foreground hover:border-primary/40"
-                                    )}
-                                >
-                                    Sencilla
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setQuoteMode('aiu')}
-                                    className={clsx(
-                                        "text-[10px] font-black uppercase tracking-widest py-3 rounded-xl border-2 transition-all flex items-center justify-center gap-1.5",
-                                        quoteMode === 'aiu'
-                                            ? "border-blue-500 bg-blue-500 text-white shadow-md"
-                                            : "border-border/50 bg-white/70 text-muted-foreground hover:border-blue-400/40"
-                                    )}
-                                >
-                                    <Wrench className="w-3.5 h-3.5" /> AIU
-                                </button>
-                            </div>
+                            <label className={clsx(
+                                "flex items-start gap-3 rounded-xl border-2 px-3 py-3 cursor-pointer select-none transition-all",
+                                quoteMode === 'aiu'
+                                    ? "border-blue-500 bg-blue-500/10 shadow-sm"
+                                    : "border-border/50 bg-white/70 hover:border-blue-400/40"
+                            )}>
+                                <input
+                                    type="checkbox"
+                                    checked={quoteMode === 'aiu'}
+                                    onChange={e => setQuoteMode(e.target.checked ? 'aiu' : 'simple')}
+                                    className="mt-0.5 w-4 h-4 rounded border-border/60 text-blue-500 focus:ring-blue-400 cursor-pointer"
+                                />
+                                <div className="flex-1">
+                                    <span className={clsx(
+                                        "text-[10px] font-black uppercase tracking-widest",
+                                        quoteMode === 'aiu' ? "text-blue-700" : "text-foreground"
+                                    )}>
+                                        Activar sistema AIU
+                                    </span>
+                                    <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">
+                                        {quoteMode === 'aiu'
+                                            ? 'AIU activo: Administración + Utilidad, IVA sólo sobre la utilidad y sufijo -AIU.'
+                                            : 'Apagado: cotización normal con IVA sobre el subtotal.'}
+                                    </p>
+                                </div>
+                            </label>
                             <p className="text-[10px] text-muted-foreground mt-2 leading-snug">
                                 {quoteMode === 'simple'
                                     ? 'IVA 19% sobre todo el subtotal. Puedes incluir transporte como fila aparte.'
