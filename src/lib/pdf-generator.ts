@@ -148,6 +148,36 @@ async function loadSealImage(): Promise<{ b64: string; fmt: 'JPEG' | 'PNG' } | u
     } catch { return undefined; }
 }
 
+async function normalizeImageForPdf(src: string, blobType?: string): Promise<{ b64: string; fmt: 'JPEG' | 'PNG' } | undefined> {
+    if (!src.startsWith('data:image/')) return undefined;
+    if (/^data:image\/jpe?g/i.test(src) || /^image\/jpe?g/i.test(blobType || '')) return { b64: src, fmt: 'JPEG' };
+    if (/^data:image\/png/i.test(src) || /^image\/png/i.test(blobType || '')) return { b64: src, fmt: 'PNG' };
+
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            try {
+                const maxSide = 1400;
+                const scale = Math.min(1, maxSide / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round((img.naturalWidth || 1) * scale));
+                canvas.height = Math.max(1, Math.round((img.naturalHeight || 1) * scale));
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    resolve(undefined);
+                    return;
+                }
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve({ b64: canvas.toDataURL('image/png'), fmt: 'PNG' });
+            } catch {
+                resolve(undefined);
+            }
+        };
+        img.onerror = () => resolve(undefined);
+        img.src = src;
+    });
+}
+
 function addAllFooters(doc: jsPDF, email: string, seal?: { b64: string; fmt: 'JPEG' | 'PNG' }): void {
     const pages = (doc as any).internal.getNumberOfPages();
     for (let i = 1; i <= pages; i++) {
@@ -622,6 +652,7 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
         if (!src) continue;
         try {
             let b64 = src;
+            let blobType = '';
             if (src.startsWith('http')) {
                 const proxied = `/api/img-proxy?url=${encodeURIComponent(src)}`;
                 const r = await fetch(proxied);
@@ -630,6 +661,7 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
                     continue;
                 }
                 const bl = await r.blob();
+                blobType = bl.type;
                 b64 = await new Promise<string>((res, rej) => {
                     const rd = new FileReader();
                     rd.onload = () => res(rd.result as string);
@@ -639,8 +671,8 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
             } else if (!src.startsWith('data:')) {
                 continue;
             }
-            const fmt = b64.includes('data:image/jpeg') || b64.includes('data:image/jpg') ? 'JPEG' : 'PNG';
-            itemImages[i] = { b64, fmt };
+            const normalized = await normalizeImageForPdf(b64, blobType);
+            if (normalized) itemImages[i] = normalized;
         } catch (err) {
             console.warn('[pdf] failed to load image for item', i, err);
         }

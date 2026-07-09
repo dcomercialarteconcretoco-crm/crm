@@ -102,6 +102,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     const [showCustomProductForm, setShowCustomProductForm] = useState(false);
     const [customProduct, setCustomProduct] = useState({
         name: '',
+        dimensions: '',
         priceBeforeTax: 0,
         taxRate: 0.19,
         quantity: 1,
@@ -333,9 +334,10 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             quantity: Math.max(1, Math.floor(customProduct.quantity || 1)),
             unit: 'Und',
             image: customProduct.image || undefined,
+            dimensions: customProduct.dimensions.trim() || undefined,
             isCustom: true,
         }]);
-        setCustomProduct({ name: '', priceBeforeTax: 0, taxRate: 0.19, quantity: 1, image: '' });
+        setCustomProduct({ name: '', dimensions: '', priceBeforeTax: 0, taxRate: 0.19, quantity: 1, image: '' });
         if (customImageInputRef.current) customImageInputRef.current.value = '';
         setShowCustomProductForm(false);
     };
@@ -1287,6 +1289,13 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                         placeholder="Nombre del producto"
                                         className="w-full bg-white border border-border/70 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-primary transition-all"
                                     />
+                                    <input
+                                        type="text"
+                                        value={customProduct.dimensions}
+                                        onChange={e => setCustomProduct({ ...customProduct, dimensions: e.target.value })}
+                                        placeholder="Dimensiones (ej: Alto 90 × Ancho 150 × Largo 300 cm)"
+                                        className="w-full bg-white border border-border/70 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-primary transition-all"
+                                    />
                                     <div className="grid grid-cols-2 gap-2">
                                         <input
                                             type="number"
@@ -1334,7 +1343,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                             type="button"
                                             onClick={() => {
                                                 setShowCustomProductForm(false);
-                                                setCustomProduct({ name: '', priceBeforeTax: 0, taxRate: 0.19, quantity: 1, image: '' });
+                                                setCustomProduct({ name: '', dimensions: '', priceBeforeTax: 0, taxRate: 0.19, quantity: 1, image: '' });
                                                 if (customImageInputRef.current) customImageInputRef.current.value = '';
                                             }}
                                             className="px-4 bg-white border border-border/70 text-muted-foreground font-black py-2.5 rounded-xl text-[10px] uppercase tracking-widest hover:bg-accent/50 transition-all"
