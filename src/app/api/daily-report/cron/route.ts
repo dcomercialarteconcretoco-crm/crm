@@ -81,14 +81,10 @@ export async function GET(request: NextRequest) {
         });
     }
 
-    // ── Cierre del día: devolver leads no trabajados a la bandeja cruda ───────
-    // Piggyback sobre este cron porque Vercel Hobby permite 1 solo cron diario,
-    // y las 18:00 Bogotá (lun-vie) son justo el cierre de jornada. Corre SIEMPRE
-    // que el cron dispare — es independiente del toggle del informe diario, así
-    // que va ACÁ, después del bloque ?debug (read-only) y antes del gate de
-    // `cfg.enabled`. Los leads 'assigned' sin contactar vuelven a 'new'; los
-    // 'contacted' conservan su asignación. No bloqueante: si falla, el informe
-    // diario sigue su curso.
+    // ── Compat legacy: antes este cron liberaba crudos no contactados ───────
+    // El cliente pidió que los leads asignados no desaparezcan del listado si
+    // no alcanzaron a contactarlos ese día. releaseUnworkedAssignedLeads queda
+    // como no-op para que esta llamada histórica no rompa el cron.
     let releasedLeads = 0;
     try {
         releasedLeads = await releaseUnworkedAssignedLeads(pool);

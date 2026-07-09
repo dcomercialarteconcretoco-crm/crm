@@ -1,6 +1,14 @@
 {
   "crons": [
     {
+      "path": "/api/agenda/reminders?kind=morning",
+      "schedule": "0 13 * * 1-5"
+    },
+    {
+      "path": "/api/agenda/reminders?kind=upcoming",
+      "schedule": "0 12-23 * * 1-5"
+    },
+    {
       "path": "/api/daily-report/cron",
       "schedule": "0 23 * * 1-5"
     }

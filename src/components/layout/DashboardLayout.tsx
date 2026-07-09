@@ -67,6 +67,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     // Track known IDs to detect NEW arrivals after initial load
     const knownClientIds = useRef<Set<string>>(new Set());
     const knownTaskIds   = useRef<Set<string>>(new Set());
+    const knownNotificationIds = useRef<Set<string>>(new Set());
     const isFirstSync    = useRef(true);
 
     const dismissToast = useCallback((id: string) => {
@@ -85,9 +86,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         if (clients.length > 0 || tasks.length > 0) {
             clients.forEach((c: any) => knownClientIds.current.add(c.id));
             tasks.forEach((t: any) => knownTaskIds.current.add(t.id));
+            notifications.forEach((n: any) => knownNotificationIds.current.add(n.id));
             isFirstSync.current = false;
         }
-    }, [clients, tasks]);
+    }, [clients, tasks, notifications]);
 
     // Poll /api/state every 30s and detect new leads
     useEffect(() => {
@@ -117,6 +119,23 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 }
                 if (stateRes.ok) {
                     const state = await stateRes.json();
+                    if (Array.isArray(state.notifications)) {
+                        state.notifications.forEach((n: any) => {
+                            if (n?.id && !knownNotificationIds.current.has(n.id)) {
+                                knownNotificationIds.current.add(n.id);
+                                if (!n.read) {
+                                    pushToast({
+                                        id: `notif-${n.id}`,
+                                        icon: n.type === 'alert' ? '!' : n.type === 'task' ? 'C' : 'N',
+                                        title: n.title || 'Nueva alerta',
+                                        body: n.description || '',
+                                        href: n.clientId ? `/leads/${n.clientId}` : n.quoteId ? '/quotes' : undefined,
+                                    });
+                                }
+                            }
+                        });
+                        setNotifications(state.notifications);
+                    }
                     if (Array.isArray(state.tasks)) {
                         state.tasks.forEach((t: any) => {
                             if (!knownTaskIds.current.has(t.id)) {

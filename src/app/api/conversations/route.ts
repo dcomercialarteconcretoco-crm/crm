@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
 import { pickNextSeller } from '@/lib/round-robin';
+import { appendNotification } from '@/lib/server-notifications';
+import { sendAdvisorNeededEmail } from '@/lib/advisor-alert-email';
 
 export interface WidgetConversation {
   id: string;
@@ -80,14 +82,18 @@ export async function POST(req: NextRequest) {
 
     const existing = await readConversations();
     const previous = existing.find(c => c.id === conversation.id);
+    const previousUserMessages = (previous?.messages || []).filter(m => m.role === 'user').length;
+    const incomingUserMessages = (conversation.messages || []).filter(m => m.role === 'user').length;
+    const shouldNotifyInbound = incomingUserMessages > previousUserMessages;
 
     // Lead capture + seller assignment — only when we have enough info and no client yet
     let clientId = conversation.clientId || previous?.clientId || '';
+    let ownerId: string | null = null;
     const lead = conversation.lead || {};
     const hasLeadInfo = Boolean((lead.email || '').trim() || (lead.phone || '').replace(/\D/g, '').length >= 7);
     if (!clientId && hasLeadInfo) {
       const rr = await pickNextSeller();
-      const ownerId = rr?.id || null;
+      ownerId = rr?.id || null;
       const ownerName = rr?.name || null;
 
       // Check-then-upsert by email (fallback to phone if no email)
@@ -98,6 +104,7 @@ export async function POST(req: NextRequest) {
       const today = new Date().toISOString().split('T')[0];
       if (existingClient.length > 0) {
         clientId = existingClient[0].id;
+        ownerId = existingClient[0].assigned_to || null;
         // Don't steal ownership from an existing owner
         await pool.query(
           `UPDATE crm_clients SET
@@ -115,6 +122,7 @@ export async function POST(req: NextRequest) {
         );
       } else {
         clientId = `c-bot-${Date.now()}`;
+        ownerId = rr?.id || null;
         await pool.query(
           `INSERT INTO crm_clients (
              id, name, company, email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date,
@@ -165,6 +173,9 @@ export async function POST(req: NextRequest) {
           [JSON.stringify([newTask, ...existingTasks])]
         );
       }
+    } else if (clientId) {
+      const { rows } = await pool.query(`SELECT assigned_to FROM crm_clients WHERE id = $1 LIMIT 1`, [clientId]);
+      ownerId = rows[0]?.assigned_to || null;
     }
 
     // Now upsert the conversation with the resolved clientId
@@ -177,6 +188,30 @@ export async function POST(req: NextRequest) {
     }
 
     await writeConversations(existing);
+
+    if (shouldNotifyInbound) {
+      const lastUserMessage = [...(conversation.messages || [])].reverse().find(m => m.role === 'user');
+      await appendNotification(pool, {
+        title: conversation.source === 'whatsapp' ? 'WhatsApp entrante' : 'ConcreBOT activo',
+        description: `${lead.name || lead.phone || lead.email || 'Nuevo visitante'}: ${(lastUserMessage?.content || '').slice(0, 120) || 'Escribió al CRM'}`,
+        type: 'lead',
+        targetUserId: ownerId,
+        clientId: clientId || undefined,
+      });
+      sendAdvisorNeededEmail({
+        leadName: lead.name,
+        phone: lead.phone,
+        email: lead.email,
+        company: lead.company,
+        city: lead.city,
+        message: lastUserMessage?.content,
+        source: conversation.source === 'whatsapp' ? 'WhatsApp' : 'ConcreBOT',
+        conversationId: conversation.id,
+        clientId,
+        appUrl: process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin,
+      }).catch(error => console.error('[advisor-alert] conversation email failed:', error));
+    }
+
     return NextResponse.json({ ok: true, id: conversation.id, clientId });
   } catch (err: any) {
     console.error('POST /api/conversations error:', err);

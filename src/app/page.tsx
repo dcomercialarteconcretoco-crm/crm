@@ -17,7 +17,7 @@ import {
   Download,
 } from "lucide-react";
 import { clsx } from "clsx";
-import { useApp } from "@/context/AppContext";
+import { useApp, type Quote, type Task } from "@/context/AppContext";
 import { generatePDFReport } from "@/lib/pdf-generator";
 import { canSeeAll, ownsRecord } from "@/lib/scope";
 import { aggregateSellerActivity, getPresetRange, type PeriodPreset } from "@/lib/seller-activity";
@@ -41,7 +41,7 @@ const QUOTE_STATUS_LABEL: Record<string, string> = {
 };
 
 export default function Home() {
-  const { clients, tasks, quotes, sellers, settings, currentUser, auditLogs, events, addNotification } = useApp();
+  const { clients, tasks, quotes, sellers, settings, currentUser, auditLogs, events, notifications, addNotification } = useApp();
   const [isCatalogLoading, setIsCatalogLoading] = useState(false);
 
   // Descarga el catálogo PDF actualizado (lo genera el servidor leyendo
@@ -138,10 +138,15 @@ export default function Home() {
   }, [scopedClients, scopedQuotes]);
   const recentQuotes = scopedQuotes.slice(0, 5);
   const liveTasks = scopedTasks.slice(0, 4);
+  const quoteImageFor = (quote?: Pick<Quote, 'items' | 'client'> | null) =>
+    quote?.items?.find((item) => item.image)?.image || '';
+  const quoteForTask = (task?: Task | null) =>
+    task ? scopedQuotes.find((quote) => quote.taskId === task.id || quote.clientId === task.clientId) : undefined;
+  const taskImageFor = (task?: Task | null) => quoteImageFor(quoteForTask(task));
 
   // Returns up to 5 insight cards — all same importance, rotated in banner
   const allInsightCards = useMemo(() => {
-    const cards: { label: string; title: string; body: string; href: string; cta: string }[] = [];
+    const cards: { label: string; title: string; body: string; href: string; cta: string; image?: string; imageAlt?: string }[] = [];
 
     if (scopedClients.length === 0) {
       cards.push({
@@ -181,12 +186,15 @@ export default function Home() {
 
     // Live leads
     liveTasks.slice(0, 2).forEach((t, i) => {
+      const image = taskImageFor(t);
       cards.push({
         label: i === 0 ? "Seguimiento Vivo" : "Lead Activo",
         title: `${t.contactName || t.client} sigue activo sin cierre.`,
         body: "Define la siguiente acción concreta y mueve este negocio en el pipeline esta semana.",
         href: t.clientId ? `/leads/${t.clientId}` : "/pipeline",
         cta: "Ver lead",
+        image,
+        imageAlt: t.contactName || t.client,
       });
     });
 
@@ -210,6 +218,8 @@ export default function Home() {
         body: `La cotización ${topQuote.number} lleva tiempo en espera. Un seguimiento ahora puede inclinar la decisión.`,
         href: "/quotes",
         cta: "Ver cotización",
+        image: quoteImageFor(topQuote),
+        imageAlt: topQuote.client,
       });
     }
 
@@ -252,6 +262,69 @@ export default function Home() {
   useEffect(() => { setCarouselIdx(0); }, [allInsightCards.length]);
 
   const activeCard = allInsightCards[Math.min(carouselIdx, allInsightCards.length - 1)];
+
+  const realAlerts = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+    const toMinutes = (time: string) => {
+      const [h, m] = (time || '00:00').split(':').map(Number);
+      return (h || 0) * 60 + (m || 0);
+    };
+    const unread = notifications.filter(n => !n.read && (!n.targetUserId || n.targetUserId === currentUser?.id || canSeeAll(currentUser)));
+    const todaysEvents = events
+      .filter(e => e.date === today && (canSeeAll(currentUser) || e.ownerUserId === currentUser?.id))
+      .sort((a, b) => toMinutes(a.time) - toMinutes(b.time));
+    const nextEvent = todaysEvents.find(e => toMinutes(e.time) >= nowMinutes);
+    const hotTask = scopedTasks.find(t => (t.aiScore || 0) >= 80) || scopedTasks[0];
+    const alerts: { id: string; title: string; body: string; href: string; tone: string; icon: typeof AlertTriangle; image?: string; imageAlt?: string }[] = [];
+
+    unread.slice(0, 2).forEach(n => {
+      const relatedQuote = n.quoteId
+        ? scopedQuotes.find(q => q.id === n.quoteId)
+        : n.clientId
+          ? scopedQuotes.find(q => q.clientId === n.clientId)
+          : undefined;
+      alerts.push({
+        id: n.id,
+        title: n.title,
+        body: n.description,
+        href: n.clientId ? `/leads/${n.clientId}` : n.quoteId ? '/quotes' : '/bot',
+        tone: 'border-sky-200 bg-sky-50 text-sky-900',
+        icon: AlertTriangle,
+        image: quoteImageFor(relatedQuote),
+        imageAlt: relatedQuote?.client || n.title,
+      });
+    });
+    if (nextEvent) alerts.push({
+      id: `event-${nextEvent.id}`,
+      title: `Agenda ${nextEvent.time}`,
+      body: `${nextEvent.title}${nextEvent.description ? ` · ${nextEvent.description}` : ''}`,
+      href: '/scheduler',
+      tone: 'border-amber-200 bg-amber-50 text-amber-950',
+      icon: Clock,
+    });
+    if (isAdmin && pendingQuotes.length > 0) alerts.push({
+      id: 'pending-quotes',
+      title: `${pendingQuotes.length} cotización${pendingQuotes.length > 1 ? 'es' : ''} por aprobar`,
+      body: `Total en revisión: ${formatCurrency(pendingQuotes.reduce((s, q) => s + (q.numericTotal || 0), 0))}`,
+      href: '/autorizaciones',
+      tone: 'border-rose-200 bg-rose-50 text-rose-950',
+      icon: AlertTriangle,
+      image: quoteImageFor(pendingQuotes[0]),
+      imageAlt: pendingQuotes[0]?.client,
+    });
+    if (hotTask) alerts.push({
+      id: `task-${hotTask.id}`,
+      title: 'Seguimiento pendiente',
+      body: `${hotTask.title || hotTask.client} · ${hotTask.value || 'Sin valor'}`,
+      href: hotTask.clientId ? `/leads/${hotTask.clientId}` : '/pipeline',
+      tone: 'border-primary/30 bg-primary/10 text-foreground',
+      icon: Target,
+      image: taskImageFor(hotTask),
+      imageAlt: hotTask.contactName || hotTask.client,
+    });
+    return alerts.slice(0, 4);
+  }, [notifications, events, currentUser, scopedTasks, scopedQuotes, isAdmin, pendingQuotes]);
 
   const handleExport = () => {
     generatePDFReport({
@@ -380,6 +453,36 @@ export default function Home() {
         );
       })()}
 
+      {realAlerts.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          {realAlerts.map(alert => (
+            <Link
+              key={alert.id}
+              href={alert.href}
+              className={clsx("border rounded-2xl p-4 hover:shadow-md transition-all group", alert.tone)}
+            >
+              <div className="flex items-start gap-3">
+                {alert.image ? (
+                  <img
+                    src={alert.image}
+                    alt={alert.imageAlt || alert.title}
+                    className="h-12 w-12 shrink-0 rounded-2xl border-2 border-white object-cover shadow-sm"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-2xl bg-white/75 border border-white/80 flex items-center justify-center shrink-0 shadow-sm">
+                    <alert.icon className="w-4 h-4" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="text-xs font-black uppercase tracking-widest truncate">{alert.title}</p>
+                  <p className="text-xs opacity-75 mt-1 line-clamp-2">{alert.body}</p>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+
       {/* ── KPI STAT CARDS ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* First card — dark hero */}
@@ -446,7 +549,7 @@ export default function Home() {
             >
               <div className="flex items-start justify-between gap-4 h-full">
                 <div className="min-w-0 flex-1">
-                  <span className="inline-block px-2 py-0.5 bg-primary/10 text-primary text-[9px] font-bold uppercase tracking-widest rounded-md mb-2">
+                  <span className="inline-block px-2.5 py-1 bg-primary/15 text-primary text-[9px] font-bold uppercase tracking-widest rounded-full mb-2">
                     {activeCard?.label}
                   </span>
                   <h2 className="text-xl font-bold tracking-tight text-foreground line-clamp-2">
@@ -460,9 +563,15 @@ export default function Home() {
                     <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
                   </div>
                 </div>
-                <div className="hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <AlertTriangle className="h-4 w-4" />
-                </div>
+                {activeCard?.image ? (
+                  <div className="hidden sm:block h-28 w-28 shrink-0 overflow-hidden rounded-3xl border-4 border-white bg-muted shadow-lg shadow-primary/10">
+                    <img src={activeCard.image} alt={activeCard.imageAlt || activeCard.title} className="h-full w-full object-cover" />
+                  </div>
+                ) : (
+                  <div className="hidden sm:flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-primary/10 text-primary shadow-sm">
+                    <AlertTriangle className="h-5 w-5" />
+                  </div>
+                )}
               </div>
             </Link>
             {allInsightCards.length > 1 && (
@@ -538,22 +647,29 @@ export default function Home() {
             </div>
             <div className="p-5 grid gap-3 lg:grid-cols-2">
               {liveTasks.length > 0 ? (
-                liveTasks.map((task, index) => (
-                  <Link key={task.id} href={`/leads/${task.clientId}`}
-                    className="flex items-center justify-between p-4 rounded-xl border border-border bg-muted/30 hover:bg-muted transition-colors">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
-                        <Eye className="h-4 w-4" />
+                liveTasks.map((task, index) => {
+                  const image = taskImageFor(task);
+                  return (
+                    <Link key={task.id} href={`/leads/${task.clientId}`}
+                      className="flex items-center justify-between p-4 rounded-xl border border-border bg-muted/30 hover:bg-accent/70 transition-colors">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {image ? (
+                          <img src={image} alt={task.contactName || task.client} className="h-11 w-11 shrink-0 rounded-2xl border border-white object-cover shadow-sm" />
+                        ) : (
+                          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary shrink-0">
+                            <Eye className="h-4 w-4" />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Lead {String(index + 1).padStart(2, "0")}</p>
+                          <p className="text-sm font-semibold text-foreground truncate">{task.contactName || task.client}</p>
+                          <p className="text-xs text-muted-foreground font-medium">{task.value}</p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Lead {String(index + 1).padStart(2, "0")}</p>
-                        <p className="text-sm font-semibold text-foreground truncate">{task.contactName || task.client}</p>
-                        <p className="text-xs text-muted-foreground font-medium">{task.value}</p>
-                      </div>
-                    </div>
-                    <span className="badge shrink-0 bg-primary/10 text-primary">Activo</span>
-                  </Link>
-                ))
+                      <span className="badge shrink-0 bg-primary/10 text-primary">Activo</span>
+                    </Link>
+                  );
+                })
               ) : (
                 <p className="text-sm text-muted-foreground col-span-2 py-4">No hay actividad reciente detectada.</p>
               )}
@@ -583,10 +699,23 @@ export default function Home() {
                 </thead>
                 <tbody>
                   {recentQuotes.length > 0 ? (
-                    recentQuotes.map((quote) => (
+                    recentQuotes.map((quote) => {
+                      const image = quoteImageFor(quote);
+                      return (
                       <tr key={quote.id}>
                         <td className="font-semibold">{quote.number}</td>
-                        <td>{quote.client}</td>
+                        <td>
+                          <div className="flex items-center gap-2.5">
+                            {image ? (
+                              <img src={image} alt={quote.client} className="h-9 w-9 shrink-0 rounded-xl border border-border object-cover" />
+                            ) : (
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-primary">
+                                <FileText className="h-3.5 w-3.5" />
+                              </div>
+                            )}
+                            <span className="truncate">{quote.client}</span>
+                          </div>
+                        </td>
                         <td className="font-semibold">{quote.total}</td>
                         <td>
                           <span className={clsx(
@@ -599,7 +728,8 @@ export default function Home() {
                           </span>
                         </td>
                       </tr>
-                    ))
+                    );
+                    })
                   ) : (
                     <tr>
                       <td colSpan={4} className="text-muted-foreground py-8">Aún no hay cotizaciones registradas.</td>

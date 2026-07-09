@@ -249,9 +249,9 @@ export async function PATCH(request: NextRequest) {
     const pool = getPool();
 
     if (action === 'release-stale') {
-        // Devolver a la bandeja los leads asignados-sin-contactar. Solo Admin/
-        // SuperAdmin (es el "cierre del día" manual; también lo dispara el cron).
-        // Si viene sellerId, libera solo los de ese vendedor.
+        // Compat legacy: ya no devuelve leads asignados a la bandeja. El
+        // cliente pidió conservarlos visibles para el vendedor aunque no los
+        // haya contactado ese mismo día.
         if (!isAdmin(user.role)) return NextResponse.json({ error: 'Solo Admin/SuperAdmin.' }, { status: 403 });
         const sellerId = body.sellerId ? String(body.sellerId).trim() : undefined;
         const released = await releaseUnworkedAssignedLeads(pool, sellerId || undefined);

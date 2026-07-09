@@ -118,6 +118,31 @@ REGLAS DE ORO:
     },
 };
 
+function playInboundMessageSound() {
+    try {
+        const AudioCtx = window.AudioContext || (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const playTone = (frequency: number, start: number, duration: number, gainValue: number) => {
+            const oscillator = ctx.createOscillator();
+            const gain = ctx.createGain();
+            oscillator.connect(gain);
+            gain.connect(ctx.destination);
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(frequency, ctx.currentTime + start);
+            gain.gain.setValueAtTime(0.0001, ctx.currentTime + start);
+            gain.gain.exponentialRampToValueAtTime(gainValue, ctx.currentTime + start + 0.015);
+            gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + duration);
+            oscillator.start(ctx.currentTime + start);
+            oscillator.stop(ctx.currentTime + start + duration + 0.02);
+        };
+        playTone(740, 0, 0.14, 0.12);
+        playTone(980, 0.12, 0.18, 0.10);
+    } catch {
+        // Browsers can block audio until a user interacts with the page.
+    }
+}
+
 export default function MiWiBotPage() {
     const { products, quotes, settings, updateSettings, addNotification } = useApp();
     const [activeTab, setActiveTab] = useState<'monitor' | 'programming' | 'capture' | 'widget' | 'learning'>('monitor');
@@ -177,11 +202,25 @@ export default function MiWiBotPage() {
     const [isSendingReply, setIsSendingReply] = useState(false);
     const chatEndRef = React.useRef<HTMLDivElement>(null);
     const selectedConvRef = React.useRef<WidgetConversation | null>(null);
+    const targetConversationIdRef = React.useRef<string | null>(null);
+    const knownUserMessageKeysRef = React.useRef<Set<string>>(new Set());
+    const conversationsSeededRef = React.useRef(false);
 
     // Keep ref in sync so polling closure can access latest value
     React.useEffect(() => {
         selectedConvRef.current = selectedConversation;
     }, [selectedConversation]);
+
+    React.useEffect(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const conversationId = params.get('conversation');
+            if (conversationId) {
+                targetConversationIdRef.current = conversationId;
+                setActiveTab('monitor');
+            }
+        } catch {}
+    }, []);
 
     // Auto-scroll chat to bottom on new messages
     React.useEffect(() => {
@@ -320,7 +359,28 @@ export default function MiWiBotPage() {
                 if (res.ok) {
                     const data = await res.json();
                     const convs: WidgetConversation[] = data.conversations || [];
+                    let hasNewInboundMessage = false;
+                    for (const conv of convs) {
+                        for (const msg of conv.messages || []) {
+                            if (msg.role !== 'user') continue;
+                            const key = `${conv.id}:${msg.timestamp}:${msg.content}`;
+                            if (!knownUserMessageKeysRef.current.has(key)) {
+                                if (conversationsSeededRef.current) hasNewInboundMessage = true;
+                                knownUserMessageKeysRef.current.add(key);
+                            }
+                        }
+                    }
+                    if (!conversationsSeededRef.current) conversationsSeededRef.current = true;
+                    else if (hasNewInboundMessage) playInboundMessageSound();
                     setLiveConversations(convs);
+                    const targetId = targetConversationIdRef.current;
+                    if (targetId && !selectedConvRef.current) {
+                        const target = convs.find(c => c.id === targetId);
+                        if (target) {
+                            setSelectedConversation(target);
+                            targetConversationIdRef.current = null;
+                        }
+                    }
                     // Update selected conversation using ref (avoids stale closure)
                     const current = selectedConvRef.current;
                     if (current) {
@@ -1937,4 +1997,3 @@ export default function MiWiBotPage() {
         </PermissionGate>
     );
 }
-

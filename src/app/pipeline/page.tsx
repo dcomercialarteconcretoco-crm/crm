@@ -377,8 +377,10 @@ export default function PipelinePage() {
     const [noteText, setNoteText] = useState('');
     const [showCallModal, setShowCallModal] = useState(false);
     const [callNoteText, setCallNoteText] = useState('');
+    const [isSendingPipelineEmail, setIsSendingPipelineEmail] = useState(false);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const customImageInputRef = useRef<HTMLInputElement>(null);
 
     const currentUser: Seller = loggedInUser || sellers.find(s => s.role === 'SuperAdmin') || sellers[0];
     const canReassign = hasPermission(currentUser, 'pipeline.reassign');
@@ -401,12 +403,19 @@ export default function PipelinePage() {
         priority: 'Medium' as 'High' | 'Medium' | 'Low',
         stageId: firstStageId as StageId,
         assignedTo: '',
-        products: [] as { id: string; name: string; price: number; quantity: number }[],
+        quoteNumber: '',
+        products: [] as { id: string; name: string; price: number; quantity: number; image?: string; isCustom?: boolean }[],
         // Valor manual del negocio cuando no se inyectan productos del catálogo.
         // Caso típico: servicios, instalaciones, mano de obra, sondeos cuantificados
         // por experiencia del vendedor. Si hay productos, este campo se ignora y el
         // total sale de sumarlos. Si products.length === 0, este es el valor del deal.
         manualValue: 0,
+    });
+    const [customProduct, setCustomProduct] = useState({
+        name: '',
+        price: 0,
+        quantity: 1,
+        image: '',
     });
 
     const [inlineClient, setInlineClient] = useState<{
@@ -449,10 +458,48 @@ export default function PipelinePage() {
         // bloqueaba al agregar producto y obligaba a quitar el SKU para poder
         // tipear — fricción innecesaria para un caso muy común.
         setNewDeal(prev => {
-            const nextProducts = [...prev.products, { id: product.id, name: product.name, price: product.price, quantity: 1 }];
+            const nextProducts = [...prev.products, { id: product.id, name: product.name, price: product.price, quantity: 1, image: product.image }];
             const nextSum = nextProducts.reduce((acc, p) => acc + p.price * p.quantity, 0);
             return { ...prev, products: nextProducts, manualValue: nextSum };
         });
+    };
+
+    const handleCustomImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (customImageInputRef.current) customImageInputRef.current.value = '';
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            addNotification({ title: 'Imagen no válida', description: 'Sube una imagen JPG, PNG, WEBP o SVG.', type: 'alert' });
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+            setCustomProduct(prev => ({ ...prev, image: String(reader.result || '') }));
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const addCustomProductToNewDeal = () => {
+        const name = customProduct.name.trim();
+        if (!name) {
+            addNotification({ title: 'Nombre requerido', description: 'Escribe el nombre del producto personalizado.', type: 'alert' });
+            return;
+        }
+        const quantity = Math.max(1, Math.floor(customProduct.quantity || 1));
+        const nextProduct = {
+            id: `custom-${Date.now()}`,
+            name,
+            price: Math.max(0, customProduct.price || 0),
+            quantity,
+            image: customProduct.image || undefined,
+            isCustom: true,
+        };
+        setNewDeal(prev => {
+            const nextProducts = [...prev.products, nextProduct];
+            const nextSum = nextProducts.reduce((acc, p) => acc + p.price * p.quantity, 0);
+            return { ...prev, products: nextProducts, manualValue: prev.manualValue || nextSum };
+        });
+        setCustomProduct({ name: '', price: 0, quantity: 1, image: '' });
     };
 
     const removeProductFromNewDeal = (idx: number) => {
@@ -473,6 +520,10 @@ export default function PipelinePage() {
     const calculateNewDealTotal = () => newDeal.manualValue;
     const sumOfNewDealProducts = () =>
         newDeal.products.reduce((acc, p) => acc + p.price * p.quantity, 0);
+
+    const manualQuoteNumberConflict = newDeal.quoteNumber.trim()
+        ? quotes.find(q => (q.quoteNumber || q.number || '').trim().toLowerCase() === newDeal.quoteNumber.trim().toLowerCase())
+        : null;
 
     // ─── Production order email ───────────────────────────────────────────────
 
@@ -508,6 +559,81 @@ export default function PipelinePage() {
         }
     };
 
+    const sendLinkedQuoteEmail = async (task: Task) => {
+        const linkedQuote = quotes.find(q => q.id === (task as any).quoteId);
+        const client = clients.find(c => c.id === task.clientId);
+        const email = linkedQuote?.clientEmail || task.email || client?.email || '';
+        if (!linkedQuote) {
+            if (email) {
+                logAction('email', `Email enviado a ${email}`);
+                openMailto(email);
+            } else {
+                addNotification({ title: 'Sin cotización vinculada', description: 'No hay cotización ni email para este negocio.', type: 'alert' });
+            }
+            return;
+        }
+        if (!email) {
+            addNotification({ title: 'Email requerido', description: 'El cliente no tiene email registrado.', type: 'alert' });
+            return;
+        }
+
+        setIsSendingPipelineEmail(true);
+        try {
+            const sentAt = new Date().toISOString();
+            const quoteNumber = linkedQuote.quoteNumber || linkedQuote.number || linkedQuote.id;
+            const items = (linkedQuote.items && linkedQuote.items.length > 0)
+                ? linkedQuote.items.map(i => ({ name: i.name, price: i.price, quantity: i.quantity, unit: i.unit || 'Und' }))
+                : [{ name: linkedQuote.clientCompany || linkedQuote.client || task.title, price: linkedQuote.numericTotal || task.numericValue || 0, quantity: 1, unit: 'gl' }];
+            const subtotal = linkedQuote.subtotal ?? items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+            const total = linkedQuote.numericTotal || task.numericValue || subtotal;
+            const tax = linkedQuote.tax ?? Math.round(total - subtotal);
+
+            const res = await fetch('/api/quotes/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    quoteNumber,
+                    clientName: linkedQuote.client || task.contactName || client?.name || task.client,
+                    clientEmail: email,
+                    clientCompany: linkedQuote.clientCompany || task.client || client?.company || '',
+                    sellerName: linkedQuote.sellerName || task.assignedTo || currentUser?.name || 'ArteConcreto',
+                    sellerId: linkedQuote.sellerId || currentUser?.id || '',
+                    sentAt,
+                    sentByName: currentUser?.name || linkedQuote.sellerName || '',
+                    sentById: currentUser?.id || linkedQuote.sellerId || '',
+                    items,
+                    subtotal,
+                    tax,
+                    total,
+                    shipping: linkedQuote.shipping || 0,
+                    shippingCity: linkedQuote.shippingCity || client?.city || '',
+                    referencia: linkedQuote.referencia || task.title,
+                    validUntil: linkedQuote.validUntil || '',
+                    deliveryTime: linkedQuote.deliveryTime || '',
+                    paymentTerms: linkedQuote.paymentTerms || '',
+                    sellerPhone: linkedQuote.sellerPhone || currentUser?.phone || '',
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'No se pudo enviar la cotización.');
+
+            updateQuote(linkedQuote.id, {
+                status: 'Sent',
+                sentAt: data.sentAt || sentAt,
+                sentByName: data.sentByName || currentUser?.name || '',
+                sentById: data.sentById || currentUser?.id || '',
+                deliveryFailed: false,
+                deliveryError: undefined,
+            });
+            logAction('email', `Cotización ${quoteNumber} enviada por email a ${email}`);
+            addNotification({ title: `Cotización ${quoteNumber} enviada`, description: `Enviada a ${email}`, type: 'success', quoteId: linkedQuote.id });
+        } catch (error) {
+            addNotification({ title: 'Error al enviar cotización', description: error instanceof Error ? error.message : 'Intenta de nuevo.', type: 'alert' });
+        } finally {
+            setIsSendingPipelineEmail(false);
+        }
+    };
+
     const saveNote = () => {
         if (!noteTask || !noteText.trim()) return;
         const newActivity: Activity = { id: `act-${Date.now()}`, type: 'note', content: noteText.trim(), timestamp: new Date() };
@@ -518,6 +644,14 @@ export default function PipelinePage() {
     };
 
     const handleCreateDeal = async () => {
+        if (manualQuoteNumberConflict) {
+            addNotification({
+                title: 'Número de cotización duplicado',
+                description: `Ya existe ${manualQuoteNumberConflict.quoteNumber || manualQuoteNumberConflict.number}. Cambialo o deja el campo vacío.`,
+                type: 'alert',
+            });
+            return;
+        }
         setIsProcessing(true);
         let finalClientId = newDeal.clientId;
 
@@ -576,6 +710,28 @@ export default function PipelinePage() {
         const clientName = showNewClientForm ? inlineClient.name : clientLookup?.name || 'Contacto';
         const clientEmail = showNewClientForm ? inlineClient.email : clientLookup?.email || '';
         const total = calculateNewDealTotal();
+        const itemsTotal = sumOfNewDealProducts();
+        const quoteItems = newDeal.products.length > 0
+            ? newDeal.products.map(p => ({
+                id: p.id,
+                name: p.name,
+                price: p.price,
+                quantity: p.quantity,
+                unit: 'Und',
+                total: p.price * p.quantity,
+                productId: p.isCustom ? undefined : p.id,
+                image: p.image,
+                isCustom: p.isCustom,
+            }))
+            : [{
+                id: `manual-${Date.now()}`,
+                name: newDeal.title || 'Oferta personalizada',
+                price: total,
+                quantity: 1,
+                unit: 'gl',
+                total,
+                isCustom: true,
+            }];
         const actualSeller = canReassign ? (sellers.find(s => s.id === newDeal.assignedTo) || currentUser) : currentUser;
 
         // Una sola llamada a addQuote — AppContext genera el quoteNumber
@@ -600,9 +756,15 @@ export default function PipelinePage() {
             date: new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }),
             total: `$${total.toLocaleString()}`,
             numericTotal: total,
+            subtotal: itemsTotal || total,
+            tax: 0,
+            items: quoteItems,
+            referencia: newDeal.title || undefined,
             status: 'Sent',
             sellerId: actualSeller.id,
             sellerName: actualSeller.name,
+            quoteNumber: newDeal.quoteNumber.trim() || undefined,
+            baseNumber: newDeal.quoteNumber.trim() || undefined,
         });
 
         // Override de la auto-task con los campos específicos que el
@@ -628,7 +790,7 @@ export default function PipelinePage() {
         setIsProcessing(false);
         setIsNewModalOpen(false);
         setShowNewClientForm(false);
-        setNewDeal({ title: '', clientId: '', priority: 'Medium', stageId: 'lead', assignedTo: '', products: [], manualValue: 0 });
+        setNewDeal({ title: '', clientId: '', priority: 'Medium', stageId: firstStageId, assignedTo: '', quoteNumber: '', products: [], manualValue: 0 });
         setInlineClient({ name: '', company: '', companyId: '', position: '', email: '', city: settings.cities[0]?.name || 'Bogotá', category: settings.sectors[0] || 'Infraestructura' });
     };
 
@@ -998,6 +1160,30 @@ export default function PipelinePage() {
                                         </div>
                                     </div>
 
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-bold text-primary uppercase tracking-widest">Número de Cotización</label>
+                                        <div className="relative">
+                                            <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                            <input
+                                                type="text"
+                                                placeholder="Automático si se deja vacío"
+                                                value={newDeal.quoteNumber}
+                                                onChange={e => setNewDeal({ ...newDeal, quoteNumber: e.target.value })}
+                                                className={clsx(
+                                                    "w-full bg-muted border rounded-xl pl-12 pr-4 py-3 outline-none focus:bg-white text-foreground font-bold transition-all",
+                                                    manualQuoteNumberConflict ? "border-rose-300 focus:border-rose-400" : "border-border focus:border-primary"
+                                                )}
+                                            />
+                                        </div>
+                                        {manualQuoteNumberConflict ? (
+                                            <p className="text-[10px] font-bold text-rose-600 uppercase tracking-widest">
+                                                Ya existe {manualQuoteNumberConflict.quoteNumber || manualQuoteNumberConflict.number}
+                                            </p>
+                                        ) : (
+                                            <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Úsalo solo si necesitas sobreescribir el consecutivo.</p>
+                                        )}
+                                    </div>
+
                                     {/* Client */}
                                     <div className="space-y-3">
                                         <div className="flex items-center justify-between">
@@ -1091,12 +1277,72 @@ export default function PipelinePage() {
                                             <option value="">Inyectar Ítems del Inventario...</option>
                                             {products.map(p => <option key={p.id} value={p.id}>{p.name} • ${p.price.toLocaleString()}</option>)}
                                         </select>
+                                        <div className="p-4 bg-white border border-border rounded-2xl space-y-3">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Producto personalizado</p>
+                                                <input ref={customImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleCustomImageUpload} />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => customImageInputRef.current?.click()}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-[9px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                                                >
+                                                    <Upload className="w-3 h-3" />
+                                                    Imagen
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-[52px_1fr_100px_72px] gap-2 items-center">
+                                                <div className="w-12 h-12 rounded-xl border border-border bg-muted overflow-hidden flex items-center justify-center">
+                                                    {customProduct.image ? (
+                                                        <img src={customProduct.image} alt="Producto personalizado" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <FileText className="w-4 h-4 text-muted-foreground/50" />
+                                                    )}
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Nombre"
+                                                    value={customProduct.name}
+                                                    onChange={e => setCustomProduct(prev => ({ ...prev, name: e.target.value }))}
+                                                    className="min-w-0 bg-muted border border-border rounded-xl px-3 py-2 text-xs font-bold outline-none focus:bg-white focus:border-primary"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    placeholder="Valor"
+                                                    value={customProduct.price ? customProduct.price.toLocaleString('es-CO') : ''}
+                                                    onChange={e => {
+                                                        const cleaned = e.target.value.replace(/[^0-9]/g, '');
+                                                        setCustomProduct(prev => ({ ...prev, price: cleaned ? parseInt(cleaned, 10) : 0 }));
+                                                    }}
+                                                    className="min-w-0 bg-muted border border-border rounded-xl px-3 py-2 text-xs font-bold outline-none focus:bg-white focus:border-primary"
+                                                />
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    value={customProduct.quantity}
+                                                    onChange={e => setCustomProduct(prev => ({ ...prev, quantity: Math.max(1, parseInt(e.target.value || '1', 10)) }))}
+                                                    className="min-w-0 bg-muted border border-border rounded-xl px-3 py-2 text-xs font-bold outline-none focus:bg-white focus:border-primary"
+                                                />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={addCustomProductToNewDeal}
+                                                className="w-full bg-primary/10 border border-primary/20 text-primary rounded-xl py-2 text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-black transition-all"
+                                            >
+                                                Agregar personalizado
+                                            </button>
+                                        </div>
                                         <div className="space-y-2.5 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
                                             {newDeal.products.map((p, i) => (
                                                 <div key={i} className="flex items-center justify-between bg-muted p-4 rounded-xl border border-border animate-in zoom-in-95">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-xs font-black text-foreground">{p.name}</span>
-                                                        <span className="text-[10px] font-bold text-muted-foreground mt-0.5">${p.price.toLocaleString()} / Und.</span>
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <div className="w-10 h-10 rounded-xl bg-white border border-border overflow-hidden shrink-0 flex items-center justify-center">
+                                                            {p.image ? <img src={p.image} alt={p.name} className="w-full h-full object-cover" /> : <FileText className="w-4 h-4 text-muted-foreground/40" />}
+                                                        </div>
+                                                        <div className="flex flex-col min-w-0">
+                                                            <span className="text-xs font-black text-foreground truncate">{p.name}</span>
+                                                            <span className="text-[10px] font-bold text-muted-foreground mt-0.5">${p.price.toLocaleString()} / Und. · Cant. {p.quantity}{p.isCustom ? ' · personalizado' : ''}</span>
+                                                        </div>
                                                     </div>
                                                     <button onClick={() => removeProductFromNewDeal(i)} className="p-2 hover:bg-rose-50 hover:text-rose-500 rounded-lg text-muted-foreground transition-all">
                                                         <X className="w-4 h-4" />
@@ -1186,7 +1432,7 @@ export default function PipelinePage() {
                                 {/* Disabled si: está procesando, no hay cliente vinculado/nuevo, no hay título,
                                     o no hay valor monetario (ni de productos ni manual). Antes exigía
                                     productos.length > 0, lo que bloqueaba el caso de servicios/mano de obra. */}
-                                <button onClick={handleCreateDeal} disabled={isProcessing || (!newDeal.clientId && !showNewClientForm) || !newDeal.title || calculateNewDealTotal() <= 0} className="bg-primary text-black font-bold px-8 py-2.5 rounded-xl shadow-lg disabled:opacity-20 uppercase text-[10px] tracking-widest hover:brightness-105 active:scale-[0.98] transition-all flex items-center gap-2">
+                                <button onClick={handleCreateDeal} disabled={isProcessing || !!manualQuoteNumberConflict || (!newDeal.clientId && !showNewClientForm) || !newDeal.title || calculateNewDealTotal() <= 0} className="bg-primary text-black font-bold px-8 py-2.5 rounded-xl shadow-lg disabled:opacity-20 uppercase text-[10px] tracking-widest hover:brightness-105 active:scale-[0.98] transition-all flex items-center gap-2">
                                     {isProcessing ? <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" /> : <><ShieldCheck className="w-4 h-4" /> Confirmar Lanzamiento</>}
                                 </button>
                             </div>
@@ -1296,17 +1542,12 @@ export default function PipelinePage() {
                                             <span className="text-[9px] font-black uppercase tracking-[0.15em]">Registrar Llamada</span>
                                         </button>
                                         <button
-                                            onClick={() => {
-                                                const email = selectedTask.email || clients.find(c => c.id === selectedTask.clientId)?.email || '';
-                                                if (email) {
-                                                    logAction('email', `Email enviado a ${email}`);
-                                                    openMailto(email);
-                                                }
-                                            }}
+                                            onClick={() => sendLinkedQuoteEmail(selectedTask)}
+                                            disabled={isSendingPipelineEmail}
                                             className="flex-1 bg-white border border-border text-foreground p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-blue-50 hover:border-blue-300 transition-all group"
                                         >
                                             <Mail className="w-5 h-5 text-blue-500 group-hover:-translate-y-0.5 transition-transform" />
-                                            <span className="text-[9px] font-black uppercase tracking-[0.15em]">Enviar Email</span>
+                                            <span className="text-[9px] font-black uppercase tracking-[0.15em]">{isSendingPipelineEmail ? 'Enviando...' : 'Enviar Email'}</span>
                                         </button>
                                         <button
                                             onClick={() => {

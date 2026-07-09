@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPool, hasDatabase } from '@/lib/postgres';
+import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
 
 export async function GET(
   _req: NextRequest,
@@ -10,6 +10,7 @@ export async function GET(
   }
   try {
     const { id } = await params;
+    await ensureCrmSchema();
     const pool = getPool();
     const result = await pool.query(
       `SELECT id, name, filename, mimetype, data FROM crm_documents WHERE id = $1`,
@@ -34,6 +35,7 @@ export async function DELETE(
   }
   try {
     const { id } = await params;
+    await ensureCrmSchema();
     const pool = getPool();
     const result = await pool.query(
       `DELETE FROM crm_documents WHERE id = $1 RETURNING id`,

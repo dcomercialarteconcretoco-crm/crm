@@ -309,6 +309,7 @@ export interface Notification {
     forAdmin?: boolean;
     quoteId?: string;
     targetUserId?: string;
+    clientId?: string;
 }
 
 export interface AuditLog {

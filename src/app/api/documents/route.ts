@@ -36,13 +36,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No se proporcionó archivo' }, { status: 400 });
     }
 
-    const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+    const MAX_SIZE = 25 * 1024 * 1024; // 25 MB
     if (file.size > MAX_SIZE) {
-      return NextResponse.json({ error: 'El archivo excede el límite de 5 MB' }, { status: 400 });
+      return NextResponse.json({ error: 'El archivo excede el límite de 25 MB' }, { status: 400 });
     }
 
     const allowedTypes = [
       'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'image/jpeg',
       'image/png',
       'image/webp',
@@ -51,7 +55,7 @@ export async function POST(req: NextRequest) {
     ];
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
-        { error: 'Tipo de archivo no permitido. Solo PDF e imágenes.' },
+        { error: 'Tipo de archivo no permitido. Solo PDF, Word, Excel e imágenes.' },
         { status: 400 }
       );
     }

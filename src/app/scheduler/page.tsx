@@ -108,7 +108,7 @@ export default function SchedulerPage() {
     const [externalEmail, setExternalEmail] = useState('');
     const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [editForm, setEditForm] = useState({ title: '', date: '', time: '', type: 'meeting' as CalendarEvent['type'] });
+    const [editForm, setEditForm] = useState({ title: '', date: '', time: '', type: 'meeting' as CalendarEvent['type'], description: '' });
 
     const isSuperAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
 
@@ -121,13 +121,13 @@ export default function SchedulerPage() {
 
     const handleEditEvent = (event: CalendarEvent) => {
         setEditingEvent(event);
-        setEditForm({ title: event.title, date: event.date, time: event.time, type: event.type });
+        setEditForm({ title: event.title, date: event.date, time: event.time, type: event.type, description: event.description || '' });
         setIsEditModalOpen(true);
     };
 
     const handleSaveEdit = () => {
         if (!editingEvent) return;
-        updateEvent(editingEvent.id, { title: editForm.title, date: editForm.date, time: editForm.time, type: editForm.type });
+        updateEvent(editingEvent.id, { title: editForm.title, date: editForm.date, time: editForm.time, type: editForm.type, description: editForm.description });
         setIsEditModalOpen(false);
         setEditingEvent(null);
         addNotification({ title: 'Evento actualizado', description: 'Los cambios quedaron guardados.', type: 'success' });
@@ -979,6 +979,17 @@ export default function SchedulerPage() {
                                     <p className="text-[10px] text-muted-foreground">Pega el link de tu reunión de Google Meet, Zoom o Teams.</p>
                                 </div>
 
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold uppercase text-muted-foreground tracking-widest">Concepto / Nota</label>
+                                    <textarea
+                                        value={form.description}
+                                        onChange={(e) => setForm({ ...form, description: e.target.value })}
+                                        placeholder="Contexto del evento, objetivo, acuerdos o recordatorio interno..."
+                                        rows={4}
+                                        className="w-full bg-muted border border-border rounded-xl py-2.5 px-3 text-sm outline-none focus:border-primary focus:bg-white resize-none"
+                                    />
+                                </div>
+
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold uppercase text-muted-foreground tracking-widest">Invitados seleccionados ({form.invitees.length})</label>
                                     <div className="flex flex-wrap gap-2 min-h-[36px]">
@@ -1154,6 +1165,16 @@ export default function SchedulerPage() {
                                         </button>
                                     ))}
                                 </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold uppercase text-muted-foreground tracking-widest">Concepto / Nota</label>
+                                <textarea
+                                    value={editForm.description}
+                                    onChange={(e) => setEditForm(f => ({ ...f, description: e.target.value }))}
+                                    rows={4}
+                                    className="w-full bg-muted border border-border rounded-xl py-2.5 px-3 text-sm outline-none focus:border-primary focus:bg-white resize-none"
+                                />
                             </div>
                         </div>
 

@@ -102,10 +102,19 @@ export default function DocumentsPage() {
       if (!res.ok) throw new Error('No se pudo obtener el documento');
       const json = await res.json();
       const dataUrl = `data:${json.mimetype};base64,${json.data}`;
-      window.open(dataUrl, '_blank');
+      if (String(json.mimetype || '').startsWith('image/') || json.mimetype === 'application/pdf') {
+        window.open(dataUrl, '_blank');
+        return;
+      }
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = json.filename || doc.filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
     } catch (err) {
       console.error(err);
-      alert('No se pudo previsualizar el documento.');
+      alert('No se pudo abrir el documento.');
     }
   };
 
@@ -161,7 +170,7 @@ export default function DocumentsPage() {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf,image/*"
+          accept=".pdf,.doc,.docx,.xls,.xlsx,image/*"
           className="hidden"
           onChange={handleFileChange}
         />

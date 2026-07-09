@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { resolveWhatsAppConfig } from '../_lib';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
 import { pickNextSeller } from '@/lib/round-robin';
+import { appendNotification } from '@/lib/server-notifications';
+import { sendAdvisorNeededEmail } from '@/lib/advisor-alert-email';
 
 export async function GET(req: NextRequest) {
     const searchParams = req.nextUrl.searchParams;
@@ -192,6 +194,24 @@ export async function POST(req: NextRequest) {
                  ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
                 [JSON.stringify(allConvs.slice(0, 200))]
             );
+
+            await appendNotification(pool, {
+                title: 'WhatsApp entrante',
+                description: `${msg.contactName || normalizedPhone}: ${(msg.text || '').slice(0, 120) || 'Nuevo mensaje'}`,
+                type: 'lead',
+                targetUserId: ownerId,
+                clientId,
+            });
+
+            sendAdvisorNeededEmail({
+                leadName: msg.contactName || `WhatsApp ${normalizedPhone}`,
+                phone: normalizedPhone,
+                message: msg.text,
+                source: 'WhatsApp',
+                conversationId,
+                clientId,
+                appUrl: process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin,
+            }).catch(error => console.error('[advisor-alert] whatsapp email failed:', error));
         }
 
         return NextResponse.json({ ok: true });
