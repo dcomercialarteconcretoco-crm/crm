@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
     Plus, Minus, Trash2, Search,
     CheckCircle, UserPlus, Box, RefreshCw, ShoppingCart,
-    Building2, Package, Eye, X, FileText, Send, GitBranch, Wrench, Hash
+    Building2, Package, Eye, X, FileText, Send, GitBranch, Wrench, Hash, ImagePlus
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { generateProposalPDF } from '@/lib/pdf-generator';
@@ -96,6 +96,14 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     const [sentConfirm, setSentConfirm] = useState<{ quoteNumber: string; email: string; pending?: boolean; pendingAction?: 'send_email' | 'send_whatsapp' | 'generate_pdf' } | null>(null);
     const [showNewClientForm, setShowNewClientForm] = useState(false);
     const [productSearch, setProductSearch] = useState('');
+    const customImageInputRef = useRef<HTMLInputElement>(null);
+    const [showCustomProductForm, setShowCustomProductForm] = useState(false);
+    const [customProduct, setCustomProduct] = useState({
+        name: '',
+        price: 0,
+        quantity: 1,
+        image: '',
+    });
     const [newClient, setNewClient] = useState({ name: '', company: '', companyId: '', position: '', email: '', phone: '', city: '' });
     const [clientSearch, setClientSearch] = useState('');
     const [showClientDropdown, setShowClientDropdown] = useState(false);
@@ -249,16 +257,38 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         ).slice(0, 15);
     }, [clients, clientSearch]);
 
-    // Add a fully custom product (no catalog)
+    const handleCustomProductImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            addNotification({ title: 'Imagen no válida', description: 'Sube una imagen JPG, PNG, WEBP o SVG.', type: 'alert' });
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+            setCustomProduct(prev => ({ ...prev, image: String(reader.result || '') }));
+        };
+        reader.readAsDataURL(file);
+    };
+
     const addCustomProduct = () => {
+        const name = customProduct.name.trim();
+        if (!name) {
+            addNotification({ title: 'Nombre requerido', description: 'Escribe el nombre del producto personalizado.', type: 'alert' });
+            return;
+        }
         setItems(prev => [...prev, {
             id: genId(),
-            name: 'Producto personalizado',
-            price: 0,
-            quantity: 1,
+            name,
+            price: Math.max(0, customProduct.price || 0),
+            quantity: Math.max(1, Math.floor(customProduct.quantity || 1)),
             unit: 'Und',
+            image: customProduct.image || undefined,
             isCustom: true,
         }]);
+        setCustomProduct({ name: '', price: 0, quantity: 1, image: '' });
+        if (customImageInputRef.current) customImageInputRef.current.value = '';
+        setShowCustomProductForm(false);
     };
 
     const updateItemName = (id: string, name: string) => setItems(prev => prev.map(i => i.id === id ? { ...i, name } : i));
@@ -1147,13 +1177,93 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                     <div className="px-4 pt-3 pb-1">
                         <button
                             type="button"
-                            onClick={addCustomProduct}
+                            onClick={() => setShowCustomProductForm(prev => !prev)}
                             className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-dashed border-primary/40 bg-primary/5 text-primary font-black text-[10px] uppercase tracking-widest hover:bg-primary/10 hover:border-primary/60 transition-all"
                         >
                             <Plus className="w-3.5 h-3.5" />
-                            Agregar producto personalizado (sin catálogo)
+                            {showCustomProductForm ? 'Cerrar producto personalizado' : 'Agregar producto personalizado con imagen'}
                         </button>
                     </div>
+
+                    {showCustomProductForm && (
+                        <div className="mx-4 mt-3 mb-2 rounded-2xl border border-primary/25 bg-white/80 p-4 shadow-sm">
+                            <div className="flex items-start gap-4">
+                                <input
+                                    ref={customImageInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={handleCustomProductImageUpload}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => customImageInputRef.current?.click()}
+                                    className="w-24 h-24 shrink-0 overflow-hidden rounded-2xl border border-dashed border-primary/40 bg-primary/5 flex items-center justify-center hover:bg-primary/10 transition-all"
+                                    title="Subir imagen del producto personalizado"
+                                >
+                                    {customProduct.image ? (
+                                        <img src={customProduct.image} alt="Producto personalizado" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="flex flex-col items-center gap-1 text-primary">
+                                            <ImagePlus className="w-6 h-6" />
+                                            <span className="text-[9px] font-black uppercase tracking-widest">Imagen</span>
+                                        </div>
+                                    )}
+                                </button>
+                                <div className="flex-1 min-w-0 space-y-3">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-primary">Producto personalizado</p>
+                                        <p className="text-[10px] text-muted-foreground mt-0.5">Para productos fuera del catálogo o diseños especiales.</p>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={customProduct.name}
+                                        onChange={e => setCustomProduct({ ...customProduct, name: e.target.value })}
+                                        placeholder="Nombre del producto"
+                                        className="w-full bg-white border border-border/70 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-primary transition-all"
+                                    />
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            value={customProduct.price || ''}
+                                            onChange={e => setCustomProduct({ ...customProduct, price: parseFloat(e.target.value) || 0 })}
+                                            placeholder="Precio unitario"
+                                            className="w-full bg-white border border-border/70 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-primary transition-all"
+                                        />
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            value={customProduct.quantity}
+                                            onChange={e => setCustomProduct({ ...customProduct, quantity: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                                            placeholder="Cantidad"
+                                            className="w-full bg-white border border-border/70 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-primary transition-all"
+                                        />
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={addCustomProduct}
+                                            className="flex-1 bg-primary text-black font-black py-2.5 rounded-xl text-[10px] uppercase tracking-widest hover:brightness-105 transition-all"
+                                        >
+                                            Agregar personalizado
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setShowCustomProductForm(false);
+                                                setCustomProduct({ name: '', price: 0, quantity: 1, image: '' });
+                                                if (customImageInputRef.current) customImageInputRef.current.value = '';
+                                            }}
+                                            className="px-4 bg-white border border-border/70 text-muted-foreground font-black py-2.5 rounded-xl text-[10px] uppercase tracking-widest hover:bg-accent/50 transition-all"
+                                        >
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Product grid */}
                     <div className="p-4 max-h-[480px] overflow-y-auto custom-scrollbar">
