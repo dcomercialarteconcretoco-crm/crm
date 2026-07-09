@@ -40,6 +40,86 @@ const QUOTE_STATUS_LABEL: Record<string, string> = {
   PENDING_APPROVAL: 'Por aprobar',  // legacy
 };
 
+const SPANISH_MONTHS: Record<string, number> = {
+  ene: 0, enero: 0,
+  feb: 1, febrero: 1,
+  mar: 2, marzo: 2,
+  abr: 3, abril: 3,
+  may: 4, mayo: 4,
+  jun: 5, junio: 5,
+  jul: 6, julio: 6,
+  ago: 7, agosto: 7,
+  sep: 8, sept: 8, septiembre: 8,
+  oct: 9, octubre: 9,
+  nov: 10, noviembre: 10,
+  dic: 11, diciembre: 11,
+};
+
+function monthKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function monthLabel(key: string): string {
+  const [year, month] = key.split('-').map(Number);
+  if (!year || !month) return key;
+  return new Date(year, month - 1, 1).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
+}
+
+function normalizeQuoteRef(value: any): string {
+  return String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+}
+
+function quoteRefCandidates(input: any): string[] {
+  const fields = [input?.id, input?.quoteId, input?.quoteNumber, input?.number, input?.baseNumber, input?.title];
+  const raw = fields.filter(Boolean).join(' ').toUpperCase();
+  const matches = raw.match(/[A-Z]{2,5}-[A-Z0-9-]+/g) || [];
+  return Array.from(new Set([...fields, ...matches].map(normalizeQuoteRef).filter(Boolean)));
+}
+
+function quoteYearHint(input: any): number {
+  const raw = [input?.quoteNumber, input?.number, input?.baseNumber, input?.title, input?.quoteId, input?.id].filter(Boolean).join(' ');
+  const match = raw.match(/(20\d{2})/);
+  return match ? Number(match[1]) : new Date().getFullYear();
+}
+
+function parseCRMDate(value: any, fallbackYear = new Date().getFullYear()): Date | null {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+
+  const numeric = raw.match(/^(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?$/);
+  if (numeric) {
+    const year = numeric[3] ? Number(numeric[3].length === 2 ? `20${numeric[3]}` : numeric[3]) : fallbackYear;
+    return new Date(year, Number(numeric[2]) - 1, Number(numeric[1]));
+  }
+
+  const normalized = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\./g, '');
+  const spanish = normalized.match(/(\d{1,2})\s*(?:de\s*)?([a-z]+)(?:\s*(?:de\s*)?(\d{4}))?/);
+  if (spanish && SPANISH_MONTHS[spanish[2]] !== undefined) {
+    return new Date(spanish[3] ? Number(spanish[3]) : fallbackYear, SPANISH_MONTHS[spanish[2]], Number(spanish[1]));
+  }
+
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function dateFromEpochId(value: any): Date | null {
+  const match = String(value || '').match(/(1[6-9]\d{11})/);
+  if (!match) return null;
+  const date = new Date(Number(match[1]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function earliestDate(dates: Array<Date | null | undefined>): Date | null {
+  const valid = dates.filter((date): date is Date => !!date && !Number.isNaN(date.getTime()));
+  if (valid.length === 0) return null;
+  return valid.sort((a, b) => a.getTime() - b.getTime())[0];
+}
+
 export default function Home() {
   const { clients, tasks, quotes, sellers, settings, currentUser, auditLogs, events, notifications, addNotification } = useApp();
   const [isCatalogLoading, setIsCatalogLoading] = useState(false);
@@ -112,14 +192,61 @@ export default function Home() {
     [tasks, currentUser]
   );
 
-  const totalForecast = useMemo(
-    () => scopedTasks.reduce((sum, task) => sum + task.numericValue, 0),
-    [scopedTasks]
+  const currentMonthKey = useMemo(() => monthKey(new Date()), []);
+  const currentMonthLabel = useMemo(() => monthLabel(currentMonthKey), [currentMonthKey]);
+  const quoteById = useMemo(() => new Map(scopedQuotes.map(q => [q.id, q])), [scopedQuotes]);
+  const quoteByRef = useMemo(() => {
+    const map = new Map<string, Quote>();
+    for (const quote of scopedQuotes) {
+      for (const ref of quoteRefCandidates(quote)) {
+        if (!map.has(ref)) map.set(ref, quote);
+      }
+    }
+    return map;
+  }, [scopedQuotes]);
+
+  const quoteMonthKey = (quote: Quote) => {
+    const fallbackYear = quoteYearHint(quote);
+    if (fallbackYear < new Date().getFullYear()) return `${fallbackYear}-01`;
+    const date = parseCRMDate((quote as any).sentAt, fallbackYear) || parseCRMDate(quote.date, fallbackYear) || dateFromEpochId(quote.id) || new Date();
+    return monthKey(date);
+  };
+
+  const taskMonthKey = (task: Task) => {
+    const quote = quoteById.get((task as any).quoteId)
+      || quoteRefCandidates(task).map(ref => quoteByRef.get(ref)).find(Boolean);
+    const fallbackYear = quoteYearHint(quote || task);
+    const retakenDate = parseCRMDate((task as any).retakenAt, fallbackYear);
+    if (retakenDate) return monthKey(retakenDate);
+    if (fallbackYear < new Date().getFullYear()) return `${fallbackYear}-01`;
+    const activityDates = (task.activities || []).map(activity => parseCRMDate(activity.timestamp, fallbackYear));
+    const originalDate = earliestDate([
+      parseCRMDate(quote?.date, fallbackYear),
+      parseCRMDate((quote as any)?.sentAt, fallbackYear),
+      dateFromEpochId((task as any).quoteId),
+      dateFromEpochId(task.id),
+      ...activityDates,
+    ]) || new Date();
+    return monthKey(originalDate);
+  };
+
+  const currentMonthQuotes = useMemo(
+    () => scopedQuotes.filter(q => quoteMonthKey(q) === currentMonthKey),
+    [scopedQuotes, currentMonthKey]
+  );
+  const currentMonthTasks = useMemo(
+    () => scopedTasks.filter(t => taskMonthKey(t) === currentMonthKey),
+    [scopedTasks, currentMonthKey, scopedQuotes]
   );
 
-  const approvedQuotes = scopedQuotes.filter((quote) => quote.status === "Approved").length;
+  const totalForecast = useMemo(
+    () => currentMonthTasks.reduce((sum, task) => sum + task.numericValue, 0),
+    [currentMonthTasks]
+  );
+
+  const approvedQuotes = currentMonthQuotes.filter((quote) => quote.status === "Approved").length;
   const conversionRate =
-    scopedQuotes.length > 0 ? ((approvedQuotes / scopedQuotes.length) * 100).toFixed(1) : "0.0";
+    currentMonthQuotes.length > 0 ? ((approvedQuotes / currentMonthQuotes.length) * 100).toFixed(1) : "0.0";
 
   // Top buyers: only clients with at least one Approved quote, sorted by their total approved revenue
   const topClients = useMemo(() => {
@@ -345,7 +472,7 @@ export default function Home() {
     generatePDFReport({
       title: "Informe de Inteligencia Operacional",
       stats: [
-        { label: "Propuestas Activas", value: scopedTasks.length.toString(), change: "" },
+        { label: "Propuestas Activas", value: currentMonthTasks.length.toString(), change: currentMonthLabel },
         { label: "Ingresos Proyectados", value: formatCurrency(totalForecast), change: "" },
         { label: "Tasa Conversión", value: `${conversionRate}%`, change: "" },
         { label: "Leads Activos", value: scopedClients.length.toString(), change: "" },
@@ -362,14 +489,14 @@ export default function Home() {
     {
       label: "Proyección Comercial",
       value: formatCurrency(totalForecast),
-      note: `${scopedTasks.length} propuestas activas`,
+      note: `${currentMonthTasks.length} propuestas activas · ${currentMonthLabel}`,
       icon: TrendingUp,
       tone: "bg-primary/14 text-primary border-primary/20",
     },
     {
       label: "Conversión",
       value: `${conversionRate}%`,
-      note: `${approvedQuotes} cierres aprobados`,
+      note: `${approvedQuotes} cierres · ${currentMonthLabel}`,
       icon: Target,
       tone: "bg-accent/42 text-primary border-primary/15",
     },
@@ -382,8 +509,8 @@ export default function Home() {
     },
     {
       label: "Cotizaciones",
-      value: scopedQuotes.length.toString(),
-      note: "pipeline activo",
+      value: currentMonthQuotes.length.toString(),
+      note: `mes actual · ${currentMonthLabel}`,
       icon: FileText,
       tone: "bg-accent/45 text-foreground border-primary/15",
     },
@@ -396,7 +523,7 @@ export default function Home() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="page-title">Resumen Comercial</h1>
-          <p className="page-subtitle">Bienvenido de vuelta. Aquí está tu resumen comercial.</p>
+          <p className="page-subtitle">Resumen del mes en curso: {currentMonthLabel}.</p>
         </div>
         <Link
           href="/quotes/new"
@@ -512,14 +639,14 @@ export default function Home() {
               )}>
                 {formatCurrency(totalForecast)}
               </p>
-              <p className="mt-2 text-xs text-white/50">{scopedTasks.length} propuestas activas</p>
+              <p className="mt-2 text-xs text-white/50">{currentMonthTasks.length} propuestas activas · {currentMonthLabel}</p>
             </div>
             <div className="shrink-0 w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center">
               <TrendingUp className="w-4 h-4 text-primary" />
             </div>
           </div>
           <div className="mt-4 progress-track" style={{ background: 'rgba(255,255,255,0.1)' }}>
-            <div className="progress-fill" style={{ width: `${Math.min(100, scopedTasks.length * 10)}%` }} />
+            <div className="progress-fill" style={{ width: `${Math.min(100, currentMonthTasks.length * 10)}%` }} />
           </div>
         </div>
 
@@ -785,11 +912,11 @@ export default function Home() {
             <h3 className="section-title mt-1 mb-5">Conversión por etapa</h3>
             <div className="space-y-5">
               {(() => {
-                const maxVal = Math.max(scopedClients.length, scopedQuotes.length, scopedTasks.length, approvedQuotes, 1);
+                const maxVal = Math.max(scopedClients.length, currentMonthQuotes.length, currentMonthTasks.length, approvedQuotes, 1);
                 return [
                   { label: "Leads totales", value: scopedClients.length || 0 },
-                  { label: "Cotizaciones", value: scopedQuotes.length || 0 },
-                  { label: "Propuestas activas", value: scopedTasks.length || 0 },
+                  { label: `Cotizaciones ${currentMonthLabel}`, value: currentMonthQuotes.length || 0 },
+                  { label: `Propuestas ${currentMonthLabel}`, value: currentMonthTasks.length || 0 },
                   { label: "Cierres", value: approvedQuotes || 0 },
                 ].map((item) => (
                   <div key={item.label} className="space-y-2">
