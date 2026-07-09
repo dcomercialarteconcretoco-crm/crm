@@ -846,11 +846,11 @@ export default function PipelinePage() {
             await new Promise(r => setTimeout(r, 800));
         }
 
-        setAutomationStep('Generando Cotización PDF...');
+        setAutomationStep('Creando cotización interna...');
         await new Promise(r => setTimeout(r, 1200));
-        setAutomationStep('Configurando Tracking de Apertura...');
+        setAutomationStep('Vinculando negocio al pipeline...');
         await new Promise(r => setTimeout(r, 1000));
-        setAutomationStep('Enviando Propuesta a Cliente...');
+        setAutomationStep('Guardando para gestión interna...');
         await new Promise(r => setTimeout(r, 1000));
 
         if (newDeal.products.length > 0) {
@@ -929,7 +929,7 @@ export default function PipelinePage() {
             tax: 0,
             items: quoteItems,
             referencia: newDeal.title || undefined,
-            status: 'Sent',
+            status: 'Draft',
             sellerId: actualSeller.id,
             sellerName: actualSeller.name,
             quoteNumber: newDeal.quoteNumber.trim() || undefined,
@@ -946,15 +946,15 @@ export default function PipelinePage() {
             title: newDeal.title || 'Nuevo Negocio',
             contactName: clientName,
             priority: newDeal.priority,
-            tags: ['Nuevo', 'Cotizado'],
+            tags: ['Nuevo', 'Interno'],
             aiScore: 0,
             source: 'Web',
             stageId: newDeal.stageId,
             activities: [{ id: `sys-${Date.now()}`, type: 'system', content: `Negocio creado por ${actualSeller.name}.`, timestamp: new Date() }],
         });
 
-        addNotification({ title: 'Negocio Operativo', description: `Se ha vinculado a ${clientCompany} con el vendedor ${actualSeller.name}.`, type: 'success' });
-        addAuditLog({ userId: actualSeller.id, userName: actualSeller.name, userRole: sellers.find(s => s.id === actualSeller.id)?.role || 'Vendedor', action: 'QUOTE_SENT', targetId: autoTaskId, targetName: clientCompany, details: `Negocio creado en pipeline para ${clientCompany} · Total: $${total.toLocaleString()}`, verified: true });
+        addNotification({ title: 'Negocio interno creado', description: `${clientCompany} quedó vinculado con ${actualSeller.name}. No se envió información al cliente.`, type: 'success' });
+        addAuditLog({ userId: actualSeller.id, userName: actualSeller.name, userRole: sellers.find(s => s.id === actualSeller.id)?.role || 'Vendedor', action: 'QUOTE_CREATED', targetId: autoTaskId, targetName: clientCompany, details: `Cotización interna creada desde pipeline para ${clientCompany} · Total: $${total.toLocaleString()} · Sin envío al cliente`, verified: true });
 
         setIsProcessing(false);
         setIsNewModalOpen(false);

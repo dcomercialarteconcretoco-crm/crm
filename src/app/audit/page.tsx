@@ -67,6 +67,7 @@ export default function AuditPage() {
         switch (action) {
             case 'WHATSAPP_SENT':
             case 'CALL_MADE':
+            case 'QUOTE_CREATED':
             case 'QUOTE_SENT':
             case 'LEAD_CREATED':
                 return 'clientes';
@@ -83,6 +84,7 @@ export default function AuditPage() {
         switch (action) {
             case 'WHATSAPP_SENT':
             case 'CALL_MADE':
+            case 'QUOTE_CREATED':
             case 'QUOTE_SENT':
             case 'LEAD_CREATED':
                 return '👤 Cliente';
@@ -97,6 +99,7 @@ export default function AuditPage() {
 
     const getActionBadge = (action: AuditLog['action']) => {
         switch (action) {
+            case 'QUOTE_CREATED': return { color: 'bg-amber-50 text-amber-700 border-amber-200', label: 'Cotización Creada', icon: FileText };
             case 'QUOTE_SENT': return { color: 'bg-blue-50 text-blue-700 border-blue-200', label: 'Cotización Enviada', icon: FileText };
             case 'SALE_REGISTERED': return { color: 'bg-emerald-50 text-emerald-700 border-emerald-200', label: 'Venta Registrada', icon: TrendingUp };
             case 'WHATSAPP_SENT': return { color: 'bg-green-50 text-green-700 border-green-200', label: 'WhatsApp', icon: Smartphone };
