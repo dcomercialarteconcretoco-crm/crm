@@ -48,6 +48,8 @@ export interface Task {
     // Motivo de pérdida cuando el negocio se descarta/marca perdido —
     // requerido por gerencia para saber por qué se pierden los negocios.
     lossReason?: string;
+    // Fecha en la que una cotización antigua se retomó desde el archivo del pipeline.
+    retakenAt?: string;
     notes?: { text: string; date: string; author: string }[];
 }
 

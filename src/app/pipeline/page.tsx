@@ -119,6 +119,92 @@ function colorTokens(color: string) {
     return COLOR_TOKENS[color] || COLOR_TOKENS.slate;
 }
 
+const ARCHIVE_COLUMN_ID = '__previous_month_quotes__';
+
+const SPANISH_MONTHS: Record<string, number> = {
+    ene: 0, enero: 0,
+    feb: 1, febrero: 1,
+    mar: 2, marzo: 2,
+    abr: 3, abril: 3,
+    may: 4, mayo: 4,
+    jun: 5, junio: 5,
+    jul: 6, julio: 6,
+    ago: 7, agosto: 7,
+    sep: 8, sept: 8, septiembre: 8,
+    oct: 9, octubre: 9,
+    nov: 10, noviembre: 10,
+    dic: 11, diciembre: 11,
+};
+
+function monthKey(date: Date): string {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function monthLabel(key: string): string {
+    const [year, month] = key.split('-').map(Number);
+    if (!year || !month) return key;
+    return new Date(year, month - 1, 1).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
+}
+
+function quoteYearHint(input: any): number {
+    const raw = `${input?.quoteNumber || input?.number || input?.baseNumber || input?.id || ''}`;
+    const match = raw.match(/(20\d{2})/);
+    return match ? Number(match[1]) : new Date().getFullYear();
+}
+
+function parseCRMDate(value: any, fallbackYear = new Date().getFullYear()): Date | null {
+    if (!value) return null;
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+    const raw = String(value).trim();
+    if (!raw) return null;
+
+    const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+
+    const numeric = raw.match(/^(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?$/);
+    if (numeric) {
+        const year = numeric[3] ? Number(numeric[3].length === 2 ? `20${numeric[3]}` : numeric[3]) : fallbackYear;
+        return new Date(year, Number(numeric[2]) - 1, Number(numeric[1]));
+    }
+
+    const normalized = raw
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\./g, '');
+    const spanish = normalized.match(/(\d{1,2})\s*(?:de\s*)?([a-z]+)(?:\s*(?:de\s*)?(\d{4}))?/);
+    if (spanish && SPANISH_MONTHS[spanish[2]] !== undefined) {
+        return new Date(spanish[3] ? Number(spanish[3]) : fallbackYear, SPANISH_MONTHS[spanish[2]], Number(spanish[1]));
+    }
+
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function dedupPipelineTasks(colTasks: Task[]): Task[] {
+    const seen = new Map<string, Task>();
+    const sorted = [...colTasks].sort((a, b) => (b.numericValue || 0) - (a.numericValue || 0));
+    for (const t of sorted) {
+        const key = (t as any).email?.toLowerCase().trim() || (t as any).clientId || t.id;
+        if (!seen.has(key)) {
+            seen.set(key, { ...t });
+        } else {
+            const existing = seen.get(key)!;
+            const combined = (existing.numericValue || 0) + (t.numericValue || 0);
+            seen.set(key, {
+                ...existing,
+                numericValue: combined,
+                value: `$ ${combined.toLocaleString('es-CO')}`,
+                activities: [
+                    ...(existing.activities || []),
+                    ...(t.activities || []),
+                ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
+            });
+        }
+    }
+    return Array.from(seen.values());
+}
+
 // ─── SortableTask (real tasks only — virtual tasks shown separately) ─────────
 
 function SortableTask({ task, onClick, onNote, stages }: { task: Task; onClick: (task: Task) => void; onNote: (task: Task) => void; stages: PipelineStage[] }) {
@@ -310,6 +396,7 @@ export default function PipelinePage() {
         ? settings.pipelineStages
         : DEFAULT_PIPELINE_STAGES;
     const stageIds = stages.map(s => s.id);
+    const stageIdsKey = stageIds.join('|');
     const stageLabel = Object.fromEntries(stages.map(s => [s.id, s.label])) as Record<string, string>;
 
     const [columns, setColumns] = useState<Column[]>(
@@ -318,53 +405,70 @@ export default function PipelinePage() {
 
     // Per-column search
     const [columnSearch, setColumnSearch] = useState<Record<string, string>>({});
+    const [selectedArchiveMonth, setSelectedArchiveMonth] = useState('');
+
+    const currentMonthKey = useMemo(() => monthKey(new Date()), []);
+    const quoteById = useMemo(() => new Map(quotes.map(q => [q.id, q])), [quotes]);
+
+    const taskEffectiveDate = (task: Task): Date => {
+        const quote = quoteById.get((task as any).quoteId);
+        const fallbackYear = quoteYearHint(quote || task);
+        const oldestActivity = [...(task.activities || [])].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())[0];
+        return (
+            parseCRMDate((task as any).retakenAt, fallbackYear) ||
+            parseCRMDate((quote as any)?.sentAt, fallbackYear) ||
+            parseCRMDate(quote?.date, fallbackYear) ||
+            parseCRMDate(oldestActivity?.timestamp, fallbackYear) ||
+            new Date()
+        );
+    };
+
+    const taskMonthKey = (task: Task) => monthKey(taskEffectiveDate(task));
+
+    const boardSourceTasks = useMemo(() => (
+        tasks
+            .filter((t: any) => !!(t as any).quoteId)
+            .filter((t: any) => stageIds.includes(resolveStageId(t.stageId)))
+            .filter((t: any) => ownsRecord(loggedInUser, t))
+    ), [tasks, stageIdsKey, loggedInUser]);
+
+    const archiveMonthOptions = useMemo(() => {
+        const keys = new Set<string>();
+        for (const task of boardSourceTasks) {
+            const key = taskMonthKey(task);
+            if (key !== currentMonthKey) keys.add(key);
+        }
+        return Array.from(keys).sort((a, b) => b.localeCompare(a));
+    }, [boardSourceTasks, currentMonthKey, quotes]);
 
     useEffect(() => {
-        // Deduplicate: one card per unique client per column (same email or same clientId)
-        function dedupTasks(colTasks: Task[]): Task[] {
-            const seen = new Map<string, Task>();
-            // Sort by numericValue desc so we keep the highest-value task as representative
-            const sorted = [...colTasks].sort((a, b) => (b.numericValue || 0) - (a.numericValue || 0));
-            for (const t of sorted) {
-                const key = (t as any).email?.toLowerCase().trim() || (t as any).clientId || t.id;
-                if (!seen.has(key)) {
-                    seen.set(key, { ...t });
-                } else {
-                    // Merge: accumulate value + merge activities
-                    const existing = seen.get(key)!;
-                    const combined = (existing.numericValue || 0) + (t.numericValue || 0);
-                    seen.set(key, {
-                        ...existing,
-                        numericValue: combined,
-                        value: `$ ${combined.toLocaleString('es-CO')}`,
-                        activities: [
-                            ...(existing.activities || []),
-                            ...(t.activities || []),
-                        ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
-                    });
-                }
-            }
-            return Array.from(seen.values());
-        }
+        setSelectedArchiveMonth(prev => {
+            if (prev && archiveMonthOptions.includes(prev)) return prev;
+            return archiveMonthOptions[0] || '';
+        });
+    }, [archiveMonthOptions]);
 
+    useEffect(() => {
         setColumns(
             stages.map(s => ({
                 id: s.id,
                 title: s.label,
-                tasks: dedupTasks(
-                    tasks
-                        // Sólo entra al pipeline lo que tiene cotización: el lead "pelado"
-                        // vive en /clients y no infla el kanban.
-                        .filter((t: any) => !!(t as any).quoteId)
-                        // Mapear stage legacy → nuevo, descartar tasks sin stage válido
-                        // (lead virtual / lost se resuelven a '' o '__lost__' y caen acá).
+                tasks: dedupPipelineTasks(
+                    boardSourceTasks
                         .filter((t: any) => resolveStageId(t.stageId) === s.id)
-                        .filter((t: any) => ownsRecord(loggedInUser, t))
+                        .filter((t: any) => taskMonthKey(t) === currentMonthKey)
                 ),
             }))
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [tasks, loggedInUser, settings.pipelineStages]);
+    }, [boardSourceTasks, currentMonthKey, settings.pipelineStages, quotes]);
+
+    const archivedTasks = useMemo(() => {
+        if (!selectedArchiveMonth) return [];
+        return dedupPipelineTasks(
+            boardSourceTasks.filter(task => taskMonthKey(task) === selectedArchiveMonth)
+        );
+    }, [boardSourceTasks, selectedArchiveMonth, quotes]);
 
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -848,11 +952,13 @@ export default function PipelinePage() {
         const movedTask = tasks.find(t => t.id === activeId);
         if (!movedTask) return;
 
+        const movedFromArchive = taskMonthKey(movedTask) !== currentMonthKey;
         const column = columns.find(c => c.id === overId);
         const otherTask = tasks.find(t => t.id === overId);
-        const destColId = column ? column.id : (otherTask ? resolveStageId((otherTask as any).stageId) : null);
+        const overIsArchive = overId === ARCHIVE_COLUMN_ID || (otherTask ? taskMonthKey(otherTask) !== currentMonthKey : false);
+        const destColId = column ? column.id : (otherTask && !overIsArchive ? resolveStageId((otherTask as any).stageId) : null);
 
-        if (destColId && resolveStageId((movedTask as any).stageId) !== destColId) {
+        if (destColId && (resolveStageId((movedTask as any).stageId) !== destColId || movedFromArchive)) {
             const fromLabel = stageLabel[resolveStageId((movedTask as any).stageId)] || (movedTask as any).stageId || '—';
             const toLabel = stageLabel[destColId] || destColId;
 
@@ -870,11 +976,29 @@ export default function PipelinePage() {
                 type: 'system',
                 content: lossReason
                     ? `📌 Etapa cambiada: ${fromLabel} → ${toLabel} — Motivo: ${lossReason}`
-                    : `📌 Etapa cambiada: ${fromLabel} → ${toLabel}`,
+                    : movedFromArchive
+                        ? `📌 Negocio retomado desde ${monthLabel(taskMonthKey(movedTask))}: ${fromLabel} → ${toLabel}`
+                        : `📌 Etapa cambiada: ${fromLabel} → ${toLabel}`,
                 timestamp: new Date(),
             };
-            updateTask(activeId, { stageId: destColId, activities: [stageActivity, ...movedTask.activities], ...(lossReason ? { lossReason } : {}) } as any);
-            addAuditLog({ userId: currentUser.id, userName: currentUser.name, userRole: canReassign ? 'SuperAdmin' : 'Vendedor', action: 'LEAD_STATUS_CHANGE', targetId: activeId, targetName: movedTask.client, details: `Cambio de etapa: ${fromLabel} → ${toLabel}`, verified: true });
+            updateTask(activeId, {
+                stageId: destColId,
+                activities: [stageActivity, ...movedTask.activities],
+                ...(movedFromArchive ? { retakenAt: new Date().toISOString() } : {}),
+                ...(lossReason ? { lossReason } : {}),
+            } as any);
+            addAuditLog({
+                userId: currentUser.id,
+                userName: currentUser.name,
+                userRole: canReassign ? 'SuperAdmin' : 'Vendedor',
+                action: 'LEAD_STATUS_CHANGE',
+                targetId: activeId,
+                targetName: movedTask.client,
+                details: movedFromArchive
+                    ? `Negocio retomado desde ${monthLabel(taskMonthKey(movedTask))}: ${fromLabel} → ${toLabel}`
+                    : `Cambio de etapa: ${fromLabel} → ${toLabel}`,
+                verified: true,
+            });
             // Si la columna de destino está marcada como "ganadora" (isWinStage),
             // disparamos la orden de producción como antes.
             const destStage = stages.find(s => s.id === destColId);
@@ -1041,6 +1165,81 @@ export default function PipelinePage() {
                                 </div>
                             );
                         })}
+                        {(() => {
+                            const tone = colorTokens('slate');
+                            const search = (columnSearch[ARCHIVE_COLUMN_ID] || '').toLowerCase();
+                            const filteredTasks = search
+                                ? archivedTasks.filter(t =>
+                                    t.title?.toLowerCase().includes(search) ||
+                                    t.client?.toLowerCase().includes(search) ||
+                                    t.contactName?.toLowerCase().includes(search) ||
+                                    t.activities?.some(a => a.content.toLowerCase().includes(search))
+                                )
+                                : archivedTasks;
+                            const totalCount = filteredTasks.length;
+                            const pipelineValue = filteredTasks.reduce((acc, t) => acc + (t.numericValue || 0), 0);
+
+                            return (
+                                <div key={ARCHIVE_COLUMN_ID} className="w-72 h-full flex flex-col shrink-0">
+                                    <div className={clsx('rounded-t-2xl border px-3 pt-2.5 pb-0', tone.bg, tone.border)}>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className={clsx('text-xs font-bold uppercase tracking-widest', tone.color)}>Meses anteriores</span>
+                                            <div className={clsx('w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black border', tone.bg, tone.border, tone.color)}>{totalCount}</div>
+                                        </div>
+                                        {pipelineValue > 0 && (
+                                            <p className={clsx('text-[8px] font-bold mb-1.5', tone.color)}>${pipelineValue.toLocaleString('es-CO')}</p>
+                                        )}
+                                        <div className="pb-2 space-y-2">
+                                            <select
+                                                value={selectedArchiveMonth}
+                                                onChange={e => setSelectedArchiveMonth(e.target.value)}
+                                                disabled={archiveMonthOptions.length === 0}
+                                                className="w-full px-2 py-1.5 text-[10px] bg-white border border-border rounded-lg outline-none focus:border-primary transition-colors font-bold uppercase"
+                                            >
+                                                {archiveMonthOptions.length === 0 ? (
+                                                    <option value="">Sin meses anteriores</option>
+                                                ) : archiveMonthOptions.map(key => (
+                                                    <option key={key} value={key}>{monthLabel(key)}</option>
+                                                ))}
+                                            </select>
+                                            <div className="relative">
+                                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Buscar..."
+                                                    value={columnSearch[ARCHIVE_COLUMN_ID] || ''}
+                                                    onChange={e => setColumnSearch(prev => ({ ...prev, [ARCHIVE_COLUMN_ID]: e.target.value }))}
+                                                    className="w-full pl-7 pr-2 py-1.5 text-[10px] bg-white border border-border rounded-lg outline-none focus:border-primary transition-colors"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex-1 min-h-0">
+                                        <Droppable id={ARCHIVE_COLUMN_ID}>
+                                            <SortableContext items={filteredTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                                                <div className="flex flex-col gap-2.5 min-h-full">
+                                                    {filteredTasks.map(task => (
+                                                        <SortableTask key={task.id} task={task} onClick={handleTaskClick} onNote={t => { setNoteTask(t); setNoteText(''); }} stages={stages} />
+                                                    ))}
+                                                    {totalCount === 0 && (
+                                                        <div className="min-h-[200px] border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center text-muted-foreground gap-2 opacity-50 px-4 text-center">
+                                                            <AlertCircle className="w-5 h-5" />
+                                                            <span className="text-xs font-bold uppercase tracking-widest">
+                                                                {archiveMonthOptions.length === 0 ? 'Sin histórico' : 'Sin cotizaciones'}
+                                                            </span>
+                                                            <span className="text-[10px] font-bold leading-snug">
+                                                                Las cotizaciones de meses anteriores aparecerán aquí. Para retomarlas, arrastra la ficha a una etapa del mes actual.
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </SortableContext>
+                                        </Droppable>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
 
                     <DragOverlay>
