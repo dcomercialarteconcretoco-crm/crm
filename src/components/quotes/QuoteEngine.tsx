@@ -1431,7 +1431,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                         </div>
                     </div>
                 </div>
-                <div className="surface-panel rounded-[2rem] overflow-hidden sticky top-6">
+                <div className="surface-panel rounded-[2rem] overflow-visible sticky top-6 z-30">
 
                     {/* Cart header */}
                     <div className="px-5 py-4 border-b border-border/40 bg-white/30 flex items-center justify-between">
