@@ -1002,7 +1002,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             <div className="lg:col-span-2 space-y-6">
 
                 {/* Client Selector */}
-                <div className="surface-panel rounded-[2rem] p-6 flex flex-col md:flex-row items-start gap-6 relative group overflow-visible">
+                <div className="surface-panel rounded-[2rem] p-6 flex flex-col md:flex-row items-start gap-6 relative z-40 group overflow-visible">
                     <div className="w-16 h-16 rounded-[1.5rem] bg-accent/70 flex items-center justify-center text-primary shrink-0 border border-primary/15 group-hover:scale-110 transition-transform duration-500">
                         <Building2 className="w-8 h-8" />
                     </div>
@@ -1044,7 +1044,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                 )}
                             </div>
                             {showClientDropdown && filteredClients.length > 0 && (
-                                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-border/60 rounded-2xl shadow-xl z-50 overflow-hidden max-h-[220px] overflow-y-auto">
+                                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-border/60 rounded-2xl shadow-2xl z-[120] overflow-hidden max-h-[260px] overflow-y-auto">
                                     {filteredClients.map(c => (
                                         <button
                                             key={c.id}
@@ -1068,7 +1068,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                 </div>
                             )}
                             {showClientDropdown && clientSearch && filteredClients.length === 0 && (
-                                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-border/60 rounded-2xl shadow-xl z-50 px-5 py-4">
+                                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-border/60 rounded-2xl shadow-2xl z-[120] px-5 py-4">
                                     <p className="text-sm text-muted-foreground font-bold">No se encontraron clientes</p>
                                 </div>
                             )}
