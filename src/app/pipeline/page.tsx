@@ -446,6 +446,7 @@ export default function PipelinePage() {
     const [selectedArchiveMonth, setSelectedArchiveMonth] = useState('');
 
     const currentMonthKey = useMemo(() => monthKey(new Date()), []);
+    const currentMonthLabel = useMemo(() => monthLabel(currentMonthKey), [currentMonthKey]);
     const quoteById = useMemo(() => new Map(quotes.map(q => [q.id, q])), [quotes]);
     const quoteByRef = useMemo(() => {
         const map = new Map<string, typeof quotes[number]>();
@@ -1145,8 +1146,11 @@ export default function PipelinePage() {
                     <div className="flex items-center gap-3">
                         <h1 className="page-title">Sales Pipeline</h1>
                         <span className="text-xs font-bold bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20 uppercase tracking-widest">Motor V4</span>
+                        <span className="text-xs font-black bg-foreground text-white px-3 py-1 rounded-full border border-foreground/10 uppercase tracking-widest">
+                            {currentMonthLabel}
+                        </span>
                     </div>
-                    <p className="page-subtitle">Gestión integral de leads y sincronización operativa en tiempo real.</p>
+                    <p className="page-subtitle">Pipeline del mes en curso. Las cotizaciones anteriores quedan en Meses anteriores.</p>
                 </div>
                 <div className="flex flex-col lg:flex-row items-center gap-3 w-full lg:w-auto">
                     <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
@@ -1190,6 +1194,7 @@ export default function PipelinePage() {
                                             <span className={clsx('text-xs font-bold uppercase tracking-widest', tone.color)}>{stage.label}</span>
                                             <div className={clsx('w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black border', tone.bg, tone.border, tone.color)}>{totalCount}</div>
                                         </div>
+                                        <p className={clsx('text-[8px] font-black uppercase tracking-widest mb-0.5', tone.color)}>Mes actual · {currentMonthLabel}</p>
                                         {pipelineValue > 0 && (
                                             <p className={clsx('text-[8px] font-bold mb-1.5', tone.color)}>${pipelineValue.toLocaleString('es-CO')}</p>
                                         )}
