@@ -11,6 +11,7 @@ import {
   Archive,
   Calendar,
   FileText,
+  FileArchive,
   Workflow,
   Bot,
   Shield,
@@ -77,6 +78,7 @@ const navGroups = [
 
 const systemItems = [
   { name: 'Importar Datos', href: '/import',           icon: Upload,   permission: 'settings.view' },
+  { name: 'Archivo Cotizaciones', href: '/quote-archive', icon: FileArchive, permission: 'audit.view', superAdminOnly: true },
   { name: 'Auditoría',      href: '/audit',            icon: Shield,   permission: 'audit.view'    },
   // Cliente Oculto: confidencial — solo SuperAdmin/Admin/Auditor (auditRoles).
   // Los vendedores jamás deben ver que existe.

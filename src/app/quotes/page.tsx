@@ -9,9 +9,9 @@ import {
 import Link from 'next/link';
 import { clsx } from 'clsx';
 import { useApp, Quote } from '@/context/AppContext';
-import { generateProposalPDF } from '@/lib/pdf-generator';
 import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
 import { ownsRecord } from '@/lib/scope';
+import { downloadQuotePdf, quoteDisplayNumber } from '@/lib/quote-pdf';
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
     'Draft':             { label: 'Borrador',           className: 'bg-muted/40 text-muted-foreground' },
@@ -48,10 +48,6 @@ function ScoreBar({ score }: { score: number }) {
 
 function fmt(n: number) {
     return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
-}
-
-function quoteDisplayNumber(quote: Quote) {
-    return quote.quoteNumber || quote.number || '';
 }
 
 export default function QuotesPage() {
@@ -94,124 +90,7 @@ export default function QuotesPage() {
     const handleDownloadPDF = async (quote: Quote) => {
         setIsGenerating(quote.id);
         try {
-            const client = clients.find(c => c.id === quote.clientId);
-            // El email del asesor sale en el footer y bajo la firma. Si la
-            // cotización guardó el sellerId, lo buscamos en el equipo actual
-            // para traer su email vigente; si no, cae al del usuario logueado.
-            const sellerForQuote = quote.sellerId ? sellers.find(s => s.id === quote.sellerId) : null;
-            const sellerEmailForQuote = sellerForQuote?.email || currentUser?.email || '';
-            // Cotizaciones guardadas con el modelo NUEVO traen `quoteMode` y NO traen
-            // `aiuData` con montos. Para esas pasamos los datos crudos y dejamos que
-            // pdf-generator vuelva a calcular el desglose con `calculateQuoteTotals`.
-            //
-            // Las VIEJAS pueden venir de dos formas:
-            //   a) sin `quoteMode` → cotización pre-migración (simple o AIU legacy)
-            //   b) con `quoteMode='aiu'` PERO con `aiuData.totalAIU` → AIU vieja que la
-            //      migración tagueó. La math AIU vieja (transporte+descargue+instalación
-            //      con montos) NO se reconstruye desde adminPercent/utilityPercent, así
-            //      que las mandamos por la rama legacy aunque ya tengan `quoteMode`.
-            const hasLegacyAiuMath = !!(quote.aiuData && (quote.aiuData.totalAIU || quote.aiuData.transportPrice || quote.aiuData.installationPrice));
-            const isNewModel = !!quote.quoteMode && !hasLegacyAiuMath;
-
-            if (isNewModel) {
-                await generateProposalPDF({
-                    quoteNumber: quoteDisplayNumber(quote) || 'AC-XXX',
-                    date: quote.date || new Date().toLocaleDateString('es-CO'),
-                    leadName: quote.client || 'Cliente',
-                    leadCompany: quote.clientCompany || client?.company || '',
-                    leadEmail: quote.clientEmail || client?.email || '',
-                    leadCity: client?.city || '',
-                    hideContactName: quote.hideContactName,
-                    referencia: quote.referencia,
-                    validUntil: quote.validUntil,
-                    deliveryTime: quote.deliveryTime,
-                    paymentTerms: quote.paymentTerms,
-                    sellerName: quote.sellerName,
-                    sellerPhone: quote.sellerPhone,
-                    sellerEmail: sellerEmailForQuote,
-                    mode: quote.quoteMode,
-                    items: (quote.items || []).map(i => ({
-                        name: i.name,
-                        unitPrice: i.price,
-                        quantity: i.quantity,
-                        unit: i.unit || 'Und',
-                        image: i.image,
-                        // Reconstruimos las dimensiones con etiquetas (Alto/Ancho/
-                        // Largo/Peso) si la cotización guardó los campos separados.
-                        // Cotizaciones viejas que solo tienen el string libre se
-                        // muestran tal cual.
-                        dimensions: (() => {
-                            const has = (v: any) => v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim() !== '0';
-                            if (has(i.height) || has(i.width) || has(i.length) || has(i.weight)) {
-                                const parts: string[] = [];
-                                if (has(i.height)) parts.push(`Alto: ${i.height}cm`);
-                                if (has(i.width))  parts.push(`Ancho: ${i.width}cm`);
-                                if (has(i.length)) parts.push(`Largo: ${i.length}cm`);
-                                if (has(i.weight)) parts.push(`Peso: ${i.weight}kg`);
-                                return parts.join('\n');
-                            }
-                            return i.dimensions;
-                        })(),
-                    })),
-                    includesTransport: quote.includesTransport,
-                    transportAmount: quote.transportAmount,
-                    transportCity: quote.transportCity,
-                    adminPercent: quote.adminPercent,
-                    utilityPercent: quote.utilityPercent,
-                    deliveryLocation: quote.deliveryLocation,
-                    observations: quote.observations,
-                });
-            } else {
-                // Rama legacy: cotizaciones pre-modelo-nuevo. No pasamos `mode` para
-                // que el PDF detecte legacy y use el formato antiguo con subtotal/tax/total.
-                await generateProposalPDF({
-                    quoteNumber: quoteDisplayNumber(quote) || 'AC-XXX',
-                    date: quote.date || new Date().toLocaleDateString('es-CO'),
-                    leadName: quote.client || 'Cliente',
-                    leadCompany: quote.clientCompany || client?.company || '',
-                    leadEmail: quote.clientEmail || client?.email || '',
-                    leadCity: client?.city || '',
-                    hideContactName: quote.hideContactName,
-                    referencia: quote.referencia,
-                    validUntil: quote.validUntil,
-                    deliveryTime: quote.deliveryTime,
-                    paymentTerms: quote.paymentTerms,
-                    sellerName: quote.sellerName,
-                    sellerPhone: quote.sellerPhone,
-                    sellerEmail: sellerEmailForQuote,
-                    items: (quote.items || []).map(i => ({
-                        name: i.name,
-                        unitPrice: i.price,
-                        quantity: i.quantity,
-                        unit: i.unit || 'Und',
-                        image: i.image,
-                        // Reconstruimos las dimensiones con etiquetas (Alto/Ancho/
-                        // Largo/Peso) si la cotización guardó los campos separados.
-                        // Cotizaciones viejas que solo tienen el string libre se
-                        // muestran tal cual.
-                        dimensions: (() => {
-                            const has = (v: any) => v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim() !== '0';
-                            if (has(i.height) || has(i.width) || has(i.length) || has(i.weight)) {
-                                const parts: string[] = [];
-                                if (has(i.height)) parts.push(`Alto: ${i.height}cm`);
-                                if (has(i.width))  parts.push(`Ancho: ${i.width}cm`);
-                                if (has(i.length)) parts.push(`Largo: ${i.length}cm`);
-                                if (has(i.weight)) parts.push(`Peso: ${i.weight}kg`);
-                                return parts.join('\n');
-                            }
-                            return i.dimensions;
-                        })(),
-                    })),
-                    isAIU: quote.isAIU,
-                    aiuData: quote.aiuData,
-                    subtotal: quote.subtotal || quote.numericTotal || 0,
-                    tax: quote.tax || (quote.numericTotal || 0) * 0.19 / 1.19,
-                    total: quote.numericTotal || 0,
-                    shipping: quote.shipping,
-                    shippingCity: quote.shippingCity,
-                    observations: quote.observations,
-                });
-            }
+            await downloadQuotePdf(quote, { clients, sellers, currentUser });
             addNotification({ title: 'PDF generado', description: `Propuesta ${quoteDisplayNumber(quote)} descargada.`, type: 'success' });
         } catch (e: any) {
             addNotification({ title: 'Error al generar PDF', description: e.message || 'Revisa la consola.', type: 'alert' });
