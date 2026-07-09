@@ -262,18 +262,51 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         ).slice(0, 15);
     }, [clients, clientSearch]);
 
-    const handleCustomProductImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const fileToDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+
+    const normalizeCustomProductImage = async (file: File) => {
+        const dataUrl = await fileToDataUrl(file);
+        if (/^image\/(png|jpeg|jpg)$/i.test(file.type)) return dataUrl;
+
+        return new Promise<string>((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+                const maxSide = 1200;
+                const scale = Math.min(1, maxSide / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round((img.naturalWidth || 1) * scale));
+                canvas.height = Math.max(1, Math.round((img.naturalHeight || 1) * scale));
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    reject(new Error('Canvas no disponible'));
+                    return;
+                }
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/png'));
+            };
+            img.onerror = reject;
+            img.src = dataUrl;
+        });
+    };
+
+    const handleCustomProductImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
         if (!file.type.startsWith('image/')) {
             addNotification({ title: 'Imagen no válida', description: 'Sube una imagen JPG, PNG, WEBP o SVG.', type: 'alert' });
             return;
         }
-        const reader = new FileReader();
-        reader.onload = () => {
-            setCustomProduct(prev => ({ ...prev, image: String(reader.result || '') }));
-        };
-        reader.readAsDataURL(file);
+        try {
+            const image = await normalizeCustomProductImage(file);
+            setCustomProduct(prev => ({ ...prev, image }));
+        } catch {
+            addNotification({ title: 'No se pudo leer la imagen', description: 'Intenta con una imagen JPG o PNG.', type: 'alert' });
+        }
     };
 
     const priceWithTax = (priceBeforeTax: number, taxRate: number) =>
