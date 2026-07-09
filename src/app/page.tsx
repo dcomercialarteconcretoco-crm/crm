@@ -138,15 +138,21 @@ export default function Home() {
   }, [scopedClients, scopedQuotes]);
   const recentQuotes = scopedQuotes.slice(0, 5);
   const liveTasks = scopedTasks.slice(0, 4);
+  const bannerFallbackImage = '/uploads/products/product_1773159753422_p63bk.jpg';
+  const uniqueImages = (images: Array<string | undefined>) =>
+    Array.from(new Set(images.filter(Boolean) as string[]));
   const quoteImageFor = (quote?: Pick<Quote, 'items' | 'client'> | null) =>
     quote?.items?.find((item) => item.image)?.image || '';
+  const quoteImagesFor = (quote?: Pick<Quote, 'items'> | null) =>
+    quote?.items?.map((item) => item.image).filter(Boolean).slice(0, 4) as string[] || [];
   const quoteForTask = (task?: Task | null) =>
     task ? scopedQuotes.find((quote) => quote.taskId === task.id || quote.clientId === task.clientId) : undefined;
   const taskImageFor = (task?: Task | null) => quoteImageFor(quoteForTask(task));
+  const taskImagesFor = (task?: Task | null) => quoteImagesFor(quoteForTask(task));
 
   // Returns up to 5 insight cards — all same importance, rotated in banner
   const allInsightCards = useMemo(() => {
-    const cards: { label: string; title: string; body: string; href: string; cta: string; image?: string; imageAlt?: string }[] = [];
+    const cards: { label: string; title: string; body: string; href: string; cta: string; image?: string; imageAlt?: string; gallery?: string[] }[] = [];
 
     if (scopedClients.length === 0) {
       cards.push({
@@ -195,6 +201,7 @@ export default function Home() {
         cta: "Ver lead",
         image,
         imageAlt: t.contactName || t.client,
+        gallery: taskImagesFor(t),
       });
     });
 
@@ -220,6 +227,7 @@ export default function Home() {
         cta: "Ver cotización",
         image: quoteImageFor(topQuote),
         imageAlt: topQuote.client,
+        gallery: quoteImagesFor(topQuote),
       });
     }
 
@@ -262,6 +270,13 @@ export default function Home() {
   useEffect(() => { setCarouselIdx(0); }, [allInsightCards.length]);
 
   const activeCard = allInsightCards[Math.min(carouselIdx, allInsightCards.length - 1)];
+  const activeCardGallery = uniqueImages([
+    ...(activeCard?.gallery || []),
+    activeCard?.image,
+    ...recentQuotes.flatMap((quote) => quoteImagesFor(quote)),
+    bannerFallbackImage,
+  ]).slice(0, 4);
+  const activeCardHeroImage = activeCardGallery[0] || bannerFallbackImage;
 
   const realAlerts = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -380,7 +395,7 @@ export default function Home() {
       {/* ── Page Header ── */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="page-title">Sales Overview</h1>
+          <h1 className="page-title">Resumen Comercial</h1>
           <p className="page-subtitle">Bienvenido de vuelta. Aquí está tu resumen comercial.</p>
         </div>
         <Link
@@ -459,7 +474,7 @@ export default function Home() {
             <Link
               key={alert.id}
               href={alert.href}
-              className={clsx("border rounded-2xl p-4 hover:shadow-md transition-all group", alert.tone)}
+              className={clsx("border rounded-2xl p-4 shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all group", alert.tone)}
             >
               <div className="flex items-start gap-3">
                 {alert.image ? (
@@ -541,7 +556,7 @@ export default function Home() {
         <div className="xl:col-span-8 space-y-6">
 
           {/* Insight banner */}
-          <div className="surface-card relative overflow-hidden h-[200px] flex flex-col">
+          <div className="surface-card relative h-[200px] flex flex-col bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(255,246,231,0.88))]">
             <Link
               key={carouselIdx}
               href={activeCard?.href ?? '#'}
@@ -549,7 +564,7 @@ export default function Home() {
             >
               <div className="flex items-start justify-between gap-4 h-full">
                 <div className="min-w-0 flex-1">
-                  <span className="inline-block px-2.5 py-1 bg-primary/15 text-primary text-[9px] font-bold uppercase tracking-widest rounded-full mb-2">
+                  <span className="inline-block px-3 py-1 bg-primary/16 text-primary text-[9px] font-black uppercase tracking-widest rounded-full mb-2 shadow-sm">
                     {activeCard?.label}
                   </span>
                   <h2 className="text-xl font-bold tracking-tight text-foreground line-clamp-2">
@@ -563,15 +578,35 @@ export default function Home() {
                     <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
                   </div>
                 </div>
-                {activeCard?.image ? (
-                  <div className="hidden sm:block h-28 w-28 shrink-0 overflow-hidden rounded-3xl border-4 border-white bg-muted shadow-lg shadow-primary/10">
-                    <img src={activeCard.image} alt={activeCard.imageAlt || activeCard.title} className="h-full w-full object-cover" />
+                <div className="hidden sm:block shrink-0">
+                  <div className="relative h-32 w-36">
+                    <div className="absolute right-0 top-0 h-28 w-28 overflow-hidden rounded-[1.6rem] border-4 border-white bg-muted shadow-xl shadow-primary/15">
+                      <img
+                        src={activeCardHeroImage}
+                        alt={activeCard?.imageAlt || activeCard?.title || 'ArteConcreto'}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    </div>
+                    <div className="absolute -bottom-1 left-0 flex items-center">
+                      {activeCardGallery.slice(0, 3).map((image, index) => (
+                        <div
+                          key={`${image}-${index}`}
+                          className={clsx(
+                            "h-11 w-11 overflow-hidden rounded-2xl border-2 border-white bg-muted shadow-md",
+                            index > 0 && "-ml-3"
+                          )}
+                        >
+                          <img src={image} alt="" className="h-full w-full object-cover" />
+                        </div>
+                      ))}
+                      {activeCardGallery.length > 3 && (
+                        <div className="-ml-3 flex h-11 w-11 items-center justify-center rounded-2xl border-2 border-white bg-primary text-[10px] font-black text-black shadow-md">
+                          +{activeCardGallery.length - 3}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <div className="hidden sm:flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-primary/10 text-primary shadow-sm">
-                    <AlertTriangle className="h-5 w-5" />
-                  </div>
-                )}
+                </div>
               </div>
             </Link>
             {allInsightCards.length > 1 && (

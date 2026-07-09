@@ -283,7 +283,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                 {/* Header Section */}
-                <header className="z-10 shrink-0 bg-white border-b border-border px-4 lg:px-6">
+                <header className="z-10 shrink-0 border-b border-border bg-white/88 px-4 shadow-[0_10px_30px_rgba(72,58,39,0.045)] backdrop-blur-xl lg:px-6">
                     <div className="w-full">
                         <div className="flex flex-col gap-3 lg:h-16 lg:flex-row lg:items-center lg:justify-between">
                             {/* Mobile top bar */}
@@ -347,7 +347,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                                         value={searchQuery}
                                         onChange={e => { setSearchQuery(e.target.value); setShowSearchResults(true); }}
                                         onBlur={() => setTimeout(() => setShowSearchResults(false), 200)}
-                                        className="w-full bg-muted border border-border rounded-xl py-2.5 pl-10 pr-4 text-sm text-foreground outline-none transition-all focus:border-primary focus:bg-white focus:shadow-[0_0_0_3px_rgba(250,181,16,0.12)]"
+                                        className="w-full rounded-2xl border border-border bg-white/74 py-2.5 pl-10 pr-4 text-sm text-foreground shadow-inner outline-none transition-all placeholder:text-muted-foreground/70 focus:border-primary focus:bg-white focus:shadow-[0_0_0_4px_rgba(245,166,35,0.14)]"
                                     />
                                 </div>
                                 {showSearchResults && searchResults.length > 0 && (
@@ -385,8 +385,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                                     className={clsx(
                                         "relative flex items-center gap-2 px-3 py-2 rounded-xl transition-all text-xs font-bold border",
                                         isMiWiOpen
-                                            ? "bg-primary text-black border-primary"
-                                            : "bg-muted text-muted-foreground border-border hover:text-foreground"
+                                            ? "bg-primary text-black border-primary shadow-[0_10px_22px_rgba(245,166,35,0.24)]"
+                                            : "bg-white/76 text-muted-foreground border-border hover:border-primary/30 hover:text-foreground"
                                     )}
                                 >
                                     <BrainCircuit className="w-4 h-4" />
@@ -403,8 +403,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                                         className={clsx(
                                             "relative h-9 w-9 flex items-center justify-center rounded-xl border transition-all",
                                             isNotificationsOpen
-                                                ? "bg-primary/10 border-primary/20 text-primary"
-                                                : "bg-muted border-border text-muted-foreground hover:text-foreground"
+                                                ? "bg-primary/14 border-primary/25 text-primary shadow-[0_8px_20px_rgba(245,166,35,0.18)]"
+                                                : "bg-white/76 border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
                                         )}
                                     >
                                         <Bell className={clsx("w-4 h-4", unreadCount > 0 && "animate-bell-ring")} />

@@ -126,14 +126,14 @@ export function Sidebar({ isCompact }: SidebarProps) {
 
   return (
     <div className={cn(
-      "hidden lg:flex flex-col h-full bg-white border border-border rounded-[1.75rem] text-foreground overflow-hidden transition-all duration-300",
+      "hidden lg:flex flex-col h-full border border-border rounded-[1.75rem] bg-white/90 text-foreground overflow-hidden transition-all duration-300 backdrop-blur-xl",
       isCompact ? "w-20" : "w-64"
     )}
     style={{ boxShadow: 'var(--shadow-sm)' }}>
 
       {/* Logo */}
       <div className={cn("flex flex-col items-center shrink-0 border-b border-border", isCompact ? "p-4" : "px-5 pt-5 pb-4")}>
-        <div className={cn("flex items-center justify-center", isCompact ? "w-9 h-9" : "w-full h-14")}>
+        <div className={cn("flex items-center justify-center rounded-2xl bg-gradient-to-br from-white via-white to-primary/8", isCompact ? "w-9 h-9" : "w-full h-14")}>
           <img
             src="/logo-arteconcreto.png"
             alt="ArteConcreto"
@@ -141,7 +141,7 @@ export function Sidebar({ isCompact }: SidebarProps) {
           />
         </div>
         {!isCompact && (
-          <div className="mt-2 px-3 py-1 bg-primary/8 border border-primary/15 rounded-full">
+          <div className="mt-2 px-3 py-1 bg-primary/10 border border-primary/20 rounded-full shadow-[0_8px_20px_rgba(245,166,35,0.12)]">
             <p className="text-[9px] text-primary font-black tracking-[0.3em] uppercase">Power CRM</p>
           </div>
         )}
@@ -169,10 +169,10 @@ export function Sidebar({ isCompact }: SidebarProps) {
                     "flex items-center rounded-xl text-sm font-semibold transition-all duration-200 group relative",
                     isCompact ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
                     isActive
-                      ? "bg-primary/10 text-primary"
+                      ? "bg-gradient-to-r from-primary/18 to-primary/7 text-primary shadow-[inset_0_0_0_1px_rgba(245,166,35,0.18)]"
                       : pendingHref === item.href
                         ? "bg-muted text-foreground"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        : "text-muted-foreground hover:bg-white/80 hover:text-foreground hover:shadow-sm"
                   )}
                 >
                   {pendingHref === item.href ? (
@@ -241,10 +241,10 @@ export function Sidebar({ isCompact }: SidebarProps) {
                 "flex items-center rounded-xl text-sm font-semibold transition-all duration-200 group",
                 isCompact ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
                 isActive
-                  ? "bg-primary/10 text-primary"
+                  ? "bg-gradient-to-r from-primary/18 to-primary/7 text-primary shadow-[inset_0_0_0_1px_rgba(245,166,35,0.18)]"
                   : pendingHref === item.href
                     ? "bg-muted text-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    : "text-muted-foreground hover:bg-white/80 hover:text-foreground hover:shadow-sm"
               )}
             >
               {pendingHref === item.href ? (
