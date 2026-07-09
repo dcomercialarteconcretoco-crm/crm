@@ -1717,7 +1717,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                 {includesTransport && (
                                     <div className="space-y-2 pt-1">
                                         <div>
-                                            <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Monto del transporte (incluye IVA)</label>
+                                            <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Monto base del transporte</label>
                                             <input
                                                 type="number"
                                                 min={0}
@@ -1727,7 +1727,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                                 className="w-full px-3 py-2 rounded-xl border border-border/60 bg-white text-xs font-bold text-foreground outline-none focus:border-primary/60"
                                             />
                                             <p className="text-[9px] text-muted-foreground/70 mt-1">
-                                                Escribe el valor que cobras al cliente (con IVA dentro). El sistema lo separa para mostrar “antes de IVA” en el PDF.
+                                                El sistema divide este valor entre 0.9, redondea el resultado y luego suma IVA 19% en la cotización.
                                             </p>
                                         </div>
                                         <div>
