@@ -508,7 +508,7 @@ export default function PipelinePage() {
         stageId: firstStageId as StageId,
         assignedTo: '',
         quoteNumber: '',
-        products: [] as { id: string; name: string; price: number; quantity: number; image?: string; isCustom?: boolean }[],
+        products: [] as { id: string; name: string; price: number; quantity: number; image?: string; dimensions?: string; isCustom?: boolean }[],
         // Valor manual del negocio cuando no se inyectan productos del catálogo.
         // Caso típico: servicios, instalaciones, mano de obra, sondeos cuantificados
         // por experiencia del vendedor. Si hay productos, este campo se ignora y el
@@ -517,6 +517,7 @@ export default function PipelinePage() {
     });
     const [customProduct, setCustomProduct] = useState({
         name: '',
+        dimensions: '',
         price: 0,
         quantity: 1,
         image: '',
@@ -562,7 +563,7 @@ export default function PipelinePage() {
         // bloqueaba al agregar producto y obligaba a quitar el SKU para poder
         // tipear — fricción innecesaria para un caso muy común.
         setNewDeal(prev => {
-            const nextProducts = [...prev.products, { id: product.id, name: product.name, price: product.price, quantity: 1, image: product.image }];
+            const nextProducts = [...prev.products, { id: product.id, name: product.name, price: product.price, quantity: 1, image: product.image, dimensions: product.dimensions }];
             const nextSum = nextProducts.reduce((acc, p) => acc + p.price * p.quantity, 0);
             return { ...prev, products: nextProducts, manualValue: nextSum };
         });
@@ -596,6 +597,7 @@ export default function PipelinePage() {
             price: Math.max(0, customProduct.price || 0),
             quantity,
             image: customProduct.image || undefined,
+            dimensions: customProduct.dimensions.trim() || undefined,
             isCustom: true,
         };
         setNewDeal(prev => {
@@ -603,7 +605,7 @@ export default function PipelinePage() {
             const nextSum = nextProducts.reduce((acc, p) => acc + p.price * p.quantity, 0);
             return { ...prev, products: nextProducts, manualValue: prev.manualValue || nextSum };
         });
-        setCustomProduct({ name: '', price: 0, quantity: 1, image: '' });
+        setCustomProduct({ name: '', dimensions: '', price: 0, quantity: 1, image: '' });
     };
 
     const removeProductFromNewDeal = (idx: number) => {
@@ -825,6 +827,7 @@ export default function PipelinePage() {
                 total: p.price * p.quantity,
                 productId: p.isCustom ? undefined : p.id,
                 image: p.image,
+                dimensions: p.dimensions,
                 isCustom: p.isCustom,
             }))
             : [{
@@ -1523,6 +1526,13 @@ export default function PipelinePage() {
                                                     className="min-w-0 bg-muted border border-border rounded-xl px-3 py-2 text-xs font-bold outline-none focus:bg-white focus:border-primary"
                                                 />
                                             </div>
+                                            <input
+                                                type="text"
+                                                placeholder="Dimensiones (ej: Alto 90 × Ancho 150 × Largo 300 cm)"
+                                                value={customProduct.dimensions}
+                                                onChange={e => setCustomProduct(prev => ({ ...prev, dimensions: e.target.value }))}
+                                                className="w-full bg-muted border border-border rounded-xl px-3 py-2 text-xs font-bold outline-none focus:bg-white focus:border-primary"
+                                            />
                                             <button
                                                 type="button"
                                                 onClick={addCustomProductToNewDeal}
@@ -1541,6 +1551,9 @@ export default function PipelinePage() {
                                                         <div className="flex flex-col min-w-0">
                                                             <span className="text-xs font-black text-foreground truncate">{p.name}</span>
                                                             <span className="text-[10px] font-bold text-muted-foreground mt-0.5">${p.price.toLocaleString()} / Und. · Cant. {p.quantity}{p.isCustom ? ' · personalizado' : ''}</span>
+                                                            {p.dimensions && (
+                                                                <span className="text-[9px] font-bold text-muted-foreground/70 truncate">{p.dimensions}</span>
+                                                            )}
                                                         </div>
                                                     </div>
                                                     <button onClick={() => removeProductFromNewDeal(i)} className="p-2 hover:bg-rose-50 hover:text-rose-500 rounded-lg text-muted-foreground transition-all">

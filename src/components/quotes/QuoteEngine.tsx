@@ -1289,13 +1289,18 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                         placeholder="Nombre del producto"
                                         className="w-full bg-white border border-border/70 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-primary transition-all"
                                     />
-                                    <input
-                                        type="text"
-                                        value={customProduct.dimensions}
-                                        onChange={e => setCustomProduct({ ...customProduct, dimensions: e.target.value })}
-                                        placeholder="Dimensiones (ej: Alto 90 × Ancho 150 × Largo 300 cm)"
-                                        className="w-full bg-white border border-border/70 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-primary transition-all"
-                                    />
+                                    <div className="space-y-1">
+                                        <label className="text-[9px] font-black uppercase tracking-widest text-primary">
+                                            Dimensiones del producto
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={customProduct.dimensions}
+                                            onChange={e => setCustomProduct({ ...customProduct, dimensions: e.target.value })}
+                                            placeholder="Ej: Alto 90 × Ancho 150 × Largo 300 cm"
+                                            className="w-full bg-white border border-primary/30 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-primary transition-all"
+                                        />
+                                    </div>
                                     <div className="grid grid-cols-2 gap-2">
                                         <input
                                             type="number"
