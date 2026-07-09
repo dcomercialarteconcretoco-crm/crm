@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     const providedSecret =
         request.headers.get('x-cron-secret') || request.nextUrl.searchParams.get('secret');
 
-    if (cronSecret && !vercelCronHeader && providedSecret !== cronSecret) {
+    if (!vercelCronHeader && (!cronSecret || providedSecret !== cronSecret)) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

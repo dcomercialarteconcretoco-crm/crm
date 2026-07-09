@@ -14,6 +14,7 @@ const PUBLIC_API_PREFIXES = [
     '/api/logo',                 // Logo proxy — public asset
     '/api/assistant',            // ConcreBOT public chat (Gemini proxy, no PII leaks)
     '/api/conversations',        // Widget chat storage — upserts clients with RR assign
+    '/api/agenda/reminders',     // Vercel Cron — protegido internamente por x-vercel-cron header + CRON_SECRET
     '/api/daily-report/cron',    // Vercel Cron — protegido internamente por x-vercel-cron header + CRON_SECRET
 ];
 
