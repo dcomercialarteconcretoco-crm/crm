@@ -29,6 +29,8 @@ interface QuoteItem {
     image?: string;
     dimensions?: string;
     isCustom?: boolean;
+    priceBeforeTax?: number;
+    taxRate?: number;
     weight?: number;   // kg por unidad
     length?: number;   // cm
     width?: number;    // cm
@@ -100,7 +102,8 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     const [showCustomProductForm, setShowCustomProductForm] = useState(false);
     const [customProduct, setCustomProduct] = useState({
         name: '',
-        price: 0,
+        priceBeforeTax: 0,
+        taxRate: 0.19,
         quantity: 1,
         image: '',
     });
@@ -211,6 +214,8 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 image: (i as any).image,
                 dimensions: (i as any).dimensions,
                 isCustom: (i as any).isCustom,
+                priceBeforeTax: (i as any).priceBeforeTax,
+                taxRate: (i as any).taxRate,
                 weight: (i as any).weight,
                 length: (i as any).length,
                 width: (i as any).width,
@@ -271,6 +276,15 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         reader.readAsDataURL(file);
     };
 
+    const priceWithTax = (priceBeforeTax: number, taxRate: number) =>
+        Math.round(Math.max(0, priceBeforeTax || 0) * (1 + Math.max(0, taxRate || 0)));
+
+    const priceBeforeTaxForItem = (item: QuoteItem) => {
+        if (typeof item.priceBeforeTax === 'number') return item.priceBeforeTax;
+        const taxRate = item.taxRate ?? 0.19;
+        return Math.round((item.price || 0) / (1 + Math.max(0, taxRate)));
+    };
+
     const addCustomProduct = () => {
         const name = customProduct.name.trim();
         if (!name) {
@@ -280,13 +294,15 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         setItems(prev => [...prev, {
             id: genId(),
             name,
-            price: Math.max(0, customProduct.price || 0),
+            price: priceWithTax(customProduct.priceBeforeTax, customProduct.taxRate),
+            priceBeforeTax: Math.max(0, customProduct.priceBeforeTax || 0),
+            taxRate: Math.max(0, customProduct.taxRate || 0),
             quantity: Math.max(1, Math.floor(customProduct.quantity || 1)),
             unit: 'Und',
             image: customProduct.image || undefined,
             isCustom: true,
         }]);
-        setCustomProduct({ name: '', price: 0, quantity: 1, image: '' });
+        setCustomProduct({ name: '', priceBeforeTax: 0, taxRate: 0.19, quantity: 1, image: '' });
         if (customImageInputRef.current) customImageInputRef.current.value = '';
         setShowCustomProductForm(false);
     };
@@ -336,7 +352,21 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     };
 
     const updatePrice = (id: string, val: number) => {
-        setItems(prev => prev.map(i => i.id === id ? { ...i, price: val } : i));
+        setItems(prev => prev.map(i => {
+            if (i.id !== id) return i;
+            if (!i.isCustom) return { ...i, price: val };
+            const priceBeforeTax = Math.max(0, val || 0);
+            const taxRate = i.taxRate ?? 0.19;
+            return { ...i, priceBeforeTax, price: priceWithTax(priceBeforeTax, taxRate) };
+        }));
+    };
+
+    const updateTaxRate = (id: string, taxRate: number) => {
+        setItems(prev => prev.map(i => {
+            if (i.id !== id) return i;
+            const priceBeforeTax = priceBeforeTaxForItem(i);
+            return { ...i, taxRate, price: priceWithTax(priceBeforeTax, taxRate) };
+        }));
     };
 
     const removeItem = (id: string) => {
@@ -349,7 +379,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     // un mismo input produzca exactamente el mismo número en todos lados.
     const calc = useMemo(() => calculateQuoteTotals({
         mode: quoteMode,
-        items: items.map(i => ({ unitPrice: i.price, quantity: i.quantity })),
+        items: items.map(i => ({ unitPrice: i.price, quantity: i.quantity, priceBeforeTax: i.priceBeforeTax, taxRate: i.taxRate })),
         includesTransport,
         transportAmount,
         adminPercent,
@@ -471,7 +501,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             companyId: client.companyId || undefined,
             date: new Date().toLocaleDateString('es-CO'),
             total: formatCurrency(total), numericTotal: total, subtotal, tax,
-            items: mappedItems.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity, productId: i.productId, image: i.image, dimensions: i.dimensions, isCustom: i.isCustom, weight: i.weight, length: i.length, width: i.width, height: i.height })),
+            items: mappedItems.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, unit: i.unit, total: i.price * i.quantity, productId: i.productId, image: i.image, dimensions: i.dimensions, isCustom: i.isCustom, priceBeforeTax: i.priceBeforeTax, taxRate: i.taxRate, weight: i.weight, length: i.length, width: i.width, height: i.height })),
             notes: '', sellerId: owner.sellerId, sellerName: owner.sellerName,
             referencia,
             // validUntil: si el vendedor no escribió uno manual, persistimos el computado
@@ -536,6 +566,8 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         items: items.map(i => ({
             name: i.name,
             unitPrice: i.price,
+            priceBeforeTax: i.priceBeforeTax,
+            taxRate: i.taxRate,
             quantity: i.quantity,
             unit: i.unit,
             image: i.image,
@@ -1226,11 +1258,22 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                         <input
                                             type="number"
                                             min={0}
-                                            value={customProduct.price || ''}
-                                            onChange={e => setCustomProduct({ ...customProduct, price: parseFloat(e.target.value) || 0 })}
-                                            placeholder="Precio unitario"
+                                            value={customProduct.priceBeforeTax || ''}
+                                            onChange={e => setCustomProduct({ ...customProduct, priceBeforeTax: parseFloat(e.target.value) || 0 })}
+                                            placeholder="Precio antes de IVA"
                                             className="w-full bg-white border border-border/70 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-primary transition-all"
                                         />
+                                        <select
+                                            value={customProduct.taxRate}
+                                            onChange={e => setCustomProduct({ ...customProduct, taxRate: parseFloat(e.target.value) || 0 })}
+                                            className="w-full bg-white border border-border/70 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-primary transition-all"
+                                        >
+                                            <option value={0}>IVA 0%</option>
+                                            <option value={0.05}>IVA 5%</option>
+                                            <option value={0.19}>IVA 19%</option>
+                                        </select>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
                                         <input
                                             type="number"
                                             min={1}
@@ -1239,6 +1282,12 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                             placeholder="Cantidad"
                                             className="w-full bg-white border border-border/70 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-primary transition-all"
                                         />
+                                        <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Final unitario</p>
+                                            <p className="text-xs font-black text-primary">
+                                                {formatCurrency(priceWithTax(customProduct.priceBeforeTax, customProduct.taxRate))}
+                                            </p>
+                                        </div>
                                     </div>
                                     <div className="flex gap-2">
                                         <button
@@ -1252,7 +1301,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                             type="button"
                                             onClick={() => {
                                                 setShowCustomProductForm(false);
-                                                setCustomProduct({ name: '', price: 0, quantity: 1, image: '' });
+                                                setCustomProduct({ name: '', priceBeforeTax: 0, taxRate: 0.19, quantity: 1, image: '' });
                                                 if (customImageInputRef.current) customImageInputRef.current.value = '';
                                             }}
                                             className="px-4 bg-white border border-border/70 text-muted-foreground font-black py-2.5 rounded-xl text-[10px] uppercase tracking-widest hover:bg-accent/50 transition-all"
@@ -1506,11 +1555,28 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                                 <span className="text-muted-foreground/40 text-[9px]">·</span>
                                                 <input
                                                     type="number"
-                                                    value={item.price}
+                                                    value={item.isCustom ? priceBeforeTaxForItem(item) : item.price}
                                                     onChange={e => updatePrice(item.id, parseFloat(e.target.value) || 0)}
+                                                    title={item.isCustom ? 'Precio antes de IVA' : 'Precio unitario con IVA incluido'}
                                                     className="flex-1 bg-transparent text-[11px] font-black text-primary outline-none border-b border-transparent focus:border-primary/40 transition-all"
                                                 />
                                             </div>
+                                            {item.isCustom && (
+                                                <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
+                                                    <select
+                                                        value={item.taxRate ?? 0.19}
+                                                        onChange={e => updateTaxRate(item.id, parseFloat(e.target.value) || 0)}
+                                                        className="bg-white border border-border/60 rounded-lg px-2 py-1 text-[10px] font-black text-foreground outline-none focus:border-primary"
+                                                    >
+                                                        <option value={0}>IVA 0%</option>
+                                                        <option value={0.05}>IVA 5%</option>
+                                                        <option value={0.19}>IVA 19%</option>
+                                                    </select>
+                                                    <span className="text-[9px] font-black text-muted-foreground">
+                                                        Final: {formatCurrency(item.price)}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                         {/* Qty stepper + delete */}
                                         <div className="flex flex-col items-center gap-1 shrink-0">
@@ -1983,7 +2049,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                         {quoteMode === 'simple' ? (
                                             <>
                                                 <div className="text-gray-500">Valor total antes de IVA: <strong className="text-gray-800">{formatCurrency(calc.subtotalLine1)}</strong></div>
-                                                <div className="text-gray-500">IVA (19%): <strong className="text-gray-800">{formatCurrency(calc.taxAmount)}</strong></div>
+                                                <div className="text-gray-500">IVA: <strong className="text-gray-800">{formatCurrency(calc.taxAmount)}</strong></div>
                                             </>
                                         ) : (
                                             <>

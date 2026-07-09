@@ -45,6 +45,8 @@ export interface ProposalData {
     items: Array<{
         name: string;
         unitPrice: number;       // precio Woo (CON IVA incluido)
+        priceBeforeTax?: number; // precio digitado antes de IVA (personalizados)
+        taxRate?: number;        // IVA aplicable por línea
         quantity: number;
         unit?: string;
         image?: string;
@@ -309,7 +311,7 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
     // Si es nuevo, calculamos todo desde la fuente única.
     const calc = isLegacy ? null : calculateQuoteTotals({
         mode: data.mode || 'simple',
-        items: data.items.map(i => ({ unitPrice: i.unitPrice, quantity: i.quantity })),
+        items: data.items.map(i => ({ unitPrice: i.unitPrice, priceBeforeTax: i.priceBeforeTax, taxRate: i.taxRate, quantity: i.quantity })),
         includesTransport: data.includesTransport,
         transportAmount: data.transportAmount,
         adminPercent: data.adminPercent,
@@ -786,7 +788,7 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
             didDrawCell: drawImageCell,
             foot: [
                 ['', '', '', '', 'Valor total antes de IVA:', fmt(c.subtotalLine1)],
-                ['', '', '', '', 'IVA (19%):', fmt(c.taxAmount)],
+                ['', '', '', '', 'IVA:', fmt(c.taxAmount)],
             ],
             footStyles: { fillColor: [245, 245, 245] as [number,number,number], textColor: DARKGRAY, fontStyle: 'bold', fontSize: 7.5, halign: 'right' },
         });

@@ -111,6 +111,8 @@ export interface QuoteItem {
     image?: string;        // product image URL or base64
     dimensions?: string;   // e.g. "120×60×5 cm"
     isCustom?: boolean;    // manually typed, not from catalog
+    priceBeforeTax?: number; // precio unitario digitado antes de IVA (personalizados)
+    taxRate?: number;        // 0, 0.05, 0.19, etc.
     weight?: number;       // kg por unidad (snapshot del producto al cotizar)
     length?: number;       // cm
     width?: number;        // cm

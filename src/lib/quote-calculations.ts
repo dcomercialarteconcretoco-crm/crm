@@ -44,7 +44,7 @@ export type QuoteMode = "simple" | "aiu";
 export interface QuoteCalcInput {
   mode: QuoteMode;
   /** Líneas de producto. Cada `unitPrice` viene de WooCommerce y trae IVA dentro. */
-  items: Array<{ unitPrice: number; quantity: number }>;
+  items: Array<{ unitPrice: number; quantity: number; priceBeforeTax?: number; taxRate?: number }>;
   /** (simple) ¿La oferta cubre transporte? */
   includesTransport?: boolean;
   /** (simple) Monto del transporte escrito por el vendedor — ya con IVA. */
@@ -62,6 +62,9 @@ export interface QuoteCalcResult {
     unitPriceBeforeTax: number;
     quantity: number;
     lineTotalBeforeTax: number;
+    taxRate: number;
+    lineTaxAmount: number;
+    lineTotalWithTax: number;
   }>;
   /** Línea de transporte (sólo modo simple, sólo si includesTransport=true). */
   transportBeforeTax?: number;
@@ -90,12 +93,21 @@ export function stripTax(amountWithTax: number): number {
 
 export function calculateQuoteTotals(input: QuoteCalcInput): QuoteCalcResult {
   const items = (input.items || []).map((it) => {
-    const unitBefore = stripTax(Number(it.unitPrice) || 0);
+    const taxRate = Number.isFinite(Number(it.taxRate)) ? Math.max(0, Number(it.taxRate)) : VAT_RATE;
+    const explicitBefore = Number.isFinite(Number(it.priceBeforeTax)) ? Number(it.priceBeforeTax) : null;
+    const unitBefore = explicitBefore !== null
+      ? explicitBefore
+      : (Number(it.unitPrice) || 0) / (1 + taxRate);
     const qty = Number(it.quantity) || 0;
+    const lineTotalBeforeTax = round(unitBefore * qty);
+    const lineTaxAmount = round(lineTotalBeforeTax * taxRate);
     return {
       unitPriceBeforeTax: round(unitBefore),
       quantity: qty,
-      lineTotalBeforeTax: round(unitBefore * qty),
+      lineTotalBeforeTax,
+      taxRate,
+      lineTaxAmount,
+      lineTotalWithTax: lineTotalBeforeTax + lineTaxAmount,
     };
   });
 
@@ -130,7 +142,9 @@ export function calculateQuoteTotals(input: QuoteCalcInput): QuoteCalcResult {
     : undefined;
 
   const subtotalLine1 = productsSubtotal + (transportBeforeTax || 0);
-  const taxAmount = round(subtotalLine1 * VAT_RATE);
+  const productsTaxAmount = items.reduce((acc, it) => acc + it.lineTaxAmount, 0);
+  const transportTaxAmount = transportBeforeTax ? round(transportBeforeTax * VAT_RATE) : 0;
+  const taxAmount = productsTaxAmount + transportTaxAmount;
 
   return {
     mode: "simple",
