@@ -120,9 +120,20 @@ function earliestDate(dates: Array<Date | null | undefined>): Date | null {
   return valid.sort((a, b) => a.getTime() - b.getTime())[0];
 }
 
+function getMonthCountdown(now = new Date()) {
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
+  const diff = Math.max(0, end.getTime() - now.getTime());
+  const totalMinutes = Math.floor(diff / 60000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+  return { days, hours, minutes };
+}
+
 export default function Home() {
   const { clients, tasks, quotes, sellers, settings, currentUser, auditLogs, events, notifications, addNotification } = useApp();
   const [isCatalogLoading, setIsCatalogLoading] = useState(false);
+  const [monthCountdown, setMonthCountdown] = useState(() => getMonthCountdown());
 
   // Descarga el catálogo PDF actualizado (lo genera el servidor leyendo
   // WooCommerce en vivo; lleva impresa la fecha/hora de generación). Disponible
@@ -396,6 +407,13 @@ export default function Home() {
   // Reset index when cards change (e.g. data loaded)
   useEffect(() => { setCarouselIdx(0); }, [allInsightCards.length]);
 
+  useEffect(() => {
+    const tick = () => setMonthCountdown(getMonthCountdown());
+    tick();
+    const timer = setInterval(tick, 60000);
+    return () => clearInterval(timer);
+  }, []);
+
   const activeCard = allInsightCards[Math.min(carouselIdx, allInsightCards.length - 1)];
   const activeCardGallery = uniqueImages([
     ...(activeCard?.gallery || []),
@@ -640,6 +658,12 @@ export default function Home() {
                 {formatCurrency(totalForecast)}
               </p>
               <p className="mt-2 text-xs text-white/50">{currentMonthTasks.length} propuestas activas · {currentMonthLabel}</p>
+              <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-primary">
+                <Clock className="h-3.5 w-3.5" />
+                <span>
+                  {monthCountdown.days}d {String(monthCountdown.hours).padStart(2, '0')}h {String(monthCountdown.minutes).padStart(2, '0')}m para cierre
+                </span>
+              </div>
             </div>
             <div className="shrink-0 w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center">
               <TrendingUp className="w-4 h-4 text-primary" />
