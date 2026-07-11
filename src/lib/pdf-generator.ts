@@ -54,7 +54,7 @@ export interface ProposalData {
     }>;
     /** (modo simple) ¿La oferta cubre transporte? */
     includesTransport?: boolean;
-    /** (modo simple) Monto del transporte; es la base antes de IVA y se usa tal cual. */
+    /** (modo simple) Costo del transporte; el cálculo lo divide entre 0.9 y redondea ↑ a $1.000. */
     transportAmount?: number;
     /** (modo simple) Ciudad destino para el texto de la fila de transporte. */
     transportCity?: string;
@@ -314,7 +314,12 @@ export const generatePDFReport = (data: ReportData): void => {
 // forma de pago y el cierre son COMUNES — no se duplican. Eso evita el
 // drift que tendríamos si hiciéramos dos PDFs separados.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-export const generateProposalPDF = async (data: ProposalData): Promise<void> => {
+export const generateProposalPDF = async (
+    data: ProposalData,
+    /** 'save' descarga el archivo (default); 'bloburl' devuelve una URL para
+     *  previsualizar en un iframe sin descargar (panel de autorizaciones). */
+    output: 'save' | 'bloburl' = 'save'
+): Promise<string | void> => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
     const name    = data.leadName    || 'Cliente';
@@ -413,8 +418,6 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
     doc.setTextColor(...DARKGRAY);
     const dateLabel = `Floridablanca, ${fmtDate(data.date)}`;
     doc.text(dateLabel, LM, y);
-    doc.setFont('helvetica', 'bold');
-    doc.text(data.quoteNumber, RM, y, { align: 'right' });
 
     // ── ADDRESSEE ─────────────────────────────────────────────────────────────
     // Orden pedido por el cliente 7-may-2026: EMPRESA primero (línea grande),
@@ -981,5 +984,8 @@ export const generateProposalPDF = async (data: ProposalData): Promise<void> => 
 
     addAllCompactHeaders(doc, logoImg?.b64 || null, logoImg?.fmt || null, data.quoteNumber);
     addAllFooters(doc, contactEmail, sealImg);
+    if (output === 'bloburl') {
+        return doc.output('bloburl').toString();
+    }
     doc.save(`Propuesta_${data.quoteNumber}_ArteConcreto.pdf`);
 };

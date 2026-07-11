@@ -1732,7 +1732,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                                 className="w-full px-3 py-2 rounded-xl border border-border/60 bg-white text-xs font-bold text-foreground outline-none focus:border-primary/60"
                                             />
                                             <p className="text-[9px] text-muted-foreground/70 mt-1">
-                                                Este valor es la base antes de IVA: va tal cual en la fila de transporte y el sistema le suma IVA 19%.
+                                                El sistema divide este valor entre 0.9, redondea hacia arriba al múltiplo de $1.000 y a esa base le suma IVA 19%. Ej: $630.000 → $700.000 + IVA.
                                             </p>
                                         </div>
                                         <div>
