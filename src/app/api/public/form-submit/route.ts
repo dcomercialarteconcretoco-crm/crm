@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
+import { mergeStateRecords } from '@/lib/state-merge';
 import { pickNextSeller } from '@/lib/round-robin';
 import { rateLimit } from '@/lib/rate-limit';
 
@@ -116,8 +117,6 @@ export async function POST(req: NextRequest) {
         const productsLabel = Array.isArray(interestedProducts) && interestedProducts.length > 0
             ? interestedProducts.map((p: any) => p.name || p).join(', ')
             : '';
-        const { rows: tr } = await pool.query(`SELECT value FROM crm_state WHERE key = 'tasks'`);
-        const existingTasks: any[] = Array.isArray(tr[0]?.value) ? tr[0].value : [];
         const newTask = {
             id: `t-form-${Date.now()}`,
             title: `Formulario QR: ${name}`,
@@ -143,11 +142,8 @@ export async function POST(req: NextRequest) {
             }] : [],
             stageId: 'stage-1',
         };
-        await pool.query(
-            `INSERT INTO crm_state (key, value, updated_at) VALUES ('tasks', $1::jsonb, NOW())
-             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-            [JSON.stringify([newTask, ...existingTasks])]
-        );
+        // Merge-por-id: agrega SOLO esta task sin reescribir el arreglo entero.
+        await mergeStateRecords(pool, { tasks: [newTask] });
 
         // Bump the form's submission counter if formId was provided
         if (formId) {

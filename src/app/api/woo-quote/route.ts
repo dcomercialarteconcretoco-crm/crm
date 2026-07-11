@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
+import { mergeStateRecords } from '@/lib/state-merge';
 import { pickNextSeller } from '@/lib/round-robin';
 import { isAutoSendEnabledForChannel } from '@/lib/system-settings';
 import { getFromEmail } from '@/lib/email';
@@ -192,34 +193,24 @@ export async function POST(req: NextRequest) {
                 t.clientId === realClientId && t.stageId !== 'won' && t.stageId !== 'lost'
             );
 
-            // Append quote
-            const { rows: qRows } = await pool.query(`SELECT value FROM crm_state WHERE key = 'quotes'`);
-            const existingQuotes: unknown[] = qRows[0]?.value ?? [];
-            await pool.query(`
-                INSERT INTO crm_state (key, value, updated_at) VALUES ('quotes', $1::jsonb, NOW())
-                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
-            `, [JSON.stringify([...existingQuotes, newQuote])]);
+            // El registro de task a upsertear: o la task abierta del cliente
+            // con la nueva actividad y el valor acumulado, o una task nueva.
+            const taskRecord = existingClientTask
+                ? {
+                    ...existingClientTask,
+                    numericValue: (existingClientTask.numericValue || 0) + newTask.numericValue,
+                    value: `$${((existingClientTask.numericValue || 0) + newTask.numericValue).toLocaleString('es-CO')}`,
+                    activities: [newTask.activities[0], ...(existingClientTask.activities || [])],
+                }
+                : newTask;
 
-            if (existingClientTask) {
-                // Merge: add a new activity to the existing task and accumulate value
-                const mergedActivities = [newTask.activities[0], ...(existingClientTask.activities || [])];
-                const mergedValue = (existingClientTask.numericValue || 0) + newTask.numericValue;
-                const updatedTasks = existingTasks.map((t: any) =>
-                    t.id === existingClientTask.id
-                        ? { ...t, numericValue: mergedValue, value: `$${mergedValue.toLocaleString('es-CO')}`, activities: mergedActivities }
-                        : t
-                );
-                await pool.query(`
-                    INSERT INTO crm_state (key, value, updated_at) VALUES ('tasks', $1::jsonb, NOW())
-                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
-                `, [JSON.stringify(updatedTasks)]);
-            } else {
-                // New task for this client
-                await pool.query(`
-                    INSERT INTO crm_state (key, value, updated_at) VALUES ('tasks', $1::jsonb, NOW())
-                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
-                `, [JSON.stringify([...existingTasks, newTask])]);
-            }
+            // Merge-por-id: upsertea SOLO estos registros. Antes se reescribía
+            // el arreglo completo de quotes y tasks desde un snapshot leído
+            // instantes atrás — pisando lo que otra sesión guardara en medio.
+            await mergeStateRecords(pool, {
+                quotes: [newQuote],
+                tasks: [taskRecord],
+            });
 
         } catch (err) {
             console.error('[woo-quote] DB error:', err);

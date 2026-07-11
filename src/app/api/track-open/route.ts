@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
+import { mergeStateRecords } from '@/lib/state-merge';
 import { DEFAULT_PIPELINE_STAGES } from '@/context/AppContext';
 
 /**
@@ -75,31 +76,30 @@ export async function GET(req: NextRequest) {
     const quote = quotes[quoteIdx];
     const newOpens = (quote.opens || 0) + 1;
     const firstOpen = quote.firstOpenedAt || new Date().toISOString();
-    quotes[quoteIdx] = {
+    const updatedQuote = {
       ...quote,
       opens: newOpens,
       firstOpenedAt: firstOpen,
       lastOpenedAt: new Date().toISOString(),
     };
 
-    let tasksChanged = false;
+    let updatedTask: any = null;
     const hotStage = stages.find(s => s.autoOnQuoteOpen);
     if (hotStage) {
       const stageOrder = stages.map(s => s.id);
       const hotIdx = stageOrder.indexOf(hotStage.id);
       // Buscamos la task asociada — primero por taskId que la quote conoce,
       // si no por quoteId que la task conoce. Cubrimos ambos schemas.
-      const taskIdx = tasks.findIndex(
+      const task = tasks.find(
         t => (quote.taskId && t.id === quote.taskId) || (t.quoteId && t.quoteId === quote.id)
       );
-      if (taskIdx !== -1) {
-        const t = tasks[taskIdx];
-        const currentIdx = stageOrder.indexOf(t.stageId);
+      if (task) {
+        const currentIdx = stageOrder.indexOf(task.stageId);
         // Sólo mueve si la task está antes del hot stage (no la "regresa"
         // si el asesor ya la marcó como Facturado).
         if (currentIdx === -1 || currentIdx < hotIdx) {
-          tasks[taskIdx] = {
-            ...t,
+          updatedTask = {
+            ...task,
             stageId: hotStage.id,
             activities: [
               {
@@ -108,35 +108,28 @@ export async function GET(req: NextRequest) {
                 content: `🔔 El cliente abrió la cotización — pasó a ${hotStage.id}.`,
                 timestamp: new Date().toISOString(),
               },
-              ...(Array.isArray(t.activities) ? t.activities : []),
+              ...(Array.isArray(task.activities) ? task.activities : []),
             ],
           };
-          tasksChanged = true;
         }
       }
     }
 
-    // Persistimos sólo lo modificado. Si no movimos task, evitamos un write
-    // extra al JSONB grande de tasks.
-    await pool.query(
-      `INSERT INTO crm_state (key, value, updated_at) VALUES ('quotes', $1::jsonb, NOW())
-       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-      [JSON.stringify(quotes)]
-    );
-    if (tasksChanged) {
-      await pool.query(
-        `INSERT INTO crm_state (key, value, updated_at) VALUES ('tasks', $1::jsonb, NOW())
-         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-        [JSON.stringify(tasks)]
-      );
-    }
+    // Merge-por-id: upsertea SOLO los registros tocados. Antes este endpoint
+    // reescribía el arreglo completo de quotes en cada apertura de email
+    // (incluidos los prefetch de Outlook/Gmail) — cualquier cotización creada
+    // entre su lectura y su escritura moría pisada.
+    await mergeStateRecords(pool, {
+      quotes: [updatedQuote],
+      ...(updatedTask ? { tasks: [updatedTask] } : {}),
+    });
 
     console.log('[track-open]', {
       quoteNumber,
       clientEmail,
       opens: newOpens,
       firstOpen,
-      autoMoved: tasksChanged,
+      autoMoved: !!updatedTask,
     });
   } catch (error) {
     // Nunca rompemos el pixel — sólo loggeamos.

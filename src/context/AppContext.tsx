@@ -1751,6 +1751,13 @@ REGLAS DE ORO:
 
     // Clear all test/demo data (keep sellers, settings, products)
     const clearTestData = () => {
+        // Con el merge-por-id del server, persistir `[]` en quotes/tasks solo
+        // ya no borra nada: los ids conocidos viajan en __deletes. El wipe
+        // completo lo garantiza /api/admin/clear-test-data (tombstonea
+        // server-side TODOS los ids antes de vaciar); esto es la doble capa
+        // por si ese endpoint falló a mitad de camino.
+        const quoteIds = quotes.map(q => q.id).filter(Boolean);
+        const taskIds = tasks.map(t => t.id).filter(Boolean);
         setClients([]);
         setTasks([]);
         setQuotes([]);
@@ -1758,7 +1765,10 @@ REGLAS DE ORO:
         setNotifications([]);
         setAnomalies([]);
         setEvents([]);
-        persistSharedState({ clients: [], tasks: [], quotes: [], auditLogs: [], notifications: [], anomalies: [], events: [] });
+        persistSharedState({
+            clients: [], tasks: [], quotes: [], auditLogs: [], notifications: [], anomalies: [], events: [],
+            __deletes: { quotes: quoteIds, tasks: taskIds },
+        });
     };
 
     const addSeller = (sellerData: Omit<Seller, 'id'>) => {
@@ -1930,7 +1940,9 @@ REGLAS DE ORO:
     const deleteTask = (taskId: string) => {
         setTasks(prev => {
             const next = prev.filter(t => t.id !== taskId);
-            persistSharedState({ tasks: next });
+            // Igual que deleteQuote: el merge-por-id del server exige el
+            // borrado explícito en __deletes (tombstone anti-resurrección).
+            persistSharedState({ tasks: next, __deletes: { tasks: [taskId] } });
             return next;
         });
     };
@@ -2029,7 +2041,11 @@ REGLAS DE ORO:
     const deleteQuote = (quoteId: string) => {
         setQuotes(prev => {
             const next = prev.filter(q => q.id !== quoteId);
-            persistSharedState({ quotes: next });
+            // El server hace merge-por-id sobre `quotes`: mandar el arreglo sin
+            // el registro ya no borra nada. El borrado real viaja en __deletes
+            // y queda tombstoneado server-side, para que el snapshot de otra
+            // sesión abierta no lo resucite.
+            persistSharedState({ quotes: next, __deletes: { quotes: [quoteId] } });
             return next;
         });
     };

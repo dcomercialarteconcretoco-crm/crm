@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureCrmSchema, getPool, hasDatabase } from "@/lib/postgres";
+import {
+  MERGED_STATE_KEYS,
+  TOMBSTONES_KEY,
+  mergeStateRecords,
+  type MergedStateKey,
+  type StateDeletes,
+  type StatePatch,
+} from "@/lib/state-merge";
 
 type StateMap = Record<string, unknown>;
 
@@ -63,16 +71,66 @@ export async function PUT(req: NextRequest) {
   }
 
   const body = (await req.json()) as StateMap;
-  const entries = Object.entries(body).filter(([, value]) => value !== undefined);
 
-  if (entries.length === 0) {
+  // ── Borrados explícitos ───────────────────────────────────────────────────
+  // quotes/tasks se guardan con merge-por-id (ver src/lib/state-merge.ts), así
+  // que "mandar el arreglo sin el registro" ya NO borra nada — ese era justo
+  // el mecanismo por el que un snapshot stale de otra sesión perdía
+  // cotizaciones (caso ART-519-2026). El cliente declara los borrados en
+  // `__deletes: { quotes: [ids], tasks: [ids] }` y acá se vuelven tombstones.
+  const rawDeletes = body["__deletes"] as Record<string, unknown> | undefined;
+  delete body["__deletes"];
+  // La clave interna de tombstones jamás es escribible desde el cliente.
+  delete body[TOMBSTONES_KEY];
+
+  const deletes: StateDeletes = {};
+  if (rawDeletes && typeof rawDeletes === "object") {
+    for (const key of MERGED_STATE_KEYS) {
+      const ids = rawDeletes[key];
+      if (Array.isArray(ids)) {
+        const clean = ids.filter(
+          (id): id is string => typeof id === "string" && id.length > 0
+        );
+        if (clean.length > 0) deletes[key] = clean;
+      }
+    }
+  }
+
+  const mergedPatch: StatePatch = {};
+  const plainEntries: Array<[string, unknown]> = [];
+  for (const [key, value] of Object.entries(body)) {
+    if (value === undefined) continue;
+    if ((MERGED_STATE_KEYS as readonly string[]).includes(key)) {
+      // Un valor no-arreglo en quotes/tasks sería un cliente corrupto: se
+      // ignora en vez de dejarlo pisar el arreglo completo.
+      if (Array.isArray(value)) {
+        mergedPatch[key as MergedStateKey] = value;
+      } else {
+        console.error(
+          `[state] PUT ignoró la clave "${key}": se esperaba un arreglo, llegó ${typeof value}`
+        );
+      }
+      continue;
+    }
+    plainEntries.push([key, value]);
+  }
+
+  const hasMergeWork =
+    Object.keys(mergedPatch).length > 0 || Object.keys(deletes).length > 0;
+  if (plainEntries.length === 0 && !hasMergeWork) {
     return NextResponse.json({ ok: true });
   }
 
   await ensureCrmSchema();
   const pool = getPool();
 
-  for (const [key, value] of entries) {
+  if (hasMergeWork) {
+    await mergeStateRecords(pool, mergedPatch, deletes);
+  }
+
+  // Las demás claves (settings, notifications, events, …) conservan el
+  // reemplazo total de siempre.
+  for (const [key, value] of plainEntries) {
     await pool.query(
       `
         INSERT INTO crm_state (key, value, updated_at)

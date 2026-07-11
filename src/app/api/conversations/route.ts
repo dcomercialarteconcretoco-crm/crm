@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
+import { mergeStateRecords } from '@/lib/state-merge';
 import { pickNextSeller } from '@/lib/round-robin';
 import { appendNotification } from '@/lib/server-notifications';
 import { sendAdvisorNeededEmail } from '@/lib/advisor-alert-email';
@@ -143,8 +144,6 @@ export async function POST(req: NextRequest) {
         );
 
         // Also drop a pipeline task so the seller sees it in their board
-        const { rows: tr } = await pool.query(`SELECT value FROM crm_state WHERE key = 'tasks'`);
-        const existingTasks = Array.isArray(tr[0]?.value) ? tr[0].value : [];
         const newTask = {
           id: `t-bot-${Date.now()}`,
           title: `ConcreBOT: ${lead.name || 'Lead'}`,
@@ -167,11 +166,8 @@ export async function POST(req: NextRequest) {
           }],
           stageId: 'stage-1',
         };
-        await pool.query(
-          `INSERT INTO crm_state (key, value, updated_at) VALUES ('tasks', $1::jsonb, NOW())
-           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-          [JSON.stringify([newTask, ...existingTasks])]
-        );
+        // Merge-por-id: agrega SOLO esta task sin reescribir el arreglo entero.
+        await mergeStateRecords(pool, { tasks: [newTask] });
       }
     } else if (clientId) {
       const { rows } = await pool.query(`SELECT assigned_to FROM crm_clients WHERE id = $1 LIMIT 1`, [clientId]);

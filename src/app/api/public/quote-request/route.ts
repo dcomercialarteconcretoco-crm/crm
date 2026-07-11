@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hasDatabase, getPool, ensureCrmSchema } from '@/lib/postgres';
+import { mergeStateRecords } from '@/lib/state-merge';
 import { rateLimit } from '@/lib/rate-limit';
 import { pickNextSeller } from '@/lib/round-robin';
 import { isAutoSendEnabledForChannel, getAutoSendCopyEmail } from '@/lib/system-settings';
@@ -244,8 +245,6 @@ export async function POST(req: NextRequest) {
             const effectiveOwnerId = cr[0]?.assigned_to || assignedSellerId || '';
             const effectiveOwnerName = cr[0]?.assigned_to_name || assignedSellerName || '';
 
-            const { rows: sr } = await pool.query(`SELECT value FROM crm_state WHERE key='quotes'`);
-            const existingQuotes = sr[0]?.value || [];
             const newQuote = {
                 id: quoteId, number: quoteNumber,
                 client: company || name, clientId: realClientId,
@@ -266,14 +265,6 @@ export async function POST(req: NextRequest) {
                 sellerId: effectiveOwnerId,
                 sellerName: effectiveOwnerName,
             };
-            await pool.query(`
-                INSERT INTO crm_state (key,value,updated_at) VALUES ('quotes',$1::jsonb,NOW())
-                ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()
-            `, [JSON.stringify([newQuote, ...existingQuotes])]);
-
-            const { rows: tr } = await pool.query(`SELECT value FROM crm_state WHERE key='tasks'`);
-            const existingTasks = tr[0]?.value || [];
-
             // Build activities — surface custom-product descriptions so the seller sees them on open.
             const activities: any[] = [];
             customItems.forEach((c, idx) => {
@@ -303,10 +294,13 @@ export async function POST(req: NextRequest) {
                 email, phone: phone || '', city: city || '',
                 activities, stageId: 'stage-1',
             };
-            await pool.query(`
-                INSERT INTO crm_state (key,value,updated_at) VALUES ('tasks',$1::jsonb,NOW())
-                ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()
-            `, [JSON.stringify([newTask, ...existingTasks])]);
+            // Merge-por-id: agrega SOLO estos registros sin reescribir los
+            // arreglos completos (antes pisaba lo guardado por otras sesiones
+            // entre la lectura y la escritura).
+            await mergeStateRecords(pool, {
+                quotes: [newQuote],
+                tasks: [newTask],
+            });
         }
 
         // --- Send email only when the admin has enabled auto-send ---

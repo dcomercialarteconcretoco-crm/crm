@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveWhatsAppConfig } from '../_lib';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
+import { mergeStateRecords } from '@/lib/state-merge';
 import { pickNextSeller } from '@/lib/round-robin';
 import { appendNotification } from '@/lib/server-notifications';
 import { sendAdvisorNeededEmail } from '@/lib/advisor-alert-email';
@@ -123,8 +124,6 @@ export async function POST(req: NextRequest) {
                 );
 
                 // Add a pipeline task for the new WhatsApp lead
-                const { rows: tr } = await pool.query(`SELECT value FROM crm_state WHERE key = 'tasks'`);
-                const existingTasks: any[] = Array.isArray(tr[0]?.value) ? tr[0].value : [];
                 const newTask = {
                     id: `t-wa-${Date.now()}-${normalizedPhone.slice(-4)}`,
                     title: `WhatsApp: ${msg.contactName || normalizedPhone}`,
@@ -150,11 +149,8 @@ export async function POST(req: NextRequest) {
                     }],
                     stageId: 'stage-1',
                 };
-                await pool.query(
-                    `INSERT INTO crm_state (key, value, updated_at) VALUES ('tasks', $1::jsonb, NOW())
-                     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-                    [JSON.stringify([newTask, ...existingTasks])]
-                );
+                // Merge-por-id: agrega SOLO esta task sin reescribir el arreglo entero.
+                await mergeStateRecords(pool, { tasks: [newTask] });
             }
 
             // Append the inbound message to the conversation thread for this phone

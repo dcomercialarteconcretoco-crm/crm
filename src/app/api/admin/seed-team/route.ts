@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
+import { tombstoneAllCurrentIds } from '@/lib/state-merge';
 import { hashPassword } from '@/lib/password';
 import { loadFreshSession } from '@/lib/auth-session';
 
@@ -103,6 +104,14 @@ export async function POST(req: NextRequest) {
         wiped.attachments = cDocs.rowCount || 0;
         const cBio = await pool.query(`DELETE FROM crm_biolinks`);
         wiped.biolinks = cBio.rowCount || 0;
+        // Tombstonear los ids de quotes/tasks antes del wipe: el PUT de
+        // /api/state hace merge-por-id y sin tombstones una sesión abierta con
+        // snapshot viejo resucitaría los datos demo en su próximo guardado.
+        try {
+            await tombstoneAllCurrentIds(pool, ['quotes', 'tasks']);
+        } catch (e) {
+            console.error('[seed-team] tombstone step failed:', e);
+        }
         // Wipe state buckets except settings + global biolink settings
         await pool.query(
             `DELETE FROM crm_state WHERE key = ANY($1::text[])`,

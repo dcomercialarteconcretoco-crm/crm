@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hasDatabase, getPool, ensureCrmSchema } from '@/lib/postgres';
+import { mergeStateRecords } from '@/lib/state-merge';
 import { rateLimit } from '@/lib/rate-limit';
 import { pickNextSeller } from '@/lib/round-robin';
 import { getFromEmail } from '@/lib/email';
@@ -101,8 +102,6 @@ export async function POST(req: NextRequest) {
         const { rows: cr } = await pool.query(`SELECT id FROM crm_clients WHERE email=$1 LIMIT 1`, [email]);
         const realClientId = cr[0]?.id || id;
 
-        const { rows: tr } = await pool.query(`SELECT value FROM crm_state WHERE key='tasks'`);
-        const existingTasks = tr[0]?.value || [];
         const newTask = {
             id: `t-bio-${Date.now()}`,
             title: `Lead tarjeta digital${ownerName ? ` — ${ownerName}` : ''}`,
@@ -117,10 +116,8 @@ export async function POST(req: NextRequest) {
             biolinkId: biolinkId || null,
         };
 
-        await pool.query(`
-            INSERT INTO crm_state (key,value,updated_at) VALUES ('tasks',$1::jsonb,NOW())
-            ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()
-        `, [JSON.stringify([newTask, ...existingTasks])]);
+        // Merge-por-id: agrega SOLO esta task sin reescribir el arreglo entero.
+        await mergeStateRecords(pool, { tasks: [newTask] });
 
         // Optional: internal Resend notification
         const resendKey = process.env.RESEND_API_KEY;

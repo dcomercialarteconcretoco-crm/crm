@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
+import { tombstoneAllCurrentIds } from '@/lib/state-merge';
 import { loadFreshSession } from '@/lib/auth-session';
 
 // ⚠️ DESTRUCTIVO — borra TODOS los clientes, leads, tasks, cotizaciones, audit logs,
@@ -33,7 +34,17 @@ export async function POST(request: NextRequest) {
         results.clients = -1;
     }
 
-    // 2) Resetear todas las keys transaccionales en crm_state
+    // 2) Tombstonear TODOS los ids actuales de quotes/tasks ANTES de vaciar.
+    // El PUT de /api/state hace merge-por-id: sin tombstones, cualquier sesión
+    // abierta con un snapshot viejo re-subiría los datos "borrados" en su
+    // próximo guardado y el wipe quedaría deshecho en silencio.
+    try {
+        await tombstoneAllCurrentIds(pool, ['quotes', 'tasks']);
+    } catch (e) {
+        console.error('[clear-test-data] tombstone step failed:', e);
+    }
+
+    // 3) Resetear todas las keys transaccionales en crm_state
     const stateKeysToWipe = [
         'tasks',
         'quotes',
