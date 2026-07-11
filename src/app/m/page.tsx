@@ -51,7 +51,9 @@ export default function MobileDashboard() {
     }, [tasks, quotes, events, today]);
 
     const recentQuotes = useMemo(() =>
-        [...quotes].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 4),
+        // Sin históricas: su id `q-hist-` no ordena por fecha real y una
+        // cotización de 2023 recién sistematizada parecería "reciente".
+        quotes.filter(q => !q.isHistorical).sort((a, b) => b.id.localeCompare(a.id)).slice(0, 4),
         [quotes]
     );
 

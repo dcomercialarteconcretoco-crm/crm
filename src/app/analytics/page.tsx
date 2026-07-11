@@ -156,6 +156,7 @@ export default function AnalyticsPage() {
     // Filter quotes and logs to the selected period
     const filteredQuotes = React.useMemo(() =>
         quotes.filter(q => {
+            if (q.isHistorical) return false; // pre-CRM sistematizada: solo consulta
             const d = new Date(q.date || q.sentAt || '');
             return !isNaN(d.getTime()) && d >= periodRange.start && d <= periodRange.end;
         }),

@@ -273,21 +273,40 @@ export default function CompanyDetailPage() {
                                         </div>
                                         <div className="hidden md:block md:col-span-3 text-xs text-muted-foreground truncate">{q.date}</div>
                                         <div className="hidden md:block md:col-span-2 text-xs">
-                                            <span className={clsx(
-                                                'inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase',
-                                                q.status === 'Sent' || q.status === 'Approved' ? 'bg-emerald-50 text-emerald-700' :
-                                                q.status === 'Rejected' ? 'bg-rose-50 text-rose-700' :
-                                                q.status === 'PendingApproval' || q.status === 'PENDING_APPROVAL' ? 'bg-amber-50 text-amber-700' :
-                                                'bg-slate-100 text-slate-500'
-                                            )}>
-                                                {q.status}
-                                            </span>
+                                            {q.isHistorical ? (
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-50 text-amber-700 border border-amber-200">
+                                                    Histórica
+                                                </span>
+                                            ) : (
+                                                <span className={clsx(
+                                                    'inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase',
+                                                    q.status === 'Sent' || q.status === 'Approved' ? 'bg-emerald-50 text-emerald-700' :
+                                                    q.status === 'Rejected' ? 'bg-rose-50 text-rose-700' :
+                                                    q.status === 'PendingApproval' || q.status === 'PENDING_APPROVAL' ? 'bg-amber-50 text-amber-700' :
+                                                    'bg-slate-100 text-slate-500'
+                                                )}>
+                                                    {q.status}
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="col-span-6 md:col-span-2 text-right">
                                             <p className="text-sm font-bold text-primary">{q.total}</p>
                                         </div>
                                         <div className="col-span-6 md:col-span-1 text-right">
-                                            <Link href={`/quotes`} className="text-xs font-bold text-primary hover:underline">Ver →</Link>
+                                            {q.isHistorical ? (
+                                                q.historicalAttachmentId ? (
+                                                    <a
+                                                        href={`/api/clients/${q.clientId}/attachments/${q.historicalAttachmentId}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-xs font-bold text-primary hover:underline"
+                                                    >
+                                                        PDF →
+                                                    </a>
+                                                ) : null
+                                            ) : (
+                                                <Link href={`/quotes`} className="text-xs font-bold text-primary hover:underline">Ver →</Link>
+                                            )}
                                         </div>
                                     </div>
                                 );

@@ -451,6 +451,9 @@ export default function PipelinePage() {
     const quoteByRef = useMemo(() => {
         const map = new Map<string, typeof quotes[number]>();
         for (const quote of quotes) {
+            // Una histórica con número repetido no debe resolver la referencia de
+            // un negocio del tablero (le impondría fecha/datos de la pre-CRM).
+            if (quote.isHistorical) continue;
             for (const ref of quoteRefCandidates(quote)) {
                 if (!map.has(ref)) map.set(ref, quote);
             }
@@ -690,7 +693,7 @@ export default function PipelinePage() {
         newDeal.products.reduce((acc, p) => acc + p.price * p.quantity, 0);
 
     const manualQuoteNumberConflict = newDeal.quoteNumber.trim()
-        ? quotes.find(q => (q.quoteNumber || q.number || '').trim().toLowerCase() === newDeal.quoteNumber.trim().toLowerCase())
+        ? quotes.find(q => !q.isHistorical && (q.quoteNumber || q.number || '').trim().toLowerCase() === newDeal.quoteNumber.trim().toLowerCase())
         : null;
 
     // ─── Production order email ───────────────────────────────────────────────

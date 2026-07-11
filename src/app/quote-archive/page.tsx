@@ -117,6 +117,7 @@ export default function QuoteArchivePage() {
     const [sellerId, setSellerId] = useState('all');
     const [month, setMonth] = useState(currentMonthKey());
     const [showAllMonths, setShowAllMonths] = useState(false);
+    const [scope, setScope] = useState<'all' | 'live' | 'historical'>('all');
     const [bulkRunning, setBulkRunning] = useState(false);
     const [bulkProgress, setBulkProgress] = useState(0);
     const [singleRunning, setSingleRunning] = useState<string | null>(null);
@@ -128,6 +129,8 @@ export default function QuoteArchivePage() {
         return quotes
             .filter(quote => quote.quoteNumber || quote.number || quote.client || quote.total)
             .filter(quote => {
+                if (scope === 'live' && quote.isHistorical) return false;
+                if (scope === 'historical' && !quote.isHistorical) return false;
                 if (!showAllMonths && quoteMonthKey(quote) !== month) return false;
                 if (status !== 'all' && quote.status !== status) return false;
                 if (sellerId !== 'all' && quote.sellerId !== sellerId) return false;
@@ -143,7 +146,7 @@ export default function QuoteArchivePage() {
                 ].some(value => String(value || '').toLowerCase().includes(q));
             })
             .sort((a, b) => (quoteDate(b)?.getTime() || 0) - (quoteDate(a)?.getTime() || 0));
-    }, [month, quotes, searchTerm, sellerId, showAllMonths, status]);
+    }, [month, quotes, scope, searchTerm, sellerId, showAllMonths, status]);
 
     const stats = useMemo(() => {
         return {
@@ -155,6 +158,16 @@ export default function QuoteArchivePage() {
     }, [archiveQuotes]);
 
     const handleSingleDownload = async (quote: Quote) => {
+        // Histórica: el soporte real es el PDF ORIGINAL subido — regenerarlo con
+        // jsPDF le pondría la plantilla actual a un documento que no salió del CRM.
+        if (quote.isHistorical) {
+            if (quote.historicalAttachmentId && quote.clientId) {
+                window.open(`/api/clients/${quote.clientId}/attachments/${quote.historicalAttachmentId}?download=1`, '_blank');
+            } else {
+                addNotification({ title: 'Sin PDF original', description: 'Esta cotización histórica no tiene el PDF adjunto.', type: 'alert' });
+            }
+            return;
+        }
         setSingleRunning(quote.id);
         try {
             await downloadQuotePdf(quote, { clients, sellers, currentUser });
@@ -167,23 +180,31 @@ export default function QuoteArchivePage() {
     };
 
     const handleBulkDownload = async () => {
-        if (!archiveQuotes.length) {
-            addNotification({ title: 'Sin cotizaciones', description: 'No hay documentos en el filtro actual.', type: 'alert' });
+        // El lote regenera PDFs con jsPDF — las históricas se omiten (su soporte
+        // es el PDF original, descargable individualmente desde su fila).
+        const bulkQuotes = archiveQuotes.filter(q => !q.isHistorical);
+        const skippedHistorical = archiveQuotes.length - bulkQuotes.length;
+        if (!bulkQuotes.length) {
+            addNotification({ title: 'Sin cotizaciones', description: skippedHistorical > 0 ? 'Solo hay históricas en el filtro — descárgalas una a una (PDF original).' : 'No hay documentos en el filtro actual.', type: 'alert' });
             return;
         }
-        if (archiveQuotes.length > 30 && !window.confirm(`Vas a descargar ${archiveQuotes.length} PDFs. El navegador puede pedir permiso para descargas multiples. ¿Continuar?`)) {
+        if (bulkQuotes.length > 30 && !window.confirm(`Vas a descargar ${bulkQuotes.length} PDFs. El navegador puede pedir permiso para descargas multiples. ¿Continuar?`)) {
             return;
         }
 
         setBulkRunning(true);
         setBulkProgress(0);
         try {
-            for (let i = 0; i < archiveQuotes.length; i += 1) {
-                await downloadQuotePdf(archiveQuotes[i], { clients, sellers, currentUser });
+            for (let i = 0; i < bulkQuotes.length; i += 1) {
+                await downloadQuotePdf(bulkQuotes[i], { clients, sellers, currentUser });
                 setBulkProgress(i + 1);
                 await new Promise(resolve => setTimeout(resolve, 350));
             }
-            addNotification({ title: 'Lote descargado', description: `${archiveQuotes.length} cotizaciones descargadas para soporte de auditoria.`, type: 'success' });
+            addNotification({
+                title: 'Lote descargado',
+                description: `${bulkQuotes.length} cotizaciones descargadas para soporte de auditoria.${skippedHistorical > 0 ? ` Se omitieron ${skippedHistorical} históricas (descarga su PDF original desde la fila).` : ''}`,
+                type: 'success',
+            });
         } catch (error) {
             addNotification({ title: 'Descarga interrumpida', description: error instanceof Error ? error.message : 'Una cotización no pudo generarse.', type: 'alert' });
         } finally {
@@ -253,7 +274,7 @@ export default function QuoteArchivePage() {
             </div>
 
             <div className="surface-card rounded-2xl overflow-hidden">
-                <div className="p-4 border-b border-border grid grid-cols-1 xl:grid-cols-[1.2fr_auto_auto_auto_auto] gap-3">
+                <div className="p-4 border-b border-border grid grid-cols-1 xl:grid-cols-[1.2fr_auto_auto_auto_auto_auto] gap-3">
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <input
@@ -284,6 +305,15 @@ export default function QuoteArchivePage() {
                         {Object.entries(STATUS_LABEL).map(([value, label]) => (
                             <option key={value} value={value}>{label}</option>
                         ))}
+                    </select>
+                    <select
+                        value={scope}
+                        onChange={event => setScope(event.target.value as 'all' | 'live' | 'historical')}
+                        className="bg-white border border-border rounded-xl px-3 py-2.5 text-sm font-bold outline-none focus:border-primary"
+                    >
+                        <option value="all">Vivas + históricas</option>
+                        <option value="live">Solo vivas</option>
+                        <option value="historical">Solo históricas</option>
                     </select>
                     <select
                         value={sellerId}
@@ -333,9 +363,15 @@ export default function QuoteArchivePage() {
                             </div>
                             <p className="text-sm font-bold text-muted-foreground">{quoteDateLabel(quote)}</p>
                             <p className="text-sm font-bold text-foreground">{quote.sellerName || 'Sin asignar'}</p>
-                            <span className="inline-flex w-fit rounded-full bg-muted px-2.5 py-1 text-xs font-black text-muted-foreground">
-                                {STATUS_LABEL[quote.status] || quote.status}
-                            </span>
+                            {quote.isHistorical ? (
+                                <span className="inline-flex w-fit rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-xs font-black text-amber-700">
+                                    Histórica
+                                </span>
+                            ) : (
+                                <span className="inline-flex w-fit rounded-full bg-muted px-2.5 py-1 text-xs font-black text-muted-foreground">
+                                    {STATUS_LABEL[quote.status] || quote.status}
+                                </span>
+                            )}
                             <p className="text-sm font-black text-foreground tabular-nums">{formatCurrency(quote.numericTotal || 0)}</p>
                             <button
                                 onClick={() => handleSingleDownload(quote)}

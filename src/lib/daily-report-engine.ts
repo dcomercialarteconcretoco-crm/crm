@@ -47,6 +47,7 @@ interface Quote {
     sentAt?: string;
     status: string;
     date?: string;
+    isHistorical?: boolean; // pre-CRM sistematizada: nunca entra a informes
 }
 
 interface AuditLog {
@@ -621,6 +622,7 @@ async function loadRealActivities(start: Date, end: Date): Promise<SellerActivit
 
             const sellerQuotes = quotes.filter(
                 (q) =>
+                    !q.isHistorical &&
                     (q.sentById === seller.id || q.sellerId === seller.id) &&
                     q.sentAt &&
                     isInBogotaRange(new Date(q.sentAt), start, end)

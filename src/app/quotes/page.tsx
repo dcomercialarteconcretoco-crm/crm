@@ -58,6 +58,7 @@ export default function QuotesPage() {
 
     const validQuotes = useMemo(() =>
         quotes
+            .filter(q => !q.isHistorical) // pre-CRM: se consultan en /quote-archive y la hoja de vida
             .filter(q => q.quoteNumber || q.number || q.client || q.total)
             .filter(q => ownsRecord(currentUser, q)),
         [quotes, currentUser]

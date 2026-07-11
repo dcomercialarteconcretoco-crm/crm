@@ -287,6 +287,19 @@ export interface Quote {
     // Días de validez de la oferta. Default 30, editable. La fecha mostrada en el PDF
     // se calcula como cotización.date + validityDays.
     validityDays?: number;
+
+    // ── Cotización histórica (pre-CRM, subida como PDF y sistematizada) ────────
+    // Solo consulta: informes, rankings, pipeline, auditoría, dashboard, analytics
+    // y el asistente IA la excluyen filtrando !isHistorical. Visible únicamente en
+    // la hoja de vida del cliente, quote-archive (con badge) y companies/[id].
+    // Su id NO lleva epoch de 13 dígitos (q-hist-<base36>) para que los consumidores
+    // que derivan fecha del id caigan a `date` (la fecha original de la cotización).
+    isHistorical?: boolean;
+    historicalAttachmentId?: string;  // FK a crm_client_attachments (el PDF original)
+    historicalNote?: string;          // contexto libre: "se ganó", "cliente de 2023", etc.
+    historicalUploadedById?: string;
+    historicalUploadedByName?: string;
+    historicalUploadedAt?: string;    // cuándo se sistematizó (≠ date original)
 }
 
 export interface Seller {
@@ -657,6 +670,7 @@ interface AppContextType {
     createAIUVersion: (quoteId: string) => Promise<string>;
     importClients: (rows: Omit<Client, 'id'>[]) => void;
     importQuotes: (rows: Omit<Quote, 'id'>[]) => void;
+    addHistoricalQuote: (quote: Omit<Quote, 'id' | 'isHistorical'>) => string;
     clearTestData: () => void;
     addSeller: (seller: Omit<Seller, 'id'>) => string;
     addNotification: (notification: Omit<Notification, 'id' | 'time' | 'read'>) => void;
@@ -1560,7 +1574,10 @@ REGLAS DE ORO:
         // y devolvemos su id. Esto arregla el bug histórico donde un mismo
         // ART-XXX aparecía varias veces en la cola de aprobaciones.
         if (quote.quoteNumber) {
-            const dup = quotes.find(q => q.quoteNumber === quote.quoteNumber);
+            // Las históricas quedan fuera del dedup: una cotización viva nueva con
+            // un número que coincida con una vieja sistematizada debe crearse aparte,
+            // no hacer merge sobre la histórica (la "reviviría" con task y status).
+            const dup = quotes.find(q => q.quoteNumber === quote.quoteNumber && !q.isHistorical);
             if (dup) {
                 updateQuote(dup.id, { ...quote, sellerId, sellerName });
                 return dup.id;
@@ -1755,6 +1772,30 @@ REGLAS DE ORO:
             persistSharedState({ quotes: next });
             return next;
         });
+    };
+
+    // Cotización histórica (pre-CRM sistematizada desde un PDF): como importQuotes,
+    // NO crea task de pipeline, NO consume el contador ART y NO notifica. El id va
+    // en base36 sin epoch de 13 dígitos para que audit/management y quote-archive
+    // (que derivan fecha del id) caigan a `date` — la fecha original de la cotización.
+    const addHistoricalQuote = (quote: Omit<Quote, 'id' | 'isHistorical'>): string => {
+        const id = `q-hist-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+        setQuotes(prev => {
+            const next = [...prev, {
+                ...quote,
+                id,
+                isHistorical: true,
+                status: 'Sent' as const,
+                number: quote.number || quote.quoteNumber,
+                quoteNumber: quote.quoteNumber || quote.number,
+                baseNumber: quote.baseNumber || quote.quoteNumber || quote.number,
+                version: quote.version || 1,
+                historicalUploadedAt: new Date().toISOString(),
+            }];
+            persistSharedState({ quotes: next });
+            return next;
+        });
+        return id;
     };
 
     // Clear all test/demo data (keep sellers, settings, products)
@@ -2392,7 +2433,7 @@ REGLAS DE ORO:
     const contextValue = useMemo(() => ({
             clients, tasks, quotes, sellers, notifications, settings, events, forms,
             companies,
-            addClient, addTask, addQuote, createQuoteVersion, createAIUVersion, importClients, importQuotes, clearTestData,
+            addClient, addTask, addQuote, createQuoteVersion, createAIUVersion, importClients, importQuotes, addHistoricalQuote, clearTestData,
             addCompany, updateCompany, deleteCompany,
             addSeller, addNotification, addEvent, addForm,
             updateClient, deleteClient,

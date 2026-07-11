@@ -195,7 +195,9 @@ export default function Home() {
     [clients, currentUser]
   );
   const scopedQuotes = useMemo(
-    () => quotes.filter(q => ownsRecord(currentUser, q)),
+    // Las históricas (pre-CRM sistematizadas) son solo consulta: fuera de
+    // contadores, conversión y top compradores del dashboard.
+    () => quotes.filter(q => !q.isHistorical && ownsRecord(currentUser, q)),
     [quotes, currentUser]
   );
   const scopedTasks = useMemo(

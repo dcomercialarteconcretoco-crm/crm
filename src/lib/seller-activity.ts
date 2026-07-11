@@ -104,6 +104,7 @@ export function aggregateSellerActivity(input: AggregateInput): SellerActivity[]
 
             // Quotes: sent inside range by this seller
             const sellerQuotes = quotes.filter((q) => {
+                if (q.isHistorical) return false; // pre-CRM sistematizada: solo consulta
                 const matchesSeller =
                     q.sentById === seller.id ||
                     q.sellerId === seller.id ||

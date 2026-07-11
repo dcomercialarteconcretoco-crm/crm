@@ -34,6 +34,7 @@ type Quote = {
     sellerName?: string;
     numericTotal?: number;
     taskId?: string;
+    isHistorical?: boolean; // pre-CRM sistematizada: excluida de la auditoría
 };
 
 type TaskActivity = { type?: string; date?: string; timestamp?: string; content?: string };
@@ -298,6 +299,7 @@ export async function POST(request: NextRequest) {
     // cotizado a cada cliente, sin importar el rango de la auditoría).
     const quotesByClient = new Map<string, Quote[]>();
     for (const q of quotes) {
+        if (q.isHistorical) continue; // pre-CRM: no es evidencia de gestión en el CRM
         if (!q.clientId) continue;
         const arr = quotesByClient.get(q.clientId) || [];
         arr.push(q);
@@ -375,6 +377,7 @@ export async function POST(request: NextRequest) {
     const quotedClientIds = new Set<string>();
     const monthly = new Map<string, { quotes: number; value: number }>();
     for (const q of quotes) {
+        if (q.isHistorical) continue; // pre-CRM sistematizada: solo consulta
         if (!wantSeller(q.sellerId)) continue;
         const sentAt = epochFromId(q.id);
         if (!inRange(sentAt, fromDate, toDate)) continue;

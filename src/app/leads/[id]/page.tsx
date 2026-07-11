@@ -31,6 +31,7 @@ import { openMailto, openTel, openWhatsApp } from '@/lib/contact-links';
 import { logContactEvent } from '@/lib/contact-events';
 import { ClientAttachments } from '@/components/leads/ClientAttachments';
 import { ClientBotChats } from '@/components/leads/ClientBotChats';
+import { HistoricalQuoteUploader } from '@/components/leads/HistoricalQuoteUploader';
 import CompanyCombobox from '@/components/CompanyCombobox';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -65,6 +66,7 @@ export default function Lead360Page() {
     const isSuperAdmin = currentUser?.role?.toLowerCase().includes('superadmin') || currentUser?.role?.toLowerCase() === 'admin';
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [assignSellerId, setAssignSellerId] = useState('');
+    const [showHistoricalUpload, setShowHistoricalUpload] = useState(false);
 
     const leadId = params.id as string;
     const lead = clients.find(c => c.id === leadId);
@@ -99,7 +101,12 @@ export default function Lead360Page() {
             (normalize(lead.name).length > 0 && normalize(t.client) === normalize(lead.name))
         ))
     );
-    const leadQuotes = leadQuotesAll;
+    // Las históricas (pre-CRM sistematizadas) van en su propia sección: fuera del
+    // contador del header, del tab Correos y del timeline — que reflejan gestión viva.
+    const leadQuotes = leadQuotesAll.filter(q => !q.isHistorical);
+    const historicalLeadQuotes = leadQuotesAll
+        .filter(q => q.isHistorical)
+        .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     const leadActivity = auditLogs.filter(log => log.targetId === leadId).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     const sentQuotes = leadQuotes.filter(q => q.status === 'Sent' || q.status === 'Approved');
 
@@ -717,6 +724,68 @@ export default function Lead360Page() {
                                         <Plus className="w-4 h-4" />
                                         Generar Nueva Propuesta
                                     </button>
+
+                                    {/* ── Histórico pre-CRM: cotizaciones viejas sistematizadas desde PDF ── */}
+                                    <div className="pt-4 border-t border-border space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Histórico pre-CRM</h3>
+                                                <p className="text-[11px] text-muted-foreground mt-0.5">Cotizaciones viejas sistematizadas · solo consulta, no cuentan en informes.</p>
+                                            </div>
+                                            <button
+                                                onClick={() => setShowHistoricalUpload(true)}
+                                                className="text-xs font-bold text-primary hover:underline flex items-center gap-1 shrink-0"
+                                            >
+                                                <Plus className="w-3.5 h-3.5" />
+                                                Subir cotización vieja
+                                            </button>
+                                        </div>
+                                        {historicalLeadQuotes.length === 0 ? (
+                                            <div className="text-center py-6 bg-muted/30 border border-dashed border-border rounded-xl">
+                                                <p className="text-[11px] text-muted-foreground">Sin cotizaciones históricas. Sube el PDF y la IA lo sistematiza.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {historicalLeadQuotes.map(quote => (
+                                                    <div key={quote.id} className="flex items-center justify-between p-4 bg-amber-50/40 border border-amber-200/60 rounded-xl">
+                                                        <div className="flex items-center gap-4 min-w-0">
+                                                            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 border border-amber-200 shrink-0">
+                                                                <FileText className="w-5 h-5" />
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <p className="text-sm font-bold text-foreground truncate">{quote.quoteNumber || quote.number}</p>
+                                                                <p className="text-xs text-muted-foreground">{quote.date}{quote.referencia ? ` · ${quote.referencia}` : ''}</p>
+                                                                {quote.historicalNote && (
+                                                                    <p className="text-[11px] text-amber-700 mt-0.5 truncate">“{quote.historicalNote}”</p>
+                                                                )}
+                                                                {quote.historicalUploadedByName && (
+                                                                    <p className="text-[10px] text-muted-foreground mt-0.5">Sistematizada por {quote.historicalUploadedByName}</p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right flex flex-col items-end gap-1.5 shrink-0">
+                                                            <p className="text-sm font-black text-foreground">{quote.total}</p>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                                                    Histórica
+                                                                </span>
+                                                                {quote.historicalAttachmentId && (
+                                                                    <a
+                                                                        href={`/api/clients/${quote.clientId}/attachments/${quote.historicalAttachmentId}`}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="text-[11px] font-bold text-primary hover:underline"
+                                                                    >
+                                                                        Ver PDF
+                                                                    </a>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
 
@@ -939,6 +1008,12 @@ export default function Lead360Page() {
                 </div>
             </div>
         )}
+
+        <HistoricalQuoteUploader
+            lead={lead}
+            open={showHistoricalUpload}
+            onClose={() => setShowHistoricalUpload(false)}
+        />
         </>
     );
 }

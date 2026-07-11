@@ -47,9 +47,12 @@ const QUICK_ACTIONS = [
 function buildCrmSnapshot(
     clients: Client[],
     tasks: Task[],
-    quotes: Quote[],
+    allQuotes: Quote[],
     userName?: string
 ): string {
+    // Las cotizaciones históricas (pre-CRM sistematizadas) no entran al snapshot:
+    // contaminarían los conteos y el LLM las presentaría como actividad vigente.
+    const quotes = allQuotes.filter(q => !q.isHistorical);
     const today = new Date();
     const fmt = (d: string) => {
         if (!d) return 'sin fecha';
