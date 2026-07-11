@@ -48,7 +48,11 @@ export interface Task {
     // Motivo de pérdida cuando el negocio se descarta/marca perdido —
     // requerido por gerencia para saber por qué se pierden los negocios.
     lossReason?: string;
-    // Fecha en la que una cotización antigua se retomó desde el archivo del pipeline.
+    // Fecha en la que el negocio se activó en el tablero del mes en curso: se
+    // estampa al crear el deal (abrir negocio / cotización nueva) y al retomar
+    // una cotización antigua desde el archivo. El pipeline la prioriza sobre el
+    // año que aparezca escrito en el número de cotización (ej: ART-943-2025-V4
+    // creada en 2026 debe verse en el tablero actual, no en el archivo de 2025).
     retakenAt?: string;
     notes?: { text: string; date: string; author: string }[];
 }
@@ -1633,6 +1637,10 @@ REGLAS DE ORO:
             }],
             quoteId: quoteId,
             stageId: 'proposal',
+            // El deal nace HOY aunque el número de la cotización traiga un año
+            // viejo (re-versiones tipo ART-943-2025-V4): sin esta estampa el
+            // tablero lo archivaría bajo ese año y desaparecería del mes actual.
+            retakenAt: new Date().toISOString(),
         };
 
         setTasks(prev => {
