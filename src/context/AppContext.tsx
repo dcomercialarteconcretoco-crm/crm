@@ -188,6 +188,11 @@ export interface Quote {
     // sabe si se pierde por precio, tiempo de respuesta o producto.
     lossReason?: string;
     taskId?: string;
+    // Estampa de "el negocio del pipeline se eliminó a propósito": la pone
+    // deleteTask al borrar una task vinculada a esta cotización, y la
+    // migración de huérfanos la respeta para NO re-crear el negocio en cada
+    // boot (antes el deal borrado resucitaba con id t-mig-<quoteId>).
+    pipelineTaskDeletedAt?: string;
     opens?: number;
     sentAt?: string;
     sentByName?: string;
@@ -1261,7 +1266,10 @@ REGLAS DE ORO:
         setQuotes(prevQuotes => {
             setTasks(prevTasks => {
                 const quoteIdsWithTask = new Set(prevTasks.map(t => (t as any).quoteId).filter(Boolean));
-                const orphanQuotes = prevQuotes.filter(q => q.id && !quoteIdsWithTask.has(q.id));
+                // pipelineTaskDeletedAt = el negocio se eliminó a propósito
+                // desde el kanban; re-crearlo acá desharía ese borrado en cada
+                // boot (bug de resurrección t-mig-<quoteId>, jul-2026).
+                const orphanQuotes = prevQuotes.filter(q => q.id && !quoteIdsWithTask.has(q.id) && !q.pipelineTaskDeletedAt);
                 if (orphanQuotes.length === 0) return prevTasks;
 
                 const stageMap: Record<string, string> = {
@@ -1765,8 +1773,12 @@ REGLAS DE ORO:
         setNotifications([]);
         setAnomalies([]);
         setEvents([]);
+        // OJO: auditLogs NO va en el persist — /api/admin/clear-test-data deja
+        // un marcador de "quién borró todo" en esa clave y persistir [] acá lo
+        // pisaría milisegundos después. El estado local sí se limpia; el
+        // próximo GET trae el marcador.
         persistSharedState({
-            clients: [], tasks: [], quotes: [], auditLogs: [], notifications: [], anomalies: [], events: [],
+            clients: [], tasks: [], quotes: [], notifications: [], anomalies: [], events: [],
             __deletes: { quotes: quoteIds, tasks: taskIds },
         });
     };
@@ -1938,13 +1950,37 @@ REGLAS DE ORO:
     };
 
     const deleteTask = (taskId: string) => {
+        // Igual que deleteQuote: el merge-por-id del server exige el borrado
+        // explícito en __deletes (tombstone anti-resurrección). Si la task
+        // está vinculada a una cotización, tombstoneamos TAMBIÉN los ids
+        // determinísticos que la migración de huérfanos podría re-acuñar
+        // (t-qt-<quoteId> del addQuote y t-mig-<quoteId> de la migración) —
+        // sin esto, el deal borrado resucitaba en el próximo boot con otro id.
+        const victim = tasks.find(t => t.id === taskId);
+        const quoteId = (victim as any)?.quoteId as string | undefined;
+        const idsToDelete = quoteId
+            ? Array.from(new Set([taskId, `t-qt-${quoteId}`, `t-mig-${quoteId}`]))
+            : [taskId];
+
         setTasks(prev => {
-            const next = prev.filter(t => t.id !== taskId);
-            // Igual que deleteQuote: el merge-por-id del server exige el
-            // borrado explícito en __deletes (tombstone anti-resurrección).
-            persistSharedState({ tasks: next, __deletes: { tasks: [taskId] } });
+            const next = prev.filter(t => !idsToDelete.includes(t.id));
+            persistSharedState({ tasks: next, __deletes: { tasks: idsToDelete } });
             return next;
         });
+
+        // Estampa en la cotización vinculada: la migración de huérfanos la
+        // respeta y deja de re-crear el negocio en cada boot. La cotización
+        // NO se toca en lo demás — sigue visible y editable en /quotes.
+        if (quoteId) {
+            setQuotes(prev => {
+                if (!prev.some(q => q.id === quoteId)) return prev;
+                const next = prev.map(q =>
+                    q.id === quoteId ? { ...q, pipelineTaskDeletedAt: new Date().toISOString() } : q
+                );
+                persistSharedState({ quotes: next });
+                return next;
+            });
+        }
     };
 
     const updateQuote = (quoteId: string, updates: Partial<Quote>) => {
@@ -1954,6 +1990,22 @@ REGLAS DE ORO:
         // el ciclo cotización→cierre en la auditoría.
         if (updates.status && prevQuote && updates.status !== prevQuote.status && !updates.statusChangedAt) {
             updates = { ...updates, statusChangedAt: new Date().toISOString() };
+        }
+
+        // Toda transición a 'Sent' debe quedar con sentAt: el informe
+        // diario/semanal/mensual filtra las cotizaciones por sentAt, así que
+        // una marcada "Sent" sin estampa (p.ej. desde el dropdown de estado
+        // en /quotes) nunca aparece en ningún reporte. Caso 9-jul-2026:
+        // Jefferson marcó ART-509/511/508/488 como enviadas y el informe
+        // le mostró 0 cotizaciones ese día.
+        if (updates.status === 'Sent' && prevQuote && !prevQuote.sentAt && !updates.sentAt) {
+            updates = {
+                ...updates,
+                sentAt: new Date().toISOString(),
+                ...(!updates.sentById && !prevQuote.sentById && currentUser
+                    ? { sentById: currentUser.id, sentByName: currentUser.name }
+                    : {}),
+            };
         }
 
         setQuotes(prev => {

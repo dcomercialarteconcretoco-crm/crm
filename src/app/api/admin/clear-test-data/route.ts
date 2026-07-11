@@ -37,11 +37,16 @@ export async function POST(request: NextRequest) {
     // 2) Tombstonear TODOS los ids actuales de quotes/tasks ANTES de vaciar.
     // El PUT de /api/state hace merge-por-id: sin tombstones, cualquier sesión
     // abierta con un snapshot viejo re-subiría los datos "borrados" en su
-    // próximo guardado y el wipe quedaría deshecho en silencio.
+    // próximo guardado y el wipe quedaría deshecho en silencio. Por eso, si
+    // este paso falla, ABORTAMOS sin vaciar — un wipe sin tombstones es un
+    // wipe que se deshace solo.
     try {
         await tombstoneAllCurrentIds(pool, ['quotes', 'tasks']);
     } catch (e) {
-        console.error('[clear-test-data] tombstone step failed:', e);
+        console.error('[clear-test-data] tombstone step failed — wipe abortado:', e);
+        return NextResponse.json({
+            error: 'No se pudo proteger el borrado contra sesiones abiertas (tombstones). No se borró nada — reintenta.',
+        }, { status: 500 });
     }
 
     // 3) Resetear todas las keys transaccionales en crm_state

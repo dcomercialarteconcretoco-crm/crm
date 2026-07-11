@@ -107,16 +107,22 @@ export async function POST(req: NextRequest) {
         // Tombstonear los ids de quotes/tasks antes del wipe: el PUT de
         // /api/state hace merge-por-id y sin tombstones una sesión abierta con
         // snapshot viejo resucitaría los datos demo en su próximo guardado.
+        // Si falla, abortamos — un wipe sin tombstones se deshace solo.
         try {
             await tombstoneAllCurrentIds(pool, ['quotes', 'tasks']);
         } catch (e) {
-            console.error('[seed-team] tombstone step failed:', e);
+            console.error('[seed-team] tombstone step failed — wipe abortado:', e);
+            return NextResponse.json({
+                error: 'No se pudo proteger el wipe contra sesiones abiertas (tombstones). No se borró nada — reintenta.',
+            }, { status: 500 });
         }
-        // Wipe state buckets except settings + global biolink settings
-        await pool.query(
-            `DELETE FROM crm_state WHERE key = ANY($1::text[])`,
-            [['quotes', 'tasks', 'events', 'notifications', 'auditLogs', 'anomalies', 'forms', 'widget_conversations', 'lead_assignment_rr']]
-        );
+        // Wipe state buckets except settings + global biolink settings.
+        // Una clave por sentencia y en el orden de lock del merge (quotes,
+        // tasks, resto): un DELETE multi-fila lockea en orden de scan
+        // (indefinido) y podía deadlockear contra un merge concurrente.
+        for (const key of ['quotes', 'tasks', 'events', 'notifications', 'auditLogs', 'anomalies', 'forms', 'widget_conversations', 'lead_assignment_rr']) {
+            await pool.query(`DELETE FROM crm_state WHERE key = $1`, [key]);
+        }
         wiped.state = 10;
         // Wipe non-superadmin users
         const cUsers = await pool.query(`DELETE FROM crm_users WHERE role <> 'SuperAdmin'`);

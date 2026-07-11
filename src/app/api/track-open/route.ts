@@ -64,24 +64,28 @@ export async function GET(req: NextRequest) {
         : DEFAULT_PIPELINE_STAGES;
 
     // Encontrar la cotización por número (case-insensitive porque algunos
-    // bots normalizan el query string).
-    const quoteIdx = quotes.findIndex(
+    // bots normalizan el query string). Actualizamos TODAS las que compartan
+    // el número: pueden existir duplicados legacy con ids distintos y el
+    // cliente solo muestra uno (dedup por quoteNumber) — si marcáramos solo
+    // el primer match, el tracking podía caer en el duplicado invisible y el
+    // equipo jamás veía la apertura.
+    const matches = quotes.filter(
       q => (q.quoteNumber || q.number || '').toLowerCase() === quoteNumber.toLowerCase()
     );
-    if (quoteIdx === -1) {
+    if (matches.length === 0) {
       console.log('[track-open] cotización no encontrada', { quoteNumber, clientEmail });
       return new NextResponse(PIXEL, { status: 200, headers: PIXEL_HEADERS });
     }
 
-    const quote = quotes[quoteIdx];
-    const newOpens = (quote.opens || 0) + 1;
-    const firstOpen = quote.firstOpenedAt || new Date().toISOString();
-    const updatedQuote = {
-      ...quote,
-      opens: newOpens,
-      firstOpenedAt: firstOpen,
-      lastOpenedAt: new Date().toISOString(),
-    };
+    const nowIso = new Date().toISOString();
+    const updatedQuotes = matches.map(q => ({
+      ...q,
+      opens: (q.opens || 0) + 1,
+      firstOpenedAt: q.firstOpenedAt || nowIso,
+      lastOpenedAt: nowIso,
+    }));
+    const newOpens = updatedQuotes[0].opens;
+    const firstOpen = updatedQuotes[0].firstOpenedAt;
 
     let updatedTask: any = null;
     const hotStage = stages.find(s => s.autoOnQuoteOpen);
@@ -89,9 +93,10 @@ export async function GET(req: NextRequest) {
       const stageOrder = stages.map(s => s.id);
       const hotIdx = stageOrder.indexOf(hotStage.id);
       // Buscamos la task asociada — primero por taskId que la quote conoce,
-      // si no por quoteId que la task conoce. Cubrimos ambos schemas.
+      // si no por quoteId que la task conoce. Cubrimos ambos schemas y todos
+      // los duplicados del número.
       const task = tasks.find(
-        t => (quote.taskId && t.id === quote.taskId) || (t.quoteId && t.quoteId === quote.id)
+        t => matches.some(q => (q.taskId && t.id === q.taskId) || (t.quoteId && t.quoteId === q.id))
       );
       if (task) {
         const currentIdx = stageOrder.indexOf(task.stageId);
@@ -120,7 +125,7 @@ export async function GET(req: NextRequest) {
     // (incluidos los prefetch de Outlook/Gmail) — cualquier cotización creada
     // entre su lectura y su escritura moría pisada.
     await mergeStateRecords(pool, {
-      quotes: [updatedQuote],
+      quotes: updatedQuotes,
       ...(updatedTask ? { tasks: [updatedTask] } : {}),
     });
 
