@@ -473,10 +473,12 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     }, [shippingEnabled, shippingMetrics, selectedClient?.city, settings.shipping?.cityRates, settings.shipping?.defaultRatePerKg, settings.shipping?.defaultMinimumCharge]);
 
     // `shipping` (legacy) — sigue exponiéndose porque la API de email/whatsapp y el snapshot
-    // del Quote la siguen guardando como dato auxiliar. En el modelo nuevo NO entra al total
-    // (eso lo hace transportAmount via calc.transportBeforeTax + IVA). Lo dejamos como cero
-    // salvo que el vendedor esté en simple+transporte para preservar el snapshot histórico.
-    const shipping = quoteMode === 'simple' && includesTransport ? (transportAmount || 0) : 0;
+    // del Quote la siguen guardando como dato auxiliar. Guardamos la BASE COTIZADA
+    // (calc.transportBeforeTax = gross-up /0.9 redondeado ↑ a $1.000), no el costo digitado:
+    // la tarjeta de autorizaciones muestra este valor junto al subtotal que ya lo incluye,
+    // y con el costo crudo los números no cuadraban (caso Silvia Rodríguez, 11 jul 2026:
+    // mostraba Envío $700.000 pero el subtotal sumaba $777.778).
+    const shipping = quoteMode === 'simple' && includesTransport ? (calc.transportBeforeTax || 0) : 0;
 
     const formatCurrency = (v: number) =>
         new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v);
