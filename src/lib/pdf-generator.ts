@@ -54,7 +54,7 @@ export interface ProposalData {
     }>;
     /** (modo simple) ¿La oferta cubre transporte? */
     includesTransport?: boolean;
-    /** (modo simple) Monto base del transporte; el cálculo lo divide entre 0.9 antes de IVA. */
+    /** (modo simple) Monto del transporte; es la base antes de IVA y se usa tal cual. */
     transportAmount?: number;
     /** (modo simple) Ciudad destino para el texto de la fila de transporte. */
     transportCity?: string;

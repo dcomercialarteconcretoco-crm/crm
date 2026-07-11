@@ -15,12 +15,14 @@
  *    mostrarlos hay que dividir entre 1.19 — pero el TOTAL final que paga el
  *    cliente sigue siendo el mismo, porque luego se vuelve a sumar el IVA.
  *
- *  - El monto del transporte que el vendedor escribe es la base comercial que
- *    debe gross-up antes de IVA: se divide entre 0.9 y se redondea. Luego el
- *    sistema suma IVA 19% sobre ese resultado.
+ *  - El monto del transporte que el vendedor escribe ES la base antes de IVA,
+ *    tal cual va en la fila de transporte del cuadro F-CIAL-04. El sistema
+ *    sólo le suma IVA 19%. (Antes se dividía entre 0.9 — eso inflaba el total
+ *    frente al Excel oficial; corregido 11 jul 2026, caso cotización Silvia
+ *    Rodríguez / Parque Gerona.)
  *
  *  - Modo SIMPLE:
- *      VALOR TOTAL (antes IVA) = Σ(precio_woo / 1.19 × cant) + round(transporte/0.9)
+ *      VALOR TOTAL (antes IVA) = Σ(precio_woo / 1.19 × cant) + transporte
  *      IVA 19%                 = (anterior) × 0.19
  *      VALOR TOTAL final       = (anterior) + IVA
  *
@@ -39,7 +41,6 @@
 
 export const VAT_RATE = 0.19;
 export const VAT_DIVISOR = 1 + VAT_RATE; // 1.19
-export const TRANSPORT_GROSS_UP_DIVISOR = 0.9;
 
 export type QuoteMode = "simple" | "aiu";
 
@@ -49,7 +50,7 @@ export interface QuoteCalcInput {
   items: Array<{ unitPrice: number; quantity: number; priceBeforeTax?: number; taxRate?: number }>;
   /** (simple) ¿La oferta cubre transporte? */
   includesTransport?: boolean;
-  /** (simple) Monto base del transporte escrito por el vendedor. Se divide entre 0.9 antes de sumar IVA. */
+  /** (simple) Monto del transporte escrito por el vendedor. Es la base antes de IVA, se usa tal cual. */
   transportAmount?: number;
   /** (aiu) Porcentaje 0–100. */
   adminPercent?: number;
@@ -91,11 +92,6 @@ const round = (n: number) => Math.round(n);
 /** Quita el IVA del 19% que viene incluido en un precio de Woo. */
 export function stripTax(amountWithTax: number): number {
   return amountWithTax / VAT_DIVISOR;
-}
-
-/** Convierte el transporte digitado a la base antes de IVA que se muestra/cotiza. */
-export function grossUpTransport(amount: number): number {
-  return amount / TRANSPORT_GROSS_UP_DIVISOR;
 }
 
 export function calculateQuoteTotals(input: QuoteCalcInput): QuoteCalcResult {
@@ -147,7 +143,7 @@ export function calculateQuoteTotals(input: QuoteCalcInput): QuoteCalcResult {
 
   // Modo simple
   const transportBeforeTax = input.includesTransport && input.transportAmount
-    ? round(grossUpTransport(Number(input.transportAmount) || 0))
+    ? round(Number(input.transportAmount) || 0)
     : undefined;
 
   const subtotalLine1 = productsSubtotal + (transportBeforeTax || 0);
