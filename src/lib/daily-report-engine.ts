@@ -274,6 +274,9 @@ function buildSellerSection(act: SellerActivity): string {
                 <strong style="color:#fab510;">${q.quoteNumber || q.number}</strong>
                 <span style="color:#555;"> · ${q.client}</span>
                 <span style="float:right;font-weight:900;color:#1a1a1d;">${q.total}</span>
+                ${q.sentById && q.sentById !== act.seller.id && q.sentByName
+                    ? `<span style="display:block;color:#aaa;font-size:10px;">✉️ Enviada por ${q.sentByName}</span>`
+                    : ''}
             </li>`
         )
         .join('');
