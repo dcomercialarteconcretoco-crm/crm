@@ -14,14 +14,15 @@
  * así la lógica de persistencia queda en el mismo lugar que el resto del CRM.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     ShieldCheck, Clock, User, Building2, Mail, Phone, MapPin, FileText,
     CheckCircle2, MessageSquareWarning, X, Loader2, AlertTriangle,
-    ArrowRight, History, Send,
+    ArrowRight, History, Send, Eye, ExternalLink,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useApp, Quote } from '@/context/AppContext';
+import { getQuotePdfPreviewUrl } from '@/lib/quote-pdf';
 
 function fmt(n: number) {
     return new Intl.NumberFormat('es-CO', {
@@ -431,11 +432,46 @@ function ReviewDrawer({
     const clientPhone = client?.phone;
     const clientCity  = client?.city;
 
+    // ── Previsualización del PDF ──
+    // El PDF se genera client-side con jsPDF (igual al que descarga el vendedor
+    // y al que se aprueba), así que la previsualización es una blob URL local.
+    const { clients, sellers, currentUser } = useApp();
+    const [pdfUrl, setPdfUrl]         = useState<string | null>(null);
+    const [pdfLoading, setPdfLoading] = useState(false);
+    const [pdfError, setPdfError]     = useState<string | null>(null);
+
+    // Al cambiar de cotización o desmontar, soltar la blob URL anterior.
+    useEffect(() => {
+        setPdfError(null);
+        setPdfUrl(null);
+    }, [quote.id]);
+    useEffect(() => {
+        return () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); };
+    }, [pdfUrl]);
+
+    const handleTogglePdf = async () => {
+        if (pdfUrl) { setPdfUrl(null); return; }
+        setPdfLoading(true);
+        setPdfError(null);
+        try {
+            const url = await getQuotePdfPreviewUrl(quote, { clients, sellers, currentUser });
+            setPdfUrl(url);
+        } catch (err) {
+            console.error('preview pdf error:', err);
+            setPdfError('No se pudo generar la previsualización. Intenta de nuevo o descarga el PDF desde Cotizaciones.');
+        } finally {
+            setPdfLoading(false);
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-50 flex">
             <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-            <div className="w-full max-w-xl bg-white shadow-2xl overflow-y-auto">
+            <div className={clsx(
+                'w-full bg-white shadow-2xl overflow-y-auto transition-all',
+                pdfUrl ? 'max-w-3xl' : 'max-w-xl'
+            )}>
                 <div className="sticky top-0 bg-white border-b border-border px-5 py-4 flex items-center justify-between z-10">
                     <div>
                         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Revisar cotización</p>
@@ -472,6 +508,43 @@ function ReviewDrawer({
                             <p className="font-bold text-foreground text-sm">{quote.requestedByName || quote.sellerName || '—'}</p>
                         </div>
                         <span className="text-[11px] text-muted-foreground">{humanizeElapsed(quote.requestedAt)}</span>
+                    </div>
+
+                    {/* Previsualización del PDF — el documento exacto que recibirá el cliente */}
+                    <div>
+                        <button
+                            onClick={handleTogglePdf}
+                            disabled={pdfLoading || !!busy}
+                            className="w-full bg-foreground hover:bg-foreground/90 text-white font-black py-2.5 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors text-sm"
+                        >
+                            {pdfLoading ? (
+                                <><Loader2 className="w-4 h-4 animate-spin" /> Generando PDF...</>
+                            ) : pdfUrl ? (
+                                <><X className="w-4 h-4" /> Ocultar PDF</>
+                            ) : (
+                                <><Eye className="w-4 h-4" /> Ver PDF completo</>
+                            )}
+                        </button>
+                        {pdfError && (
+                            <p className="mt-2 text-[11px] text-rose-600">{pdfError}</p>
+                        )}
+                        {pdfUrl && (
+                            <div className="mt-3 border border-border rounded-xl overflow-hidden">
+                                <iframe
+                                    src={pdfUrl}
+                                    title={`PDF ${quote.quoteNumber || quote.number || ''}`}
+                                    className="w-full h-[65vh] bg-muted"
+                                />
+                                <a
+                                    href={pdfUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center justify-center gap-1.5 py-2 text-xs font-bold text-primary hover:bg-muted/40 border-t border-border transition-colors"
+                                >
+                                    <ExternalLink className="w-3.5 h-3.5" /> Abrir en pestaña nueva
+                                </a>
+                            </div>
+                        )}
                     </div>
 
                     {/* Items */}

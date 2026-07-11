@@ -20,14 +20,17 @@ function itemDimensions(item: NonNullable<Quote['items']>[number]) {
     return item.dimensions;
 }
 
-export async function downloadQuotePdf(
+interface QuotePdfOpts {
+    clients: Client[];
+    sellers: Seller[];
+    currentUser?: Seller | null;
+}
+
+async function renderQuotePdf(
     quote: Quote,
-    opts: {
-        clients: Client[];
-        sellers: Seller[];
-        currentUser?: Seller | null;
-    }
-) {
+    opts: QuotePdfOpts,
+    output: 'save' | 'bloburl'
+): Promise<string | void> {
     const client = opts.clients.find(c => c.id === quote.clientId);
     const sellerForQuote = quote.sellerId ? opts.sellers.find(s => s.id === quote.sellerId) : null;
     const sellerEmailForQuote = sellerForQuote?.email || opts.currentUser?.email || '';
@@ -62,7 +65,7 @@ export async function downloadQuotePdf(
     };
 
     if (isNewModel) {
-        await generateProposalPDF({
+        return generateProposalPDF({
             ...base,
             mode: quote.quoteMode,
             includesTransport: quote.includesTransport,
@@ -71,11 +74,10 @@ export async function downloadQuotePdf(
             adminPercent: quote.adminPercent,
             utilityPercent: quote.utilityPercent,
             deliveryLocation: quote.deliveryLocation,
-        });
-        return;
+        }, output);
     }
 
-    await generateProposalPDF({
+    return generateProposalPDF({
         ...base,
         isAIU: quote.isAIU,
         aiuData: quote.aiuData,
@@ -84,5 +86,18 @@ export async function downloadQuotePdf(
         total: quote.numericTotal || 0,
         shipping: quote.shipping,
         shippingCity: quote.shippingCity,
-    });
+    }, output);
+}
+
+export async function downloadQuotePdf(quote: Quote, opts: QuotePdfOpts): Promise<void> {
+    await renderQuotePdf(quote, opts, 'save');
+}
+
+/** Genera el PDF de la cotización y devuelve una blob URL para previsualizarlo
+ *  en un iframe (panel de autorizaciones). El caller debe liberar la URL con
+ *  URL.revokeObjectURL cuando cierre la vista. */
+export async function getQuotePdfPreviewUrl(quote: Quote, opts: QuotePdfOpts): Promise<string> {
+    const url = await renderQuotePdf(quote, opts, 'bloburl');
+    if (!url) throw new Error('No se pudo generar la previsualización del PDF');
+    return url;
 }
