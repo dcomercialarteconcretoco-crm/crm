@@ -139,8 +139,11 @@ export async function POST(req: NextRequest) {
 
         const data = await res.json().catch(() => ({} as any));
         if (!res.ok) {
-            console.error("extract-pdf: Gemini error", data?.error?.message || res.status);
-            return NextResponse.json({ ok: false, reason: "gemini-error" });
+            const detail = String(data?.error?.message || `HTTP ${res.status}`).slice(0, 300);
+            console.error("extract-pdf: Gemini error", detail);
+            // El detail viaja a la UI solo como diagnóstico (banner ámbar) — no
+            // expone la key ni el contenido del PDF.
+            return NextResponse.json({ ok: false, reason: "gemini-error", detail });
         }
 
         const raw: string = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
