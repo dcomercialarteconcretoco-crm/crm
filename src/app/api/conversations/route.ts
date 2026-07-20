@@ -132,7 +132,10 @@ export async function POST(req: NextRequest) {
           [
             clientId,
             lead.name || 'Lead Bot',
-            lead.company || lead.name || 'Sin empresa',
+            // Empresa vacía si el bot no la capturó — el `|| lead.name` creaba
+            // una empresa fantasma con el nombre de la persona, y 'Sin empresa'
+            // dejaba una empresa literal llamada así en crm_companies.
+            lead.company || '',
             lead.email || '',
             lead.phone || '',
             today,
@@ -147,7 +150,9 @@ export async function POST(req: NextRequest) {
         const newTask = {
           id: `t-bot-${Date.now()}`,
           title: `ConcreBOT: ${lead.name || 'Lead'}`,
-          client: lead.company || lead.name || 'Sin empresa',
+          // Rótulo del tablero: empresa si hay, si no el nombre de la persona.
+          // Nunca la cadena 'Sin empresa', que se veía como cliente literal.
+          client: lead.company || lead.name || 'Lead Bot',
           clientId,
           contactName: lead.name || '',
           value: 'Por definir', numericValue: 0,

@@ -69,7 +69,10 @@ export async function POST(request: NextRequest) {
             [
                 clientId,
                 lead.name,
-                lead.name, // company snapshot — el asesor edita después si tiene empresa
+                // company vacío: la bandeja de crudos no captura empresa, así
+                // que copiar lead.name aquí creaba una empresa fantasma con el
+                // nombre de la persona. El asesor la asigna al editar la ficha.
+                lead.company || '',
                 null,      // position vacío — se llena al editar
                 lead.email,
                 lead.phone || '',

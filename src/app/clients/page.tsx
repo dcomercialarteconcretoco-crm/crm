@@ -296,7 +296,11 @@ export default function ClientsPage() {
                 if (values.length >= 2) {
                     const clientData: Omit<Client, 'id'> = {
                         name: values[0] || 'Desconocido',
-                        company: values[1] || 'Empresa Desconocida',
+                        // Empresa vacía si la columna viene en blanco. Antes el
+                        // fallback 'Empresa Desconocida' se guardaba como fila
+                        // real en crm_companies y ensuciaba el combobox de todos
+                        // los vendedores con esa razón social inventada.
+                        company: values[1] || '',
                         position: values[2] || '',
                         email: values[3] || '',
                         phone: values[4] || '',

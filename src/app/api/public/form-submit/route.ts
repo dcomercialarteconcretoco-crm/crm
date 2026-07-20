@@ -100,7 +100,11 @@ export async function POST(req: NextRequest) {
                 [
                     clientId,
                     name,
-                    company || name,
+                    // Empresa vacía si el formulario QR no la trae (campo
+                    // opcional). El `|| name` sembraba una empresa fantasma con
+                    // el nombre de la persona vía el auto-create de crm_companies.
+                    // El rótulo del pipeline se arma aparte (task.client abajo).
+                    company || '',
                     positionValue,
                     normalizedEmail,
                     phone || '',

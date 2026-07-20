@@ -90,12 +90,15 @@ export async function POST(req: NextRequest) {
                 WHERE email = $5
             `, [name, phone || '', city || '', today, email, ownerId, ownerName]);
         } else {
+            // El 3er parámetro (company) va '' a propósito: la tarjeta digital
+            // capta a una persona, no a una empresa. Copiar `name` ahí creaba una
+            // empresa fantasma con el nombre del lead (la backfilea crm_companies).
             await pool.query(`
                 INSERT INTO crm_clients
                   (id, name, company, email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date,
                    assigned_to, assigned_to_name, source, updated_at)
                 VALUES ($1,$2,$3,$4,$5,'Lead','Por cotizar',0,$6,$7,70,'Tarjeta Digital',$8,$9,$10,'Tarjeta Digital',NOW())
-            `, [id, name, name, email, phone || '', today, city || 'No especificada', today, ownerId, ownerName]);
+            `, [id, name, '', email, phone || '', today, city || 'No especificada', today, ownerId, ownerName]);
         }
 
         // Save a pipeline task tagged with the biolink source and auto-assigned to the seller

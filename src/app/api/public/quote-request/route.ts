@@ -234,7 +234,9 @@ export async function POST(req: NextRequest) {
                     source = COALESCE(crm_clients.source, EXCLUDED.source),
                     updated_at = NOW()
             `, [
-                clientId, name, company || name, email, phone || '',
+                // company vacío si el cotizador web no lo pide — sin `|| name`
+                // para no crear una empresa fantasma con el nombre del cliente.
+                clientId, name, company || '', email, phone || '',
                 formatCOP(total), today, city || 'No especificada', today,
                 assignedSellerId || null, assignedSellerName || null,
             ]);
@@ -247,8 +249,11 @@ export async function POST(req: NextRequest) {
 
             const newQuote = {
                 id: quoteId, number: quoteNumber,
+                // client = rótulo visible (empresa si hay, si no la persona).
+                // clientCompany = empresa real que va al PDF; vacía si no hay,
+                // para no imprimir a la persona como razón social.
                 client: company || name, clientId: realClientId,
-                clientEmail: email, clientCompany: company || name,
+                clientEmail: email, clientCompany: company || '',
                 date: today, total: formatCOP(total), numericTotal: total,
                 subtotal, tax,
                 items: items.map((it, idx) => ({

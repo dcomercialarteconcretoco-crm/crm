@@ -70,7 +70,12 @@ export async function POST(req: NextRequest) {
     const newClient = {
         id: clientId,
         name,
-        company: company || name,
+        // Empresa REAL, vacía si el pedido de Woo no la trae. NO copiamos aquí
+        // el nombre de la persona: /api/clients auto-crea una fila en
+        // crm_companies con cualquier `company` no vacío, así que el fallback
+        // `|| name` sembraba empresas fantasma llamadas como el comprador. El
+        // rótulo visible del negocio se resuelve aparte (task.client abajo).
+        company: company || '',
         email,
         phone,
         city,
@@ -92,7 +97,10 @@ export async function POST(req: NextRequest) {
         client: name,
         clientId,
         clientEmail: email,
-        clientCompany: company || name,
+        // Empresa real → viaja al PDF (leadCompany). Vacía si no hay: el
+        // pdf-generator promueve a la persona como destinatario. Con `|| name`
+        // el PDF imprimía al comprador como si fuera una razón social.
+        clientCompany: company || '',
         leadCity: city,
         items: [quoteItem],
         subtotal,

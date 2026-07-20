@@ -1239,8 +1239,15 @@ export default function PipelinePage() {
                     const splitNotes = rawNotes.split('|').filter((n: string) => n.trim().length > 0);
                     const activities: Activity[] = splitNotes.map((note: string, idx: number) => ({ id: `act-${Date.now()}-${idx}`, type: 'note', content: note.trim(), timestamp: new Date() }));
                     if (activities.length === 0) activities.push({ id: `act-${Date.now()}-init`, type: 'system', content: 'Lead importado desde sistema heredado.', timestamp: new Date(creationDate) });
-                    const clientId = addClient({ name: contactName, company: 'Empresa', email, phone, status: 'Lead', value: valueStr, ltv: 0, lastContact: new Date().toISOString(), city: 'Desconocida', score: aiScore, category: 'Importación', registrationDate: creationDate });
-                    addTask({ title, client: 'Empresa', clientId, contactName, value: valueStr, numericValue, priority: numericValue > 10000000 ? 'High' : 'Medium', tags: ['Importado'], aiScore, source, assignedTo, activities, stageId });
+                    // values[0] es la columna de empresa del CSV heredado (antes
+                    // se ignoraba y se hardcodeaba 'Empresa', lo que creaba UNA
+                    // empresa literal "Empresa" agrupando a todos los importados
+                    // sin empresa real). Ahora: empresa real si la trae, vacío si
+                    // no; y el rótulo del tablero cae al nombre del contacto.
+                    const importCompany = (values[0] || '').trim();
+                    const importLabel = importCompany || contactName;
+                    const clientId = addClient({ name: contactName, company: importCompany, email, phone, status: 'Lead', value: valueStr, ltv: 0, lastContact: new Date().toISOString(), city: 'Desconocida', score: aiScore, category: 'Importación', registrationDate: creationDate });
+                    addTask({ title, client: importLabel, clientId, contactName, value: valueStr, numericValue, priority: numericValue > 10000000 ? 'High' : 'Medium', tags: ['Importado'], aiScore, source, assignedTo, activities, stageId });
                     importedCount++;
                 }
             }
