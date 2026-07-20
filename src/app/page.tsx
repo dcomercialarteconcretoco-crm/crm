@@ -499,7 +499,9 @@ export default function Home() {
       ],
       topLeads: topClients.map((client) => ({
         name: client.name,
-        company: client.company,
+        // Celda del PDF "Leads de alto valor": sin fallback los independientes
+        // salían con la columna en blanco. Mismo criterio que analytics:283.
+        company: client.company || '—',
         score: client.score,
       })),
     });

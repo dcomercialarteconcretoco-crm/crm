@@ -95,7 +95,14 @@ export default function AutorizacionesPage() {
         if (q.clientId) {
             return clients.find(c => c.id === q.clientId) || null;
         }
-        return clients.find(c => c.name === q.client || c.company === q.client) || null;
+        // Fallback por nombre solo para cotizaciones viejas sin clientId. El
+        // `.trim()` no-vacío es obligatorio: los contactos independientes tienen
+        // `company: ''`, y comparar '' contra un q.client vacío devolvía el
+        // primer independiente de la lista — el detalle mostraba el email de
+        // otra persona y :133 le enviaba la cotización aprobada a ese correo.
+        const needle = (q.client || '').trim();
+        if (!needle) return null;
+        return clients.find(c => c.name?.trim() === needle || (!!c.company?.trim() && c.company.trim() === needle)) || null;
     };
 
     // ── Aprobar: dispara envío por Resend y actualiza status ──────────────────

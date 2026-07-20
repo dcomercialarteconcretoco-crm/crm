@@ -172,11 +172,18 @@ function extractActionLinks(
     tasks.forEach(t => {
         const tNames = [t.title, t.client, t.contactName].filter(n => n && n.length > 3) as string[];
         if (tNames.some(n => low.includes(n.toLowerCase()))) {
-            const clientId = t.clientId ||
-                clients.find(c =>
-                    c.name?.toLowerCase() === t.client?.toLowerCase() ||
-                    c.company?.toLowerCase() === t.client?.toLowerCase()
-                )?.id;
+            const needle = t.client?.trim().toLowerCase();
+            // `needle` tiene que ser no-vacío antes de comparar: los contactos
+            // registrados como persona independiente llevan `company: ''`, así
+            // que un `'' === ''` enganchaba a CUALQUIER independiente con
+            // CUALQUIER task sin cliente y el asistente terminaba abriendo la
+            // ficha de un tercero.
+            const clientId = t.clientId || (needle
+                ? clients.find(c =>
+                    c.name?.trim().toLowerCase() === needle ||
+                    (!!c.company?.trim() && c.company.trim().toLowerCase() === needle)
+                )?.id
+                : undefined);
             const key = `task-${clientId || t.id}`;
             if (!seen.has(key)) {
                 seen.add(key);
@@ -194,10 +201,16 @@ function extractActionLinks(
             const key = `quote-${q.id}`;
             if (!seen.has(key)) {
                 seen.add(key);
-                const clientId = clients.find(c =>
-                    c.name?.toLowerCase() === q.client?.toLowerCase() ||
-                    c.company?.toLowerCase() === q.client?.toLowerCase()
-                )?.id || (q.clientId ? q.clientId : undefined);
+                // Mismo cuidado que arriba con el company vacío de los
+                // independientes: sin la guarda, '' matchea '' y la cotización
+                // se enlaza a la ficha equivocada.
+                const qNeedle = q.client?.trim().toLowerCase();
+                const clientId = (qNeedle
+                    ? clients.find(c =>
+                        c.name?.trim().toLowerCase() === qNeedle ||
+                        (!!c.company?.trim() && c.company.trim().toLowerCase() === qNeedle)
+                    )?.id
+                    : undefined) || (q.clientId ? q.clientId : undefined);
                 results.push(clientId
                     ? { label: `Cotización ${q.number}`, href: `/leads/${clientId}`, icon: '📄' }
                     : { label: `Cotización ${q.number}`, href: '/quotes', icon: '📄' }

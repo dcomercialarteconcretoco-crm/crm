@@ -1083,7 +1083,12 @@ export default function SchedulerPage() {
                                                     </div>
                                                     <div>
                                                         <p className="text-xs font-black text-foreground">{lead.name}</p>
-                                                        <p className="text-[9px] text-muted-foreground truncate max-w-[140px]">{lead.company}</p>
+                                                        {/* Sin el fallback quedaba un <p> vacío ocupando su renglón.
+                                                            El texto es "Sin empresa" y no "Persona independiente"
+                                                            porque company vacío también aparece en contactos viejos
+                                                            a los que simplemente nunca les cargaron la empresa —
+                                                            afirmar que son independientes sería inventar el dato. */}
+                                                        <p className="text-[9px] text-muted-foreground truncate max-w-[140px]">{lead.company || 'Sin empresa'}</p>
                                                     </div>
                                                 </div>
                                                 {form.invitees.find(i => i.id === lead.id) && <CheckCircle2 className="w-4 h-4 text-primary" />}

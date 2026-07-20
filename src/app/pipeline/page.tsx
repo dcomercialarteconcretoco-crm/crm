@@ -588,20 +588,50 @@ export default function PipelinePage() {
         image: '',
     });
 
+    // Alta inline de contacto desde el modal de negocio.
+    //
+    // `kind` distingue los dos tipos de socio que maneja ArteConcreto (pedido de
+    // Valentina, 18-jul-2026: "que tengamos la opción de registrar el negocio
+    // como empresa o persona independiente"):
+    //
+    //   'company'    → constructora/entidad. Se enlaza a Company vía companyId y
+    //                  el contacto tiene un cargo dentro de esa empresa.
+    //   'individual' → arquitecto, contratista o particular que compra a nombre
+    //                  propio. NO tiene empresa: `company` va vacío y companyId
+    //                  undefined.
+    //
+    // Vacío-es-independiente ya era la convención del CRM antes de este modal:
+    // leads/[id]/page.tsx:351 rotula `lead.company ? 'Socio Corporativo' :
+    // 'Cliente Individual'`, el dashboard muestra "Cliente directo" y el
+    // pdf-generator (:448) promueve a la persona como destinatario cuando no hay
+    // empresa. Por eso NO agregamos columna nueva a crm_clients: mandar company
+    // vacío es exactamente lo que el resto del sistema ya sabe interpretar.
+    //
+    // Ojo con el otro lado: /api/clients/route.ts:80 AUTO-CREA una empresa con
+    // cualquier `company` no vacío que reciba. Si a un independiente le
+    // metiéramos su propio nombre en `company` para "que se vea algo", el CRM
+    // terminaría con empresas fantasma llamadas "Juan Pérez" contaminando el
+    // combobox de todos los vendedores. De ahí que en modo individual mandemos
+    // '' estricto y resolvamos el nombre a mostrar aparte (ver dealLabel en
+    // handleCreateDeal).
     const [inlineClient, setInlineClient] = useState<{
+        kind: 'company' | 'individual';
         name: string;
         company: string;
         companyId: string;
         position: string;
         email: string;
+        phone: string;
         city: string;
         category: string;
     }>({
+        kind: 'company',
         name: '',
         company: '',
         companyId: '',
         position: '',
         email: '',
+        phone: '',
         city: settings.cities[0]?.name || 'Bogotá',
         category: settings.sectors[0] || 'Infraestructura'
     });
@@ -692,6 +722,26 @@ export default function PipelinePage() {
     const sumOfNewDealProducts = () =>
         newDeal.products.reduce((acc, p) => acc + p.price * p.quantity, 0);
 
+    // Qué falta para poder registrar el contacto inline. Devuelve null cuando el
+    // form está completo. Antes NO había ninguna validación acá: abrir el panel
+    // "Registrar Nuevo" y dejarlo vacío habilitaba "Confirmar Lanzamiento" igual,
+    // y se creaba un cliente con name/company/email en blanco (el audit log
+    // quedaba literalmente como "Registro manual de nuevo lead:  ()").
+    const inlineClientError = useMemo(() => {
+        if (!showNewClientForm) return null;
+        if (!inlineClient.name.trim()) {
+            return inlineClient.kind === 'individual'
+                ? 'Escribe el nombre de la persona.'
+                : 'Escribe el nombre del contacto.';
+        }
+        // La empresa solo es obligatoria en modo corporativo. En modo
+        // independiente la persona ES el socio, así que no hay nada que exigir.
+        if (inlineClient.kind === 'company' && !inlineClient.company.trim()) {
+            return 'Selecciona o crea la empresa.';
+        }
+        return null;
+    }, [showNewClientForm, inlineClient.kind, inlineClient.name, inlineClient.company]);
+
     const manualQuoteNumberConflict = newDeal.quoteNumber.trim()
         ? quotes.find(q => !q.isHistorical && (q.quoteNumber || q.number || '').trim().toLowerCase() === newDeal.quoteNumber.trim().toLowerCase())
         : null;
@@ -708,7 +758,12 @@ export default function PipelinePage() {
         const payload = {
             orderNumber,
             clientName: task.contactName || task.client,
-            clientCompany: task.client,
+            // La empresa sale de la ficha del cliente, no de `task.client`: ese
+            // campo es el rótulo del negocio y en un independiente vale el
+            // nombre de la persona, con lo que la orden de producción salía con
+            // Contacto y Empresa repetidos. Vacío es correcto y honesto cuando
+            // el socio no tiene empresa.
+            clientCompany: clients.find(c => c.id === task.clientId)?.company || '',
             sellerName: task.assignedTo || 'Equipo Comercial',
             products: prods.length > 0 ? prods : [{ name: task.title, price: task.numericValue, quantity: 1 }],
             totalValue: task.numericValue,
@@ -754,7 +809,12 @@ export default function PipelinePage() {
             const quoteNumber = linkedQuote.quoteNumber || linkedQuote.number || linkedQuote.id;
             const items = (linkedQuote.items && linkedQuote.items.length > 0)
                 ? linkedQuote.items.map(i => ({ name: i.name, price: i.price, quantity: i.quantity, unit: i.unit || 'Und' }))
-                : [{ name: linkedQuote.clientCompany || linkedQuote.client || task.title, price: linkedQuote.numericTotal || task.numericValue || 0, quantity: 1, unit: 'gl' }];
+                // El ítem "global" se nombra con el título del negocio, NO con el
+                // cliente: la cadena vieja (clientCompany || client || title)
+                // ponía el nombre del socio como descripción del ítem, y para un
+                // independiente eso quedaba como "Camilo Restrepo · $4.500.000"
+                // en la cotización que ve el cliente.
+                : [{ name: task.title || linkedQuote.referencia || 'Oferta personalizada', price: linkedQuote.numericTotal || task.numericValue || 0, quantity: 1, unit: 'gl' }];
             const subtotal = linkedQuote.subtotal ?? items.reduce((acc, item) => acc + item.price * item.quantity, 0);
             const total = linkedQuote.numericTotal || task.numericValue || subtotal;
             const tax = linkedQuote.tax ?? Math.round(total - subtotal);
@@ -766,7 +826,15 @@ export default function PipelinePage() {
                     quoteNumber,
                     clientName: linkedQuote.client || task.contactName || client?.name || task.client,
                     clientEmail: email,
-                    clientCompany: linkedQuote.clientCompany || task.client || client?.company || '',
+                    // NO caer a `task.client` acá. `task.client` es el rótulo del
+                    // negocio (dealLabel), que para una persona independiente ES
+                    // el nombre de la persona — el mismo valor que ya va en
+                    // clientName. El template de /api/quotes/send:119 arma
+                    // "Estimado/a {clientName} — {clientCompany}", así que el
+                    // correo que recibía el cliente decía "Estimado/a Camilo
+                    // Restrepo — Camilo Restrepo". Este slot es la EMPRESA: si no
+                    // hay, va vacío y el template omite el guión solo.
+                    clientCompany: linkedQuote.clientCompany || client?.company || '',
                     sellerName: linkedQuote.sellerName || task.assignedTo || currentUser?.name || 'ArteConcreto',
                     sellerId: linkedQuote.sellerId || currentUser?.id || '',
                     sentAt,
@@ -814,6 +882,20 @@ export default function PipelinePage() {
         setNoteText('');
     };
 
+    // Solo se llama tras crear el negocio con éxito. NO se llama al cerrar el
+    // modal: "Cancelar" y la X conservan el borrador a propósito, porque el
+    // vendedor cierra a mitad de camino para ir a buscar un precio o el nombre
+    // exacto de la obra y espera encontrar todo como lo dejó. Borrarle el
+    // título, los ítems y el valor en ese momento sería peor que el modo
+    // Empresa/Independiente quedando "pegado" — que además se ve, porque la
+    // pastilla activa está resaltada.
+    const resetNewDealForm = () => {
+        setShowNewClientForm(false);
+        setClientSearch('');
+        setNewDeal({ title: '', clientId: '', priority: 'Medium', stageId: firstStageId, assignedTo: '', quoteNumber: '', products: [], manualValue: 0 });
+        setInlineClient({ kind: 'company', name: '', company: '', companyId: '', position: '', email: '', phone: '', city: settings.cities[0]?.name || 'Bogotá', category: settings.sectors[0] || 'Infraestructura' });
+    };
+
     const handleCreateDeal = async () => {
         if (manualQuoteNumberConflict) {
             addNotification({
@@ -823,18 +905,35 @@ export default function PipelinePage() {
             });
             return;
         }
+        if (inlineClientError) {
+            addNotification({
+                title: 'Faltan datos del socio',
+                description: inlineClientError,
+                type: 'alert',
+            });
+            return;
+        }
         setIsProcessing(true);
         let finalClientId = newDeal.clientId;
 
+        // En modo independiente forzamos company/companyId vacíos aunque
+        // el vendedor haya tipeado algo antes de cambiar de pestaña. Sin este
+        // saneo, alternar "Empresa → Persona independiente" dejaría el companyId
+        // residual pegado y el contacto nacería enlazado a una empresa que ya no
+        // corresponde.
+        const isIndividual = inlineClient.kind === 'individual';
+        const inlineCompany = isIndividual ? '' : inlineClient.company.trim();
+        const inlineCompanyId = isIndividual ? undefined : (inlineClient.companyId || undefined);
+
         if (showNewClientForm) {
-            setAutomationStep('Registrando Nuevo Socio Industrial...');
+            setAutomationStep(isIndividual ? 'Registrando Persona Independiente...' : 'Registrando Nuevo Socio Industrial...');
             const newId = addClient({
-                name: inlineClient.name,
-                company: inlineClient.company,
-                companyId: inlineClient.companyId || undefined,
-                position: inlineClient.position || undefined,
-                email: inlineClient.email,
-                phone: '',
+                name: inlineClient.name.trim(),
+                company: inlineCompany,
+                companyId: inlineCompanyId,
+                position: inlineClient.position.trim() || undefined,
+                email: inlineClient.email.trim(),
+                phone: inlineClient.phone.trim(),
                 status: 'Lead',
                 value: '$0',
                 ltv: 0,
@@ -845,7 +944,7 @@ export default function PipelinePage() {
                 registrationDate: new Date().toISOString().split('T')[0]
             });
             finalClientId = newId;
-            addAuditLog({ userId: currentUser.id, userName: currentUser.name, userRole: canReassign ? 'SuperAdmin' : 'Vendedor', action: 'LEAD_CREATED', targetId: newId, targetName: inlineClient.company, details: `Registro manual de nuevo lead: ${inlineClient.name} (${inlineClient.company})`, verified: true });
+            addAuditLog({ userId: currentUser.id, userName: currentUser.name, userRole: canReassign ? 'SuperAdmin' : 'Vendedor', action: 'LEAD_CREATED', targetId: newId, targetName: inlineCompany || inlineClient.name.trim(), details: `Registro manual de nuevo lead: ${inlineClient.name.trim()} (${inlineCompany || 'Persona independiente'})`, verified: true });
             await new Promise(r => setTimeout(r, 800));
         }
 
@@ -877,9 +976,24 @@ export default function PipelinePage() {
         }
 
         const clientLookup = clients.find(c => c.id === finalClientId);
-        const clientCompany = showNewClientForm ? inlineClient.company : clientLookup?.company || 'Cliente';
-        const clientName = showNewClientForm ? inlineClient.name : clientLookup?.name || 'Contacto';
-        const clientEmail = showNewClientForm ? inlineClient.email : clientLookup?.email || '';
+        const clientName = (showNewClientForm ? inlineClient.name.trim() : clientLookup?.name) || 'Contacto';
+        const clientEmail = (showNewClientForm ? inlineClient.email.trim() : clientLookup?.email) || '';
+        // Dos valores DISTINTOS a propósito — antes eran uno solo y por eso el
+        // modal no podía soportar independientes:
+        //
+        //   clientCompany → la empresa REAL. Vacío cuando es persona
+        //     independiente. Viaja a quote.clientCompany y de ahí a
+        //     pdf-generator (leadCompany). El PDF ya sabe qué hacer con vacío:
+        //     promueve a la persona como destinatario (pdf-generator.ts:448).
+        //     Si acá metiéramos el nombre de la persona, el PDF la imprimiría
+        //     como si fuera una razón social.
+        //
+        //   dealLabel → el rótulo para humanos. Es lo que se pinta en la tarjeta
+        //     del pipeline (task.client, :335), en el toast y en la auditoría.
+        //     Ahí sí cae el nombre de la persona, porque una tarjeta con el
+        //     renglón de empresa en blanco es ilegible en el tablero.
+        const clientCompany = showNewClientForm ? inlineCompany : (clientLookup?.company || '');
+        const dealLabel = clientCompany || clientName;
         const total = calculateNewDealTotal();
         const itemsTotal = sumOfNewDealProducts();
         const quoteItems = newDeal.products.length > 0
@@ -921,7 +1035,7 @@ export default function PipelinePage() {
         // ART-352-2026: Juan creó la cotización en un navegador con
         // sesión de Lisseth y quedó con seller de ella).
         const quoteId = await addQuote({
-            client: clientCompany,
+            client: dealLabel,
             clientId: finalClientId,
             clientCompany: clientCompany,
             clientEmail: clientEmail,
@@ -956,14 +1070,12 @@ export default function PipelinePage() {
             activities: [{ id: `sys-${Date.now()}`, type: 'system', content: `Negocio creado por ${actualSeller.name}.`, timestamp: new Date() }],
         });
 
-        addNotification({ title: 'Negocio interno creado', description: `${clientCompany} quedó vinculado con ${actualSeller.name}. No se envió información al cliente.`, type: 'success' });
-        addAuditLog({ userId: actualSeller.id, userName: actualSeller.name, userRole: sellers.find(s => s.id === actualSeller.id)?.role || 'Vendedor', action: 'QUOTE_CREATED', targetId: autoTaskId, targetName: clientCompany, details: `Cotización interna creada desde pipeline para ${clientCompany} · Total: $${total.toLocaleString()} · Sin envío al cliente`, verified: true });
+        addNotification({ title: 'Negocio interno creado', description: `${dealLabel} quedó vinculado con ${actualSeller.name}. No se envió información al cliente.`, type: 'success' });
+        addAuditLog({ userId: actualSeller.id, userName: actualSeller.name, userRole: sellers.find(s => s.id === actualSeller.id)?.role || 'Vendedor', action: 'QUOTE_CREATED', targetId: autoTaskId, targetName: dealLabel, details: `Cotización interna creada desde pipeline para ${dealLabel} · Total: $${total.toLocaleString()} · Sin envío al cliente`, verified: true });
 
         setIsProcessing(false);
         setIsNewModalOpen(false);
-        setShowNewClientForm(false);
-        setNewDeal({ title: '', clientId: '', priority: 'Medium', stageId: firstStageId, assignedTo: '', quoteNumber: '', products: [], manualValue: 0 });
-        setInlineClient({ name: '', company: '', companyId: '', position: '', email: '', city: settings.cities[0]?.name || 'Bogotá', category: settings.sectors[0] || 'Infraestructura' });
+        resetNewDealForm();
     };
 
     const handleDelete = () => {
@@ -1483,24 +1595,72 @@ export default function PipelinePage() {
                                                                 ? `Vincular Cliente existente… (${clients.length})`
                                                                 : `${filteredClients.length} de ${clients.length} coinciden`}
                                                         </option>
-                                                        {filteredClients.map(c => <option key={c.id} value={c.id}>{c.company} • {c.name}</option>)}
+                                                        {/* Los independientes no tienen empresa: mostrarlos como
+                                                            " • Juan Pérez" dejaba la opción arrancando con un
+                                                            bullet huérfano. Con company vacío cae solo el nombre. */}
+                                                        {filteredClients.map(c => <option key={c.id} value={c.id}>{c.company ? `${c.company} • ${c.name}` : c.name}</option>)}
                                                     </select>
                                                 </div>
                                             </div>
                                         ) : (
                                             <div className="space-y-3 p-5 bg-muted border border-border rounded-2xl animate-in slide-in-from-top-2 duration-300">
+                                                {/* Tipo de socio. En modo independiente desaparece el selector de
+                                                    empresa (no aplica a alguien que compra a nombre propio) y
+                                                    aparece el teléfono, que suele ser el único canal real de
+                                                    contacto de un arquitecto o contratista particular. */}
+                                                <div className="grid grid-cols-2 gap-2 p-1 bg-white border border-border rounded-xl">
+                                                    {([
+                                                        { id: 'company' as const, label: 'Empresa', icon: Building2 },
+                                                        { id: 'individual' as const, label: 'Persona independiente', icon: User },
+                                                    ]).map(opt => (
+                                                        <button
+                                                            key={opt.id}
+                                                            type="button"
+                                                            onClick={() => setInlineClient({ ...inlineClient, kind: opt.id })}
+                                                            className={clsx(
+                                                                'flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all',
+                                                                inlineClient.kind === opt.id
+                                                                    ? 'bg-primary text-black shadow-sm'
+                                                                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                                                            )}
+                                                        >
+                                                            <opt.icon className="w-3 h-3 shrink-0" />
+                                                            <span className="truncate">{opt.label}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+
                                                 <div className="space-y-3">
-                                                    <CompanyCombobox
-                                                        label=""
-                                                        value={inlineClient.companyId}
-                                                        valueName={inlineClient.company}
-                                                        onChange={({ companyId, companyName }) =>
-                                                            setInlineClient({ ...inlineClient, companyId, company: companyName })
-                                                        }
-                                                    />
-                                                    <input type="text" placeholder="Nombre del Contacto" value={inlineClient.name} onChange={e => setInlineClient({ ...inlineClient, name: e.target.value })} className="w-full bg-white border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-bold outline-none focus:border-primary" />
-                                                    <input type="text" placeholder="Cargo (Director de Compras, Asistente, ...)" value={inlineClient.position} onChange={e => setInlineClient({ ...inlineClient, position: e.target.value })} className="w-full bg-white border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-bold outline-none focus:border-primary" />
-                                                    <input type="email" placeholder="Email Corporativo" value={inlineClient.email} onChange={e => setInlineClient({ ...inlineClient, email: e.target.value })} className="w-full bg-white border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-bold outline-none focus:border-primary" />
+                                                    {/* allowEmpty se deja en su default (true) a propósito. Que la
+                                                        empresa sea obligatoria en modo corporativo ya lo impone
+                                                        inlineClientError; pasarle allowEmpty en false era redundante
+                                                        y además borraba el botón "Sin empresa", que es el ÚNICO que
+                                                        dispara clear() en el combobox. Sin él, una empresa elegida
+                                                        por error no se podía deseleccionar, y si el POST a
+                                                        /api/companies fallaba el modo empresa quedaba sin salida. */}
+                                                    {inlineClient.kind === 'company' && (
+                                                        <CompanyCombobox
+                                                            label=""
+                                                            value={inlineClient.companyId}
+                                                            valueName={inlineClient.company}
+                                                            onChange={({ companyId, companyName }) =>
+                                                                setInlineClient({ ...inlineClient, companyId, company: companyName })
+                                                            }
+                                                        />
+                                                    )}
+                                                    <input type="text" placeholder={inlineClient.kind === 'individual' ? 'Nombre completo de la persona' : 'Nombre del Contacto'} value={inlineClient.name} onChange={e => setInlineClient({ ...inlineClient, name: e.target.value })} className="w-full bg-white border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-bold outline-none focus:border-primary" />
+                                                    {/* `position` se muestra en los DOS modos. En corporativo es el
+                                                        cargo dentro de la empresa; en independiente es el oficio con
+                                                        el que el vendedor lo reconoce ("Arquitecto", "Residente de
+                                                        obra"). Esconderlo en modo independiente quitaba una
+                                                        combinación que el form viejo sí permitía. */}
+                                                    <input type="text" placeholder={inlineClient.kind === 'individual' ? 'Profesión u oficio (Arquitecto, Contratista, ...)' : 'Cargo (Director de Compras, Asistente, ...)'} value={inlineClient.position} onChange={e => setInlineClient({ ...inlineClient, position: e.target.value })} className="w-full bg-white border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-bold outline-none focus:border-primary" />
+                                                    <div className={clsx(inlineClient.kind === 'individual' && 'grid grid-cols-2 gap-3')}>
+                                                        <input type="email" placeholder={inlineClient.kind === 'individual' ? 'Email' : 'Email Corporativo'} value={inlineClient.email} onChange={e => setInlineClient({ ...inlineClient, email: e.target.value })} className="w-full bg-white border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-bold outline-none focus:border-primary" />
+                                                        {inlineClient.kind === 'individual' && (
+                                                            <input type="tel" placeholder="Teléfono / WhatsApp" value={inlineClient.phone} onChange={e => setInlineClient({ ...inlineClient, phone: e.target.value })} className="w-full bg-white border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-bold outline-none focus:border-primary" />
+                                                        )}
+                                                    </div>
                                                     <div className="grid grid-cols-2 gap-3">
                                                         <SearchableSelect options={settings.cities} value={inlineClient.city} onChange={val => setInlineClient({ ...inlineClient, city: val })} placeholder="Ciudad" />
                                                         <SectorSelect
@@ -1509,6 +1669,9 @@ export default function PipelinePage() {
                                                             selectClassName="w-full bg-white border border-border rounded-xl px-4 py-2.5 text-xs text-foreground font-bold outline-none focus:border-primary appearance-none"
                                                         />
                                                     </div>
+                                                    {inlineClientError && (
+                                                        <p className="text-[10px] font-bold text-rose-600 uppercase tracking-widest">{inlineClientError}</p>
+                                                    )}
                                                 </div>
                                             </div>
                                         )}
@@ -1713,7 +1876,7 @@ export default function PipelinePage() {
                                 {/* Disabled si: está procesando, no hay cliente vinculado/nuevo, no hay título,
                                     o no hay valor monetario (ni de productos ni manual). Antes exigía
                                     productos.length > 0, lo que bloqueaba el caso de servicios/mano de obra. */}
-                                <button onClick={handleCreateDeal} disabled={isProcessing || !!manualQuoteNumberConflict || (!newDeal.clientId && !showNewClientForm) || !newDeal.title || calculateNewDealTotal() <= 0} className="bg-primary text-black font-bold px-8 py-2.5 rounded-xl shadow-lg disabled:opacity-20 uppercase text-[10px] tracking-widest hover:brightness-105 active:scale-[0.98] transition-all flex items-center gap-2">
+                                <button onClick={handleCreateDeal} disabled={isProcessing || !!manualQuoteNumberConflict || !!inlineClientError || (!newDeal.clientId && !showNewClientForm) || !newDeal.title || calculateNewDealTotal() <= 0} className="bg-primary text-black font-bold px-8 py-2.5 rounded-xl shadow-lg disabled:opacity-20 uppercase text-[10px] tracking-widest hover:brightness-105 active:scale-[0.98] transition-all flex items-center gap-2">
                                     {isProcessing ? <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" /> : <><ShieldCheck className="w-4 h-4" /> Confirmar Lanzamiento</>}
                                 </button>
                             </div>
