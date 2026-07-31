@@ -737,8 +737,18 @@ export const generateProposalPDF = async (
                 4: { cellWidth: 28, halign: 'right' },
                 5: { cellWidth: 30, halign: 'right' },
             },
-            margin: { left: LM, right: 18 },
+            // top/bottom explícitos: el default de autotable (~14mm) dejaba que
+            // la tabla pintara SOBRE la franja negra del pie (empieza a 17mm del
+            // borde) y pegada al mini-header de las páginas 2+ (~20mm).
+            margin: { left: LM, right: 18, top: 24, bottom: 22 },
             didDrawCell: drawImageCell,
+            // Caso ART-567/571 (31-jul-2026): sin estas dos opciones autoTable
+            // PARTE una fila entre páginas (descripción huérfana en la página
+            // siguiente, sin imagen ni valores) y repite el pie de totales en
+            // CADA página de la tabla. La fila completa debe saltar de página
+            // y los totales salir una sola vez al final.
+            rowPageBreak: 'avoid',
+            showFoot: 'lastPage',
             foot: [
                 ['', '', '', '', 'Subtotal:', fmt(data.subtotal || 0)],
                 ['', '', '', '', 'IVA (19%):', fmt(data.tax || 0)],
@@ -775,6 +785,7 @@ export const generateProposalPDF = async (
             fy = ((doc as any).lastAutoTable?.finalY ?? fy + 30) + 4;
         }
 
+        ensureSpace(14);
         doc.setFillColor(...PRIMARY);
         doc.roundedRect(LM + 118, fy, 56, 10, 2, 2, 'F');
         doc.setFont('helvetica', 'bold');
@@ -825,8 +836,11 @@ export const generateProposalPDF = async (
                 4: { cellWidth: 28, halign: 'right' },
                 5: { cellWidth: 30, halign: 'right' },
             },
-            margin: { left: LM, right: 18 },
+            margin: { left: LM, right: 18, top: 24, bottom: 22 },
             didDrawCell: drawImageCell,
+            // Ver comentario en la rama legacy (caso ART-567/571, 31-jul-2026).
+            rowPageBreak: 'avoid',
+            showFoot: 'lastPage',
             foot: [
                 ['', '', '', '', 'Valor total antes de IVA:', fmt(c.subtotalLine1)],
                 ['', '', '', '', 'IVA:', fmt(c.taxAmount)],
@@ -836,6 +850,7 @@ export const generateProposalPDF = async (
         fy = ((doc as any).lastAutoTable?.finalY ?? ay + 40) + 2;
 
         // Total destacado
+        ensureSpace(14);
         doc.setFillColor(...PRIMARY);
         doc.roundedRect(LM + 118, fy, 56, 10, 2, 2, 'F');
         doc.setFont('helvetica', 'bold');
@@ -874,8 +889,11 @@ export const generateProposalPDF = async (
                 4: { cellWidth: 28, halign: 'right' },
                 5: { cellWidth: 30, halign: 'right' },
             },
-            margin: { left: LM, right: 18 },
+            margin: { left: LM, right: 18, top: 24, bottom: 22 },
             didDrawCell: drawImageCell,
+            // Ver comentario en la rama legacy (caso ART-567/571, 31-jul-2026).
+            rowPageBreak: 'avoid',
+            showFoot: 'lastPage',
             foot: [
                 ['', '', '', '', 'Subtotal:', fmt(c.productsSubtotal)],
                 ['', '', '', '', `Administración (${data.adminPercent ?? 0}%):`, fmt(c.adminAmount ?? 0)],
@@ -888,6 +906,7 @@ export const generateProposalPDF = async (
         fy = ((doc as any).lastAutoTable?.finalY ?? ay + 60) + 2;
 
         // Total destacado
+        ensureSpace(14);
         doc.setFillColor(...PRIMARY);
         doc.roundedRect(LM + 118, fy, 56, 10, 2, 2, 'F');
         doc.setFont('helvetica', 'bold');
