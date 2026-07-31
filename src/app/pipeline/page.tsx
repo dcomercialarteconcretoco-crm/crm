@@ -674,7 +674,31 @@ export default function PipelinePage() {
         }
         const reader = new FileReader();
         reader.onload = () => {
-            setCustomProduct(prev => ({ ...prev, image: String(reader.result || '') }));
+            // Igual que en QuoteEngine (caso ART-567, 30-jul-2026): la imagen se
+            // reescala SIEMPRE a máx 1200px JPEG. Una foto de celular cruda en
+            // base64 pesa varios MB dentro de la cotización y el server rechaza
+            // el guardado (413) de forma permanente.
+            const img = new Image();
+            img.onload = () => {
+                const maxSide = 1200;
+                const scale = Math.min(1, maxSide / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round((img.naturalWidth || 1) * scale));
+                canvas.height = Math.max(1, Math.round((img.naturalHeight || 1) * scale));
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    setCustomProduct(prev => ({ ...prev, image: String(reader.result || '') }));
+                    return;
+                }
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                setCustomProduct(prev => ({ ...prev, image: canvas.toDataURL('image/jpeg', 0.82) }));
+            };
+            img.onerror = () => {
+                addNotification({ title: 'No se pudo leer la imagen', description: 'Intenta con una imagen JPG o PNG.', type: 'alert' });
+            };
+            img.src = String(reader.result || '');
         };
         reader.readAsDataURL(file);
     };
@@ -1034,7 +1058,7 @@ export default function PipelinePage() {
         // la cookie del navegador está cruzada con otro vendedor (caso
         // ART-352-2026: Juan creó la cotización en un navegador con
         // sesión de Lisseth y quedó con seller de ella).
-        const quoteId = await addQuote({
+        const { id: quoteId } = await addQuote({
             client: dealLabel,
             clientId: finalClientId,
             clientCompany: clientCompany,

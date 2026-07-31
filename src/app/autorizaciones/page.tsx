@@ -159,7 +159,10 @@ export default function AutorizacionesPage() {
             const data = await res.json().catch(() => ({}));
 
             if (res.ok) {
-                // Éxito — la cotización queda en Sent (aprobada + enviada)
+                // Éxito — la cotización queda en Sent (aprobada + enviada).
+                // El correo YA salió: si el guardado del status falla, la cola
+                // de reintento lo repara sola, pero la admin debe saberlo para
+                // NO volver a aprobar (re-enviaría el correo al cliente).
                 updateQuote(q.id, {
                     status: 'Sent',
                     approvedBy: currentUser?.id || '',
@@ -173,6 +176,14 @@ export default function AutorizacionesPage() {
                     deliveryError: undefined,
                     // Limpiar flags legacy del flujo anterior
                     pendingAction: undefined,
+                }).then(persisted => {
+                    if (!persisted) {
+                        addNotification({
+                            title: '⚠️ Aprobación sin confirmar en el servidor',
+                            description: `El correo de ${q.quoteNumber || q.number} SÍ salió al cliente, pero el cambio de estado aún no se guarda. El sistema lo reintentará solo — deja esta pestaña abierta y NO vuelvas a aprobar esta cotización.`,
+                            type: 'alert',
+                        });
+                    }
                 });
                 addAuditLog({
                     userId: currentUser?.id || '',

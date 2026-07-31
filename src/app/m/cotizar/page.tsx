@@ -20,6 +20,7 @@ export default function MobileCotizar() {
     const [items, setItems] = useState<LineItem[]>([]);
     const [sent, setSent] = useState(false);
     const [sending, setSending] = useState(false);
+    const [sendError, setSendError] = useState<string | null>(null);
     const [showProdPicker, setShowProdPicker] = useState(false);
     const [notes, setNotes] = useState('');
 
@@ -60,7 +61,7 @@ export default function MobileCotizar() {
         const now = new Date();
         const num = `COT-M-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${String(now.getTime()).slice(-4)}`;
 
-        await addQuote({
+        const { persisted } = await addQuote({
             number: num,
             client: clientName.trim(),
             clientId: '',
@@ -83,6 +84,15 @@ export default function MobileCotizar() {
         });
 
         setSending(false);
+        // En móvil no hay beforeunload (swipe/bloqueo de pantalla mata el tab
+        // sin aviso): mostrar éxito con la cotización solo encolada sería la
+        // misma mentira del caso ART-567. Se muestra la verdad y se deja el
+        // formulario intacto para reintentar.
+        if (!persisted) {
+            setSendError('No se pudo guardar en el servidor (¿sin señal?). La cotización quedó en este teléfono y se reintentará sola cada pocos segundos: deja la app abierta hasta que entre. NO la vuelvas a crear — se duplicaría.');
+            return;
+        }
+        setSendError(null);
         setSent(true);
     };
 
@@ -210,6 +220,11 @@ export default function MobileCotizar() {
                         : <><Send className="w-4 h-4" /> Crear Cotización</>
                     }
                 </button>
+                {sendError && (
+                    <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+                        <p className="text-xs font-bold text-rose-700">⚠️ {sendError}</p>
+                    </div>
+                )}
             </div>
 
             {/* Product Picker Sheet */}

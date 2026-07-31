@@ -272,8 +272,10 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
 
     const normalizeCustomProductImage = async (file: File) => {
         const dataUrl = await fileToDataUrl(file);
-        if (/^image\/(png|jpeg|jpg)$/i.test(file.type)) return dataUrl;
-
+        // 30-jul-2026 (caso ART-567): las PNG/JPEG entraban CRUDAS — una foto de
+        // celular son varios MB que quedan en base64 dentro de la cotización y
+        // engordan el payload de guardado hasta reventarlo. TODO raster pasa por
+        // el resize a máx 1200px y JPEG comprimido; el PDF no necesita más.
         return new Promise<string>((resolve, reject) => {
             const img = new Image();
             img.onload = () => {
@@ -287,8 +289,12 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                     reject(new Error('Canvas no disponible'));
                     return;
                 }
+                // Fondo blanco: JPEG no tiene canal alfa y un PNG transparente
+                // quedaría con fondo negro.
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                resolve(canvas.toDataURL('image/png'));
+                resolve(canvas.toDataURL('image/jpeg', 0.82));
             };
             img.onerror = reject;
             img.src = dataUrl;
@@ -637,68 +643,93 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     // por cotización. Si la cotización ya existe y estaba en Approved/Sent, al
     // ser editada vuelve a PendingApproval automáticamente.
     const requestApproval = async () => {
+        // Guard anti doble-click: el 29-jul dos clicks con 2.6s de diferencia
+        // crearon las gemelas ART-572 (una quedó fantasma en la cola de
+        // aprobaciones). Mientras el guardado está en vuelo no se re-entra.
+        if (isSaving) return;
         const client = clients.find(c => c.id === selectedClientId);
         if (!client) { addNotification({ title: 'Cliente requerido', description: 'Selecciona un cliente.', type: 'alert' }); return; }
         if (items.length === 0) { addNotification({ title: 'Sin productos', description: 'Agrega al menos un producto.', type: 'alert' }); return; }
         if (!ensureQuoteOwnerReady()) return;
         if (!assertNoQuoteNumberConflict()) return;
 
-        const quoteNumber = genQuoteNumber();
-        const requestedAt = new Date().toISOString();
-        const commonFields = getCommonQuoteFields(client, quoteNumber, items);
+        setIsSaving(true);
+        try {
+            const quoteNumber = genQuoteNumber();
+            const requestedAt = new Date().toISOString();
+            const commonFields = getCommonQuoteFields(client, quoteNumber, items);
 
-        if (isEditMode && editQuoteId) {
-            // Re-enviar a aprobación (después de correcciones o editando una aprobada)
-            updateQuote(editQuoteId, {
-                ...commonFields,
-                status: 'PendingApproval',
-                requestedBy: currentUser?.id || '',
-                requestedByName: currentUser?.name || '',
-                requestedAt,
-                // Limpiar estado de entrega previo — es una nueva revisión
-                approvedBy: undefined,
-                approvedByName: undefined,
-                approvedAt: undefined,
-                sentAt: undefined,
-                sentByName: undefined,
-                sentById: undefined,
-                deliveryFailed: false,
-                deliveryError: undefined,
-                pendingAction: undefined,
+            let persisted: boolean;
+            if (isEditMode && editQuoteId) {
+                // Re-enviar a aprobación (después de correcciones o editando una aprobada)
+                persisted = await updateQuote(editQuoteId, {
+                    ...commonFields,
+                    status: 'PendingApproval',
+                    requestedBy: currentUser?.id || '',
+                    requestedByName: currentUser?.name || '',
+                    requestedAt,
+                    // Limpiar estado de entrega previo — es una nueva revisión
+                    approvedBy: undefined,
+                    approvedByName: undefined,
+                    approvedAt: undefined,
+                    sentAt: undefined,
+                    sentByName: undefined,
+                    sentById: undefined,
+                    deliveryFailed: false,
+                    deliveryError: undefined,
+                    pendingAction: undefined,
+                });
+            } else {
+                persisted = (await addQuote({
+                    ...commonFields,
+                    status: 'PendingApproval',
+                    requestedBy: currentUser?.id || '',
+                    requestedByName: currentUser?.name || '',
+                    requestedAt,
+                })).persisted;
+            }
+
+            if (!persisted) {
+                // Caso ART-567-2026: antes esto mostraba "enviada a aprobación"
+                // aunque la cotización nunca llegara al servidor. Ahora el
+                // vendedor ve la verdad y NO se registra la solicitud. NO se le
+                // pide re-enviar: la cotización ya quedó en PendingApproval en
+                // la cola de reintento y llegará sola al administrador (pedir
+                // re-envío chocaría además con el chequeo de número duplicado).
+                addNotification({
+                    title: '⚠️ La solicitud aún NO llega al servidor',
+                    description: `${quoteNumber} quedó guardada en este navegador y el sistema la seguirá reintentando automáticamente. Deja la pestaña abierta hasta que desaparezca el aviso de cambios sin guardar; no necesitas volver a enviarla.`,
+                    type: 'alert',
+                });
+                return;
+            }
+
+            addNotification({
+                title: '⏳ Enviada a aprobación',
+                description: `El SuperAdmin revisará ${quoteNumber} y al aprobar, el sistema enviará el correo automáticamente.`,
+                type: 'success',
             });
-        } else {
-            await addQuote({
-                ...commonFields,
-                status: 'PendingApproval',
-                requestedBy: currentUser?.id || '',
-                requestedByName: currentUser?.name || '',
-                requestedAt,
+            addNotification({
+                title: '🔔 Nueva cotización por aprobar',
+                description: `${currentUser?.name} solicita aprobación — ${quoteNumber} para ${client.name} · ${formatCurrency(total)}`,
+                type: 'alert',
+                forAdmin: true,
             });
+            addAuditLog({
+                userId: currentUser?.id || '',
+                userName: currentUser?.name || 'Vendedor',
+                userRole: currentUser?.role || 'Vendedor',
+                action: 'QUOTE_APPROVAL_REQUESTED',
+                targetId: client.id,
+                targetName: client.company || client.name,
+                details: `Cotización ${quoteNumber} enviada a aprobación · Total: ${formatCurrency(total)}`,
+                verified: true,
+            });
+            setSentConfirm({ quoteNumber, email: '', pending: true });
+            setShowPreview(false);
+        } finally {
+            setIsSaving(false);
         }
-
-        addNotification({
-            title: '⏳ Enviada a aprobación',
-            description: `El SuperAdmin revisará ${quoteNumber} y al aprobar, el sistema enviará el correo automáticamente.`,
-            type: 'success',
-        });
-        addNotification({
-            title: '🔔 Nueva cotización por aprobar',
-            description: `${currentUser?.name} solicita aprobación — ${quoteNumber} para ${client.name} · ${formatCurrency(total)}`,
-            type: 'alert',
-            forAdmin: true,
-        });
-        addAuditLog({
-            userId: currentUser?.id || '',
-            userName: currentUser?.name || 'Vendedor',
-            userRole: currentUser?.role || 'Vendedor',
-            action: 'QUOTE_APPROVAL_REQUESTED',
-            targetId: client.id,
-            targetName: client.company || client.name,
-            details: `Cotización ${quoteNumber} enviada a aprobación · Total: ${formatCurrency(total)}`,
-            verified: true,
-        });
-        setSentConfirm({ quoteNumber, email: '', pending: true });
-        setShowPreview(false);
     };
 
     // Reintentar el envío del email después de una aprobación donde Resend falló.
@@ -770,7 +801,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 quoteId = editQuoteId;
             } else {
                 quoteNumber = genQuoteNumber();
-                quoteId = await addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Draft' as const });
+                quoteId = (await addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Draft' as const })).id;
             }
             await generateProposalPDF(buildPdfData(client, quoteNumber));
             addAuditLog({ userId: currentUser?.id || '', userName: currentUser?.name || 'Sistema', userRole: currentUser?.role || 'Vendedor', action: 'QUOTE_SENT', targetId: client.id, targetName: client.company || client.name, details: `Cotización ${quoteNumber} ${isEditMode ? 'editada' : 'generada'} · Total: ${formatCurrency(total)}`, verified: true });
@@ -891,8 +922,8 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             return;
         }
         if (!assertNoQuoteNumberConflict()) return;
+        if (isSaving) return;
         const quoteNumber = genQuoteNumber();
-        await addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Sent' as const });
         const phone = client.phone.replace(/\D/g, '');
         const intlPhone = phone.startsWith('57') ? phone : `57${phone}`;
         const itemsList = items.map(i => `  • ${i.name} x${i.quantity}`).join('\n');
@@ -912,8 +943,24 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             `📍 Km 1+800, Anillo Vial, Floridablanca, Santander`,
             currentUser?.phone ? `📞 ${currentUser.phone}` : '',
         ].filter(l => l !== '').join('\n');
-        window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`, '_blank');
-        addAuditLog({ userId: currentUser?.id || '', userName: currentUser?.name || 'Sistema', userRole: currentUser?.role || 'Vendedor', action: 'WHATSAPP_SENT', targetId: client.id, targetName: client.company || client.name, details: `WhatsApp enviado con cotización ${quoteNumber} · Total: ${formatCurrency(total)} → ${client.phone}`, verified: true });
+        // window.open debe correr DENTRO del gesto del click: después de un
+        // await con reintentos (hasta ~7s) la activación de usuario expira y el
+        // navegador bloquea el popup en silencio.
+        const waWindow = window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+        if (!waWindow) {
+            addNotification({ title: 'Popup bloqueado', description: 'El navegador bloqueó la ventana de WhatsApp. Permite popups para el CRM e intenta de nuevo.', type: 'alert' });
+        }
+        setIsSaving(true);
+        try {
+            const { persisted } = await addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Sent' as const });
+            // Sin confirmación del server no se registra auditoría de envío —
+            // sería el mismo rastro fantasma del caso ART-567.
+            if (persisted) {
+                addAuditLog({ userId: currentUser?.id || '', userName: currentUser?.name || 'Sistema', userRole: currentUser?.role || 'Vendedor', action: 'WHATSAPP_SENT', targetId: client.id, targetName: client.company || client.name, details: `WhatsApp enviado con cotización ${quoteNumber} · Total: ${formatCurrency(total)} → ${client.phone}`, verified: true });
+            }
+        } finally {
+            setIsSaving(false);
+        }
         setShowPreview(false);
     };
 
@@ -941,7 +988,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         try {
             const sentAt = new Date().toISOString();
             const quoteNumber = genQuoteNumber();
-            const quoteId = await addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Draft' as const, sentAt, sentByName: currentUser?.name || '', sentById: currentUser?.id || '' });
+            const quoteId = (await addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Draft' as const, sentAt, sentByName: currentUser?.name || '', sentById: currentUser?.id || '' })).id;
             const res = await fetch('/api/quotes/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1909,10 +1956,12 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
 
                                 {/* Flujo vendedor: "Solicitar aprobación" en Draft o ChangesRequested */}
                                 {(needsRequest || hasChanges) && (
-                                    <button onClick={requestApproval} disabled={items.length === 0 || !selectedClientId}
+                                    <button onClick={requestApproval} disabled={items.length === 0 || !selectedClientId || isSaving}
                                         className="w-full bg-primary text-black font-black py-4 rounded-2xl flex items-center justify-center gap-3 hover:scale-[1.02] transition-all shadow-lg shadow-primary/20 text-[10px] uppercase tracking-widest disabled:opacity-60">
-                                        <Send className="w-4 h-4" />
-                                        {hasChanges ? 'Re-enviar a aprobación' : 'Solicitar aprobación'}
+                                        {isSaving
+                                            ? <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                                            : <Send className="w-4 h-4" />}
+                                        {isSaving ? 'Guardando...' : (hasChanges ? 'Re-enviar a aprobación' : 'Solicitar aprobación')}
                                     </button>
                                 )}
 

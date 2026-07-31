@@ -101,13 +101,16 @@ export async function PUT(req: NextRequest) {
   for (const [key, value] of Object.entries(body)) {
     if (value === undefined) continue;
     if ((MERGED_STATE_KEYS as readonly string[]).includes(key)) {
-      // Un valor no-arreglo en quotes/tasks sería un cliente corrupto: se
-      // ignora en vez de dejarlo pisar el arreglo completo.
+      // Un valor no-arreglo en quotes/tasks es un cliente corrupto. Antes esto
+      // se ignoraba con console.error y el PUT respondía ok:true — el cliente
+      // creía que guardó cuando la clave ni se tocó (patrón del caso ART-567,
+      // 30-jul-2026). Ahora es un error explícito que el cliente puede ver.
       if (Array.isArray(value)) {
         mergedPatch[key as MergedStateKey] = value;
       } else {
-        console.error(
-          `[state] PUT ignoró la clave "${key}": se esperaba un arreglo, llegó ${typeof value}`
+        return NextResponse.json(
+          { error: `La clave "${key}" debe ser un arreglo; llegó ${typeof value}.` },
+          { status: 400 }
         );
       }
       continue;

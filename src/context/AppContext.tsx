@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 
 // Build the displayed quote number from base + version + AIU flag.
 // base: "ART-250-2026" (prefix-number-year).
@@ -665,7 +665,10 @@ interface AppContextType {
     /** Borra la empresa. Los contactos asociados pierden el FK pero conservan el nombre como snapshot. */
     deleteCompany: (id: string) => Promise<{ ok: true } | { ok: false; error: string }>;
     addTask: (task: Omit<Task, 'id'>) => string;
-    addQuote: (quote: Omit<Quote, 'id'>) => Promise<string>;
+    // `persisted: false` = la cotización quedó solo en este navegador (encolada
+    // para reintento). Los flujos críticos deben mirar el flag antes de mostrar
+    // éxito (caso ART-567-2026).
+    addQuote: (quote: Omit<Quote, 'id'>) => Promise<{ id: string; persisted: boolean }>;
     createQuoteVersion: (quoteId: string) => Promise<string>;
     createAIUVersion: (quoteId: string) => Promise<string>;
     importClients: (rows: Omit<Client, 'id'>[]) => void;
@@ -682,7 +685,7 @@ interface AppContextType {
     deleteClient: (clientId: string) => void;
     updateTask: (taskId: string, updates: Partial<Task>) => void;
     deleteTask: (taskId: string) => void;
-    updateQuote: (quoteId: string, updates: Partial<Quote>) => void;
+    updateQuote: (quoteId: string, updates: Partial<Quote>) => Promise<boolean>;
     deleteQuote: (quoteId: string) => void;
     updateEvent: (eventId: string, updates: Partial<CalendarEvent>) => void;
     deleteEvent: (eventId: string) => void;
@@ -815,38 +818,242 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // vendedor logueado y aún no contactó (status='assigned').
     const [assignedLeadsCount, setAssignedLeadsCount] = useState(0);
 
-    const persistSharedState = (patch: Record<string, unknown>) => {
-        // Antes este fetch tragaba TODO error en silencio (`.catch(console.warn)`).
-        // Eso ocultó por meses el bug del informe diario: el toggle se veía ON en
-        // la UI (state local) pero el PUT a /api/state retornaba 503 en algún
-        // momento y el dailyReport.enabled nunca llegó al row de Postgres. El cron
-        // leía el row viejo y se saltaba el envío con "disabled".
-        //
-        // Ahora: verificamos status. Si falla, lo logueamos visiblemente (console.error)
-        // y para los settings críticos disparamos una notificación. No reintentamos
-        // automáticamente — la UI siguiente cambio fuerza otra escritura.
-        fetch('/api/state', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(patch),
-        }).then(async (res) => {
-            if (!res.ok) {
-                const body = await res.text().catch(() => '');
-                console.error('[persistSharedState] PUT /api/state failed:', res.status, body, 'patch keys:', Object.keys(patch));
-                if (patch.settings) {
-                    // Settings es el patch que activa el informe diario y otros toggles
-                    // críticos; si no se guardó, el user debe saberlo en vez de creer
-                    // que está activo cuando en realidad la DB tiene el valor viejo.
-                    addNotification({
-                        title: 'No se pudo guardar la configuración',
-                        description: `Error ${res.status} al persistir cambios. Recargá y volvé a tocar el toggle.`,
-                        type: 'alert',
-                    });
-                }
+    // ── Transporte a /api/state ──────────────────────────────────────────────
+    // Historia: (1) el fetch tragaba TODO error en silencio y ocultó por meses
+    // el bug del informe diario (dailyReport.enabled nunca llegaba al row);
+    // (2) 30-jul-2026, caso ART-567-2026: `quotes` viajaba con el arreglo
+    // COMPLETO (2.3MB+) y ese único PUT falló 3 veces seguidas mientras los
+    // PUTs pequeños (tasks/auditLogs/notifications) entraban — la cotización
+    // murió en la memoria del tab sin que la vendedora viera un solo error,
+    // y el refetch por foco la borró también de la UI local.
+    //
+    // Reglas del transporte actual:
+    //   • quotes/tasks viajan POR REGISTRO (el server hace merge-por-id);
+    //     nunca el arreglo completo — un guardado pesa KBs, no MBs.
+    //   • Cada registro entra a la cola de no-confirmados DESDE EL ENVÍO y solo
+    //     sale cuando el server confirma — beforeunload y el overlay cubren
+    //     también la ventana en vuelo.
+    //   • Reintentos con backoff para errores de red y 5xx, más un timer de
+    //     fondo que drena la cola aunque el usuario no cambie de pestaña.
+    //   • Cada emisión de un registro lleva una seq: un reintento o flush jamás
+    //     re-envía una versión superada por una escritura más nueva.
+    //   • Un 4xx (payload rechazado) NO se re-encola — reintentar el mismo body
+    //     es inútil y envenenaría el flush; se avisa al usuario.
+    //   • El refetch superpone los registros pendientes sobre el snapshot del
+    //     server (ver overlayPending) — un cambio no confirmado jamás
+    //     desaparece de la UI.
+    const pendingWritesRef = useRef<{
+        quotes: Map<string, { rec: unknown; seq: number }>;
+        tasks: Map<string, { rec: unknown; seq: number }>;
+        deletes: {
+            quotes: Map<string, number>;
+            tasks: Map<string, number>;
+        };
+    }>({ quotes: new Map(), tasks: new Map(), deletes: { quotes: new Map(), tasks: new Map() } });
+    const pendingSeqRef = useRef(0);
+    // Última seq EMITIDA por registro ('quotes:<id>', 'tasks:<id>', 'del:…').
+    // buildAttemptPatch la compara para descartar versiones superadas.
+    const recordSeqRef = useRef(new Map<string, number>());
+    const flushingRef = useRef(false);
+
+    // Estampa cada registro del patch con una seq nueva y lo mete a la cola de
+    // no-confirmados. Devuelve el mapa de seqs de ESTA emisión.
+    const stampAndQueue = (patch: Record<string, unknown>): Map<string, number> => {
+        const stamped = new Map<string, number>();
+        const pending = pendingWritesRef.current;
+        for (const key of ['quotes', 'tasks'] as const) {
+            const records = patch[key];
+            if (!Array.isArray(records)) continue;
+            for (const rec of records) {
+                const id = (rec as { id?: string })?.id;
+                if (!id) continue;
+                const seq = ++pendingSeqRef.current;
+                stamped.set(`${key}:${id}`, seq);
+                recordSeqRef.current.set(`${key}:${id}`, seq);
+                pending[key].set(id, { rec, seq });
             }
-        }).catch((error) => {
-            console.error('[persistSharedState] network error:', error, 'patch keys:', Object.keys(patch));
-        });
+        }
+        const deletes = patch.__deletes as { quotes?: string[]; tasks?: string[] } | undefined;
+        for (const key of ['quotes', 'tasks'] as const) {
+            for (const id of deletes?.[key] || []) {
+                const seq = ++pendingSeqRef.current;
+                stamped.set(`del:${key}:${id}`, seq);
+                recordSeqRef.current.set(`del:${key}:${id}`, seq);
+                // El borrado supera cualquier upsert pendiente del mismo registro.
+                recordSeqRef.current.set(`${key}:${id}`, seq);
+                pending.deletes[key].set(id, seq);
+                pending[key].delete(id);
+            }
+        }
+        return stamped;
+    };
+
+    // Reconstruye el body para un intento, descartando los registros que otra
+    // escritura re-emitió mientras este PUT esperaba backoff — así un reintento
+    // viejo jamás pisa una versión más nueva. null = no queda nada que enviar.
+    const buildAttemptPatch = (
+        patch: Record<string, unknown>,
+        stamped: Map<string, number>
+    ): Record<string, unknown> | null => {
+        const out: Record<string, unknown> = {};
+        let hasContent = false;
+        for (const [key, value] of Object.entries(patch)) {
+            if (key === 'quotes' || key === 'tasks') {
+                if (!Array.isArray(value)) continue;
+                const fresh = value.filter(rec => {
+                    const id = (rec as { id?: string })?.id;
+                    if (!id) return true; // legacy sin id: pasa tal cual
+                    return recordSeqRef.current.get(`${key}:${id}`) === stamped.get(`${key}:${id}`);
+                });
+                if (fresh.length > 0) { out[key] = fresh; hasContent = true; }
+            } else if (key === '__deletes') {
+                const src = value as { quotes?: string[]; tasks?: string[] } | undefined;
+                const d: Record<string, string[]> = {};
+                for (const dk of ['quotes', 'tasks'] as const) {
+                    const ids = (src?.[dk] || []).filter(id =>
+                        recordSeqRef.current.get(`del:${dk}:${id}`) === stamped.get(`del:${dk}:${id}`));
+                    if (ids.length > 0) d[dk] = ids;
+                }
+                if (Object.keys(d).length > 0) { out.__deletes = d; hasContent = true; }
+            } else {
+                out[key] = value;
+                hasContent = true;
+            }
+        }
+        return hasContent ? out : null;
+    };
+
+    // Saca de la cola las entradas de esta emisión (confirmadas o incurables),
+    // respetando re-emisiones posteriores: entry.seq > seq propio se queda.
+    const dequeueStamped = (stamped: Map<string, number>) => {
+        const pending = pendingWritesRef.current;
+        for (const [skey, seq] of stamped) {
+            const parts = skey.split(':');
+            if (parts[0] === 'del') {
+                const key = parts[1] as 'quotes' | 'tasks';
+                const id = parts.slice(2).join(':');
+                const cur = pending.deletes[key].get(id);
+                if (cur !== undefined && cur <= seq) pending.deletes[key].delete(id);
+            } else {
+                const key = parts[0] as 'quotes' | 'tasks';
+                const id = parts.slice(1).join(':');
+                const entry = pending[key].get(id);
+                if (entry && entry.seq <= seq) pending[key].delete(id);
+            }
+        }
+    };
+
+    const hasPendingWrites = () => {
+        const p = pendingWritesRef.current;
+        return p.quotes.size > 0 || p.tasks.size > 0 || p.deletes.quotes.size > 0 || p.deletes.tasks.size > 0;
+    };
+
+    const RETRY_DELAYS_MS = [1500, 4000];
+
+    const persistSharedState = async (
+        patch: Record<string, unknown>,
+        opts?: { silent?: boolean }
+    ): Promise<boolean> => {
+        const stamped = stampAndQueue(patch);
+        let lastError = '';
+        let retryable = true;
+        for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+            if (attempt > 0) await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS_MS[attempt - 1]));
+            const attemptPatch = buildAttemptPatch(patch, stamped);
+            if (!attemptPatch) return true; // todo superado por escrituras más nuevas
+            try {
+                const res = await fetch('/api/state', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(attemptPatch),
+                });
+                if (res.ok) {
+                    dequeueStamped(stamped);
+                    return true;
+                }
+                const resBody = await res.text().catch(() => '');
+                lastError = `HTTP ${res.status}`;
+                console.error('[persistSharedState] PUT /api/state failed:', res.status, resBody, 'patch keys:', Object.keys(patch), `intento ${attempt + 1}`);
+                if (res.status < 500 && res.status !== 408 && res.status !== 429) {
+                    retryable = false;
+                    break;
+                }
+            } catch (error) {
+                lastError = 'error de red';
+                console.error('[persistSharedState] network error:', error, 'patch keys:', Object.keys(patch), `intento ${attempt + 1}`);
+            }
+        }
+
+        if (!retryable) {
+            // Error determinístico (400/413…): re-enviar el mismo body es inútil
+            // y dejaría la cola envenenada (flush fallando para siempre).
+            dequeueStamped(stamped);
+        }
+        if (!opts?.silent) {
+            if (patch.settings) {
+                // Settings es el patch que activa el informe diario y otros toggles
+                // críticos; si no se guardó, el user debe saberlo en vez de creer
+                // que está activo cuando en realidad la DB tiene el valor viejo.
+                addNotification({
+                    title: 'No se pudo guardar la configuración',
+                    description: `Error (${lastError}) al persistir cambios. Recargá y volvé a tocar el toggle.`,
+                    type: 'alert',
+                });
+            }
+            if (patch.quotes || patch.tasks || patch.__deletes) {
+                addNotification({
+                    title: '⚠️ Cambios sin guardar en el servidor',
+                    description: retryable
+                        ? `No se pudo guardar (${lastError}). El sistema lo reintentará automáticamente cada pocos segundos — deja esta pestaña abierta hasta que se confirme.`
+                        : `El servidor rechazó el guardado (${lastError}) y no sirve reintentarlo automáticamente. Revisa la cotización (¿imágenes muy pesadas?) y guarda de nuevo.`,
+                    type: 'alert',
+                });
+            }
+        }
+        return false;
+    };
+
+    // Drena la cola de escrituras no confirmadas de quotes/tasks. Corre con el
+    // timer de fondo, al recuperar foco/conexión y ANTES de cada refetch.
+    const flushPendingWrites = async (): Promise<boolean> => {
+        if (flushingRef.current) return true;
+        if (!hasPendingWrites()) return true;
+        flushingRef.current = true;
+        try {
+            const p = pendingWritesRef.current;
+            const patch: Record<string, unknown> = {};
+            if (p.quotes.size > 0) patch.quotes = Array.from(p.quotes.values()).map(e => e.rec);
+            if (p.tasks.size > 0) patch.tasks = Array.from(p.tasks.values()).map(e => e.rec);
+            if (p.deletes.quotes.size > 0 || p.deletes.tasks.size > 0) {
+                patch.__deletes = {
+                    ...(p.deletes.quotes.size > 0 ? { quotes: Array.from(p.deletes.quotes.keys()) } : {}),
+                    ...(p.deletes.tasks.size > 0 ? { tasks: Array.from(p.deletes.tasks.keys()) } : {}),
+                };
+            }
+            // silent: la notificación ya se mostró cuando la escritura original falló.
+            return await persistSharedState(patch, { silent: true });
+        } finally {
+            flushingRef.current = false;
+        }
+    };
+
+    // Superpone los registros pendientes (no confirmados por el server) sobre un
+    // snapshot del server y excluye los borrados pendientes. Es lo que impide
+    // que un refetch borre de la UI una cotización cuyo PUT falló (caso ART-567).
+    const overlayPending = <T extends { id: string }>(key: 'quotes' | 'tasks', serverList: T[]): T[] => {
+        const pending = pendingWritesRef.current;
+        const records = pending[key];
+        const deletes = pending.deletes[key];
+        if (records.size === 0 && deletes.size === 0) return serverList;
+        const merged = serverList
+            .filter(item => !deletes.has(item.id))
+            .map(item => (records.has(item.id) ? (records.get(item.id)!.rec as T) : item));
+        const seen = new Set(merged.map(item => item.id));
+        for (const entry of records.values()) {
+            const rec = entry.rec as T;
+            if (!seen.has(rec.id)) merged.push(rec);
+        }
+        return merged;
     };
 
     const [settings, setSettings] = useState<AppSettings>(() => sanitizeSettingsForStorage(loadData('crm_settings', {
@@ -1057,13 +1264,19 @@ REGLAS DE ORO:
     // comparten quoteNumber, gana la de id más alto (la más reciente).
     const refreshQuotesAndTasks = async () => {
         try {
+            // Primero drenar escrituras pendientes: si el flush entra, el
+            // snapshot que baja ya las trae; si no entra, el overlay de abajo
+            // las preserva igual. Antes este refetch REEMPLAZABA el estado
+            // local a secas y fue lo que borró ART-567-2026 de la UI de la
+            // vendedora después de que su PUT fallara (30-jul-2026).
+            await flushPendingWrites();
             const res = await fetch('/api/state?keys=quotes,tasks', { cache: 'no-store' });
             if (!res.ok) return;
             const data = await res.json();
             if (Array.isArray(data.quotes)) {
-                setQuotes(dedupQuotesByCompleteness(data.quotes as Quote[]));
+                setQuotes(overlayPending('quotes', dedupQuotesByCompleteness(data.quotes as Quote[])));
             }
-            if (Array.isArray(data.tasks)) setTasks(data.tasks);
+            if (Array.isArray(data.tasks)) setTasks(overlayPending('tasks', data.tasks as Task[]));
         } catch (error) {
             console.warn('refreshQuotesAndTasks failed:', error);
         }
@@ -1264,12 +1477,34 @@ REGLAS DE ORO:
     useEffect(() => {
         if (typeof window === 'undefined') return;
         const onFocus = () => { refreshClients(); refreshCompanies(); refreshQuotesAndTasks(); refreshAssignedLeadsCount(); };
-        window.addEventListener('focus', onFocus);
-        document.addEventListener('visibilitychange', () => {
+        const onVisibility = () => {
             if (document.visibilityState === 'visible') onFocus();
-        });
+        };
+        const onOnline = () => { flushPendingWrites(); };
+        const onBeforeUnload = (e: BeforeUnloadEvent) => {
+            // Con escrituras sin confirmar, cerrar la pestaña = perder los
+            // cambios para siempre (en producción no hay copia en localStorage).
+            if (hasPendingWrites()) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        };
+        window.addEventListener('focus', onFocus);
+        document.addEventListener('visibilitychange', onVisibility);
+        window.addEventListener('online', onOnline);
+        window.addEventListener('beforeunload', onBeforeUnload);
+        // Timer de fondo: una caída del SERVER (5xx con la red del cliente sana)
+        // no dispara 'online' ni 'focus' si el usuario sigue en la pestaña — sin
+        // esto, la cola no drenaría nunca en el caso más probable.
+        const flushInterval = setInterval(() => {
+            if (hasPendingWrites()) flushPendingWrites();
+        }, 30000);
         return () => {
             window.removeEventListener('focus', onFocus);
+            document.removeEventListener('visibilitychange', onVisibility);
+            window.removeEventListener('online', onOnline);
+            window.removeEventListener('beforeunload', onBeforeUnload);
+            clearInterval(flushInterval);
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -1318,7 +1553,8 @@ REGLAS DE ORO:
                 }));
 
                 const nextTasks = [...prevTasks, ...newTasks];
-                persistSharedState({ tasks: nextTasks });
+                // Solo viajan las tasks nuevas — el server hace merge-por-id.
+                persistSharedState({ tasks: newTasks });
                 return nextTasks;
             });
             return prevQuotes;
@@ -1355,7 +1591,8 @@ REGLAS DE ORO:
                 const inferredMode: 'simple' | 'aiu' = q.isAIU ? 'aiu' : 'simple';
                 return { ...q, quoteMode: inferredMode };
             });
-            persistSharedState({ quotes: migrated });
+            // Solo viajan las que cambiaron (map preserva identidad del resto).
+            persistSharedState({ quotes: migrated.filter((q, i) => q !== prev[i]) });
             return migrated;
         });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1554,15 +1791,16 @@ REGLAS DE ORO:
     const addTask = (task: Omit<Task, 'id'>) => {
         const id = `t-${Date.now()}`;
         const newTask = { ...task, id };
-        setTasks(prev => {
-            const next = [...prev, newTask];
-            persistSharedState({ tasks: next });
-            return next;
-        });
+        setTasks(prev => [...prev, newTask]);
+        persistSharedState({ tasks: [newTask] });
         return id;
     };
 
-    const addQuote = async (quote: Omit<Quote, 'id'>): Promise<string> => {
+    // Devuelve el id de la cotización y si su escritura quedó CONFIRMADA por el
+    // server. `persisted: false` = quedó solo en este navegador (encolada para
+    // reintento) — los flujos críticos (enviar a aprobación) deben mirar este
+    // flag antes de mostrar éxito o registrar auditoría (caso ART-567-2026).
+    const addQuote = async (quote: Omit<Quote, 'id'>): Promise<{ id: string; persisted: boolean }> => {
         const clientForQuote = quote.clientId ? clients.find(c => c.id === quote.clientId) : undefined;
         const sellerId = quote.sellerId || currentUser?.id || clientForQuote?.assignedTo || '';
         const sellerName = quote.sellerName || currentUser?.name || clientForQuote?.assignedToName || '';
@@ -1579,8 +1817,8 @@ REGLAS DE ORO:
             // no hacer merge sobre la histórica (la "reviviría" con task y status).
             const dup = quotes.find(q => q.quoteNumber === quote.quoteNumber && !q.isHistorical);
             if (dup) {
-                updateQuote(dup.id, { ...quote, sellerId, sellerName });
-                return dup.id;
+                const persisted = await updateQuote(dup.id, { ...quote, sellerId, sellerName });
+                return { id: dup.id, persisted };
             }
         }
 
@@ -1668,41 +1906,43 @@ REGLAS DE ORO:
             retakenAt: new Date().toISOString(),
         };
 
-        setTasks(prev => {
-            const next = [...prev, autoTask];
-            persistSharedState({ tasks: next });
-            return next;
-        });
+        setTasks(prev => [...prev, autoTask]);
+        persistSharedState({ tasks: [autoTask] });
 
-        setQuotes(prev => {
-            const next = [...prev, {
-                ...quote,
-                id: quoteId,
-                taskId,
-                quoteNumber,
-                // Si el caller no pasó `number` explícito (p.ej. el flujo del
-                // pipeline "Crear nuevo negocio"), usar el quoteNumber generado
-                // para que `number` y `quoteNumber` queden coherentes. Antes
-                // pipeline pasaba `number="QT-YYYY-XXXXX"` y quedaba con dos
-                // identificadores incoherentes en la misma cotización.
-                number: quote.number || quoteNumber,
-                baseNumber: baseNumber || quoteNumber,
-                version: quote.version || 1,
-                sellerId,
-                sellerName,
-            }];
-            persistSharedState({ quotes: next });
-            return next;
-        });
+        const newQuote: Quote = {
+            ...quote,
+            id: quoteId,
+            taskId,
+            quoteNumber,
+            // Si el caller no pasó `number` explícito (p.ej. el flujo del
+            // pipeline "Crear nuevo negocio"), usar el quoteNumber generado
+            // para que `number` y `quoteNumber` queden coherentes. Antes
+            // pipeline pasaba `number="QT-YYYY-XXXXX"` y quedaba con dos
+            // identificadores incoherentes en la misma cotización.
+            number: quote.number || quoteNumber,
+            baseNumber: baseNumber || quoteNumber,
+            version: quote.version || 1,
+            sellerId,
+            sellerName,
+        };
+        setQuotes(prev => [...prev, newQuote]);
+        // La escritura de la cotización se ESPERA: es la única forma de que el
+        // caller sepa si el server la confirmó (30-jul-2026: la de Koi murió
+        // acá y la UI mostró éxito tres veces).
+        const persisted = await persistSharedState({ quotes: [newQuote] });
 
-        addNotification({
-            title: 'Cotización creada',
-            description: `${quoteNumber} · ${quote.client || 'Cliente'} · ${quote.total || ''}`,
-            type: 'success',
-            quoteId,
-        });
+        // El toast de éxito solo si el server confirmó — si no, el usuario ya
+        // vio la alerta de "cambios sin guardar" y mezclar ambas confunde.
+        if (persisted) {
+            addNotification({
+                title: 'Cotización creada',
+                description: `${quoteNumber} · ${quote.client || 'Cliente'} · ${quote.total || ''}`,
+                type: 'success',
+                quoteId,
+            });
+        }
 
-        return quoteId;
+        return { id: quoteId, persisted };
     };
 
     // Create a new version of an existing quote (V1, V2, ... — inserted before the year)
@@ -1714,7 +1954,7 @@ REGLAS DE ORO:
         const newNumber = formatQuoteNumber(base, nextV, false);
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { id: _id, ...rest } = original;
-        return addQuote({
+        const created = await addQuote({
             ...rest,
             quoteNumber: newNumber,
             baseNumber: base,
@@ -1724,6 +1964,7 @@ REGLAS DE ORO:
             date: new Date().toISOString().split('T')[0],
             taskId: undefined,
         });
+        return created.id;
     };
 
     // Create AIU version from an approved/sent quote — bumps V to the next consecutive
@@ -1735,7 +1976,7 @@ REGLAS DE ORO:
         const newNumber = formatQuoteNumber(base, nextV, true);
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { id: _id, ...rest } = original;
-        return addQuote({
+        const created = await addQuote({
             ...rest,
             quoteNumber: newNumber,
             baseNumber: base,
@@ -1746,6 +1987,7 @@ REGLAS DE ORO:
             date: new Date().toISOString().split('T')[0],
             taskId: undefined,
         });
+        return created.id;
     };
 
     // Bulk import clients (retroactive)
@@ -1769,7 +2011,8 @@ REGLAS DE ORO:
                 version: r.version || 1,
             }));
             const next = [...prev, ...newQuotes];
-            persistSharedState({ quotes: next });
+            // Solo viajan las importadas — el server hace merge-por-id.
+            persistSharedState({ quotes: newQuotes });
             return next;
         });
     };
@@ -1780,21 +2023,19 @@ REGLAS DE ORO:
     // (que derivan fecha del id) caigan a `date` — la fecha original de la cotización.
     const addHistoricalQuote = (quote: Omit<Quote, 'id' | 'isHistorical'>): string => {
         const id = `q-hist-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-        setQuotes(prev => {
-            const next = [...prev, {
-                ...quote,
-                id,
-                isHistorical: true,
-                status: 'Sent' as const,
-                number: quote.number || quote.quoteNumber,
-                quoteNumber: quote.quoteNumber || quote.number,
-                baseNumber: quote.baseNumber || quote.quoteNumber || quote.number,
-                version: quote.version || 1,
-                historicalUploadedAt: new Date().toISOString(),
-            }];
-            persistSharedState({ quotes: next });
-            return next;
-        });
+        const newQuote: Quote = {
+            ...quote,
+            id,
+            isHistorical: true,
+            status: 'Sent' as const,
+            number: quote.number || quote.quoteNumber,
+            quoteNumber: quote.quoteNumber || quote.number,
+            baseNumber: quote.baseNumber || quote.quoteNumber || quote.number,
+            version: quote.version || 1,
+            historicalUploadedAt: new Date().toISOString(),
+        };
+        setQuotes(prev => [...prev, newQuote]);
+        persistSharedState({ quotes: [newQuote] });
         return id;
     };
 
@@ -1984,9 +2225,14 @@ REGLAS DE ORO:
 
     const updateTask = (taskId: string, updates: Partial<Task>) => {
         setTasks(prev => {
-            const next = prev.map(t => t.id === taskId ? { ...t, ...updates } : t);
-            persistSharedState({ tasks: next });
-            return next;
+            const victim = prev.find(t => t.id === taskId);
+            if (!victim) {
+                console.error(`[updateTask] task ${taskId} no está en memoria — update descartado`);
+                return prev;
+            }
+            const updated = { ...victim, ...updates };
+            persistSharedState({ tasks: [updated] });
+            return prev.map(t => t.id === taskId ? updated : t);
         });
     };
 
@@ -2003,56 +2249,93 @@ REGLAS DE ORO:
             ? Array.from(new Set([taskId, `t-qt-${quoteId}`, `t-mig-${quoteId}`]))
             : [taskId];
 
-        setTasks(prev => {
-            const next = prev.filter(t => !idsToDelete.includes(t.id));
-            persistSharedState({ tasks: next, __deletes: { tasks: idsToDelete } });
-            return next;
-        });
+        setTasks(prev => prev.filter(t => !idsToDelete.includes(t.id)));
+        // El borrado viaja solo como tombstones — con el merge-por-id no hace
+        // falta re-enviar el arreglo restante.
+        persistSharedState({ tasks: [], __deletes: { tasks: idsToDelete } });
 
         // Estampa en la cotización vinculada: la migración de huérfanos la
         // respeta y deja de re-crear el negocio en cada boot. La cotización
         // NO se toca en lo demás — sigue visible y editable en /quotes.
         if (quoteId) {
             setQuotes(prev => {
-                if (!prev.some(q => q.id === quoteId)) return prev;
-                const next = prev.map(q =>
-                    q.id === quoteId ? { ...q, pipelineTaskDeletedAt: new Date().toISOString() } : q
-                );
-                persistSharedState({ quotes: next });
-                return next;
+                const victim = prev.find(q => q.id === quoteId);
+                if (!victim) return prev;
+                const stamped = { ...victim, pipelineTaskDeletedAt: new Date().toISOString() };
+                persistSharedState({ quotes: [stamped] });
+                return prev.map(q => q.id === quoteId ? stamped : q);
             });
         }
     };
 
-    const updateQuote = (quoteId: string, updates: Partial<Quote>) => {
+    // Devuelve si la escritura quedó confirmada por el server (ver addQuote).
+    //
+    // La búsqueda del registro y el armado del update corren DENTRO del updater
+    // (prev fresco): un caller que hace addQuote y updateQuote en el mismo tick
+    // (p.ej. executeEmail marca 'Sent' la cotización que acaba de crear) no la
+    // encuentra en el closure del render, pero sí en prev. El resultado de la
+    // persistencia sale por una promesa diferida resuelta desde el updater.
+    const updateQuote = (quoteId: string, updates: Partial<Quote>): Promise<boolean> => {
+        // Snapshot del render — solo para los efectos laterales de más abajo,
+        // igual que siempre.
         const prevQuote = quotes.find(q => q.id === quoteId);
 
-        // Estampar la fecha de cada cambio de estado — es lo que permite medir
-        // el ciclo cotización→cierre en la auditoría.
-        if (updates.status && prevQuote && updates.status !== prevQuote.status && !updates.statusChangedAt) {
-            updates = { ...updates, statusChangedAt: new Date().toISOString() };
-        }
-
-        // Toda transición a 'Sent' debe quedar con sentAt: el informe
-        // diario/semanal/mensual filtra las cotizaciones por sentAt, así que
-        // una marcada "Sent" sin estampa (p.ej. desde el dropdown de estado
-        // en /quotes) nunca aparece en ningún reporte. Caso 9-jul-2026:
-        // Jefferson marcó ART-509/511/508/488 como enviadas y el informe
-        // le mostró 0 cotizaciones ese día.
-        if (updates.status === 'Sent' && prevQuote && !prevQuote.sentAt && !updates.sentAt) {
-            updates = {
-                ...updates,
-                sentAt: new Date().toISOString(),
-                ...(!updates.sentById && !prevQuote.sentById && currentUser
-                    ? { sentById: currentUser.id, sentByName: currentUser.name }
-                    : {}),
-            };
-        }
+        let settled = false;
+        let resolveOutcome: (ok: boolean | Promise<boolean>) => void = () => {};
+        const outcome = new Promise<boolean>(resolve => { resolveOutcome = resolve; });
 
         setQuotes(prev => {
-            const next = prev.map(q => q.id === quoteId ? { ...q, ...updates } : q);
-            persistSharedState({ quotes: next });
-            return next;
+            const current = prev.find(q => q.id === quoteId);
+            if (!current) {
+                // 30-jul-2026 (ART-567): esto era un no-op silencioso — los
+                // re-clicks de "enviar a aprobación" registraban auditoría de
+                // una cotización inexistente. queueMicrotask escapa del updater
+                // (acá adentro no se puede disparar otro setState).
+                if (!settled) {
+                    settled = true;
+                    queueMicrotask(() => {
+                        console.error(`[updateQuote] quote ${quoteId} no está en memoria — update descartado`);
+                        addNotification({
+                            title: '⚠️ La cotización no se pudo actualizar',
+                            description: 'La cotización ya no está en este navegador (pudo eliminarse desde otra sesión). Recarga la página (F5).',
+                            type: 'alert',
+                        });
+                        resolveOutcome(false);
+                    });
+                }
+                return prev;
+            }
+
+            let patch = updates;
+            // Estampar la fecha de cada cambio de estado — es lo que permite
+            // medir el ciclo cotización→cierre en la auditoría.
+            if (patch.status && patch.status !== current.status && !patch.statusChangedAt) {
+                patch = { ...patch, statusChangedAt: new Date().toISOString() };
+            }
+            // Toda transición a 'Sent' debe quedar con sentAt: el informe
+            // diario/semanal/mensual filtra las cotizaciones por sentAt, así que
+            // una marcada "Sent" sin estampa (p.ej. desde el dropdown de estado
+            // en /quotes) nunca aparece en ningún reporte. Caso 9-jul-2026:
+            // Jefferson marcó ART-509/511/508/488 como enviadas y el informe
+            // le mostró 0 cotizaciones ese día.
+            if (patch.status === 'Sent' && !current.sentAt && !patch.sentAt) {
+                patch = {
+                    ...patch,
+                    sentAt: new Date().toISOString(),
+                    ...(!patch.sentById && !current.sentById && currentUser
+                        ? { sentById: currentUser.id, sentByName: currentUser.name }
+                        : {}),
+                };
+            }
+
+            const updated: Quote = { ...current, ...patch };
+            if (!settled) {
+                // El flag evita doble-persist si React re-ejecuta el updater
+                // (StrictMode). resolve() adopta la promesa del persist.
+                settled = true;
+                resolveOutcome(persistSharedState({ quotes: [updated] }));
+            }
+            return prev.map(q => q.id === quoteId ? updated : q);
         });
 
         // Auto-notify on meaningful status transitions
@@ -2092,11 +2375,13 @@ REGLAS DE ORO:
                 setTasks(prev => {
                     const linked = prev.find(t => (t as any).quoteId === quoteId);
                     if (!linked) return prev;
-                    const next = prev.map(t =>
+                    const changed = prev
+                        .filter(t => (t as any).quoteId === quoteId)
+                        .map(t => ({ ...t, stageId: newStage }));
+                    persistSharedState({ tasks: changed });
+                    return prev.map(t =>
                         (t as any).quoteId === quoteId ? { ...t, stageId: newStage } : t
                     );
-                    persistSharedState({ tasks: next });
-                    return next;
                 });
             }
         }
@@ -2118,29 +2403,27 @@ REGLAS DE ORO:
             setTasks(prev => {
                 const linked = prev.find(t => (t as any).quoteId === quoteId);
                 if (!linked) return prev;
-                const next = prev.map(t => {
-                    if ((t as any).quoteId !== quoteId) return t;
+                const applyPatch = (t: Task) => {
                     const patch: Partial<Task> = {};
                     if (totalChanged && updates.total !== undefined) patch.value = updates.total;
                     if (numericChanged && updates.numericTotal !== undefined) patch.numericValue = updates.numericTotal;
                     return { ...t, ...patch };
-                });
-                persistSharedState({ tasks: next });
-                return next;
+                };
+                const changed = prev.filter(t => (t as any).quoteId === quoteId).map(applyPatch);
+                persistSharedState({ tasks: changed });
+                return prev.map(t => (t as any).quoteId === quoteId ? applyPatch(t) : t);
             });
         }
+
+        return outcome;
     };
 
     const deleteQuote = (quoteId: string) => {
-        setQuotes(prev => {
-            const next = prev.filter(q => q.id !== quoteId);
-            // El server hace merge-por-id sobre `quotes`: mandar el arreglo sin
-            // el registro ya no borra nada. El borrado real viaja en __deletes
-            // y queda tombstoneado server-side, para que el snapshot de otra
-            // sesión abierta no lo resucite.
-            persistSharedState({ quotes: next, __deletes: { quotes: [quoteId] } });
-            return next;
-        });
+        setQuotes(prev => prev.filter(q => q.id !== quoteId));
+        // El server hace merge-por-id sobre `quotes`: el borrado real viaja en
+        // __deletes y queda tombstoneado server-side, para que el snapshot de
+        // otra sesión abierta no lo resucite. No hace falta re-enviar el resto.
+        persistSharedState({ quotes: [], __deletes: { quotes: [quoteId] } });
     };
 
     const updateEvent = (eventId: string, updates: Partial<CalendarEvent>) => {
