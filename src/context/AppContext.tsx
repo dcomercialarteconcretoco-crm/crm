@@ -682,8 +682,17 @@ interface AppContextType {
     addTask: (task: Omit<Task, 'id'>) => string;
     // `persisted: false` = la cotización quedó solo en este navegador (encolada
     // para reintento). Los flujos críticos deben mirar el flag antes de mostrar
-    // éxito (caso ART-567-2026).
-    addQuote: (quote: Omit<Quote, 'id'>) => Promise<{ id: string; persisted: boolean }>;
+    // éxito (caso ART-567-2026). `quoteNumber` es el número REAL asignado —
+    // cuando el caller no pasó uno, es el reservado atómicamente en el server
+    // y puede diferir del preview local (contador stale).
+    addQuote: (quote: Omit<Quote, 'id'>) => Promise<{ id: string; persisted: boolean; quoteNumber: string }>;
+    /**
+     * Reserva atómica del consecutivo vía /api/quotes/reserve-number.
+     * Devuelve la base "ART-NNN-YYYY" o null si el endpoint falló (el caller
+     * decide su fallback). Para flujos que necesitan el número ANTES de
+     * llamar addQuote (ej: armar el mensaje de WhatsApp).
+     */
+    reserveQuoteNumber: () => Promise<string | null>;
     createQuoteVersion: (quoteId: string) => Promise<string>;
     createAIUVersion: (quoteId: string) => Promise<string>;
     importClients: (rows: Omit<Client, 'id'>[]) => void;
@@ -1901,11 +1910,40 @@ REGLAS DE ORO:
         return id;
     };
 
-    // Devuelve el id de la cotización y si su escritura quedó CONFIRMADA por el
-    // server. `persisted: false` = quedó solo en este navegador (encolada para
-    // reintento) — los flujos críticos (enviar a aprobación) deben mirar este
-    // flag antes de mostrar éxito o registrar auditoría (caso ART-567-2026).
-    const addQuote = async (quote: Omit<Quote, 'id'>): Promise<{ id: string; persisted: boolean }> => {
+    // Reserva atómica del consecutivo vía /api/quotes/reserve-number (fix del
+    // race del contador, 14-may-2026). Devuelve la base "ART-NNN-YYYY" o null
+    // si el endpoint falló — el caller decide su fallback. Además espeja el
+    // contador en settings local (solo en memoria, SIN persistir: el server ya
+    // quedó incrementado y un persist con settings stale lo revertiría) para
+    // que el preview del próximo número no quede desactualizado en esta sesión.
+    const reserveQuoteNumber = async (): Promise<string | null> => {
+        try {
+            const r = await fetch('/api/quotes/reserve-number', {
+                method: 'POST',
+                cache: 'no-store',
+            });
+            if (r.ok) {
+                const data = await r.json();
+                if (typeof data.quoteNumber === 'string' && data.quoteNumber) {
+                    if (typeof data.number === 'number') {
+                        setSettings(prev => ({ ...prev, quoteNextNumber: data.number + 1 }));
+                    }
+                    return data.quoteNumber;
+                }
+            }
+        } catch (err) {
+            console.warn('[reserveQuoteNumber] reserve-number failed, caller falls back to local counter', err);
+        }
+        return null;
+    };
+
+    // Devuelve el id de la cotización, si su escritura quedó CONFIRMADA por el
+    // server y el quoteNumber REAL asignado (reservado en el server cuando no
+    // vino explícito). `persisted: false` = quedó solo en este navegador
+    // (encolada para reintento) — los flujos críticos (enviar a aprobación)
+    // deben mirar este flag antes de mostrar éxito o registrar auditoría
+    // (caso ART-567-2026).
+    const addQuote = async (quote: Omit<Quote, 'id'>): Promise<{ id: string; persisted: boolean; quoteNumber: string }> => {
         const clientForQuote = quote.clientId ? clients.find(c => c.id === quote.clientId) : undefined;
         const sellerId = quote.sellerId || currentUser?.id || clientForQuote?.assignedTo || '';
         const sellerName = quote.sellerName || currentUser?.name || clientForQuote?.assignedToName || '';
@@ -1923,7 +1961,7 @@ REGLAS DE ORO:
             const dup = quotes.find(q => q.quoteNumber === quote.quoteNumber && !q.isHistorical);
             if (dup) {
                 const persisted = await updateQuote(dup.id, { ...quote, sellerId, sellerName });
-                return { id: dup.id, persisted };
+                return { id: dup.id, persisted, quoteNumber: quote.quoteNumber };
             }
         }
 
@@ -1946,34 +1984,20 @@ REGLAS DE ORO:
         let quoteNumber = quote.quoteNumber;
         let baseNumber  = quote.baseNumber;
         if (!quoteNumber) {
-            try {
-                const r = await fetch('/api/quotes/reserve-number', {
-                    method: 'POST',
-                    cache: 'no-store',
-                });
-                if (r.ok) {
-                    const data = await r.json();
-                    if (typeof data.quoteNumber === 'string' && data.quoteNumber) {
-                        quoteNumber = data.quoteNumber;
-                        baseNumber = quoteNumber;
-                        // Espejamos el contador en settings local para que la
-                        // UI de /settings muestre el próximo número actualizado
-                        // sin esperar al siguiente full-sync.
-                        if (typeof data.number === 'number') {
-                            setSettings(prev => ({ ...prev, quoteNextNumber: data.number + 1 }));
-                        }
-                    }
-                }
-            } catch (err) {
-                console.warn('[addQuote] reserve-number failed, falling back to local counter', err);
-            }
-            // Fallback (local counter, race-prone — solo si el endpoint falló)
-            if (!quoteNumber) {
+            const reservedBase = await reserveQuoteNumber();
+            if (reservedBase) {
+                // El sufijo -AIU y la versión son decoración del display sobre
+                // la base reservada — la base queda limpia en baseNumber para
+                // que las re-versiones (V1/V2/AIU) deriven bien su número.
+                baseNumber  = reservedBase;
+                quoteNumber = formatQuoteNumber(reservedBase, quote.version || 1, !!quote.isAIU);
+            } else {
+                // Fallback (local counter, race-prone — solo si el endpoint falló)
                 const prefix  = settings.quotePrefix  || 'ART';
                 const year    = settings.quoteYear    || new Date().getFullYear();
                 const num     = settings.quoteNextNumber ?? 300;
-                quoteNumber = `${prefix}-${num}-${year}`;
-                baseNumber  = quoteNumber;
+                baseNumber  = `${prefix}-${num}-${year}`;
+                quoteNumber = formatQuoteNumber(baseNumber, quote.version || 1, !!quote.isAIU);
                 setSettings(prev => {
                     const next = { ...prev, quoteNextNumber: (prev.quoteNextNumber ?? 300) + 1 };
                     persistSharedState({ settings: sanitizeSettingsForStorage(next) });
@@ -2047,7 +2071,7 @@ REGLAS DE ORO:
             });
         }
 
-        return { id: quoteId, persisted };
+        return { id: quoteId, persisted, quoteNumber };
     };
 
     // Create a new version of an existing quote (V1, V2, ... — inserted before the year)
@@ -2832,7 +2856,7 @@ REGLAS DE ORO:
     const contextValue = useMemo(() => ({
             clients, tasks, quotes, sellers, notifications, settings, events, forms,
             companies,
-            addClient, addTask, addQuote, createQuoteVersion, createAIUVersion, importClients, importQuotes, addHistoricalQuote, clearTestData,
+            addClient, addTask, addQuote, reserveQuoteNumber, createQuoteVersion, createAIUVersion, importClients, importQuotes, addHistoricalQuote, clearTestData,
             addCompany, updateCompany, deleteCompany,
             addSeller, addNotification, addEvent, addForm,
             updateClient, deleteClient,

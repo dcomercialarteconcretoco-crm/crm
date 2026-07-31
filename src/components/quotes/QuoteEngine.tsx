@@ -43,7 +43,7 @@ interface QuoteEngineProps {
 }
 
 export default function QuoteEngine({ defaultClientId = '', editQuoteId }: QuoteEngineProps) {
-    const { products, clients, addClient, refreshProducts, addQuote, createQuoteVersion, updateQuote, quotes, currentUser, isHydrating, settings, addNotification, addAuditLog } = useApp();
+    const { products, clients, addClient, refreshProducts, addQuote, reserveQuoteNumber, createQuoteVersion, updateQuote, quotes, currentUser, isHydrating, settings, addNotification, addAuditLog } = useApp();
     const isEditMode = !!editQuoteId;
     const editQuote = editQuoteId ? quotes.find(q => q.id === editQuoteId) : undefined;
     const genId = () => `${Date.now().toString(36)}-${Math.round(Math.random() * 1e4)}`;
@@ -172,6 +172,15 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     // (ej: contador desincronizado contra una cotización vieja con el mismo
     // número — caso reportado el 7 de mayo: "no deja enviar a aprobación").
     const isUsingCustomNumber = !editQuoteId && customQuoteNumber.trim().length > 0;
+    // Una cotización NUEVA con consecutivo automático NO usa el número del
+    // preview (sale de settings local, que puede estar stale): el número real
+    // se reserva atómico en el server vía /api/quotes/reserve-number. Generarlo
+    // acá y pasarlo explícito a addQuote fue lo que parió las gemelas ART-572
+    // (29-jul-2026): dos sesiones con el mismo contador stale generan el mismo
+    // número y el dedup de addQuote pisa la cotización del otro vendedor en
+    // silencio. El override manual y las ediciones/re-versiones sí conservan
+    // su número — ahí no hay consecutivo que reservar.
+    const needsServerNumber = !isEditMode && !isUsingCustomNumber;
     const normalizedQuoteNumber = customQuoteNumber.trim().toLowerCase();
     const conflictingQuote = isUsingCustomNumber
         ? quotes.find(q =>
@@ -551,10 +560,13 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         return true;
     };
 
-    const getCommonQuoteFields = (client: typeof clients[0], quoteNumber: string, mappedItems: typeof items) => {
+    // `quoteNumber: null` = cotización nueva con consecutivo automático: se
+    // omiten number/quoteNumber/baseNumber para que addQuote reserve el número
+    // atómico en el server y los deje coherentes entre sí.
+    const getCommonQuoteFields = (client: typeof clients[0], quoteNumber: string | null, mappedItems: typeof items) => {
         const owner = getQuoteOwner(client);
         return {
-            number: quoteNumber, client: client.name, clientId: client.id,
+            number: quoteNumber || undefined, client: client.name, clientId: client.id,
             clientEmail: client.email || '', clientCompany: client.company || '',
             // Propagamos el companyId del cliente para que el detalle de empresa
             // pueda agrupar todas las cotizaciones de sus contactos. Si el lead no
@@ -579,8 +591,8 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             totalWeight: shippingMetrics.totalWeight || undefined,
             totalVolume: shippingMetrics.totalVolume || undefined,
             // Numbering
-            quoteNumber,
-            baseNumber: editQuote?.baseNumber || (editQuote ? undefined : newQuoteBase),
+            quoteNumber: quoteNumber || undefined,
+            baseNumber: editQuote?.baseNumber || (editQuote || !quoteNumber ? undefined : newQuoteBase),
             version: versionForDisplay,
             // isAIU se mantiene por el sufijo "-AIU" del número y el listado de cotizaciones,
             // pero la fuente de verdad es quoteMode. aiuData (legacy) se conserva tal cual si
@@ -673,15 +685,15 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
 
         setIsSaving(true);
         try {
-            const quoteNumber = genQuoteNumber();
             const requestedAt = new Date().toISOString();
-            const commonFields = getCommonQuoteFields(client, quoteNumber, items);
 
             let persisted: boolean;
+            let quoteNumber: string;
             if (isEditMode && editQuoteId) {
                 // Re-enviar a aprobación (después de correcciones o editando una aprobada)
+                quoteNumber = genQuoteNumber();
                 persisted = await updateQuote(editQuoteId, {
-                    ...commonFields,
+                    ...getCommonQuoteFields(client, quoteNumber, items),
                     status: 'PendingApproval',
                     requestedBy: currentUser?.id || '',
                     requestedByName: currentUser?.name || '',
@@ -698,13 +710,18 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                     pendingAction: undefined,
                 });
             } else {
-                persisted = (await addQuote({
-                    ...commonFields,
+                // Consecutivo automático → addQuote lo reserva atómico en el
+                // server; el número real llega en el resultado (puede diferir
+                // del preview si el contador local estaba stale).
+                const created = await addQuote({
+                    ...getCommonQuoteFields(client, needsServerNumber ? null : genQuoteNumber(), items),
                     status: 'PendingApproval',
                     requestedBy: currentUser?.id || '',
                     requestedByName: currentUser?.name || '',
                     requestedAt,
-                })).persisted;
+                });
+                persisted = created.persisted;
+                quoteNumber = created.quoteNumber;
             }
 
             if (!persisted) {
@@ -818,8 +835,14 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 updateQuote(editQuoteId, { ...getCommonQuoteFields(client, quoteNumber, items), status: existing?.status || 'Draft' as const });
                 quoteId = editQuoteId;
             } else {
-                quoteNumber = genQuoteNumber();
-                quoteId = (await addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Draft' as const })).id;
+                // Consecutivo automático → addQuote lo reserva atómico en el
+                // server. El PDF se genera con el número REAL devuelto.
+                const created = await addQuote({
+                    ...getCommonQuoteFields(client, needsServerNumber ? null : genQuoteNumber(), items),
+                    status: 'Draft' as const,
+                });
+                quoteNumber = created.quoteNumber;
+                quoteId = created.id;
             }
             await generateProposalPDF(buildPdfData(client, quoteNumber));
             addAuditLog({ userId: currentUser?.id || '', userName: currentUser?.name || 'Sistema', userRole: currentUser?.role || 'Vendedor', action: 'QUOTE_SENT', targetId: client.id, targetName: client.company || client.name, details: `Cotización ${quoteNumber} ${isEditMode ? 'editada' : 'generada'} · Total: ${formatCurrency(total)}`, verified: true });
@@ -941,36 +964,58 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         }
         if (!assertNoQuoteNumberConflict()) return;
         if (isSaving) return;
-        const quoteNumber = genQuoteNumber();
         const phone = client.phone.replace(/\D/g, '');
         const intlPhone = phone.startsWith('57') ? phone : `57${phone}`;
-        const itemsList = items.map(i => `  • ${i.name} x${i.quantity}`).join('\n');
-        const vigencia = `Vigencia hasta: ${displayValidUntil}`;
-        const msg = [
-            `Hola ${client.name.split(' ')[0]} 👋`,
-            ``,
-            `Adjunto encontrará la cotización *${quoteNumber}* de *ArteConcreto S.A.S*:`,
-            referencia ? `📋 ${referencia}` : '',
-            ``,
-            itemsList,
-            ``,
-            quoteMode === 'aiu' ? `(Cotización bajo régimen AIU)` : '',
-            `*TOTAL: ${formatCurrency(total)}*`,
-            ``,
-            vigencia,
-            `📍 Km 1+800, Anillo Vial, Floridablanca, Santander`,
-            currentUser?.phone ? `📞 ${currentUser.phone}` : '',
-        ].filter(l => l !== '').join('\n');
         // window.open debe correr DENTRO del gesto del click: después de un
         // await con reintentos (hasta ~7s) la activación de usuario expira y el
-        // navegador bloquea el popup en silencio.
-        const waWindow = window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+        // navegador bloquea el popup en silencio. Como el mensaje necesita el
+        // número reservado en el server (await), abrimos la ventana vacía YA y
+        // la navegamos apenas llegue el número.
+        const waWindow = window.open('', '_blank');
         if (!waWindow) {
             addNotification({ title: 'Popup bloqueado', description: 'El navegador bloqueó la ventana de WhatsApp. Permite popups para el CRM e intenta de nuevo.', type: 'alert' });
         }
         setIsSaving(true);
         try {
-            const { persisted } = await addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Sent' as const });
+            // Consecutivo automático → reserva atómica en el server. Si el
+            // endpoint falla, caemos al contador local (race-prone) — perder
+            // atomicidad en un edge case es mejor que bloquear el envío.
+            let quoteNumber: string;
+            let reservedBase: string | null = null;
+            if (needsServerNumber) {
+                reservedBase = await reserveQuoteNumber();
+                quoteNumber = reservedBase ? formatQuoteNumber(reservedBase, 1, isAIU) : genQuoteNumber();
+            } else {
+                quoteNumber = genQuoteNumber();
+            }
+            const itemsList = items.map(i => `  • ${i.name} x${i.quantity}`).join('\n');
+            const vigencia = `Vigencia hasta: ${displayValidUntil}`;
+            const msg = [
+                `Hola ${client.name.split(' ')[0]} 👋`,
+                ``,
+                `Adjunto encontrará la cotización *${quoteNumber}* de *ArteConcreto S.A.S*:`,
+                referencia ? `📋 ${referencia}` : '',
+                ``,
+                itemsList,
+                ``,
+                quoteMode === 'aiu' ? `(Cotización bajo régimen AIU)` : '',
+                `*TOTAL: ${formatCurrency(total)}*`,
+                ``,
+                vigencia,
+                `📍 Km 1+800, Anillo Vial, Floridablanca, Santander`,
+                currentUser?.phone ? `📞 ${currentUser.phone}` : '',
+            ].filter(l => l !== '').join('\n');
+            if (waWindow) {
+                waWindow.location.href = `https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`;
+            }
+            // El número va explícito (ya reservado) para que coincida con el
+            // mensaje que acaba de salir; baseNumber lleva la base sin sufijos
+            // para que las re-versiones deriven bien.
+            const { persisted } = await addQuote({
+                ...getCommonQuoteFields(client, quoteNumber, items),
+                ...(reservedBase ? { baseNumber: reservedBase } : {}),
+                status: 'Sent' as const,
+            });
             // Sin confirmación del server no se registra auditoría de envío —
             // sería el mismo rastro fantasma del caso ART-567.
             if (persisted) {
@@ -1005,8 +1050,14 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         setIsSendingEmail(true);
         try {
             const sentAt = new Date().toISOString();
-            const quoteNumber = genQuoteNumber();
-            const quoteId = (await addQuote({ ...getCommonQuoteFields(client, quoteNumber, items), status: 'Draft' as const, sentAt, sentByName: currentUser?.name || '', sentById: currentUser?.id || '' })).id;
+            // Consecutivo automático → addQuote lo reserva atómico en el
+            // server; el email sale con el número REAL devuelto.
+            const created = await addQuote({
+                ...getCommonQuoteFields(client, needsServerNumber ? null : genQuoteNumber(), items),
+                status: 'Draft' as const, sentAt, sentByName: currentUser?.name || '', sentById: currentUser?.id || '',
+            });
+            const quoteNumber = created.quoteNumber;
+            const quoteId = created.id;
             const res = await fetch('/api/quotes/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
