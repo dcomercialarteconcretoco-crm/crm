@@ -310,7 +310,25 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         }
         try {
             const image = await normalizeCustomProductImage(file);
-            setCustomProduct(prev => ({ ...prev, image }));
+            // Subida inmediata a /api/quote-images: el item guarda la
+            // referencia URL y el guardado de la cotización viaja en KBs (los
+            // PUT con base64 crudo fueron el candidato #1 del 413 que mató
+            // ART-567). Si la subida falla (p.ej. sin conexión), conservamos
+            // el data-URL: la vista previa funciona igual y el server lo
+            // externaliza de todas formas al guardar (mergeStateRecords).
+            let stored = image;
+            try {
+                const res = await fetch('/api/quote-images', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ dataUrl: image }),
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (typeof data.url === 'string' && data.url) stored = data.url;
+                }
+            } catch { /* sin red: fallback al data-URL */ }
+            setCustomProduct(prev => ({ ...prev, image: stored }));
         } catch {
             addNotification({ title: 'No se pudo leer la imagen', description: 'Intenta con una imagen JPG o PNG.', type: 'alert' });
         }

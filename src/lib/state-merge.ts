@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import { externalizeQuoteImages } from "./quote-images";
 
 /**
  * Merge-por-id para las claves de crm_state que guardan arreglos de registros
@@ -18,7 +19,20 @@ import type { Pool } from "pg";
  *    consumidores renderizan el orden crudo y esperan lo nuevo arriba — las
  *    rutas públicas siempre habían prependeado).
  *  - Registro entrante con id conocido → upsert en su posición (el entrante
- *    gana, por registro).
+ *    gana, por registro) — SALVO que ambos lados traigan `updatedAt` parseable
+ *    y el entrante sea ESTRICTAMENTE más viejo que lo persistido: en ese caso
+ *    el upsert se ignora y el id sale en `rejected`. Cierra el borde
+ *    cross-sesión donde el flush de una cola envejecida (reintentos con
+ *    backoff, tab dormido) revertía una escritura más nueva de otra sesión
+ *    (p.ej. una aprobación de Valentina posterior al snapshot del vendedor).
+ *    Empates ganan al entrante (reintentos idempotentes del mismo body).
+ *    El server JAMÁS inventa `updatedAt`: solo los clientes estampan (en la
+ *    emisión inicial, no en re-flush). Comparar un stamp de cliente contra
+ *    uno acuñado por el server mezclaría relojes distintos y un cliente con
+ *    reloj atrasado quedaría bloqueado para editar; entre clientes el skew
+ *    real (NTP) es de segundos y la ventana del flush viejo es de minutos.
+ *    Registros sin stamp (rutas server-side, tabs pre-deploy) conservan el
+ *    last-writer-wins de siempre.
  *  - Registro del server ausente del snapshot entrante → SE CONSERVA. Nada se
  *    borra por omisión; borrar exige un delete explícito (tombstone).
  *  - Al borrar una cotización, sus duplicados ocultos con el mismo
@@ -68,11 +82,20 @@ function hasId(rec: unknown): rec is { id: string } {
   );
 }
 
+/** Epoch ms del `updatedAt` del registro, o null si no trae uno parseable. */
+function recTimestamp(rec: unknown): number | null {
+  if (typeof rec !== "object" || rec === null) return null;
+  const v = (rec as { updatedAt?: unknown }).updatedAt;
+  if (typeof v !== "string") return null;
+  const t = Date.parse(v);
+  return Number.isNaN(t) ? null : t;
+}
+
 export function mergeRecordsById(
   serverArr: unknown[],
   incomingArr: unknown[],
   tombstoned: Set<string>
-): unknown[] {
+): { merged: unknown[]; rejected: string[] } {
   // Los registros sin id del server solo se conservan cuando el entrante no
   // trae ninguno (patch de un solo registro de una ruta server-side). Si el
   // entrante SÍ trae (snapshot completo del cliente), gobiernan los suyos —
@@ -93,14 +116,23 @@ export function mergeRecordsById(
   }
 
   const fresh: unknown[] = [];
+  const rejected: string[] = [];
   for (const rec of incomingArr) {
     if (hasId(rec)) {
       if (tombstoned.has(rec.id)) continue; // el borrado explícito le gana al snapshot stale
       const at = indexById.get(rec.id);
       if (at !== undefined) {
-        // El entrante gana por registro — misma política last-writer-wins de
-        // antes, pero al nivel del registro y ya no del arreglo entero.
-        base[at] = rec;
+        // El entrante gana por registro — salvo que su `updatedAt` sea
+        // estrictamente más viejo que el persistido (flush de cola envejecida
+        // pisando una escritura posterior de otra sesión). Empates o lados sin
+        // stamp conservan el last-writer-wins de siempre.
+        const curT = recTimestamp(base[at]);
+        const incT = recTimestamp(rec);
+        if (curT !== null && incT !== null && incT < curT) {
+          rejected.push(rec.id);
+        } else {
+          base[at] = rec;
+        }
       } else {
         fresh.push(rec); // id nuevo → arriba, como prependeaban las rutas públicas
       }
@@ -109,7 +141,7 @@ export function mergeRecordsById(
     }
   }
 
-  return [...fresh, ...base];
+  return { merged: [...fresh, ...base], rejected };
 }
 
 function pruneTombstones(tombstones: TombstoneMap): TombstoneMap {
@@ -156,17 +188,33 @@ function quoteNumberOf(rec: unknown): string {
  * igual: cada registro entrante se upsertea por id y el resto del arreglo del
  * server queda intacto. `deletes` anota tombstones y remueve esos ids (y para
  * quotes, también sus duplicados ocultos por quoteNumber).
+ *
+ * Devuelve los ids de upserts IGNORADOS por traer `updatedAt` más viejo que lo
+ * persistido (ver mergeRecordsById) — el PUT de /api/state los reporta al
+ * cliente para que adopte la verdad del server en vez de creer que guardó.
  */
 export async function mergeStateRecords(
   pool: Pool,
   patch: StatePatch,
   deletes: StateDeletes = {}
-): Promise<void> {
+): Promise<{ rejected: Partial<Record<MergedStateKey, string[]>> }> {
+  const rejected: Partial<Record<MergedStateKey, string[]>> = {};
   const keys = MERGED_STATE_KEYS.filter(
     (key) => Array.isArray(patch[key]) || (deletes[key]?.length ?? 0) > 0
   );
-  if (keys.length === 0) return;
+  if (keys.length === 0) return { rejected };
   const hasDeletes = MERGED_STATE_KEYS.some((key) => (deletes[key]?.length ?? 0) > 0);
+
+  // Imágenes base64 → tabla crm_quote_images + referencia URL en el item.
+  // TODO escritor de quotes pasa por acá (PUT de /api/state, rutas públicas,
+  // track-open, …), así que ningún data-URL vuelve a entrar al blob — un
+  // snapshot stale que re-mande la imagen vieja se externaliza de nuevo al
+  // mismo id (content-addressed) sin engordar nada. Corre ANTES y FUERA de la
+  // transacción: si el merge falla, la fila huérfana es inofensiva y el
+  // reintento la reutiliza.
+  if (Array.isArray(patch.quotes) && patch.quotes.length > 0) {
+    patch = { ...patch, quotes: await externalizeQuoteImages(pool, patch.quotes) };
+  }
 
   const client = await pool.connect();
   try {
@@ -233,8 +281,9 @@ export async function mergeStateRecords(
     for (const key of keys) {
       const incoming = Array.isArray(patch[key]) ? (patch[key] as unknown[]) : [];
       const dead = new Set(Object.keys(tombstones?.[key] ?? {}));
-      const merged = mergeRecordsById(serverArrs[key] as unknown[], incoming, dead);
-      await client.query(UPSERT_SQL, [key, JSON.stringify(merged)]);
+      const result = mergeRecordsById(serverArrs[key] as unknown[], incoming, dead);
+      if (result.rejected.length > 0) rejected[key] = result.rejected;
+      await client.query(UPSERT_SQL, [key, JSON.stringify(result.merged)]);
     }
 
     if (hasDeletes) {
@@ -247,6 +296,7 @@ export async function mergeStateRecords(
   } finally {
     client.release();
   }
+  return { rejected };
 }
 
 /**

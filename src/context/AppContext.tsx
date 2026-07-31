@@ -45,6 +45,10 @@ export interface Task {
     activities: Activity[];
     quoteId?: string;
     stageId?: string;
+    // Versión del registro para el merge server-side: lo estampa stampAndQueue
+    // en la emisión inicial de cada escritura; el server ignora upserts con
+    // updatedAt más viejo que lo persistido (ver src/lib/state-merge.ts).
+    updatedAt?: string;
     // Motivo de pérdida cuando el negocio se descarta/marca perdido —
     // requerido por gerencia para saber por qué se pierden los negocios.
     lossReason?: string;
@@ -181,6 +185,10 @@ export interface Quote {
     //              ▼                 ▼ (si Resend falla: deliveryFailed=true)
     //         ChangesRequested    Sent (deliveryFailed? → retry)
     status: 'Draft' | 'PendingApproval' | 'ChangesRequested' | 'Approved' | 'Sent' | 'Rejected' | 'Expired' | 'PENDING_APPROVAL';
+    // Versión del registro para el merge server-side: lo estampa stampAndQueue
+    // en la emisión inicial de cada escritura; el server ignora upserts con
+    // updatedAt más viejo que lo persistido (ver src/lib/state-merge.ts).
+    updatedAt?: string;
     // Fecha del último cambio de status — la estampa updateQuote. Permite
     // medir el ciclo real cotización→cierre (auditoría de gestión, jul-2026).
     statusChangedAt?: string;
@@ -858,13 +866,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // Estampa cada registro del patch con una seq nueva y lo mete a la cola de
     // no-confirmados. Devuelve el mapa de seqs de ESTA emisión.
-    const stampAndQueue = (patch: Record<string, unknown>): Map<string, number> => {
+    //
+    // Versionado per-record: la emisión INICIAL también estampa `updatedAt`
+    // (momento de la mutación) en cada registro con id — el server ignora
+    // upserts más viejos que lo persistido. Un re-flush (opts.reemit) NO
+    // re-estampa: si lo hiciera, la cola envejecida llegaría con stamp fresco
+    // y volvería a ganarle a la escritura más nueva de otra sesión — justo el
+    // borde que el versionado cierra.
+    const stampAndQueue = (
+        patch: Record<string, unknown>,
+        opts?: { reemit?: boolean }
+    ): Map<string, number> => {
         const stamped = new Map<string, number>();
         const pending = pendingWritesRef.current;
+        const nowIso = new Date().toISOString();
         for (const key of ['quotes', 'tasks'] as const) {
             const records = patch[key];
             if (!Array.isArray(records)) continue;
-            for (const rec of records) {
+            const emitted = opts?.reemit
+                ? records
+                : records.map(rec =>
+                    (rec as { id?: string })?.id
+                        ? { ...(rec as object), updatedAt: nowIso }
+                        : rec
+                );
+            patch[key] = emitted; // el body del PUT lleva los registros estampados
+            for (const rec of emitted) {
                 const id = (rec as { id?: string })?.id;
                 if (!id) continue;
                 const seq = ++pendingSeqRef.current;
@@ -950,11 +977,65 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const RETRY_DELAYS_MS = [1500, 4000];
 
-    const persistSharedState = async (
-        patch: Record<string, unknown>,
+    // Procesa el campo `stale` de la respuesta del PUT: ids cuyos upserts el
+    // server IGNORÓ por traer `updatedAt` más viejo que lo persistido (otra
+    // sesión escribió después — p.ej. una aprobación de Valentina posterior al
+    // snapshot de este tab). Ya salieron de la cola (dequeueStamped corrió), así
+    // que el refetch NO los superpone y la UI adopta la versión ganadora del
+    // server. Devuelve el resultado que debe reportar persistSharedState:
+    // false solo si TODO lo que llevaba el patch fue rechazado (la escritura no
+    // tuvo ningún efecto y el caller no debe celebrar éxito).
+    const handleStaleRejections = async (
+        res: Response,
+        attemptPatch: Record<string, unknown>,
         opts?: { silent?: boolean }
     ): Promise<boolean> => {
-        const stamped = stampAndQueue(patch);
+        const data = await res.json().catch(() => null) as
+            { stale?: { quotes?: string[]; tasks?: string[] } } | null;
+        const stale = data?.stale;
+        const staleCount = (stale?.quotes?.length || 0) + (stale?.tasks?.length || 0);
+        if (staleCount === 0) return true;
+
+        console.warn('[persistSharedState] upserts ignorados por el server (versión más nueva persistida):', stale);
+        if (!opts?.silent) {
+            addNotification({
+                title: 'Cambio no aplicado: había una versión más nueva',
+                description: 'Otra sesión modificó este registro después de tu último refresco. La pantalla se actualizará con la versión más reciente — revísala y aplica tu cambio de nuevo si sigue haciendo falta.',
+                type: 'alert',
+            });
+        }
+        // Adoptar la verdad del server (la aprobación/edición que ganó).
+        refreshQuotesAndTasks();
+
+        let sentWithId = 0;
+        let hasOtherWork = Boolean((attemptPatch.__deletes as object | undefined) &&
+            Object.keys(attemptPatch.__deletes as object).length > 0);
+        const staleSet = new Set([
+            ...(stale?.quotes || []).map(id => `quotes:${id}`),
+            ...(stale?.tasks || []).map(id => `tasks:${id}`),
+        ]);
+        let allRejected = true;
+        for (const [key, value] of Object.entries(attemptPatch)) {
+            if (key === 'quotes' || key === 'tasks') {
+                if (!Array.isArray(value)) continue;
+                for (const rec of value) {
+                    const id = (rec as { id?: string })?.id;
+                    if (!id) { hasOtherWork = true; continue; }
+                    sentWithId++;
+                    if (!staleSet.has(`${key}:${id}`)) allRejected = false;
+                }
+            } else if (key !== '__deletes') {
+                hasOtherWork = true; // claves planas (settings, events, …) sí se guardaron
+            }
+        }
+        return hasOtherWork || sentWithId === 0 || !allRejected;
+    };
+
+    const persistSharedState = async (
+        patch: Record<string, unknown>,
+        opts?: { silent?: boolean; reemit?: boolean }
+    ): Promise<boolean> => {
+        const stamped = stampAndQueue(patch, { reemit: opts?.reemit });
         let lastError = '';
         let retryable = true;
         for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
@@ -969,7 +1050,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 });
                 if (res.ok) {
                     dequeueStamped(stamped);
-                    return true;
+                    return await handleStaleRejections(res, attemptPatch, opts);
                 }
                 const resBody = await res.text().catch(() => '');
                 lastError = `HTTP ${res.status}`;
@@ -1030,8 +1111,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                     ...(p.deletes.tasks.size > 0 ? { tasks: Array.from(p.deletes.tasks.keys()) } : {}),
                 };
             }
-            // silent: la notificación ya se mostró cuando la escritura original falló.
-            return await persistSharedState(patch, { silent: true });
+            // silent: la notificación ya se mostró cuando la escritura original
+            // falló. reemit: los registros conservan el updatedAt de su emisión
+            // original — re-estampar acá haría que una cola envejecida le
+            // ganara a escrituras más nuevas de otras sesiones.
+            return await persistSharedState(patch, { silent: true, reemit: true });
         } finally {
             flushingRef.current = false;
         }

@@ -372,6 +372,22 @@ async function doEnsureCrmSchema() {
     WHERE id = 'global' AND (featured_products IS NULL OR featured_products = '[]'::jsonb);
   `);
 
+  // ── Imágenes de items de cotización ─────────────────────────────────────
+  // Content-addressed (id = qi-<sha256 del data-URL>): los items de quotes
+  // guardan solo la URL /api/quote-images/<id> y el binario vive acá. Antes
+  // las fotos base64 engordaban el blob crm_state.key='quotes' hasta 2,3 MB
+  // y viajaban COMPLETAS en cada GET/PUT de /api/state (deuda del caso
+  // ART-567). Ver src/lib/quote-images.ts.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_quote_images (
+      id TEXT PRIMARY KEY,
+      mimetype TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      data TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
   // Per-client file attachments (old quotes, photos, signed contracts, etc.)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_client_attachments (

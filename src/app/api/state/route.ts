@@ -127,8 +127,13 @@ export async function PUT(req: NextRequest) {
   await ensureCrmSchema();
   const pool = getPool();
 
+  // Upserts ignorados por traer updatedAt más viejo que lo persistido (flush
+  // de cola envejecida vs escritura más nueva de otra sesión). Se reportan en
+  // la respuesta como `stale` para que el cliente saque esos registros de su
+  // cola y refetchee la verdad del server en vez de creer que guardó.
+  let stale: Partial<Record<MergedStateKey, string[]>> = {};
   if (hasMergeWork) {
-    await mergeStateRecords(pool, mergedPatch, deletes);
+    ({ rejected: stale } = await mergeStateRecords(pool, mergedPatch, deletes));
   }
 
   // Las demás claves (settings, notifications, events, …) conservan el
@@ -146,5 +151,8 @@ export async function PUT(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    ...(Object.keys(stale).length > 0 ? { stale } : {}),
+  });
 }

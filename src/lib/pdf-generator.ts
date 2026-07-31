@@ -656,11 +656,17 @@ export const generateProposalPDF = async (
         try {
             let b64 = src;
             let blobType = '';
-            if (src.startsWith('http')) {
-                const proxied = `/api/img-proxy?url=${encodeURIComponent(src)}`;
-                const r = await fetch(proxied);
+            // http(s) → vía img-proxy (WooCommerce no manda CORS). Rutas
+            // internas de la app (/api/quote-images/<id>, donde viven las
+            // imágenes de productos personalizados desde jul-2026) → fetch
+            // directo mismo-origen. data: → pasa tal cual.
+            const fetchUrl = src.startsWith('http')
+                ? `/api/img-proxy?url=${encodeURIComponent(src)}`
+                : src.startsWith('/') ? src : null;
+            if (fetchUrl) {
+                const r = await fetch(fetchUrl);
                 if (!r.ok) {
-                    console.warn('[pdf] image proxy failed for', src, r.status);
+                    console.warn('[pdf] image fetch failed for', src, r.status);
                     continue;
                 }
                 const bl = await r.blob();
