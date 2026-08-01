@@ -12,24 +12,30 @@ import { useApp, Quote } from '@/context/AppContext';
 import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
 import { ownsRecord } from '@/lib/scope';
 import { downloadQuotePdf, quoteDisplayNumber } from '@/lib/quote-pdf';
+import { quoteStatusLabel, isWonQuote } from '@/lib/quote-status';
 
+// Las etiquetas viven en src/lib/quote-status.ts — acá solo el color.
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
-    'Draft':             { label: 'Borrador',           className: 'bg-muted/40 text-muted-foreground' },
-    'PendingApproval':   { label: 'Por aprobar',        className: 'bg-sky-500/10 text-sky-600 border border-sky-500/20' },
-    'PENDING_APPROVAL':  { label: 'Por aprobar',        className: 'bg-sky-500/10 text-sky-600 border border-sky-500/20' },
-    'ChangesRequested':  { label: 'Cambios pedidos',    className: 'bg-amber-500/10 text-amber-700 border border-amber-500/20' },
-    'Approved':          { label: 'Aprobada',           className: 'bg-emerald-500/10 text-emerald-600' },
-    'Sent':              { label: 'Enviada',            className: 'bg-blue-500/10 text-blue-600' },
-    'Rejected':          { label: 'Perdida',            className: 'bg-rose-500/10 text-rose-500' },
-    'Expired':           { label: 'Vencida',            className: 'bg-orange-500/10 text-orange-600' },
+    'Draft':              { label: quoteStatusLabel('Draft'),               className: 'bg-muted/40 text-muted-foreground' },
+    'PendingApproval':    { label: quoteStatusLabel('PendingApproval'),     className: 'bg-sky-500/10 text-sky-600 border border-sky-500/20' },
+    'PENDING_APPROVAL':   { label: quoteStatusLabel('PENDING_APPROVAL'),    className: 'bg-sky-500/10 text-sky-600 border border-sky-500/20' },
+    'ChangesRequested':   { label: quoteStatusLabel('ChangesRequested'),    className: 'bg-amber-500/10 text-amber-700 border border-amber-500/20' },
+    'ApprovedPendingSend':{ label: quoteStatusLabel('ApprovedPendingSend'), className: 'bg-amber-500/10 text-amber-700 border border-amber-500/20' },
+    'Approved':           { label: quoteStatusLabel('Approved'),            className: 'bg-emerald-500/10 text-emerald-600' },
+    'Sent':               { label: quoteStatusLabel('Sent'),                className: 'bg-blue-500/10 text-blue-600' },
+    'Rejected':           { label: quoteStatusLabel('Rejected'),            className: 'bg-rose-500/10 text-rose-500' },
+    'Expired':            { label: quoteStatusLabel('Expired'),             className: 'bg-orange-500/10 text-orange-600' },
 };
 
 // Transiciones que el asesor puede marcar manualmente sobre una cotización ya
-// enviada. Aprobada/Perdida/Vencida quedan con fecha (statusChangedAt) para que
+// enviada. Ganada/Perdida/Vencida quedan con fecha (statusChangedAt) para que
 // la auditoría pueda medir el ciclo real cotización→cierre.
+//
+// "Ganada" es el cierre comercial (el cliente aceptó) — no la autorización
+// interna del SuperAdmin, que es otro estado distinto.
 const MANUAL_STATUS_OPTIONS: Array<{ value: Quote['status']; label: string }> = [
     { value: 'Sent',     label: 'Enviada' },
-    { value: 'Approved', label: 'Aprobada (ganada)' },
+    { value: 'Approved', label: 'Ganada (el cliente aceptó)' },
     { value: 'Rejected', label: 'Perdida' },
     { value: 'Expired',  label: 'Vencida' },
 ];
@@ -80,7 +86,7 @@ export default function QuotesPage() {
 
     const stats = useMemo(() => {
         const total = validQuotes.reduce((s, q) => s + (q.numericTotal || 0), 0);
-        const ganado = validQuotes.filter(q => q.status === 'Approved').reduce((s, q) => s + (q.numericTotal || 0), 0);
+        const ganado = validQuotes.filter(isWonQuote).reduce((s, q) => s + (q.numericTotal || 0), 0);
         const sent = validQuotes.filter(q => q.status === 'Sent').length;
         const apertura = validQuotes.length > 0
             ? Math.round((validQuotes.filter(q => q.status === 'Approved' || q.status === 'Sent').length / validQuotes.length) * 100)
@@ -260,6 +266,7 @@ export default function QuotesPage() {
                             { value: 'all', label: 'Todas' },
                             { value: 'Draft', label: 'Borrador' },
                             { value: 'Sent', label: 'Visto' },
+                            { value: 'ApprovedPendingSend', label: 'Falta enviar' },
                             { value: 'Approved', label: 'Ganado' },
                             { value: 'Rejected', label: 'Perdido' },
                             { value: 'Expired', label: 'Vencida' },

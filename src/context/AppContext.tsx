@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
+import { QuoteStatus, normalizeQuoteStatus } from '@/lib/quote-status';
 
 // Build the displayed quote number from base + version + AIU flag.
 // base: "ART-250-2026" (prefix-number-year).
@@ -180,11 +181,17 @@ export interface Quote {
     sellerId?: string;
     sellerName?: string;
     // Ciclo de vida de aprobación:
-    //   Draft → PendingApproval → Approved → Sent → Won/Lost
-    //              │                 │
-    //              ▼                 ▼ (si Resend falla: deliveryFailed=true)
-    //         ChangesRequested    Sent (deliveryFailed? → retry)
-    status: 'Draft' | 'PendingApproval' | 'ChangesRequested' | 'Approved' | 'Sent' | 'Rejected' | 'Expired' | 'PENDING_APPROVAL';
+    //   Draft → PendingApproval → Sent → Approved (ganada) / Rejected (perdida)
+    //              │                ▲
+    //              ▼                │ (reintento del vendedor)
+    //         ChangesRequested   ApprovedPendingSend  ← el SuperAdmin autorizó
+    //                                                   pero Resend rechazó el
+    //                                                   correo (deliveryFailed)
+    //
+    // `Approved` significa GANADA y así lo miden todos los tableros; una
+    // cotización que nunca salió va a `ApprovedPendingSend` (ver
+    // src/lib/quote-status.ts, incidente ART-571-2026).
+    status: QuoteStatus;
     // Versión del registro para el merge server-side: lo estampa stampAndQueue
     // en la emisión inicial de cada escritura; el server ignora upserts con
     // updatedAt más viejo que lo persistido (ver src/lib/state-merge.ts).
@@ -775,6 +782,17 @@ export function dedupQuotesByCompleteness(quotes: Quote[]): Quote[] {
     return Array.from(byNumber.values());
 }
 
+/**
+ * Único punto de entrada de las cotizaciones que bajan del server: dedup por
+ * número + reinterpretación de los estados viejos (Approved con el envío
+ * fallido → ApprovedPendingSend, ver src/lib/quote-status.ts). Se hace en la
+ * lectura para no tener que migrar la base: el registro queda corregido en
+ * cuanto alguien lo vuelve a guardar.
+ */
+function hydrateQuotes(list: Quote[]): Quote[] {
+    return dedupQuotesByCompleteness(list).map(normalizeQuoteStatus);
+}
+
 // --- Provider ---
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -1358,7 +1376,7 @@ REGLAS DE ORO:
             if (!res.ok) return;
             const data = await res.json();
             if (Array.isArray(data.quotes)) {
-                setQuotes(overlayPending('quotes', dedupQuotesByCompleteness(data.quotes as Quote[])));
+                setQuotes(overlayPending('quotes', hydrateQuotes(data.quotes as Quote[])));
             }
             if (Array.isArray(data.tasks)) setTasks(overlayPending('tasks', data.tasks as Task[]));
         } catch (error) {
@@ -1523,7 +1541,7 @@ REGLAS DE ORO:
                         // arreglamos la vista. Mantener los duplicados en
                         // crm_state nos da chance de recuperar data si el
                         // score-pick fue incorrecto.
-                        setQuotes(dedupQuotesByCompleteness(stateData.quotes as Quote[]));
+                        setQuotes(hydrateQuotes(stateData.quotes as Quote[]));
                     }
                     if (Array.isArray(stateData.notifications)) setNotifications(stateData.notifications);
                     if (Array.isArray(stateData.auditLogs)) setAuditLogs(stateData.auditLogs);
@@ -1605,9 +1623,12 @@ REGLAS DE ORO:
                 const orphanQuotes = prevQuotes.filter(q => q.id && !quoteIdsWithTask.has(q.id) && !q.pipelineTaskDeletedAt);
                 if (orphanQuotes.length === 0) return prevTasks;
 
+                const winStageId = settings.pipelineStages?.find(s => s.isWinStage)?.id || 'won';
                 const stageMap: Record<string, string> = {
                     Draft: 'proposal', Sent: 'proposal', Viewed: 'contacted',
-                    Approved: 'won', Rejected: 'won',
+                    Approved: winStageId,
+                    ApprovedPendingSend: 'proposal', // autorizada pero sin enviar: no es ganada
+                    Rejected: '__lost__',            // perdida: fuera del kanban, no en Facturado
                     PendingApproval: 'proposal', ChangesRequested: 'proposal',
                     PENDING_APPROVAL: 'proposal', // legacy
                 };
@@ -2427,7 +2448,8 @@ REGLAS DE ORO:
             const notifMap: Record<string, { title: string; type: Notification['type'] }> = {
                 'Sent': { title: 'Cotización enviada', type: 'success' },
                 'Viewed': { title: 'Cotización vista por cliente', type: 'lead' },
-                'Approved': { title: 'Cotización aprobada', type: 'success' },
+                'Approved': { title: 'Cotización ganada', type: 'success' },
+                'ApprovedPendingSend': { title: 'Aprobada · falta enviarla al cliente', type: 'alert' },
                 'Rejected': { title: 'Cotización rechazada', type: 'alert' },
                 'Expired': { title: 'Cotización vencida', type: 'alert' },
             };
@@ -2444,14 +2466,24 @@ REGLAS DE ORO:
 
         // Sync pipeline stage when quote status changes
         if (updates.status) {
-            const stageMap: Record<string, string> = {
+            // La etapa ganadora es la que el cliente marcó con `isWinStage` en
+            // /settings — no el literal 'won', que no existe como columna y el
+            // kanban tenía que traducir a mano (LEGACY_STAGE_MAP).
+            const winStageId = settings.pipelineStages?.find(s => s.isWinStage)?.id;
+            const stageMap: Record<string, string | undefined> = {
                 'Draft': 'proposal',
                 'PendingApproval': 'proposal',
                 'ChangesRequested': 'proposal',
                 'Sent': 'proposal',
                 'Viewed': 'contacted', // Client opened/viewed the quote → move to Contactado
-                'Approved': 'won',
-                'Rejected': 'won', // stays in won column but card can be styled as lost
+                // Solo el cierre comercial mueve el negocio a la etapa ganadora.
+                'Approved': winStageId,
+                // Perdida: sale del kanban con el mismo marcador que usa el
+                // botón "Perdido" del pipeline. Antes iba a 'won' → las
+                // cotizaciones rechazadas aparecían en la columna Facturado.
+                'Rejected': '__lost__',
+                // ApprovedPendingSend NO mueve nada: el correo nunca salió, así
+                // que el negocio sigue donde estaba (incidente ART-571-2026).
                 'PENDING_APPROVAL': 'proposal',
             };
             const newStage = stageMap[updates.status];

@@ -1923,12 +1923,15 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                         const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
                         const st = editQuote?.status;
                         // Admin tiene acceso directo siempre. Vendedor SOLO puede enviar/descargar
-                        // cuando la cotización está Approved o Sent (= aprobada por SuperAdmin).
-                        const isUnlocked   = isAdmin || st === 'Approved' || st === 'Sent';
+                        // cuando el SuperAdmin ya autorizó: Approved (ganada), Sent (enviada) o
+                        // ApprovedPendingSend (autorizada pero el correo rebotó).
+                        const isUnlocked   = isAdmin || st === 'Approved' || st === 'Sent' || st === 'ApprovedPendingSend';
                         const isPending    = st === 'PendingApproval' || st === 'PENDING_APPROVAL';
                         const hasChanges   = st === 'ChangesRequested';
-                        // Vendedor en cotización aprobada pero el email falló → botón reintentar
-                        const canRetry     = !isAdmin && st === 'Approved' && editQuote?.deliveryFailed;
+                        // Vendedor en cotización autorizada cuyo email falló → botón reintentar
+                        // (se acepta el 'Approved' viejo por si quedó algún registro sin normalizar)
+                        const canRetry     = !isAdmin && !!editQuote?.deliveryFailed
+                                             && (st === 'ApprovedPendingSend' || st === 'Approved');
                         // Vendedor en Draft o nueva cotización → CTA "Solicitar aprobación"
                         const needsRequest = !isAdmin && (!editQuote || st === 'Draft');
 

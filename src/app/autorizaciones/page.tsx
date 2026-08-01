@@ -202,10 +202,13 @@ export default function AutorizacionesPage() {
                     targetUserId: q.requestedBy,
                 });
             } else {
-                // Resend rechazó — marcamos Approved con deliveryFailed para que el
-                // vendedor pueda reintentar sin pedir nueva aprobación.
+                // Resend rechazó — queda ApprovedPendingSend (autorizada pero sin
+                // enviar) para que el vendedor reintente sin pedir aprobación de
+                // nuevo. NO usamos 'Approved': ese estado significa negocio
+                // ganado y metía en las ventas cerradas cotizaciones que nunca
+                // salieron (incidente ART-571-2026).
                 updateQuote(q.id, {
-                    status: 'Approved',
+                    status: 'ApprovedPendingSend',
                     approvedBy: currentUser?.id || '',
                     approvedByName: currentUser?.name || 'Admin',
                     approvedAt,
@@ -213,11 +216,11 @@ export default function AutorizacionesPage() {
                     deliveryFailed: true,
                     deliveryError: data.error || `HTTP ${res.status}`,
                 });
-                setError(`La cotización quedó aprobada pero el email falló: ${data.error || 'Error desconocido'}. El vendedor puede reintentar desde la cotización.`);
+                setError(`Autorizaste la cotización pero el correo NO salió: ${data.error || 'Error desconocido'}. Queda como "Aprobada · falta enviar" — revisa el email del cliente y pídele al vendedor que reintente el envío.`);
             }
         } catch (err: any) {
             updateQuote(q.id, {
-                status: 'Approved',
+                status: 'ApprovedPendingSend',
                 approvedBy: currentUser?.id || '',
                 approvedByName: currentUser?.name || 'Admin',
                 approvedAt,
@@ -225,7 +228,7 @@ export default function AutorizacionesPage() {
                 deliveryFailed: true,
                 deliveryError: String(err?.message || err),
             });
-            setError(`Aprobada pero el envío falló (error de red). El vendedor puede reintentar.`);
+            setError(`Autorizada, pero el correo NO salió (error de red). Queda como "Aprobada · falta enviar" para reintentar el envío.`);
         } finally {
             setBusy(null);
             setSelected(null);

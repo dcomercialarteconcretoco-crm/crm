@@ -27,6 +27,7 @@ import Link from 'next/link';
 import { clsx } from 'clsx';
 import { useApp, Activity } from '@/context/AppContext';
 import { ownsRecord } from '@/lib/scope';
+import { quoteStatusLabel } from '@/lib/quote-status';
 import { openMailto, openTel, openWhatsApp } from '@/lib/contact-links';
 import { logContactEvent } from '@/lib/contact-events';
 import { ClientAttachments } from '@/components/leads/ClientAttachments';
@@ -136,7 +137,7 @@ export default function Lead360Page() {
         ...leadQuotes.map(q => ({
             id: `q-${q.id}`,
             type: 'QUOTE_CREATED',
-            title: `📋 Cotización ${q.number} — ${q.status === 'Sent' ? 'Enviada' : q.status === 'Approved' ? 'Aprobada' : q.status === 'Draft' ? 'Borrador' : q.status}`,
+            title: `📋 Cotización ${q.number} — ${quoteStatusLabel(q.status)}`,
             detail: `Total: ${q.total}${q.sentByName ? ` · Por: ${q.sentByName}` : ''}`,
             date: q.sentAt || q.date,
             author: q.sellerName || '',
@@ -698,15 +699,10 @@ export default function Lead360Page() {
                                                         quote.status === 'Approved' ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
                                                         quote.status === 'Sent' ? "bg-blue-50 text-blue-700 border border-blue-200" :
                                                         (quote.status === 'PendingApproval' || quote.status === 'PENDING_APPROVAL') ? "bg-sky-50 text-sky-700 border border-sky-200" :
-                                                        quote.status === 'ChangesRequested' ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                                                        (quote.status === 'ChangesRequested' || quote.status === 'ApprovedPendingSend') ? "bg-amber-50 text-amber-700 border border-amber-200" :
                                                         "bg-muted text-muted-foreground border border-border"
                                                     )}>
-                                                        {quote.status === 'Sent' ? 'Enviado' :
-                                                         quote.status === 'Approved' ? 'Aprobado' :
-                                                         quote.status === 'Draft' ? 'Borrador' :
-                                                         (quote.status === 'PendingApproval' || quote.status === 'PENDING_APPROVAL') ? 'Por aprobar' :
-                                                         quote.status === 'ChangesRequested' ? 'Cambios pedidos' :
-                                                         quote.status}
+                                                        {quoteStatusLabel(quote.status)}
                                                     </span>
                                                 </div>
                                             </Link>

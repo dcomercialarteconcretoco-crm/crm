@@ -588,7 +588,8 @@ export default function AnalyticsPage() {
                                 {quotes.slice(0, 10).map(q => {
                                     const statusMap: Record<string, { label: string; icon: React.ElementType; cls: string }> = {
                                         'Sent':     { label: 'Enviada',   icon: Clock,         cls: 'text-sky-500 bg-sky-50 border-sky-200' },
-                                        'Approved': { label: 'Aprobada', icon: CheckCircle2,   cls: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+                                        'Approved': { label: 'Ganada',   icon: CheckCircle2,   cls: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+                                        'ApprovedPendingSend': { label: 'Falta enviar', icon: AlertCircle, cls: 'text-amber-600 bg-amber-50 border-amber-200' },
                                         'Draft':    { label: 'Borrador', icon: AlertCircle,    cls: 'text-amber-600 bg-amber-50 border-amber-200' },
                                         'Rejected': { label: 'Rechazada',icon: AlertCircle,    cls: 'text-rose-600 bg-rose-50 border-rose-200' },
                                     };
