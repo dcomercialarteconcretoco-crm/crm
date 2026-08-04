@@ -31,6 +31,10 @@ export async function POST(request: NextRequest) {
     validUntil,
     deliveryTime,
     paymentTerms,
+    // Cotización sin IVA (facturación por bloque). SIEMPRE explícito desde el
+    // caller — NO se infiere de tax==0, porque una AIU con utilidad 0% tiene
+    // tax 0 legítimo sin ser exenta y el correo diría "por bloque" siendo falso.
+    vatExempt,
   } = payload;
 
   if (!clientEmail) {
@@ -175,12 +179,12 @@ export async function POST(request: NextRequest) {
         <td style="font-size:13px;color:#999;padding:5px 0;">Subtotal</td>
         <td style="font-size:13px;color:#444;font-weight:700;text-align:right;padding:5px 0;">${formatCOP(subtotal)}</td>
       </tr>
-      ${tax > 0 ? `<tr>
-        <td style="font-size:13px;color:#999;padding:5px 0;">IVA (19%)</td>
-        <td style="font-size:13px;color:#444;font-weight:700;text-align:right;padding:5px 0;">${formatCOP(tax)}</td>
-      </tr>` : `<tr>
+      ${vatExempt === true ? `<tr>
         <td style="font-size:13px;color:#999;padding:5px 0;">IVA</td>
         <td style="font-size:12px;color:#8a6d1a;font-weight:700;text-align:right;padding:5px 0;">No incluye — se factura por bloque</td>
+      </tr>` : `<tr>
+        <td style="font-size:13px;color:#999;padding:5px 0;">IVA (19%)</td>
+        <td style="font-size:13px;color:#444;font-weight:700;text-align:right;padding:5px 0;">${formatCOP(tax)}</td>
       </tr>`}
       ${typeof shipping === 'number' && shipping > 0 ? `<tr>
         <td style="font-size:13px;color:#999;padding:5px 0;">Envío${shippingCity ? ` (${shippingCity})` : ''}</td>

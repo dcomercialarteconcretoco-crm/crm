@@ -43,9 +43,19 @@ interface QuoteEngineProps {
 }
 
 export default function QuoteEngine({ defaultClientId = '', editQuoteId }: QuoteEngineProps) {
+    // ── Ancla al registro creado en esta sesión ──────────────────────────────
+    // Caso EPIFANIA ART-588/589/590 (4-ago-2026): el vendedor envió a
+    // aprobación, notó que le faltó el transporte, lo agregó en la MISMA
+    // pantalla y volvió a enviar — cada click creó una cotización nueva con
+    // consecutivo nuevo, porque el motor seguía en modo "crear". Tras el primer
+    // guardado exitoso anclamos el id creado: cualquier submit posterior en
+    // esta sesión ACTUALIZA ese registro (mismo id, mismo número) en vez de
+    // crear otro. El guard isSaving solo cubría el request en vuelo, no esto.
     const { products, clients, addClient, refreshProducts, addQuote, reserveQuoteNumber, createQuoteVersion, updateQuote, quotes, currentUser, isHydrating, settings, addNotification, addAuditLog } = useApp();
-    const isEditMode = !!editQuoteId;
-    const editQuote = editQuoteId ? quotes.find(q => q.id === editQuoteId) : undefined;
+    const [createdQuoteId, setCreatedQuoteId] = useState<string>('');
+    const activeQuoteId = editQuoteId || createdQuoteId || '';
+    const isEditMode = !!activeQuoteId;
+    const editQuote = activeQuoteId ? quotes.find(q => q.id === activeQuoteId) : undefined;
     const genId = () => `${Date.now().toString(36)}-${Math.round(Math.random() * 1e4)}`;
 
     const [selectedClientId, setSelectedClientId] = useState(defaultClientId);
@@ -189,6 +199,9 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     const normalizedQuoteNumber = customQuoteNumber.trim().toLowerCase();
     const conflictingQuote = isUsingCustomNumber
         ? quotes.find(q =>
+            // La cotización anclada en esta sesión no cuenta como conflicto:
+            // fue creada con este mismo número y el re-submit la va a actualizar.
+            q.id !== activeQuoteId &&
             (q.quoteNumber || q.number || '').trim().toLowerCase() === normalizedQuoteNumber
         )
         : null;
@@ -212,6 +225,18 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         doSync();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // El ancla es POR CLIENTE: si el vendedor cambia de cliente en la misma
+    // pantalla es porque va a armar OTRA cotización — se suelta el ancla y el
+    // siguiente submit crea un registro nuevo. Sin esto, el ancla pisaría la
+    // cotización pendiente del cliente anterior con los datos del nuevo.
+    useEffect(() => {
+        if (!createdQuoteId) return;
+        const anchored = quotes.find(q => q.id === createdQuoteId);
+        if (anchored?.clientId && selectedClientId && anchored.clientId !== selectedClientId) {
+            setCreatedQuoteId('');
+        }
+    }, [selectedClientId, createdQuoteId, quotes]);
 
     useEffect(() => {
         if (!editQuoteId) return;
@@ -700,10 +725,15 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
 
             let persisted: boolean;
             let quoteNumber: string;
-            if (isEditMode && editQuoteId) {
+            // Número que tenía el registro antes de este submit — si cambia
+            // (ej: pasó a modo AIU y ganó el sufijo, caso DAYY BORDA ART-586),
+            // lo dejamos explícito en la auditoría para que el admin no crea
+            // que es otra cotización.
+            const previousNumber = editQuote?.number || editQuote?.quoteNumber || '';
+            if (activeQuoteId) {
                 // Re-enviar a aprobación (después de correcciones o editando una aprobada)
                 quoteNumber = genQuoteNumber();
-                persisted = await updateQuote(editQuoteId, {
+                persisted = await updateQuote(activeQuoteId, {
                     ...getCommonQuoteFields(client, quoteNumber, items),
                     status: 'PendingApproval',
                     requestedBy: currentUser?.id || '',
@@ -733,6 +763,9 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 });
                 persisted = created.persisted;
                 quoteNumber = created.quoteNumber;
+                // Anclar la sesión al registro recién creado (también si quedó
+                // en cola de reintento: el id ya existe y el merge es por id).
+                setCreatedQuoteId(created.id);
             }
 
             if (!persisted) {
@@ -755,9 +788,12 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 description: `El SuperAdmin revisará ${quoteNumber} y al aprobar, el sistema enviará el correo automáticamente.`,
                 type: 'success',
             });
+            const renameNote = previousNumber && previousNumber !== quoteNumber
+                ? ` · antes ${previousNumber}`
+                : '';
             addNotification({
                 title: '🔔 Nueva cotización por aprobar',
-                description: `${currentUser?.name} solicita aprobación — ${quoteNumber} para ${client.name} · ${formatCurrency(total)}`,
+                description: `${currentUser?.name} solicita aprobación — ${quoteNumber}${renameNote} para ${client.name} · ${formatCurrency(total)}`,
                 type: 'alert',
                 forAdmin: true,
             });
@@ -768,7 +804,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 action: 'QUOTE_APPROVAL_REQUESTED',
                 targetId: client.id,
                 targetName: client.company || client.name,
-                details: `Cotización ${quoteNumber} enviada a aprobación · Total: ${formatCurrency(total)}`,
+                details: `Cotización ${quoteNumber} enviada a aprobación${renameNote} · Total: ${formatCurrency(total)}`,
                 verified: true,
             });
             setSentConfirm({ quoteNumber, email: '', pending: true });
@@ -795,7 +831,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                     sellerName: editQuote.sellerName || 'ArteConcreto', sellerId: editQuote.sellerId || '',
                     sentAt, sentByName: editQuote.approvedByName || currentUser?.name || '', sentById: editQuote.approvedBy || currentUser?.id || '',
                     items: items.map(i => ({ name: i.name, price: i.price, quantity: i.quantity, unit: i.unit })),
-                    subtotal, tax, total,
+                    subtotal, tax, total, vatExempt,
                     shipping: shipping > 0 ? shipping : 0,
                     shippingCity: client.city || '',
                     referencia, validUntil: displayValidUntil, deliveryTime, paymentTerms,
@@ -839,12 +875,12 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         try {
             let quoteNumber: string;
             let quoteId: string;
-            if (isEditMode && editQuoteId) {
-                const existing = quotes.find(q => q.id === editQuoteId);
+            if (activeQuoteId) {
+                const existing = quotes.find(q => q.id === activeQuoteId);
                 // Recompute number so AIU toggle is reflected on the stored quote
                 quoteNumber = genQuoteNumber();
-                updateQuote(editQuoteId, { ...getCommonQuoteFields(client, quoteNumber, items), status: existing?.status || 'Draft' as const });
-                quoteId = editQuoteId;
+                updateQuote(activeQuoteId, { ...getCommonQuoteFields(client, quoteNumber, items), status: existing?.status || 'Draft' as const });
+                quoteId = activeQuoteId;
             } else {
                 // Consecutivo automático → addQuote lo reserva atómico en el
                 // server. El PDF se genera con el número REAL devuelto.
@@ -854,6 +890,8 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 });
                 quoteNumber = created.quoteNumber;
                 quoteId = created.id;
+                // Anclar: el próximo submit de esta pantalla actualiza este registro.
+                setCreatedQuoteId(created.id);
             }
             await generateProposalPDF(buildPdfData(client, quoteNumber));
             addAuditLog({ userId: currentUser?.id || '', userName: currentUser?.name || 'Sistema', userRole: currentUser?.role || 'Vendedor', action: 'QUOTE_SENT', targetId: client.id, targetName: client.company || client.name, details: `Cotización ${quoteNumber} ${isEditMode ? 'editada' : 'generada'} · Total: ${formatCurrency(total)}`, verified: true });
@@ -942,7 +980,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                     clientCompany: client.company || '', sellerName: currentUser?.name || 'ArteConcreto',
                     sellerId: currentUser?.id || '', sentAt, sentByName: currentUser?.name || '', sentById: currentUser?.id || '',
                     items: items.map(i => ({ name: i.name, price: i.price, quantity: i.quantity, unit: i.unit })),
-                    subtotal, tax, total,
+                    subtotal, tax, total, vatExempt,
                     shipping: shipping > 0 ? shipping : 0,
                     shippingCity: client.city || '',
                     referencia, validUntil: displayValidUntil, deliveryTime, paymentTerms,
@@ -1021,12 +1059,25 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             }
             // El número va explícito (ya reservado) para que coincida con el
             // mensaje que acaba de salir; baseNumber lleva la base sin sufijos
-            // para que las re-versiones deriven bien.
-            const { persisted } = await addQuote({
-                ...getCommonQuoteFields(client, quoteNumber, items),
-                ...(reservedBase ? { baseNumber: reservedBase } : {}),
-                status: 'Sent' as const,
-            });
+            // para que las re-versiones deriven bien. Si la sesión ya está
+            // anclada a un registro (se guardó/generó antes en esta pantalla),
+            // se ACTUALIZA ese registro en vez de crear un duplicado.
+            let persisted: boolean;
+            if (activeQuoteId) {
+                persisted = await updateQuote(activeQuoteId, {
+                    ...getCommonQuoteFields(client, quoteNumber, items),
+                    status: 'Sent' as const, sentAt: new Date().toISOString(),
+                    sentByName: currentUser?.name || '', sentById: currentUser?.id || '',
+                });
+            } else {
+                const created = await addQuote({
+                    ...getCommonQuoteFields(client, quoteNumber, items),
+                    ...(reservedBase ? { baseNumber: reservedBase } : {}),
+                    status: 'Sent' as const,
+                });
+                persisted = created.persisted;
+                setCreatedQuoteId(created.id);
+            }
             // Sin confirmación del server no se registra auditoría de envío —
             // sería el mismo rastro fantasma del caso ART-567.
             if (persisted) {
@@ -1062,13 +1113,28 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         try {
             const sentAt = new Date().toISOString();
             // Consecutivo automático → addQuote lo reserva atómico en el
-            // server; el email sale con el número REAL devuelto.
-            const created = await addQuote({
-                ...getCommonQuoteFields(client, needsServerNumber ? null : genQuoteNumber(), items),
-                status: 'Draft' as const, sentAt, sentByName: currentUser?.name || '', sentById: currentUser?.id || '',
-            });
-            const quoteNumber = created.quoteNumber;
-            const quoteId = created.id;
+            // server; el email sale con el número REAL devuelto. Si la sesión
+            // ya está anclada a un registro, se actualiza en vez de duplicar.
+            let quoteNumber: string;
+            let quoteId: string;
+            if (activeQuoteId) {
+                const existing = quotes.find(q => q.id === activeQuoteId);
+                quoteNumber = genQuoteNumber();
+                quoteId = activeQuoteId;
+                await updateQuote(activeQuoteId, {
+                    ...getCommonQuoteFields(client, quoteNumber, items),
+                    status: existing?.status || 'Draft' as const,
+                    sentAt, sentByName: currentUser?.name || '', sentById: currentUser?.id || '',
+                });
+            } else {
+                const created = await addQuote({
+                    ...getCommonQuoteFields(client, needsServerNumber ? null : genQuoteNumber(), items),
+                    status: 'Draft' as const, sentAt, sentByName: currentUser?.name || '', sentById: currentUser?.id || '',
+                });
+                quoteNumber = created.quoteNumber;
+                quoteId = created.id;
+                setCreatedQuoteId(created.id);
+            }
             const res = await fetch('/api/quotes/send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1077,7 +1143,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                     clientCompany: client.company || '', sellerName: currentUser?.name || 'ArteConcreto',
                     sellerId: currentUser?.id || '', sentAt, sentByName: currentUser?.name || '', sentById: currentUser?.id || '',
                     items: items.map(i => ({ name: i.name, price: i.price, quantity: i.quantity, unit: i.unit })),
-                    subtotal, tax, total,
+                    subtotal, tax, total, vatExempt,
                     shipping: shipping > 0 ? shipping : 0,
                     shippingCity: client.city || '',
                     referencia, validUntil: displayValidUntil, deliveryTime, paymentTerms,

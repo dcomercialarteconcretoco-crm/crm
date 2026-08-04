@@ -136,6 +136,7 @@ export default function QuotesPage() {
                     subtotal: quote.subtotal || 0,
                     tax: quote.tax || 0,
                     total: quote.numericTotal || 0,
+                    vatExempt: quote.vatExempt === true,
                 }),
             });
             const data = await res.json();

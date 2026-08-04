@@ -154,6 +154,7 @@ export default function AutorizacionesPage() {
                     validUntil:    q.validUntil,
                     deliveryTime:  q.deliveryTime,
                     paymentTerms:  q.paymentTerms,
+                    vatExempt:     q.vatExempt === true,
                 }),
             });
             const data = await res.json().catch(() => ({}));

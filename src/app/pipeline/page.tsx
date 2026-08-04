@@ -875,6 +875,7 @@ export default function PipelinePage() {
                     deliveryTime: linkedQuote.deliveryTime || '',
                     paymentTerms: linkedQuote.paymentTerms || '',
                     sellerPhone: linkedQuote.sellerPhone || currentUser?.phone || '',
+                    vatExempt: linkedQuote.vatExempt === true,
                 }),
             });
             const data = await res.json().catch(() => ({}));
