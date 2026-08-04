@@ -42,6 +42,12 @@ export interface ProposalData {
     sellerPhone?: string;
     /** Modo de la cotización. Default 'simple' si no viene. */
     mode?: QuoteMode;
+    /**
+     * Cotización sin IVA: se omite la fila de IVA de la tabla de totales y se
+     * imprime el aviso de precios sin IVA. Sólo aplica al modelo nuevo — las
+     * legacy siempre llevan su desglose original.
+     */
+    vatExempt?: boolean;
     items: Array<{
         name: string;
         unitPrice: number;       // precio Woo (CON IVA incluido)
@@ -104,6 +110,24 @@ const DARKGRAY = [60, 60, 65]  as [number, number, number];
 const LM = 18; // left margin
 const RM = 192; // right edge
 const PW = 210; // page width
+
+// ── Geometría vertical de la página ──────────────────────────────────────────
+// El pie ocupa los últimos 17mm: franja negra de 16mm + la línea amarilla de
+// 1mm que la remata por arriba (ver addPageFooter). Todo lo que se dibuje por
+// debajo de PAGE_H - FOOTER_BAND se monta sobre esa franja.
+const FOOTER_BAND = 17;
+// Aire mínimo entre el último trazo de contenido y la franja del pie. Antes el
+// margen efectivo era de 3mm (ensureSpace usaba pageH-20) y cualquier bloque
+// que midiera un poco más que su estimación terminaba encima del pie.
+const FOOTER_GAP = 6;
+/** Y máxima utilizable para contenido: por debajo de esto empieza el pie. */
+const contentBottom = (doc: jsPDF): number =>
+    doc.internal.pageSize.getHeight() - FOOTER_BAND - FOOTER_GAP;
+
+// La línea amarilla del mini-header de las páginas 2+ se dibuja en y=18
+// (addAllCompactHeaders). El contenido de una página nueva arranca debajo.
+const HEADER_RULE_Y = 18;
+const CONTENT_TOP = 26;
 
 function fmt(n: number): string {
     return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
@@ -203,7 +227,7 @@ function addAllCompactHeaders(doc: jsPDF, logoB64: string | null, logoFmt: 'JPEG
         doc.text(quoteNumber, RM, 12, { align: 'right' });
         doc.setDrawColor(...PRIMARY);
         doc.setLineWidth(0.4);
-        doc.line(LM, 18, RM, 18);
+        doc.line(LM, HEADER_RULE_Y, RM, HEADER_RULE_Y);
         doc.setLineWidth(0.2);
     }
 }
@@ -351,9 +375,12 @@ export const generateProposalPDF = async (
         transportAmount: data.transportAmount,
         adminPercent: data.adminPercent,
         utilityPercent: data.utilityPercent,
+        vatExempt: data.vatExempt,
     });
 
     const mode: QuoteMode = (data.mode ?? (data.isAIU ? 'aiu' : 'simple'));
+    /** Cotización sin IVA — sólo aplica al modelo nuevo (calc). */
+    const noVat = !isLegacy && calc!.vatExempt;
 
     // Email del footer y contacto: si el vendedor tiene email registrado lo
     // usamos; si no, cae al comercial. Pedido 7-may-2026: el email cotizaciones@
@@ -495,7 +522,7 @@ export const generateProposalPDF = async (
     let fy = y + 4;
     const pageH = doc.internal.pageSize.getHeight();
     const ensureSpace = (need: number) => {
-        if (fy + need > pageH - 20) { doc.addPage(); fy = 25; }
+        if (fy + need > contentBottom(doc)) { doc.addPage(); fy = CONTENT_TOP; }
     };
 
     // ── Sección 1: ALCANCE ───────────────────────────────────────────────────
@@ -740,7 +767,7 @@ export const generateProposalPDF = async (
             // top/bottom explícitos: el default de autotable (~14mm) dejaba que
             // la tabla pintara SOBRE la franja negra del pie (empieza a 17mm del
             // borde) y pegada al mini-header de las páginas 2+ (~20mm).
-            margin: { left: LM, right: 18, top: 24, bottom: 22 },
+            margin: { left: LM, right: 18, top: CONTENT_TOP, bottom: FOOTER_BAND + FOOTER_GAP },
             didDrawCell: drawImageCell,
             // Caso ART-567/571 (31-jul-2026): sin estas dos opciones autoTable
             // PARTE una fila entre páginas (descripción huérfana en la página
@@ -762,7 +789,7 @@ export const generateProposalPDF = async (
 
         if (data.isAIU && data.aiuData) {
             fy += 8;
-            if (fy + 50 > doc.internal.pageSize.getHeight() - 20) { doc.addPage(); fy = 25; }
+            ensureSpace(50);
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(9);
             doc.setTextColor(...DARK);
@@ -822,7 +849,11 @@ export const generateProposalPDF = async (
         }
         autoTable(doc, {
             startY: ay,
-            head: [['Imagen', 'Descripción', 'UM', 'Cantidad', 'V. Unit. antes IVA', 'V. Total antes IVA']],
+            // Sin IVA los rótulos "antes IVA" sobran y confunden: no hay un
+            // después. La columna es sencillamente el valor que se factura.
+            head: [['Imagen', 'Descripción', 'UM', 'Cantidad',
+                noVat ? 'V. Unitario' : 'V. Unit. antes IVA',
+                noVat ? 'V. Total' : 'V. Total antes IVA']],
             body: bodyRows,
             theme: 'grid',
             headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: 'bold', fontSize: 7.5, cellPadding: 3.5, halign: 'center' },
@@ -836,12 +867,15 @@ export const generateProposalPDF = async (
                 4: { cellWidth: 28, halign: 'right' },
                 5: { cellWidth: 30, halign: 'right' },
             },
-            margin: { left: LM, right: 18, top: 24, bottom: 22 },
+            margin: { left: LM, right: 18, top: CONTENT_TOP, bottom: FOOTER_BAND + FOOTER_GAP },
             didDrawCell: drawImageCell,
             // Ver comentario en la rama legacy (caso ART-567/571, 31-jul-2026).
             rowPageBreak: 'avoid',
             showFoot: 'lastPage',
-            foot: [
+            // Sin IVA no hay desglose que mostrar: el subtotal ES el total y ya
+            // sale en la caja amarilla de abajo. Repetirlo en el pie de la tabla
+            // sólo duplica la misma cifra.
+            foot: noVat ? [] : [
                 ['', '', '', '', 'Valor total antes de IVA:', fmt(c.subtotalLine1)],
                 ['', '', '', '', 'IVA:', fmt(c.taxAmount)],
             ],
@@ -865,7 +899,9 @@ export const generateProposalPDF = async (
         const c = calc!;
         autoTable(doc, {
             startY: ay,
-            head: [['Imagen', 'Descripción', 'UM', 'Cantidad', 'V. Unit. antes IVA', 'V. Total antes IVA']],
+            head: [['Imagen', 'Descripción', 'UM', 'Cantidad',
+                noVat ? 'V. Unitario' : 'V. Unit. antes IVA',
+                noVat ? 'V. Total' : 'V. Total antes IVA']],
             body: data.items.map((item, idx) => {
                 const desc = [item.name, item.dimensions ? '\n' + item.dimensions : ''].join('');
                 return [
@@ -889,17 +925,20 @@ export const generateProposalPDF = async (
                 4: { cellWidth: 28, halign: 'right' },
                 5: { cellWidth: 30, halign: 'right' },
             },
-            margin: { left: LM, right: 18, top: 24, bottom: 22 },
+            margin: { left: LM, right: 18, top: CONTENT_TOP, bottom: FOOTER_BAND + FOOTER_GAP },
             didDrawCell: drawImageCell,
             // Ver comentario en la rama legacy (caso ART-567/571, 31-jul-2026).
             rowPageBreak: 'avoid',
             showFoot: 'lastPage',
+            // El desglose AIU se conserva sin IVA (el cliente igual quiere ver
+            // Administración y Utilidad); lo único que desaparece es el renglón
+            // del impuesto.
             foot: [
                 ['', '', '', '', 'Subtotal:', fmt(c.productsSubtotal)],
                 ['', '', '', '', `Administración (${data.adminPercent ?? 0}%):`, fmt(c.adminAmount ?? 0)],
                 ['', '', '', '', `Utilidad (${data.utilityPercent ?? 0}%):`, fmt(c.utilityAmount ?? 0)],
                 ['', '', '', '', 'Subtotal acumulado:', fmt(c.subtotalAfterAiu ?? 0)],
-                ['', '', '', '', 'IVA 19% (sólo sobre utilidad):', fmt(c.taxAmount)],
+                ...(noVat ? [] : [['', '', '', '', 'IVA 19% (sólo sobre utilidad):', fmt(c.taxAmount)] as string[]]),
             ],
             footStyles: { fillColor: [245, 245, 245] as [number,number,number], textColor: DARKGRAY, fontStyle: 'bold', fontSize: 7.5, halign: 'right' },
         });
@@ -917,6 +956,27 @@ export const generateProposalPDF = async (
         fy += 18;
     }
 
+    // ── AVISO DE COTIZACIÓN SIN IVA ──────────────────────────────────────────
+    // Pedido del cliente (ago-2026): cuando se acuerda facturar por bloque sin
+    // IVA, el PDF tiene que decirlo de forma visible para que no haya discusión
+    // al momento de facturar. Va después de los totales y antes de las
+    // observaciones, pegado a la cifra que afecta.
+    if (noVat) {
+        ensureSpace(14);
+        doc.setFillColor(...LIGHT);
+        doc.rect(LM, fy, 174, 9, 'F');
+        doc.setFillColor(...PRIMARY);
+        doc.rect(LM, fy, 1.5, 9, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(...DARK);
+        doc.text(
+            'Los valores de esta cotización NO INCLUYEN IVA — se factura por bloque.',
+            LM + 6, fy + 5.9
+        );
+        fy += 15;
+    }
+
     // ── OBSERVACIONES (opcional, editable por el vendedor) ───────────────────
     // El cliente pidió 7-may-2026: "una casilla opcional que podamos llenar
     // manual donde podamos incluir observaciones". Renderizamos como caja
@@ -929,33 +989,53 @@ export const generateProposalPDF = async (
         const obsLines = obsRaw.split('\n').map(l => l.trim()).filter(Boolean).map(l =>
             l.replace(/^[•\-]\s*/, '')
         );
-        // Estimación de altura para reservar la caja
         const wrapWidth = 168;
         const lineHeight = 4.5;
-        let estHeight = 12; // título
-        for (const line of obsLines) {
-            const wrapped = doc.splitTextToSize(line, wrapWidth);
-            estHeight += wrapped.length * lineHeight + 1;
-        }
-        ensureSpace(estHeight + 6);
+        const boxX = LM;
+        const boxW = 174;
 
-        const boxTop = fy;
-        const boxX   = LM;
-        const boxW   = 174;
+        // Reservamos sólo el título + el primer punto. El resto se pagina abajo:
+        // estimar la caja completa y confiar en un único ensureSpace hacía que
+        // una observación larga se dibujara por debajo de la franja del pie.
+        const firstBlock = obsLines.length
+            ? doc.splitTextToSize(obsLines[0], wrapWidth - 6).length * lineHeight + 1
+            : 0;
+        ensureSpace(12 + firstBlock + 6);
+
+        let boxTop = fy;
         // Título centrado
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
         doc.setTextColor(...DARK);
         doc.text('OBSERVACIONES', boxX + boxW / 2, fy + 6, { align: 'center' });
         let ofy = fy + 12;
+
+        // Cierra la caja actual y abre página nueva. Se usa cuando el siguiente
+        // punto no cabe: preferimos partir la caja a invadir el pie.
+        const closeBoxAndBreak = () => {
+            doc.setDrawColor(...PRIMARY);
+            doc.setLineWidth(0.6);
+            doc.roundedRect(boxX, boxTop, boxW, ofy - boxTop + 2, 3, 3, 'S');
+            doc.setLineWidth(0.2);
+            doc.addPage();
+            boxTop = CONTENT_TOP;
+            ofy = CONTENT_TOP + 4;
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8.5);
+            doc.setTextColor(...DARKGRAY);
+        };
+
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8.5);
         doc.setTextColor(...DARKGRAY);
         for (const line of obsLines) {
             const wrapped = doc.splitTextToSize(line, wrapWidth - 6);
+            const blockHeight = wrapped.length * lineHeight + 1;
+            // +4 deja sitio al borde inferior de la caja.
+            if (ofy + blockHeight + 4 > contentBottom(doc)) closeBoxAndBreak();
             doc.text('•', boxX + 4, ofy);
             doc.text(wrapped, boxX + 8, ofy);
-            ofy += wrapped.length * lineHeight + 1;
+            ofy += blockHeight;
         }
         // Caja redondeada alrededor (color crema suave como el ejemplo)
         doc.setDrawColor(...PRIMARY);
@@ -969,7 +1049,7 @@ export const generateProposalPDF = async (
     fy += 8;
     if (fy > pageH - 50) {
         doc.addPage();
-        fy = 25;
+        fy = CONTENT_TOP;
     }
 
     doc.setFont('helvetica', 'normal');

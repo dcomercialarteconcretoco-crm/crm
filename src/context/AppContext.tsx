@@ -294,6 +294,13 @@ export interface Quote {
     adminPercent?: number;
     utilityPercent?: number;
 
+    // Cotización SIN IVA (ago-2026). Acuerdo comercial de facturación por bloque:
+    // al cliente no se le suma el IVA, así que paga la base (los precios de Woo lo
+    // traen adentro; el total termina ~16% por debajo, porque el 19% iba encima de
+    // esa base). El PDF omite la fila de IVA y saca un aviso de "precios no
+    // incluyen IVA". undefined/false = cotización normal.
+    vatExempt?: boolean;
+
     // Texto que reemplaza el "se entrega en la ciudad de {client.city}" del Alcance.
     // Vacío → se autogenera con la ciudad. Útil cuando el vendedor quiere poner una
     // dirección específica (Calle 24 # 25-68 Bucaramanga, etc.).

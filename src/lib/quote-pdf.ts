@@ -73,6 +73,7 @@ async function renderQuotePdf(
             transportCity: quote.transportCity,
             adminPercent: quote.adminPercent,
             utilityPercent: quote.utilityPercent,
+            vatExempt: quote.vatExempt,
             deliveryLocation: quote.deliveryLocation,
         }, output);
     }

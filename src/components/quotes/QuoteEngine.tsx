@@ -67,6 +67,11 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     const [hideContactName, setHideContactName] = useState<boolean>(
         editQuote?.hideContactName ?? false
     );
+    // Cotización sin IVA — acuerdo comercial de facturar por bloque (ago-2026).
+    // Aplica a los dos modos: apaga el IVA de productos, transporte y utilidad.
+    const [vatExempt, setVatExempt] = useState<boolean>(
+        editQuote?.vatExempt ?? false
+    );
     // (modo simple) — checkbox + monto (CON IVA, lo escribe el vendedor) + ciudad
     const [includesTransport, setIncludesTransport] = useState<boolean>(
         editQuote?.includesTransport ?? false
@@ -242,6 +247,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         // legacy sin quoteMode definido, se infiere desde el flag isAIU previo.
         const mode: QuoteMode = existing.quoteMode ?? (existing.isAIU ? 'aiu' : 'simple');
         setQuoteMode(mode);
+        setVatExempt(existing.vatExempt ?? false);
         setIncludesTransport(existing.includesTransport ?? false);
         setTransportAmount(existing.transportAmount ?? 0);
         setTransportCity(existing.transportCity ?? '');
@@ -452,7 +458,8 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         transportAmount,
         adminPercent,
         utilityPercent,
-    }), [quoteMode, items, includesTransport, transportAmount, adminPercent, utilityPercent]);
+        vatExempt,
+    }), [quoteMode, items, includesTransport, transportAmount, adminPercent, utilityPercent, vatExempt]);
 
     // Aliases legacy mantenidos para no romper código que ya los referencia
     // (preview modal, mensajes WhatsApp, payload del email). En modo simple
@@ -601,6 +608,9 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             aiuData: editQuote?.aiuData,
             // ── Modelo nuevo ──────────────────────────────────────────────────────
             quoteMode,
+            // Sólo se persiste cuando está activo: así una cotización normal no
+            // arrastra el campo y el histórico se lee igual que siempre.
+            vatExempt: vatExempt || undefined,
             includesTransport: quoteMode === 'simple' ? includesTransport : undefined,
             transportAmount: quoteMode === 'simple' && includesTransport ? (transportAmount || undefined) : undefined,
             transportCity: quoteMode === 'simple' && includesTransport
@@ -636,6 +646,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         // Modo + datos crudos: el PDF llama a calculateQuoteTotals internamente
         // para no duplicar el cálculo aquí.
         mode: quoteMode,
+        vatExempt,
         items: items.map(i => ({
             name: i.name,
             unitPrice: i.price,
@@ -1820,6 +1831,42 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                             </p>
                         </div>
 
+                        {/* ── Cotizar sin IVA (acuerdo de facturación por bloque) ── */}
+                        <div className="pt-3 border-t border-border/30">
+                            <label className={clsx(
+                                "flex items-start gap-3 rounded-xl border-2 px-3 py-3 cursor-pointer select-none transition-all",
+                                vatExempt
+                                    ? "border-amber-500 bg-amber-500/10 shadow-sm"
+                                    : "border-border/50 bg-white/70 hover:border-amber-400/40"
+                            )}>
+                                <input
+                                    type="checkbox"
+                                    checked={vatExempt}
+                                    onChange={e => setVatExempt(e.target.checked)}
+                                    className="mt-0.5 w-4 h-4 rounded border-border/60 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                                />
+                                <div className="flex-1">
+                                    <span className={clsx(
+                                        "text-[10px] font-black uppercase tracking-widest",
+                                        vatExempt ? "text-amber-700" : "text-foreground"
+                                    )}>
+                                        Cotizar sin IVA
+                                    </span>
+                                    <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">
+                                        {vatExempt
+                                            ? 'Sin IVA: el cliente paga el valor base. El PDF no lleva fila de IVA y avisa que se factura por bloque.'
+                                            : 'Apagado: la cotización suma IVA normalmente.'}
+                                    </p>
+                                </div>
+                            </label>
+                            {vatExempt && (
+                                <p className="text-[10px] text-amber-700 mt-2 leading-snug font-semibold">
+                                    Ojo: el total baja ~16% frente a la misma cotización con IVA
+                                    (el 19% iba por encima de la base).
+                                </p>
+                            )}
+                        </div>
+
                         {/* ── Modo SIMPLE: checkbox + monto + ciudad de transporte ── */}
                         {quoteMode === 'simple' && (
                             <div className="space-y-2 pt-2 border-t border-border/30">
@@ -1925,13 +1972,20 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                     </div>
                                 )}
                                 <div className="flex justify-between text-[10px] font-black text-muted-foreground uppercase tracking-widest pt-1 border-t border-border/30">
-                                    <span>Valor total antes de IVA</span>
+                                    <span>{vatExempt ? 'Valor total' : 'Valor total antes de IVA'}</span>
                                     <span>{formatCurrency(calc.subtotalLine1)}</span>
                                 </div>
-                                <div className="flex justify-between text-[10px] font-black text-muted-foreground uppercase tracking-widest">
-                                    <span>IVA 19%</span>
-                                    <span>{formatCurrency(calc.taxAmount)}</span>
-                                </div>
+                                {vatExempt ? (
+                                    <div className="flex justify-between text-[10px] font-black text-amber-700 uppercase tracking-widest">
+                                        <span>Sin IVA</span>
+                                        <span>Factura por bloque</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex justify-between text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                                        <span>IVA 19%</span>
+                                        <span>{formatCurrency(calc.taxAmount)}</span>
+                                    </div>
+                                )}
                             </>
                         ) : (
                             <>
@@ -1957,10 +2011,17 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                         <span>{formatCurrency(calc.subtotalAfterAiu)}</span>
                                     </div>
                                 )}
-                                <div className="flex justify-between text-[10px] font-black text-muted-foreground uppercase tracking-widest">
-                                    <span>IVA 19% sólo sobre utilidad</span>
-                                    <span>{formatCurrency(calc.taxAmount)}</span>
-                                </div>
+                                {vatExempt ? (
+                                    <div className="flex justify-between text-[10px] font-black text-amber-700 uppercase tracking-widest">
+                                        <span>Sin IVA</span>
+                                        <span>Factura por bloque</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex justify-between text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                                        <span>IVA 19% sólo sobre utilidad</span>
+                                        <span>{formatCurrency(calc.taxAmount)}</span>
+                                    </div>
+                                )}
                             </>
                         )}
                         <div className="flex justify-between items-baseline pt-2 border-t border-border/40">

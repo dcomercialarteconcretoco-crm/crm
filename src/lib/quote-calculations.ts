@@ -59,6 +59,19 @@ export interface QuoteCalcInput {
   adminPercent?: number;
   /** (aiu) Porcentaje 0–100. */
   utilityPercent?: number;
+  /**
+   * Cotización SIN IVA (pedido del cliente, ago-2026): hay acuerdos en los que
+   * se factura por bloque y el IVA no se le suma al cliente. Los precios de Woo
+   * traen el 19% adentro, así que "sin IVA" significa que el cliente paga la
+   * BASE — el total queda ~16% por debajo (el 19% iba encima de esa base), no
+   * que se muestre el mismo total sin desglose.
+   *
+   * OJO: no basta con mandar `taxRate: 0` en los items. Los productos de
+   * catálogo se gravan más abajo con VAT_RATE fijo (y lo mismo el transporte y
+   * la utilidad en AIU), así que el exento tiene que ser una bandera de la
+   * cotización completa y no una propiedad por línea.
+   */
+  vatExempt?: boolean;
 }
 
 export interface QuoteCalcResult {
@@ -86,6 +99,12 @@ export interface QuoteCalcResult {
   subtotalAfterAiu?: number;
   /** Línea de IVA. En modo simple es 19% de subtotalLine1. En AIU es 19% sólo de utilidad. */
   taxAmount: number;
+  /**
+   * true si la cotización se emitió sin IVA. Los consumidores lo usan para
+   * OMITIR la fila de IVA (no para pintarla en $0) y para sacar el aviso de
+   * "precios no incluyen IVA".
+   */
+  vatExempt: boolean;
   /** Total final que paga el cliente. */
   total: number;
 }
@@ -107,8 +126,14 @@ export function grossUpTransport(amount: number): number {
 }
 
 export function calculateQuoteTotals(input: QuoteCalcInput): QuoteCalcResult {
+  const vatExempt = input.vatExempt === true;
+
   const items = (input.items || []).map((it) => {
     const hasCustomTaxInput = Number.isFinite(Number(it.priceBeforeTax)) || Number.isFinite(Number(it.taxRate));
+    // El precio BASE se calcula siempre con la tasa real del item: es la tasa
+    // que trae el precio de Woo adentro y hay que quitarla igual para llegar a
+    // la base. Lo que cambia en una cotización exenta es que esa base no se
+    // vuelve a gravar más abajo.
     const taxRate = Number.isFinite(Number(it.taxRate)) ? Math.max(0, Number(it.taxRate)) : VAT_RATE;
     const explicitBefore = Number.isFinite(Number(it.priceBeforeTax)) ? Number(it.priceBeforeTax) : null;
     const unitBefore = explicitBefore !== null
@@ -116,12 +141,12 @@ export function calculateQuoteTotals(input: QuoteCalcInput): QuoteCalcResult {
       : (Number(it.unitPrice) || 0) / (1 + taxRate);
     const qty = Number(it.quantity) || 0;
     const lineTotalBeforeTax = round(unitBefore * qty);
-    const lineTaxAmount = round(lineTotalBeforeTax * taxRate);
+    const lineTaxAmount = vatExempt ? 0 : round(lineTotalBeforeTax * taxRate);
     return {
       unitPriceBeforeTax: round(unitBefore),
       quantity: qty,
       lineTotalBeforeTax,
-      taxRate,
+      taxRate: vatExempt ? 0 : taxRate,
       lineTaxAmount,
       lineTotalWithTax: lineTotalBeforeTax + lineTaxAmount,
       hasCustomTaxInput,
@@ -139,7 +164,7 @@ export function calculateQuoteTotals(input: QuoteCalcInput): QuoteCalcResult {
     // En AIU el IVA aplica SÓLO sobre la utilidad (régimen contractos asimilados
     // a obra — Estatuto Tributario). Eso es exactamente lo que hace que la
     // cotización resulte más barata para el cliente final que la sencilla.
-    const taxAmount = round(utilityAmount * VAT_RATE);
+    const taxAmount = vatExempt ? 0 : round(utilityAmount * VAT_RATE);
     return {
       mode: "aiu",
       items,
@@ -149,6 +174,7 @@ export function calculateQuoteTotals(input: QuoteCalcInput): QuoteCalcResult {
       utilityAmount,
       subtotalAfterAiu,
       taxAmount,
+      vatExempt,
       total: subtotalAfterAiu + taxAmount,
     };
   }
@@ -167,7 +193,7 @@ export function calculateQuoteTotals(input: QuoteCalcInput): QuoteCalcResult {
     .reduce((acc, it) => acc + it.lineTaxAmount, 0);
   const productsTaxAmount = round(catalogSubtotal * VAT_RATE) + customTaxAmount;
   const transportTaxAmount = transportBeforeTax ? round(transportBeforeTax * VAT_RATE) : 0;
-  const taxAmount = productsTaxAmount + transportTaxAmount;
+  const taxAmount = vatExempt ? 0 : productsTaxAmount + transportTaxAmount;
 
   return {
     mode: "simple",
@@ -176,6 +202,7 @@ export function calculateQuoteTotals(input: QuoteCalcInput): QuoteCalcResult {
     productsSubtotal,
     subtotalLine1,
     taxAmount,
+    vatExempt,
     total: subtotalLine1 + taxAmount,
   };
 }
