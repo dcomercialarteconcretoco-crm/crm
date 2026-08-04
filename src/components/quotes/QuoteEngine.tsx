@@ -719,6 +719,31 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         if (!ensureQuoteOwnerReady()) return;
         if (!assertNoQuoteNumberConflict()) return;
 
+        // Endurecimiento post-EPIFANIA (ART-588/589/590): el ancla de sesión
+        // cubre la misma pantalla, pero si el vendedor RECARGÓ y rearmó la
+        // cotización, acá no hay ancla y se crearía otro registro con otro
+        // consecutivo. Si este mismo vendedor ya tiene una solicitud
+        // PendingApproval para este cliente, ofrecemos reemplazarla
+        // conservando id y número. Si dice que no (cotización nueva legítima
+        // para el mismo cliente), sigue el flujo normal de creación.
+        let replaceTarget: typeof quotes[number] | undefined;
+        if (!activeQuoteId) {
+            const pendings = quotes.filter(q =>
+                !q.isHistorical &&
+                (q.status === 'PendingApproval' || q.status === 'PENDING_APPROVAL') &&
+                q.clientId === client.id &&
+                (q.sellerId === currentUser?.id || q.requestedBy === currentUser?.id)
+            );
+            // La más reciente — el id embebe el epoch de creación.
+            const pending = [...pendings].sort((a, b) => String(b.id).localeCompare(String(a.id)))[0];
+            if (pending) {
+                const label = pending.quoteNumber || pending.number || 'una cotización';
+                if (confirm(`Ya tienes ${label} pendiente de aprobación para ${client.name}.\n\nACEPTAR: reemplazarla con esta versión (conserva el número ${label}).\nCANCELAR: crear una cotización nueva con número nuevo.`)) {
+                    replaceTarget = pending;
+                }
+            }
+        }
+
         setIsSaving(true);
         try {
             const requestedAt = new Date().toISOString();
@@ -729,12 +754,33 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             // (ej: pasó a modo AIU y ganó el sufijo, caso DAYY BORDA ART-586),
             // lo dejamos explícito en la auditoría para que el admin no crea
             // que es otra cotización.
-            const previousNumber = editQuote?.number || editQuote?.quoteNumber || '';
-            if (activeQuoteId) {
-                // Re-enviar a aprobación (después de correcciones o editando una aprobada)
-                quoteNumber = genQuoteNumber();
-                persisted = await updateQuote(activeQuoteId, {
+            const targetRecord = activeQuoteId ? editQuote : replaceTarget;
+            const previousNumber = targetRecord?.number || targetRecord?.quoteNumber || '';
+            if (activeQuoteId || replaceTarget) {
+                // Re-enviar a aprobación (correcciones, edición de una aprobada,
+                // o reemplazo de la solicitud pendiente detectada arriba).
+                if (activeQuoteId) {
+                    quoteNumber = genQuoteNumber();
+                } else {
+                    // Reemplazo sin ancla: el número se deriva de la BASE del
+                    // registro pendiente + modo actual (espejo exacto de
+                    // autoPreviewNumber) — jamás del contador local, que
+                    // acuñaría un consecutivo nuevo.
+                    const rp = replaceTarget!;
+                    if (rp.baseNumber) {
+                        quoteNumber = formatQuoteNumber(rp.baseNumber, rp.version || 1, isAIU);
+                    } else {
+                        const stripped = (rp.quoteNumber || rp.number || '').replace(/-AIU$/, '');
+                        quoteNumber = isAIU ? `${stripped}-AIU` : stripped;
+                    }
+                }
+                persisted = await updateQuote(activeQuoteId || replaceTarget!.id, {
                     ...getCommonQuoteFields(client, quoteNumber, items),
+                    // getCommonQuoteFields deriva baseNumber/version de editQuote,
+                    // que en el reemplazo es undefined — sin esta corrección la
+                    // base se pisaría con el contador local y se rompería la
+                    // derivación de versiones y del sufijo AIU.
+                    ...(replaceTarget ? { baseNumber: replaceTarget.baseNumber, version: replaceTarget.version || 1 } : {}),
                     status: 'PendingApproval',
                     requestedBy: currentUser?.id || '',
                     requestedByName: currentUser?.name || '',
@@ -750,6 +796,9 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                     deliveryError: undefined,
                     pendingAction: undefined,
                 });
+                // El reemplazo también ancla la sesión: correcciones
+                // posteriores en esta pantalla siguen sobre el mismo registro.
+                if (replaceTarget) setCreatedQuoteId(replaceTarget.id);
             } else {
                 // Consecutivo automático → addQuote lo reserva atómico en el
                 // server; el número real llega en el resultado (puede diferir
