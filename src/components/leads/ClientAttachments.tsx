@@ -4,10 +4,13 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Upload, FileText, Image as ImageIcon, Trash2, Download, Loader2 } from 'lucide-react';
 import type { Seller } from '@/context/AppContext';
 import { canSeeAll } from '@/lib/scope';
+import { uploadPresigned } from '@vercel/blob/client';
 import {
     ALLOWED_ATTACHMENT_LABEL,
     MAX_ATTACHMENT_LABEL,
     MAX_ATTACHMENT_SIZE,
+    MAX_LEGACY_ATTACHMENT_SIZE,
+    attachmentBlobPathname,
     formatAttachmentSize,
     resolveAttachmentMime,
 } from '@/lib/attachments';
@@ -87,32 +90,78 @@ export function ClientAttachments({
 
         setUploading(true);
         setError(null);
+        const displayName = file.name.replace(/\.[^/.]+$/, '');
         try {
-            const form = new FormData();
-            form.append('file', file);
-            form.append('name', file.name.replace(/\.[^/.]+$/, ''));
-            if (currentUser?.id) form.append('uploaded_by_id', currentUser.id);
-            if (currentUser?.name) form.append('uploaded_by_name', currentUser.name);
-            const res = await fetch(`/api/clients/${clientId}/attachments`, {
-                method: 'POST',
-                body: form,
+            // Camino normal: el archivo va DIRECTO del navegador al Blob privado
+            // con una URL prefirmada, sin pasar por la función. Es lo que quita
+            // el techo de 4,5 MB que dejó fuera la póliza de REDCOL.
+            await uploadPresigned(attachmentBlobPathname(clientId, file.name), file, {
+                access: 'private',
+                handleUploadUrl: `/api/clients/${clientId}/attachments/upload`,
+                clientPayload: JSON.stringify({ name: displayName, kind: 'document' }),
             });
-            // 413 y 502 los responde la plataforma en HTML, no en JSON.
-            const data = await res.json().catch(() => null);
-            if (res.status === 413) {
-                setError(
-                    `El archivo pesa ${formatAttachmentSize(file.size)} y el servidor solo acepta hasta ${MAX_ATTACHMENT_LABEL}. Comprímelo y vuelve a intentar.`
-                );
-            } else if (!res.ok) {
-                setError(data?.error || `No se pudo subir el archivo (error ${res.status}). Intenta de nuevo.`);
+            // La fila la escribe el callback de Vercel Blob, que puede aterrizar
+            // un pelo después de que termina la subida — de ahí el reintento.
+            if (!(await loadUntilPresent(file.name))) await load();
+        } catch (err) {
+            const blobNotConfigured =
+                err instanceof Error && /blob-no-configurado|501/.test(err.message);
+            if (blobNotConfigured) {
+                await uploadLegacy(file, displayName);
             } else {
-                await load();
+                setError(
+                    err instanceof Error && err.message
+                        ? `No se pudo subir "${file.name}": ${err.message}`
+                        : `No se pudo subir "${file.name}". Revisa tu conexión e intenta de nuevo.`
+                );
             }
-        } catch {
-            setError('No hubo conexión con el servidor al subir el archivo. Revisa tu internet e intenta de nuevo.');
         } finally {
             setUploading(false);
             resetInput();
+        }
+    };
+
+    /**
+     * Recarga la lista hasta ver el archivo recién subido (o se rinde). Devuelve
+     * si apareció, para no dejar al usuario mirando una lista sin su archivo
+     * cuando el callback del Blob se demora un instante.
+     */
+    const loadUntilPresent = async (filename: string): Promise<boolean> => {
+        for (const wait of [0, 900, 1800]) {
+            if (wait) await new Promise(r => setTimeout(r, wait));
+            const res = await fetch(`/api/clients/${clientId}/attachments`, { cache: 'no-store' });
+            const data = await res.json().catch(() => null);
+            if (Array.isArray(data)) {
+                setItems(data);
+                if (data.some((a: ClientAttachment) => a.filename.includes(filename.slice(0, 40)))) return true;
+            }
+        }
+        return false;
+    };
+
+    /**
+     * Respaldo cuando no hay Blob store conectado (local sin `vercel env pull`,
+     * o si alguien lo desconecta del proyecto). Sube contra Postgres por la
+     * función, con el techo real de la plataforma.
+     */
+    const uploadLegacy = async (file: File, displayName: string) => {
+        if (file.size > MAX_LEGACY_ATTACHMENT_SIZE) {
+            setError(
+                `El almacenamiento de archivos no está disponible en este momento y por la vía alterna solo caben ${formatAttachmentSize(MAX_LEGACY_ATTACHMENT_SIZE)}. Avisa a soporte.`
+            );
+            return;
+        }
+        const form = new FormData();
+        form.append('file', file);
+        form.append('name', displayName);
+        if (currentUser?.id) form.append('uploaded_by_id', currentUser.id);
+        if (currentUser?.name) form.append('uploaded_by_name', currentUser.name);
+        const res = await fetch(`/api/clients/${clientId}/attachments`, { method: 'POST', body: form });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            setError(data?.error || `No se pudo subir el archivo (error ${res.status}).`);
+        } else {
+            await load();
         }
     };
 

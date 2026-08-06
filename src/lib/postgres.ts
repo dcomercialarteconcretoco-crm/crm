@@ -409,6 +409,14 @@ async function doEnsureCrmSchema() {
     ON crm_client_attachments (client_id, uploaded_at DESC);
   `);
 
+  // Migración ago-2026 (caso póliza REDCOL): el binario deja de vivir en `data`
+  // como base64 y pasa a Vercel Blob privado. `data` era NOT NULL y ahora las
+  // filas nuevas no lo llevan, así que hay que soltar la restricción — las 34
+  // filas viejas siguen sirviéndose desde la columna. `blob_pathname` NULL
+  // significa "fila legacy, léela de `data`".
+  await pool.query(`ALTER TABLE crm_client_attachments ADD COLUMN IF NOT EXISTS blob_pathname TEXT;`);
+  await pool.query(`ALTER TABLE crm_client_attachments ALTER COLUMN data DROP NOT NULL;`);
+
   // ── Bandeja de Leads Crudos ─────────────────────────────────────────────
   // Universo de leads "previos al directorio". El SuperAdmin sube datos
   // masivos (CSV o manual) que el equipo aún no ha calificado. Cuando un

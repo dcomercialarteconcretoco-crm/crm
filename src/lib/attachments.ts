@@ -4,23 +4,34 @@
  * POR QUÉ (caso REDCOL HOLDING, ago-2026): Lisseth intentó subir una póliza
  * firmada de 6,3 MB y la UI respondió "Error de red al subir el archivo". No era
  * la red: Vercel corta el body de una función en 4,5 MB y devuelve un 413
- * (FUNCTION_PAYLOAD_TOO_LARGE) con una página HTML, así que el `res.json()` del
- * front reventaba y caía al `catch` genérico. Encima el copy prometía 10 MB y el
- * server validaba 10 MB — un límite que la plataforma nunca iba a dejar pasar.
+ * (FUNCTION_PAYLOAD_TOO_LARGE) en texto plano, así que el `res.json()` del front
+ * reventaba y caía al `catch` genérico. Probado contra producción: un POST de
+ * 5,5 MB responde 413 SIN cookie de sesión, mientras que uno de 1 KB responde
+ * 401 — el body muere en la infraestructura, antes del middleware.
  *
- * El tope de 4,5 MB aplica al body de ida Y al de vuelta, y estos archivos viajan
- * por la función en ambos sentidos (multipart al subir, base64 de la columna
- * `data` al descargar). Por eso el techo real es la plataforma, no lo que
- * queramos: 4 MB deja aire para el sobre multipart y para el inflado base64.
+ * Ese tope aplica al body de ida Y al de vuelta, así que mientras el binario
+ * viajara por la función en ambos sentidos (multipart al subir, base64 de la
+ * columna `data` al descargar) el techo real eran ~4 MB, no los 10 que prometía
+ * el copy.
  *
- * Para pasar de ahí hay que sacar el binario de Postgres y subirlo directo del
- * navegador a un object store (Vercel Blob / S3), que es otra conversación.
+ * SOLUCIÓN: el binario ya no pasa por la función. Sube del navegador DIRECTO a
+ * un Blob store privado con una URL prefirmada, y baja igual de directo con otra
+ * URL firmada de vida corta. Ver [[src/lib/client-attachments-blob.ts]].
+ * `MAX_ATTACHMENT_SIZE` ya no lo dicta la plataforma sino nosotros: 25 MB cubre
+ * pólizas y contratos escaneados sin volver eterna la descarga.
  */
 
-export const MAX_ATTACHMENT_SIZE = 4 * 1024 * 1024;
+export const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024;
 
 /** Etiqueta que ve el usuario — que nunca se despegue de MAX_ATTACHMENT_SIZE. */
-export const MAX_ATTACHMENT_LABEL = "4 MB";
+export const MAX_ATTACHMENT_LABEL = "25 MB";
+
+/**
+ * Techo de la ruta legacy (multipart contra la función), que se sigue usando
+ * como respaldo cuando el Blob store no está configurado — en local, por
+ * ejemplo. 4 MB deja aire para el sobre multipart y el inflado base64.
+ */
+export const MAX_LEGACY_ATTACHMENT_SIZE = 4 * 1024 * 1024;
 
 /**
  * Extensión → mimetype. El navegador NO siempre reporta `File.type`: los picker
@@ -59,6 +70,18 @@ export function resolveAttachmentMime(filename: string, reportedType: string | n
 
   const ext = filename.split(".").pop()?.toLowerCase() || "";
   return MIME_BY_EXT[ext] || "";
+}
+
+/**
+ * Ruta del archivo dentro del Blob store. Se agrupa por cliente para que el
+ * store sea navegable desde el dashboard de Vercel y para poder acotar un token
+ * firmado a un solo cliente si algún día hace falta. El sufijo aleatorio lo pone
+ * el propio Blob (`addRandomSuffix`), así que dos archivos del mismo nombre no
+ * se pisan.
+ */
+export function attachmentBlobPathname(clientId: string, filename: string): string {
+  const safe = filename.replace(/[^\w.\-]+/g, "_").slice(-120);
+  return `clientes/${clientId}/${safe}`;
 }
 
 export function formatAttachmentSize(bytes: number): string {

@@ -18,6 +18,9 @@ const PUBLIC_API_PREFIXES = [
     '/api/daily-report/cron',    // Vercel Cron — protegido internamente por x-vercel-cron header + CRON_SECRET
 ];
 
+/** POST /api/clients/<id>/attachments/upload — ver el comentario en middleware() */
+const ATTACHMENT_UPLOAD_RE = /^\/api\/clients\/[^/]+\/attachments\/upload$/;
+
 /** Mobile UA keywords — redirect to /m on these devices */
 const MOBILE_UA_RE = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
 
@@ -45,6 +48,16 @@ export async function middleware(req: NextRequest) {
 
     // Allow explicitly public APIs
     if (PUBLIC_API_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
+        return NextResponse.next();
+    }
+
+    // Emisión de URLs prefirmadas de adjuntos — SOLO el POST. Lo llaman dos
+    // clientes: el navegador del asesor (que sí trae cookie) y Vercel Blob
+    // avisando que la subida terminó (que NO puede traerla). Si exigiéramos
+    // sesión acá, ese callback moriría en 401 y la fila nunca se escribiría.
+    // La ruta autentica por dentro: sesión fresca para emitir el token, firma
+    // del webhook contra BLOB_WEBHOOK_PUBLIC_KEY para el callback.
+    if (req.method === 'POST' && ATTACHMENT_UPLOAD_RE.test(pathname)) {
         return NextResponse.next();
     }
 

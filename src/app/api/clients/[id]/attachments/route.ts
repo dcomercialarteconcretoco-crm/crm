@@ -2,11 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getPool, ensureCrmSchema, hasDatabase } from '@/lib/postgres';
 import {
   ALLOWED_ATTACHMENT_LABEL,
-  MAX_ATTACHMENT_LABEL,
-  MAX_ATTACHMENT_SIZE,
+  MAX_LEGACY_ATTACHMENT_SIZE,
   formatAttachmentSize,
   resolveAttachmentMime,
 } from '@/lib/attachments';
+
+/**
+ * Subida LEGACY: multipart contra la función, binario en base64 en la columna
+ * `data`. Desde ago-2026 el camino normal es la URL prefirmada contra el Blob
+ * (`./upload`), que no tiene el techo de 4,5 MB de la plataforma. Esta ruta
+ * queda como respaldo para cuando no hay Blob store conectado, y por eso
+ * conserva el tope chico.
+ */
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!hasDatabase()) return NextResponse.json([], { status: 200 });
@@ -46,10 +53,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!file) {
       return NextResponse.json({ error: 'No se proporcionó archivo' }, { status: 400 });
     }
-    if (file.size > MAX_ATTACHMENT_SIZE) {
+    if (file.size > MAX_LEGACY_ATTACHMENT_SIZE) {
       return NextResponse.json(
         {
-          error: `El archivo pesa ${formatAttachmentSize(file.size)} y el máximo por archivo es ${MAX_ATTACHMENT_LABEL}. Comprime el PDF o súbelo por partes.`,
+          error: `El archivo pesa ${formatAttachmentSize(file.size)} y por esta vía solo caben ${formatAttachmentSize(MAX_LEGACY_ATTACHMENT_SIZE)}.`,
         },
         { status: 400 }
       );
