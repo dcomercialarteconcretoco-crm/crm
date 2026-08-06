@@ -13,6 +13,7 @@ import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
 import { ownsRecord } from '@/lib/scope';
 import { downloadQuotePdf, quoteDisplayNumber } from '@/lib/quote-pdf';
 import { quoteStatusLabel, isWonQuote } from '@/lib/quote-status';
+import { quoteRootKey, groupQuoteVersions, latestVersionOnly } from '@/lib/quote-versions';
 
 // Las etiquetas viven en src/lib/quote-status.ts — acá solo el color.
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
@@ -84,12 +85,47 @@ export default function QuotesPage() {
         });
     }, [validQuotes, searchTerm, filterStatus]);
 
+    // Vista agrupada por versiones (reunión 6-ago-2026: "que solo aparezca la
+    // última versión"). SOLO en la vista default: con búsqueda o filtro de
+    // estado se muestran las filas crudas — así una V1 Perdida o un número
+    // viejo buscado siguen siendo accesibles.
+    const isDefaultView = !searchTerm.trim() && filterStatus === 'all';
+    const versionGroups = useMemo(() => groupQuoteVersions(validQuotes), [validQuotes]);
+    const [expandedRoots, setExpandedRoots] = useState<Set<string>>(new Set());
+    const toggleRoot = (root: string) => setExpandedRoots(prev => {
+        const next = new Set(prev);
+        if (next.has(root)) next.delete(root); else next.add(root);
+        return next;
+    });
+
+    type DisplayRow = { quote: Quote; isOldVersion?: boolean; olderCount?: number; root?: string };
+    const displayRows = useMemo<DisplayRow[]>(() => {
+        if (!isDefaultView) return filtered.map(quote => ({ quote }));
+        const seenRoots = new Set<string>();
+        const rows: DisplayRow[] = [];
+        for (const quote of filtered) {
+            const root = quoteRootKey(quote);
+            if (seenRoots.has(root)) continue;
+            seenRoots.add(root);
+            const group = versionGroups.get(root);
+            if (!group) { rows.push({ quote }); continue; }
+            rows.push({ quote: group.latest, olderCount: group.older.length, root });
+            if (expandedRoots.has(root)) {
+                for (const old of group.older) rows.push({ quote: old, isOldVersion: true });
+            }
+        }
+        return rows;
+    }, [filtered, isDefaultView, versionGroups, expandedRoots]);
+
     const stats = useMemo(() => {
-        const total = validQuotes.reduce((s, q) => s + (q.numericTotal || 0), 0);
-        const ganado = validQuotes.filter(isWonQuote).reduce((s, q) => s + (q.numericTotal || 0), 0);
-        const sent = validQuotes.filter(q => q.status === 'Sent').length;
-        const apertura = validQuotes.length > 0
-            ? Math.round((validQuotes.filter(q => q.status === 'Approved' || q.status === 'Sent').length / validQuotes.length) * 100)
+        // KPIs sobre la última versión de cada negociación — V1+V2 de lo
+        // mismo no deben sumar doble el monto ni inflar la apertura.
+        const latest = latestVersionOnly(validQuotes);
+        const total = latest.reduce((s, q) => s + (q.numericTotal || 0), 0);
+        const ganado = latest.filter(isWonQuote).reduce((s, q) => s + (q.numericTotal || 0), 0);
+        const sent = latest.filter(q => q.status === 'Sent').length;
+        const apertura = latest.length > 0
+            ? Math.round((latest.filter(q => q.status === 'Approved' || q.status === 'Sent').length / latest.length) * 100)
             : 0;
         return { total, ganado, sent, apertura };
     }, [validQuotes]);
@@ -205,7 +241,7 @@ export default function QuotesPage() {
                 <div>
                     <h1 className="page-title">Historial de Cotizaciones</h1>
                     <p className="page-subtitle">
-                        {validQuotes.length} cotizaciones · {quotes.filter(q => q.status === 'Draft').length} solicitudes pendientes
+                        {latestVersionOnly(validQuotes).length} cotizaciones · {validQuotes.length - latestVersionOnly(validQuotes).length} versiones antiguas · {validQuotes.filter(q => q.status === 'Draft').length} borradores
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -287,7 +323,9 @@ export default function QuotesPage() {
                             </button>
                         ))}
                     </div>
-                    <span className="text-xs font-bold text-muted-foreground ml-auto shrink-0">{filtered.length} resultados</span>
+                    <span className="text-xs font-bold text-muted-foreground ml-auto shrink-0">
+                        {isDefaultView ? displayRows.filter(r => !r.isOldVersion).length : filtered.length} resultados
+                    </span>
                 </div>
 
                 {/* Table header — desktop */}
@@ -299,12 +337,12 @@ export default function QuotesPage() {
 
                 {/* Rows */}
                 <div className="divide-y divide-border">
-                    {filtered.length === 0 ? (
+                    {displayRows.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-16 gap-3">
                             <FileText className="w-10 h-10 text-muted-foreground/20" />
                             <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground/40">Sin cotizaciones</p>
                         </div>
-                    ) : filtered.map(quote => {
+                    ) : displayRows.map(({ quote, isOldVersion, olderCount, root }) => {
                         const statusCfg = STATUS_CONFIG[quote.status] || STATUS_CONFIG['Draft'];
                         const score = quote.opens ? Math.min(20 + quote.opens * 10, 100) : (quote.status === 'Approved' ? 85 : quote.status === 'Sent' ? 65 : 20);
                         const isGen = isGenerating === quote.id;
@@ -312,7 +350,11 @@ export default function QuotesPage() {
                         return (
                             <div
                                 key={quote.id}
-                                className="grid grid-cols-1 md:grid-cols-[1fr_1.4fr_0.8fr_0.7fr_0.6fr_0.9fr_auto] gap-4 items-center px-5 py-3.5 hover:bg-muted/20 transition-all group"
+                                className={clsx(
+                                    'grid grid-cols-1 md:grid-cols-[1fr_1.4fr_0.8fr_0.7fr_0.6fr_0.9fr_auto] gap-4 items-center px-5 py-3.5 hover:bg-muted/20 transition-all group',
+                                    // Versión anterior expandida: atenuada, con sangría — historia, no gestión viva.
+                                    isOldVersion && 'opacity-60 bg-muted/10 md:pl-9'
+                                )}
                             >
                                 {/* Quote number + date */}
                                 <div className="flex items-center gap-2.5 py-1 md:py-0">
@@ -323,6 +365,23 @@ export default function QuotesPage() {
                                         <p className="text-sm font-bold text-foreground">{quoteDisplayNumber(quote) || '—'}</p>
                                         <p className="text-xs text-muted-foreground">{quote.date || '—'}</p>
                                     </div>
+                                    {/* Chip de versiones: solo en la última de una raíz con historia */}
+                                    {!isOldVersion && root && (olderCount || 0) > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleRoot(root)}
+                                            title={expandedRoots.has(root) ? 'Ocultar versiones anteriores' : 'Ver versiones anteriores'}
+                                            className={clsx(
+                                                'shrink-0 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black transition-all',
+                                                expandedRoots.has(root)
+                                                    ? 'bg-primary/15 border-primary/40 text-foreground'
+                                                    : 'bg-muted border-border text-muted-foreground hover:border-primary/40'
+                                            )}
+                                        >
+                                            <ChevronRight className={clsx('w-3 h-3 transition-transform', expandedRoots.has(root) && 'rotate-90')} />
+                                            +{olderCount} {olderCount === 1 ? 'versión' : 'versiones'}
+                                        </button>
+                                    )}
                                 </div>
 
                                 {/* Client */}

@@ -231,8 +231,11 @@ export function formatSpanishLongDate(d: Date): string {
 /**
  * Texto auto-generado para la fila de transporte de la cotización sencilla.
  * Origen siempre es Floridablanca (la fábrica de Arte Concreto).
+ * Si la cotización SÍ incluye descargue (condición editable desde ago-2026),
+ * el sufijo "SIN DESCARGUE" se omite para no contradecir el Alcance.
+ * Default false = texto histórico intacto para todo caller que no lo pase.
  */
-export function transportItemDescription(destinationCity: string): string {
+export function transportItemDescription(destinationCity: string, includesUnloading = false): string {
   const dest = (destinationCity || "").trim().toUpperCase() || "DESTINO";
-  return `TRANSPORTE DESDE FLORIDABLANCA HASTA ${dest} SIN DESCARGUE`;
+  return `TRANSPORTE DESDE FLORIDABLANCA HASTA ${dest}${includesUnloading ? "" : " SIN DESCARGUE"}`;
 }

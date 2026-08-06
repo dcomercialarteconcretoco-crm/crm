@@ -303,6 +303,13 @@ export interface Quote {
     // "TRANSPORTE DESDE FLORIDABLANCA HASTA {transportCity} SIN DESCARGUE" con el
     // monto `transportAmount`.
     includesTransport?: boolean;
+    // Condiciones del Alcance editables por cotización (reunión 6-ago-2026:
+    // varían por negociación). Tri-estado: undefined = default histórico por
+    // modo (simple → "No incluye", aiu → "Sí incluye") — así ninguna
+    // cotización vieja cambia su PDF. En aiu, includesTransport pasa a ser
+    // texto-solo (el monto sigue absorbido en el % de Administración).
+    includesUnloading?: boolean;
+    includesInstallation?: boolean;
     // Monto del transporte tal como lo escribe el vendedor. INCLUYE IVA — el sistema
     // lo divide entre 1.19 al armar el "antes de IVA" del PDF, igual que con los
     // productos de Woo.
@@ -2101,6 +2108,50 @@ REGLAS DE ORO:
         return { id: quoteId, persisted, quoteNumber };
     };
 
+    // Campos de DESENLACE que una versión nueva jamás debe heredar del
+    // original vía `...rest`: la V2 nace en borrador, sin envíos, sin
+    // aperturas, sin aprobación previa y con su propia task de pipeline.
+    // Antes se arrastraban y una V2 en Draft con sentAt heredado contaba
+    // como "enviada" en informes y KPIs (reunión 6-ago-2026).
+    // `updatedAt: undefined` además evita re-emitir un timestamp viejo que
+    // el merge del server rechazaría como stale (T4).
+    const VERSION_RESET_FIELDS = {
+        updatedAt: undefined,
+        statusChangedAt: undefined,
+        lossReason: undefined,
+        opens: undefined,
+        sentAt: undefined,
+        sentByName: undefined,
+        sentById: undefined,
+        pendingAction: undefined,
+        requestedBy: undefined,
+        requestedByName: undefined,
+        requestedAt: undefined,
+        reviewNotes: undefined,
+        approvedBy: undefined,
+        approvedByName: undefined,
+        approvedAt: undefined,
+        deliveryFailed: undefined,
+        deliveryError: undefined,
+        pipelineTaskDeletedAt: undefined,
+    } as const;
+
+    // Transferir el negocio del kanban a la versión nueva: la task de la
+    // versión anterior se elimina (tombstones __deletes + estampa
+    // pipelineTaskDeletedAt → la migración de huérfanos no la resucita, T8).
+    // Sin esto, cada "Crear V2" dejaba DOS negocios del mismo cliente en el
+    // tablero — los "duplicados visuales" de la reunión 6-ago-2026.
+    const transferPipelineTask = (originalQuoteId: string) => {
+        const staleTasks = tasks.filter(t => (t as Task & { quoteId?: string }).quoteId === originalQuoteId);
+        if (staleTasks.length > 0) {
+            staleTasks.forEach(t => deleteTask(t.id));
+        } else {
+            // Sin task en memoria: estampar directo para que el próximo boot
+            // no re-acuñe t-mig-<originalQuoteId>.
+            updateQuote(originalQuoteId, { pipelineTaskDeletedAt: new Date().toISOString() });
+        }
+    };
+
     // Create a new version of an existing quote (V1, V2, ... — inserted before the year)
     const createQuoteVersion = async (quoteId: string): Promise<string> => {
         const original = quotes.find(q => q.id === quoteId);
@@ -2112,6 +2163,7 @@ REGLAS DE ORO:
         const { id: _id, ...rest } = original;
         const created = await addQuote({
             ...rest,
+            ...VERSION_RESET_FIELDS,
             quoteNumber: newNumber,
             baseNumber: base,
             version: nextV,
@@ -2120,6 +2172,7 @@ REGLAS DE ORO:
             date: new Date().toISOString().split('T')[0],
             taskId: undefined,
         });
+        transferPipelineTask(original.id);
         return created.id;
     };
 
@@ -2134,15 +2187,24 @@ REGLAS DE ORO:
         const { id: _id, ...rest } = original;
         const created = await addQuote({
             ...rest,
+            ...VERSION_RESET_FIELDS,
             quoteNumber: newNumber,
             baseNumber: base,
             version: nextV,
             isAIU: true,
+            // aiuData se conserva tal cual: si el original era legacy, su PDF
+            // debe seguir saliendo por la rama vieja con sus totales (T9).
             aiuData: original.aiuData || {},
             status: 'Draft',
             date: new Date().toISOString().split('T')[0],
             taskId: undefined,
+            // La versión AIU arranca con las condiciones estándar del modo
+            // (Sí incluye ×3 vía tri-estado) — no con las de la simple original.
+            includesTransport: undefined,
+            includesUnloading: undefined,
+            includesInstallation: undefined,
         });
+        transferPipelineTask(original.id);
         return created.id;
     };
 

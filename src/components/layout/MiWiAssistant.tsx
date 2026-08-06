@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useApp, Client, Task, Quote } from '@/context/AppContext';
+import { latestVersionOnly } from '@/lib/quote-versions';
 
 interface Message {
     id: string;
@@ -94,17 +95,20 @@ function buildCrmSnapshot(
     lines.push('');
 
     // --- QUOTES ---
-    const draftQuotes = quotes.filter(q => q.status === 'Draft');
-    const sentQuotes = quotes.filter(q => q.status === 'Sent');
-    const approvedQuotes = quotes.filter(q => q.status === 'Approved');
-    const totalValue = quotes.reduce((s, q) => s + (q.numericTotal || 0), 0);
+    // Última versión por raíz: V1+V2 de una misma negociación no deben contar
+    // doble en montos ni generar alertas duplicadas (reunión 6-ago-2026).
+    const latestQuotes = latestVersionOnly(quotes);
+    const draftQuotes = latestQuotes.filter(q => q.status === 'Draft');
+    const sentQuotes = latestQuotes.filter(q => q.status === 'Sent');
+    const approvedQuotes = latestQuotes.filter(q => q.status === 'Approved');
+    const totalValue = latestQuotes.reduce((s, q) => s + (q.numericTotal || 0), 0);
 
-    lines.push(`COTIZACIONES (${quotes.length} total | ${draftQuotes.length} borrador | ${sentQuotes.length} enviadas | ${approvedQuotes.length} aprobadas):`);
+    lines.push(`COTIZACIONES (${latestQuotes.length} total | ${draftQuotes.length} borrador | ${sentQuotes.length} enviadas | ${approvedQuotes.length} aprobadas):`);
     lines.push(`  Valor total pipeline cotizaciones: $${totalValue.toLocaleString('es-CO')}`);
-    if (quotes.length === 0) {
+    if (latestQuotes.length === 0) {
         lines.push('  (sin cotizaciones registradas)');
     } else {
-        quotes.slice(0, 20).forEach(q => {
+        latestQuotes.slice(0, 20).forEach(q => {
             lines.push(
                 `  • ${q.number || 'Sin número'} | Cliente: ${q.client || 'N/A'} | Total: ${q.total || 'N/A'} | Estado: ${q.status} | Fecha: ${q.date || 'N/A'} | Aperturas: ${q.opens || 0}`
             );
@@ -129,7 +133,7 @@ function buildCrmSnapshot(
         lines.push('');
     }
 
-    const oldDrafts = quotes.filter(q => {
+    const oldDrafts = latestQuotes.filter(q => {
         if (q.status !== 'Draft' || !q.date) return false;
         const days = Math.floor((today.getTime() - new Date(q.date).getTime()) / 86400000);
         return days > 7;

@@ -308,7 +308,9 @@ export default function Home() {
       .sort((a, b) => b.ltv - a.ltv)
       .slice(0, 4);
   }, [scopedClients, scopedQuotes]);
-  const recentQuotes = scopedQuotes.slice(0, 5);
+  // Última versión por raíz: la "Propuesta Caliente" y las miniaturas no
+  // deben ofrecer una V1 superseded cuando ya existe la V2.
+  const recentQuotes = useMemo(() => latestVersionOnly(scopedQuotes).slice(0, 5), [scopedQuotes]);
   const liveTasks = scopedTasks.slice(0, 4);
   const bannerFallbackImage = '/uploads/products/product_1773159753422_p63bk.jpg';
   const uniqueImages = (images: Array<string | undefined>) =>

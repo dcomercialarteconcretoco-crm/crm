@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
 import { loadFreshSession } from '@/lib/auth-session';
+import { latestVersionOnly } from '@/lib/quote-versions';
 
 /**
  * Auditoría de Gestión Comercial — motor server-side.
@@ -27,6 +28,8 @@ type Quote = {
     id: string;
     quoteNumber?: string;
     number?: string;
+    baseNumber?: string;
+    version?: number;
     status?: string;
     clientId?: string;
     client?: string;
@@ -376,7 +379,10 @@ export async function POST(request: NextRequest) {
     }> = [];
     const quotedClientIds = new Set<string>();
     const monthly = new Map<string, { quotes: number; value: number }>();
-    for (const q of quotes) {
+    // Una negociación = una cotización: solo la última versión de cada raíz
+    // cuenta para montos, conteos y "sin seguimiento" — antes cada V1/V2
+    // sumaba por separado y duplicaba las alertas (reunión 6-ago-2026).
+    for (const q of latestVersionOnly(quotes)) {
         if (q.isHistorical) continue; // pre-CRM sistematizada: solo consulta
         if (!wantSeller(q.sellerId)) continue;
         const sentAt = epochFromId(q.id);

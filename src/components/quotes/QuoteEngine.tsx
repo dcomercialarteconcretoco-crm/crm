@@ -82,9 +82,24 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     const [vatExempt, setVatExempt] = useState<boolean>(
         editQuote?.vatExempt ?? false
     );
-    // (modo simple) — checkbox + monto (CON IVA, lo escribe el vendedor) + ciudad
+    // Checkbox + monto (CON IVA, lo escribe el vendedor) + ciudad. El monto y
+    // la fila del ítem solo aplican en modo simple; en aiu el flag es
+    // texto-solo del Alcance. Default por modo: simple No, aiu Sí.
+    const initialModeIsAiu = (editQuote?.quoteMode ?? (editQuote?.isAIU ? 'aiu' : 'simple')) === 'aiu';
+    // Cotización con montos AIU legacy: su PDF usa la rama vieja que ignora
+    // los flags de condiciones — ocultamos los checkboxes para no prometer
+    // un control que ese formato no respeta (T9).
+    const isLegacyPdfQuote = !!(editQuote?.aiuData && (editQuote.aiuData.totalAIU || editQuote.aiuData.transportPrice || editQuote.aiuData.installationPrice));
     const [includesTransport, setIncludesTransport] = useState<boolean>(
-        editQuote?.includesTransport ?? false
+        editQuote?.includesTransport ?? initialModeIsAiu
+    );
+    // Condiciones del Alcance editables (reunión 6-ago-2026): descargue e
+    // instalación por cotización, en ambos modos.
+    const [includesUnloading, setIncludesUnloading] = useState<boolean>(
+        editQuote?.includesUnloading ?? initialModeIsAiu
+    );
+    const [includesInstallation, setIncludesInstallation] = useState<boolean>(
+        editQuote?.includesInstallation ?? initialModeIsAiu
     );
     const [transportAmount, setTransportAmount] = useState<number>(
         editQuote?.transportAmount ?? 0
@@ -273,7 +288,11 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         const mode: QuoteMode = existing.quoteMode ?? (existing.isAIU ? 'aiu' : 'simple');
         setQuoteMode(mode);
         setVatExempt(existing.vatExempt ?? false);
-        setIncludesTransport(existing.includesTransport ?? false);
+        // Condiciones: mode-aware — una AIU vieja sin flags debe hidratar en
+        // "Sí incluye" (su PDF histórico) y una simple en "No incluye".
+        setIncludesTransport(existing.includesTransport ?? (mode === 'aiu'));
+        setIncludesUnloading(existing.includesUnloading ?? (mode === 'aiu'));
+        setIncludesInstallation(existing.includesInstallation ?? (mode === 'aiu'));
         setTransportAmount(existing.transportAmount ?? 0);
         setTransportCity(existing.transportCity ?? '');
         setAdminPercent(existing.adminPercent ?? 10);
@@ -636,7 +655,13 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             // Sólo se persiste cuando está activo: así una cotización normal no
             // arrastra el campo y el histórico se lee igual que siempre.
             vatExempt: vatExempt || undefined,
-            includesTransport: quoteMode === 'simple' ? includesTransport : undefined,
+            // Condiciones del Alcance: se persisten SIEMPRE explícitas en los
+            // dos modos (una AIU con transporte destildado debe decir "No
+            // incluye"). El monto y la ciudad del transporte siguen gateados a
+            // modo simple — en aiu el flag es texto-solo y no toca totales.
+            includesTransport,
+            includesUnloading,
+            includesInstallation,
             transportAmount: quoteMode === 'simple' && includesTransport ? (transportAmount || undefined) : undefined,
             transportCity: quoteMode === 'simple' && includesTransport
                 ? (transportCity.trim() || client.city || undefined)
@@ -693,7 +718,9 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 weight: (i as any).weight,
             }),
         })),
-        includesTransport: quoteMode === 'simple' ? includesTransport : undefined,
+        includesTransport,
+        includesUnloading,
+        includesInstallation,
         transportAmount: quoteMode === 'simple' && includesTransport ? transportAmount : undefined,
         transportCity: quoteMode === 'simple' && includesTransport
             ? (transportCity.trim() || client.city || '')
@@ -1925,7 +1952,19 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                 <input
                                     type="checkbox"
                                     checked={quoteMode === 'aiu'}
-                                    onChange={e => setQuoteMode(e.target.checked ? 'aiu' : 'simple')}
+                                    onChange={e => {
+                                        const next = e.target.checked ? 'aiu' : 'simple';
+                                        setQuoteMode(next);
+                                        // Cambiar de modo resetea las condiciones del
+                                        // Alcance al estándar del modo destino (aiu:
+                                        // todo incluido; simple: nada incluido) — el
+                                        // vendedor las ajusta después si la
+                                        // negociación lo amerita.
+                                        const isAiu = next === 'aiu';
+                                        setIncludesTransport(isAiu);
+                                        setIncludesUnloading(isAiu);
+                                        setIncludesInstallation(isAiu);
+                                    }}
                                     className="mt-0.5 w-4 h-4 rounded border-border/60 text-blue-500 focus:ring-blue-400 cursor-pointer"
                                 />
                                 <div className="flex-1">
@@ -2040,7 +2079,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                         {quoteMode === 'aiu' && (
                             <div className="space-y-2 pt-2 border-t border-border/30">
                                 <p className="text-[10px] text-muted-foreground leading-snug">
-                                    Transporte, descargue e instalación están <strong>absorbidos en el % de Administración</strong> — los negocias internamente con el cliente.
+                                    Los costos de transporte, descargue e instalación van <strong>absorbidos en el % de Administración</strong>. Qué dice el PDF que incluye la oferta se ajusta abajo en “Condiciones del alcance”.
                                 </p>
                                 <div className="grid grid-cols-2 gap-2">
                                     <div>
@@ -2071,6 +2110,59 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                 <p className="text-[9px] text-muted-foreground/70">
                                     El IVA del 19% se calcula <strong>sólo sobre la utilidad</strong>, no sobre todo el subtotal.
                                 </p>
+                            </div>
+                        )}
+
+                        {/* ── Condiciones del alcance (PDF) — editables por cotización
+                            (reunión 6-ago-2026). Controlan las líneas "Sí/No incluye"
+                            del punto 1 del PDF; no tocan totales. Las cotizaciones con
+                            formato legacy (aiuData con montos) conservan su PDF viejo. */}
+                        {isLegacyPdfQuote ? (
+                            <div className="pt-3 border-t border-border/30">
+                                <p className="text-[10px] text-muted-foreground leading-snug italic">
+                                    Cotización con formato antiguo: el PDF conserva sus condiciones originales.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-2 pt-3 border-t border-border/30">
+                                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block">Condiciones del alcance (PDF)</span>
+                                {quoteMode === 'aiu' && (
+                                    <label className="flex items-start gap-3 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={includesTransport}
+                                            onChange={e => setIncludesTransport(e.target.checked)}
+                                            className="mt-0.5 w-4 h-4 rounded border-border/60 text-primary focus:ring-primary/40 cursor-pointer"
+                                        />
+                                        <div className="flex-1">
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-foreground">Incluye transporte</span>
+                                            <p className="text-[9px] text-muted-foreground/70 mt-0.5 leading-snug">Solo cambia el texto del Alcance — el costo va en el % de Administración.</p>
+                                        </div>
+                                    </label>
+                                )}
+                                <label className="flex items-start gap-3 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={includesUnloading}
+                                        onChange={e => setIncludesUnloading(e.target.checked)}
+                                        className="mt-0.5 w-4 h-4 rounded border-border/60 text-primary focus:ring-primary/40 cursor-pointer"
+                                    />
+                                    <div className="flex-1">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-foreground">Incluye descargue</span>
+                                        {quoteMode === 'simple' && includesTransport && (
+                                            <p className="text-[9px] text-muted-foreground/70 mt-0.5 leading-snug">Al marcarlo, la fila del transporte deja de decir “SIN DESCARGUE”.</p>
+                                        )}
+                                    </div>
+                                </label>
+                                <label className="flex items-start gap-3 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={includesInstallation}
+                                        onChange={e => setIncludesInstallation(e.target.checked)}
+                                        className="mt-0.5 w-4 h-4 rounded border-border/60 text-primary focus:ring-primary/40 cursor-pointer"
+                                    />
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-foreground">Incluye instalación</span>
+                                </label>
                             </div>
                         )}
                     </div>
@@ -2315,24 +2407,27 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                 <div>
                                     <p className="font-black text-xs text-[#1a1a1d] uppercase mb-1">1. Alcance de la Propuesta:</p>
                                     {(() => {
-                                        // Texto del alcance — se reproduce del PDF para que el preview no engañe.
+                                        // Texto del alcance — espejo de las 3 líneas "Sí/No incluye"
+                                        // del PDF (includeRows en pdf-generator) para que el preview
+                                        // no engañe. Los flags ya vienen con defaults por modo.
                                         const lugar = (deliveryLocation.trim() || client?.city || '').toUpperCase();
-                                        if (quoteMode === 'aiu') {
-                                            return (
-                                                <p className="text-xs text-gray-600 leading-relaxed">
-                                                    La presente oferta se entrega en {lugar ? <><strong>{lugar}</strong>. </> : 'el sitio acordado con el cliente. '}
-                                                    <span className="font-bold">Incluye</span> transporte, descargue e instalación (cubiertos por el porcentaje de Administración).
-                                                </p>
-                                            );
-                                        }
-                                        // Modo simple
+                                        const lineas: Array<{ si: boolean; resto: string }> = [
+                                            { si: includesTransport, resto: ' el transporte de los elementos al sitio de entrega.' },
+                                            { si: includesUnloading, resto: ' el descargue del producto en concreto.' },
+                                            { si: includesInstallation, resto: ' la instalación de las piezas cotizadas.' },
+                                        ];
                                         return (
-                                            <p className="text-xs text-gray-600 leading-relaxed">
-                                                La presente oferta se entrega en {lugar ? <><strong>{lugar}</strong>. </> : 'la planta de producción, Anillo Vial Km 1+800 Floridablanca – Girón. '}
-                                                {includesTransport
-                                                    ? <><span className="font-bold">Incluye transporte</span> hasta {(transportCity.trim() || client?.city || 'destino').toUpperCase()}. <span className="font-bold">No incluye</span> descargue ni instalación.</>
-                                                    : <><span className="font-bold">No incluye</span> transporte, descargue ni instalación.</>}
-                                            </p>
+                                            <div className="text-xs text-gray-600 leading-relaxed space-y-0.5">
+                                                <p>
+                                                    La presente oferta se entrega en {lugar
+                                                        ? <><strong>{lugar}</strong>. </>
+                                                        : (quoteMode === 'aiu' ? 'el sitio acordado con el cliente. ' : 'la planta de producción, Anillo Vial Km 1+800 Floridablanca – Girón. ')}
+                                                    {quoteMode === 'aiu' && <>Los costos de transporte, descargue e instalación que la oferta incluya van cubiertos por el porcentaje de Administración.</>}
+                                                </p>
+                                                {lineas.map((l, i) => (
+                                                    <p key={i} className="pl-2">La oferta <span className="font-bold">{l.si ? 'Sí incluye' : 'No incluye'}</span>{l.resto}</p>
+                                                ))}
+                                            </div>
                                         );
                                     })()}
                                 </div>
@@ -2383,7 +2478,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                         {/* Fila de transporte (solo modo simple cuando el vendedor lo activó) */}
                                         {quoteMode === 'simple' && includesTransport && calc.transportBeforeTax !== undefined && (
                                             <tr className="bg-amber-50/40">
-                                                <td className="px-3 py-2 font-semibold">{transportItemDescription(transportCity || client?.city || '')}</td>
+                                                <td className="px-3 py-2 font-semibold">{transportItemDescription(transportCity || client?.city || '', includesUnloading)}</td>
                                                 <td className="px-2 py-2 text-gray-500 text-[10px]">—</td>
                                                 <td className="px-2 py-2 text-center text-gray-500">gl</td>
                                                 <td className="px-2 py-2 text-center font-bold text-[#fab510]">1</td>

@@ -58,8 +58,16 @@ export interface ProposalData {
         image?: string;
         dimensions?: string;
     }>;
-    /** (modo simple) ¿La oferta cubre transporte? */
+    /** ¿La oferta cubre transporte? En modo simple también inyecta la fila
+     *  del ítem TRANSPORTE; en aiu es solo texto del Alcance (el monto va
+     *  absorbido en el % de Administración). undefined = default por modo
+     *  (simple: No, aiu: Sí). */
     includesTransport?: boolean;
+    /** ¿Incluye el descargue? undefined = default por modo (simple: No, aiu: Sí).
+     *  Editable desde ago-2026 (reunión 6-ago: varía por negociación). */
+    includesUnloading?: boolean;
+    /** ¿Incluye la instalación? Mismos defaults tri-estado que descargue. */
+    includesInstallation?: boolean;
     /** (modo simple) Costo del transporte; el cálculo lo divide entre 0.9 y redondea ↑ a $1.000. */
     transportAmount?: number;
     /** (modo simple) Ciudad destino para el texto de la fila de transporte. */
@@ -557,20 +565,19 @@ export const generateProposalPDF = async (
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...DARKGRAY);
 
-    const includeRows: Array<{ verb: 'Sí incluye' | 'No incluye'; rest: string }> = (() => {
-        if (mode === 'aiu') {
-            return [
-                { verb: 'Sí incluye', rest: ' el transporte de los elementos al sitio de entrega.' },
-                { verb: 'Sí incluye', rest: ' el descargue del producto en concreto.' },
-                { verb: 'Sí incluye', rest: ' la instalación de las piezas cotizadas.' },
-            ];
-        }
-        return [
-            { verb: data.includesTransport ? 'Sí incluye' : 'No incluye', rest: ' el transporte de los elementos al sitio de entrega.' },
-            { verb: 'No incluye', rest: ' el descargue del producto en concreto.' },
-            { verb: 'No incluye', rest: ' la instalación de las piezas cotizadas.' },
-        ];
-    })();
+    // Condiciones del alcance, tri-estado: undefined = default histórico por
+    // modo (aiu: las 3 "Sí incluye" absorbidas en el % de Administración;
+    // simple: transporte según flag, descargue/instalación "No incluye").
+    // Así CERO cotización persistida antes de ago-2026 cambia su PDF, y las
+    // nuevas pueden editar cada condición (reunión 6-ago-2026).
+    const condTransport = data.includesTransport ?? (mode === 'aiu');
+    const condUnloading = data.includesUnloading ?? (mode === 'aiu');
+    const condInstallation = data.includesInstallation ?? (mode === 'aiu');
+    const includeRows: Array<{ verb: 'Sí incluye' | 'No incluye'; rest: string }> = [
+        { verb: condTransport ? 'Sí incluye' : 'No incluye', rest: ' el transporte de los elementos al sitio de entrega.' },
+        { verb: condUnloading ? 'Sí incluye' : 'No incluye', rest: ' el descargue del producto en concreto.' },
+        { verb: condInstallation ? 'Sí incluye' : 'No incluye', rest: ' la instalación de las piezas cotizadas.' },
+    ];
 
     for (const { verb, rest } of includeRows) {
         ensureSpace(10);
@@ -840,7 +847,9 @@ export const generateProposalPDF = async (
         if (c.transportBeforeTax !== undefined) {
             bodyRows.push([
                 '',
-                transportItemDescription(data.transportCity || data.leadCity || ''),
+                // condUnloading quita el " SIN DESCARGUE" cuando la cotización
+                // sí incluye descargue — el ítem no debe contradecir el Alcance.
+                transportItemDescription(data.transportCity || data.leadCity || '', condUnloading),
                 'Und',
                 '1',
                 fmt(c.transportBeforeTax),

@@ -65,10 +65,20 @@ async function renderQuotePdf(
     };
 
     if (isNewModel) {
+        // Cotizaciones creadas ANTES de las condiciones editables (ago-2026)
+        // no traen includesUnloading/includesInstallation. En esas, una AIU
+        // puede arrastrar un includesTransport:false heredado de la simple
+        // original (createAIUVersion copia ...rest) que el PDF viejo ignoraba
+        // — lo seguimos ignorando para no cambiar ni un PDF ya emitido. Las
+        // nuevas siempre persisten los 3 flags explícitos y se respetan.
+        const hasScopeFlags = quote.includesUnloading !== undefined || quote.includesInstallation !== undefined;
+        const legacyAiuText = quote.quoteMode === 'aiu' && !hasScopeFlags;
         return generateProposalPDF({
             ...base,
             mode: quote.quoteMode,
-            includesTransport: quote.includesTransport,
+            includesTransport: legacyAiuText ? undefined : quote.includesTransport,
+            includesUnloading: quote.includesUnloading,
+            includesInstallation: quote.includesInstallation,
             transportAmount: quote.transportAmount,
             transportCity: quote.transportCity,
             adminPercent: quote.adminPercent,
