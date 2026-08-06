@@ -405,7 +405,7 @@ interface Column {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function PipelinePage() {
-    const { tasks, clients, sellers, quotes, addTask, addQuote, addNotification, addAuditLog, updateTask, updateQuote, deleteTask, addClient, settings, products, currentUser: loggedInUser } = useApp();
+    const { tasks, clients, sellers, quotes, addTask, addQuote, addNotification, addAuditLog, updateTask, updateQuote, deleteTask, deleteQuote, addClient, settings, products, currentUser: loggedInUser } = useApp();
 
     // Stages dinámicas — leídas de settings.pipelineStages, con fallback al
     // default de Arte Concreto (Cotizado → En caliente → Facturado). El editor
@@ -526,6 +526,10 @@ export default function PipelinePage() {
     const [noteText, setNoteText] = useState('');
     const [showCallModal, setShowCallModal] = useState(false);
     const [callNoteText, setCallNoteText] = useState('');
+    // Edición manual del valor del negocio (reunión 6-ago-2026: la admin
+    // necesita corregir montos cuando la cotización se hizo fuera del CRM).
+    const [isEditingValue, setIsEditingValue] = useState(false);
+    const [valueDraft, setValueDraft] = useState('');
     const [isSendingPipelineEmail, setIsSendingPipelineEmail] = useState(false);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -533,6 +537,9 @@ export default function PipelinePage() {
 
     const currentUser: Seller = loggedInUser || sellers.find(s => s.role === 'SuperAdmin') || sellers[0];
     const canReassign = hasPermission(currentUser, 'pipeline.reassign');
+    // Mismo gate que la papelera de /quotes: solo quien puede eliminar
+    // cotizaciones ve el botón de eliminar negocios (SuperAdmin/Admin).
+    const canDeleteQuotes = hasPermission(currentUser, 'quotes.delete');
 
     const firstStageId: StageId = stages[0]?.id || 'cotizado';
     // Search local del modal "Crear Nuevo Negocio". Con 275+ clientes en la
@@ -1084,13 +1091,55 @@ export default function PipelinePage() {
         resetNewDealForm();
     };
 
+    // Eliminar negocio (duplicados, errores) — SIN motivo de pérdida a
+    // propósito: eso lo pidió el cliente en la reunión 6-ago-2026 porque un
+    // duplicado no es un negocio perdido. Para pérdidas reales sigue el botón
+    // "Perdido" (con motivo), que no se toca. Gate quotes.delete (SuperAdmin).
     const handleDelete = () => {
-        if (selectedTask) {
-            deleteTask(selectedTask.id);
-            addAuditLog({ userId: currentUser.id, userName: currentUser.name, userRole: canReassign ? 'SuperAdmin' : 'Vendedor', action: 'TASK_DELETED', targetId: selectedTask.id, targetName: selectedTask.client, details: `Eliminación de negocio: "${selectedTask.title}" (${selectedTask.client})`, verified: true });
-            setIsEditModalOpen(false);
-            setSelectedTask(null);
+        if (!selectedTask || !canDeleteQuotes) return;
+        const taskQuoteId = (selectedTask as Task & { quoteId?: string }).quoteId;
+        const linkedQuote = taskQuoteId ? quotes.find(q => q.id === taskQuoteId) : undefined;
+        const qNum = linkedQuote ? (linkedQuote.quoteNumber || linkedQuote.number || linkedQuote.id) : '';
+        const ok = window.confirm(
+            `¿Eliminar el negocio "${selectedTask.client || selectedTask.title}"${qNum ? ` (cotización ${qNum})` : ''} del tablero?\n\n` +
+            `Se elimina SIN registrarse como perdido — es para duplicados o errores. Para una pérdida real usa el botón "Perdido".`
+        );
+        if (!ok) return;
+        deleteTask(selectedTask.id);
+        let quoteAlsoDeleted = false;
+        if (linkedQuote) {
+            quoteAlsoDeleted = window.confirm(
+                `¿Eliminar TAMBIÉN la cotización ${qNum} del historial?\n\n` +
+                `Aceptar: se borra definitivamente de /cotizaciones.\nCancelar: el negocio sale del tablero pero la cotización se conserva.`
+            );
+            if (quoteAlsoDeleted) deleteQuote(linkedQuote.id);
         }
+        addAuditLog({ userId: currentUser.id, userName: currentUser.name, userRole: canReassign ? 'SuperAdmin' : 'Vendedor', action: 'TASK_DELETED', targetId: selectedTask.id, targetName: selectedTask.client, details: `Eliminación de negocio: "${selectedTask.title}" (${selectedTask.client})${quoteAlsoDeleted ? ` · cotización ${qNum} eliminada` : ''}`, verified: true });
+        setIsEditModalOpen(false);
+        setSelectedTask(null);
+    };
+
+    // Guarda el valor digitado por la admin sobre la task real. Regla simple y
+    // documentada: última escritura gana — si después alguien edita la
+    // cotización vinculada y CAMBIA su total, el sync de updateQuote vuelve a
+    // pisar este valor (la cotización es la fuente cuando existe y cambia).
+    // Cubre el caso real de la reunión: AIU hecha a mano fuera del CRM.
+    const handleSaveValue = () => {
+        if (!selectedTask || !canReassign) return;
+        const n = Math.round(Number(valueDraft.replace(/[^\d]/g, '')));
+        if (!Number.isFinite(n) || n < 0 || valueDraft.trim() === '') return;
+        const formatted = `$ ${n.toLocaleString('es-CO')}`;
+        updateTask(selectedTask.id, { value: formatted, numericValue: n });
+        setSelectedTask(prev => prev ? { ...prev, value: formatted, numericValue: n } : prev);
+        addAuditLog({
+            userId: currentUser.id, userName: currentUser.name,
+            userRole: canReassign ? 'SuperAdmin' : 'Vendedor',
+            action: 'TASK_VALUE_EDITED', targetId: selectedTask.id, targetName: selectedTask.client,
+            details: `Valor del negocio "${selectedTask.title}" ajustado manualmente a ${formatted}`,
+            verified: true,
+        });
+        addNotification({ title: 'Valor actualizado', description: `${selectedTask.client}: ${formatted}`, type: 'success' });
+        setIsEditingValue(false);
     };
 
     const logAction = (type: Activity['type'], content: string) => {
@@ -1933,10 +1982,14 @@ export default function PipelinePage() {
                                 </div>
                             </div>
 
-                            <button onClick={handleDelete} className="flex items-center gap-3 text-rose-400 hover:text-rose-600 transition-all group p-3 rounded-xl hover:bg-rose-50 border border-transparent hover:border-rose-200">
-                                <Trash className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                                <span className="text-[10px] font-black uppercase tracking-[0.15em]">Cerrar/Eliminar Lead</span>
-                            </button>
+                            {/* Solo SuperAdmin/Admin (quotes.delete). Los vendedores
+                                usan "Perdido" — que sí pide motivo — para descartes. */}
+                            {canDeleteQuotes && (
+                                <button onClick={handleDelete} className="flex items-center gap-3 text-rose-400 hover:text-rose-600 transition-all group p-3 rounded-xl hover:bg-rose-50 border border-transparent hover:border-rose-200">
+                                    <Trash className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                    <span className="text-[10px] font-black uppercase tracking-[0.15em]">Eliminar negocio</span>
+                                </button>
+                            )}
                         </div>
 
                         {/* Main Content */}
@@ -1954,10 +2007,43 @@ export default function PipelinePage() {
                                     )}
                                 </div>
                                 <div className="flex items-center gap-4">
-                                    <div className="px-4 py-2.5 bg-primary/5 border border-primary/20 rounded-xl flex items-center gap-3">
-                                        <DollarSign className="w-5 h-5 text-primary" />
-                                        <span className="text-xl font-black text-foreground tabular-nums">{selectedTask.value}</span>
-                                    </div>
+                                    {isEditingValue && canReassign ? (
+                                        <div className="px-3 py-2 bg-primary/5 border border-primary/40 rounded-xl flex items-center gap-2">
+                                            <DollarSign className="w-5 h-5 text-primary shrink-0" />
+                                            <input
+                                                autoFocus
+                                                type="text"
+                                                inputMode="numeric"
+                                                value={valueDraft}
+                                                onChange={e => setValueDraft(e.target.value.replace(/[^\d.]/g, ''))}
+                                                onKeyDown={e => { if (e.key === 'Enter') handleSaveValue(); if (e.key === 'Escape') setIsEditingValue(false); }}
+                                                placeholder="12500000"
+                                                className="w-36 bg-white border border-border rounded-lg py-1.5 px-2 text-base font-black tabular-nums outline-none focus:border-primary"
+                                            />
+                                            <button onClick={handleSaveValue} title="Guardar valor" className="p-1.5 rounded-lg bg-primary text-black hover:brightness-105 transition-all">
+                                                <CheckCircle2 className="w-4 h-4" />
+                                            </button>
+                                            <button onClick={() => setIsEditingValue(false)} title="Cancelar" className="p-1.5 rounded-lg bg-muted hover:bg-muted/70 transition-all border border-border">
+                                                <X className="w-3.5 h-3.5 text-muted-foreground" />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="px-4 py-2.5 bg-primary/5 border border-primary/20 rounded-xl flex items-center gap-3">
+                                            <DollarSign className="w-5 h-5 text-primary" />
+                                            <span className="text-xl font-black text-foreground tabular-nums">{selectedTask.value}</span>
+                                            {/* Solo la administradora (pipeline.reassign) corrige el
+                                                valor a mano — p.ej. cotización AIU hecha fuera del CRM. */}
+                                            {canReassign && (
+                                                <button
+                                                    onClick={() => { setValueDraft(String(selectedTask.numericValue || '')); setIsEditingValue(true); }}
+                                                    title="Editar valor manualmente"
+                                                    className="p-1.5 rounded-lg hover:bg-primary/15 transition-all"
+                                                >
+                                                    <Edit3 className="w-3.5 h-3.5 text-primary" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
                                     <button onClick={() => setIsEditModalOpen(false)} className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center hover:bg-muted/80 transition-all border border-border">
                                         <X className="w-5 h-5 text-muted-foreground" />
                                     </button>
