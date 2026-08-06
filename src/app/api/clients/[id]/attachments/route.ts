@@ -1,20 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool, ensureCrmSchema, hasDatabase } from '@/lib/postgres';
-
-const MAX_SIZE = 10 * 1024 * 1024; // 10 MB — lets users upload old quote PDFs + photos
-const ALLOWED_TYPES = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-  'image/heic',
-  'image/heif',
-];
+import {
+  ALLOWED_ATTACHMENT_LABEL,
+  MAX_ATTACHMENT_LABEL,
+  MAX_ATTACHMENT_SIZE,
+  formatAttachmentSize,
+  resolveAttachmentMime,
+} from '@/lib/attachments';
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!hasDatabase()) return NextResponse.json([], { status: 200 });
@@ -54,12 +46,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!file) {
       return NextResponse.json({ error: 'No se proporcionó archivo' }, { status: 400 });
     }
-    if (file.size > MAX_SIZE) {
-      return NextResponse.json({ error: 'El archivo excede el límite de 10 MB' }, { status: 400 });
-    }
-    if (!ALLOWED_TYPES.includes(file.type)) {
+    if (file.size > MAX_ATTACHMENT_SIZE) {
       return NextResponse.json(
-        { error: 'Tipo de archivo no permitido. Usa PDF, Word, Excel o imágenes.' },
+        {
+          error: `El archivo pesa ${formatAttachmentSize(file.size)} y el máximo por archivo es ${MAX_ATTACHMENT_LABEL}. Comprime el PDF o súbelo por partes.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // El navegador no siempre reporta el tipo; resolvemos también por extensión.
+    const mimetype = resolveAttachmentMime(file.name, file.type);
+    if (!mimetype) {
+      return NextResponse.json(
+        { error: `Formato no permitido. Se aceptan ${ALLOWED_ATTACHMENT_LABEL}.` },
         { status: 400 }
       );
     }
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       `INSERT INTO crm_client_attachments
          (id, client_id, name, filename, mimetype, size, data, uploaded_by_id, uploaded_by_name, kind)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [id, clientId, name, file.name, file.type, file.size, base64, uploadedById, uploadedByName, kind]
+      [id, clientId, name, file.name, mimetype, file.size, base64, uploadedById, uploadedByName, kind]
     );
 
     return NextResponse.json({
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       id,
       name,
       filename: file.name,
-      mimetype: file.type,
+      mimetype,
       size: file.size,
       kind,
       uploaded_by_id: uploadedById,

@@ -4,6 +4,13 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Upload, FileText, Image as ImageIcon, Trash2, Download, Loader2 } from 'lucide-react';
 import type { Seller } from '@/context/AppContext';
 import { canSeeAll } from '@/lib/scope';
+import {
+    ALLOWED_ATTACHMENT_LABEL,
+    MAX_ATTACHMENT_LABEL,
+    MAX_ATTACHMENT_SIZE,
+    formatAttachmentSize,
+    resolveAttachmentMime,
+} from '@/lib/attachments';
 
 export interface ClientAttachment {
     id: string;
@@ -15,12 +22,6 @@ export interface ClientAttachment {
     uploaded_by_id: string | null;
     uploaded_by_name: string | null;
     uploaded_at: string;
-}
-
-function formatSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 function iconForMime(mimetype: string) {
@@ -64,7 +65,26 @@ export function ClientAttachments({
 
     const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
+        const resetInput = () => {
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        };
         if (!file) return;
+
+        // Validamos ACÁ, antes de gastar la subida: pasado el tope de Vercel el
+        // 413 llega como HTML y el error real se perdía tras un "Error de red".
+        if (file.size > MAX_ATTACHMENT_SIZE) {
+            setError(
+                `"${file.name}" pesa ${formatAttachmentSize(file.size)} y el máximo por archivo es ${MAX_ATTACHMENT_LABEL}. Comprime el PDF (ilovepdf.com › Comprimir PDF) o sepáralo en partes y súbelas una por una.`
+            );
+            resetInput();
+            return;
+        }
+        if (!resolveAttachmentMime(file.name, file.type)) {
+            setError(`"${file.name}" no es un formato permitido. Se aceptan ${ALLOWED_ATTACHMENT_LABEL}.`);
+            resetInput();
+            return;
+        }
+
         setUploading(true);
         setError(null);
         try {
@@ -77,17 +97,22 @@ export function ClientAttachments({
                 method: 'POST',
                 body: form,
             });
-            const data = await res.json();
-            if (!res.ok) {
-                setError(data.error || 'Error al subir');
+            // 413 y 502 los responde la plataforma en HTML, no en JSON.
+            const data = await res.json().catch(() => null);
+            if (res.status === 413) {
+                setError(
+                    `El archivo pesa ${formatAttachmentSize(file.size)} y el servidor solo acepta hasta ${MAX_ATTACHMENT_LABEL}. Comprímelo y vuelve a intentar.`
+                );
+            } else if (!res.ok) {
+                setError(data?.error || `No se pudo subir el archivo (error ${res.status}). Intenta de nuevo.`);
             } else {
                 await load();
             }
         } catch {
-            setError('Error de red al subir el archivo');
+            setError('No hubo conexión con el servidor al subir el archivo. Revisa tu internet e intenta de nuevo.');
         } finally {
             setUploading(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
+            resetInput();
         }
     };
 
@@ -107,7 +132,9 @@ export function ClientAttachments({
             <div className="flex items-center justify-between gap-3">
                 <div>
                     <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Archivos del cliente</h3>
-                    <p className="text-xs text-muted-foreground mt-1">Cotizaciones viejas, fotos, PDFs, contratos, etc. Máx 10 MB.</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                        PDF, Word, Excel o imágenes. Máx {MAX_ATTACHMENT_LABEL} por archivo.
+                    </p>
                 </div>
                 {canManage && (
                     <>
@@ -157,7 +184,7 @@ export function ClientAttachments({
                                 <div className="min-w-0 flex-1">
                                     <p className="text-sm font-bold text-foreground truncate">{att.name}</p>
                                     <p className="text-[11px] text-muted-foreground truncate">
-                                        {att.filename} · {formatSize(att.size)}
+                                        {att.filename} · {formatAttachmentSize(att.size)}
                                         {att.uploaded_by_name ? ` · ${att.uploaded_by_name}` : ''}
                                         {' · '}{new Date(att.uploaded_at).toLocaleDateString('es-CO')}
                                     </p>
