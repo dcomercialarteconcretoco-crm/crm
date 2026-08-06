@@ -20,6 +20,7 @@ import { clsx } from "clsx";
 import { useApp, type Quote, type Task } from "@/context/AppContext";
 import { generatePDFReport } from "@/lib/pdf-generator";
 import { canSeeAll, ownsRecord } from "@/lib/scope";
+import { latestVersionOnly } from "@/lib/quote-versions";
 import { dedupPipelineTasks } from "@/lib/pipeline-dedup";
 import { aggregateSellerActivity, getPresetRange, type PeriodPreset } from "@/lib/seller-activity";
 
@@ -225,11 +226,13 @@ export default function Home() {
     return map;
   }, [scopedQuotes]);
 
-  const quoteMonthKey = (quote: Quote) => {
+  const quoteMonthKey = (quote: Quote): string | null => {
     const fallbackYear = quoteYearHint(quote);
     if (fallbackYear < new Date().getFullYear()) return `${fallbackYear}-01`;
-    const date = parseCRMDate((quote as any).sentAt, fallbackYear) || parseCRMDate(quote.date, fallbackYear) || dateFromEpochId(quote.id) || new Date();
-    return monthKey(date);
+    const date = parseCRMDate((quote as any).sentAt, fallbackYear) || parseCRMDate(quote.date, fallbackYear) || dateFromEpochId(quote.id);
+    // Sin fecha resoluble → sin mes (antes caía a "hoy" y se colaba al mes
+    // en curso a perpetuidad — misma fuga que tenían las tasks).
+    return date ? monthKey(date) : null;
   };
 
   const taskMonthKey = (task: Task): string | null => {
@@ -262,8 +265,10 @@ export default function Home() {
     return originalDate ? monthKey(originalDate) : null;
   };
 
+  // Cotizaciones del mes en curso, contando UNA vez cada negociación (la
+  // última versión por raíz — V1+V2 de lo mismo no suman doble).
   const currentMonthQuotes = useMemo(
-    () => scopedQuotes.filter(q => quoteMonthKey(q) === currentMonthKey),
+    () => latestVersionOnly(scopedQuotes.filter(q => quoteMonthKey(q) === currentMonthKey)),
     [scopedQuotes, currentMonthKey]
   );
   const currentMonthTasks = useMemo(
@@ -275,9 +280,13 @@ export default function Home() {
     [scopedTasks, currentMonthKey, scopedQuotes]
   );
 
+  // "Proyección" = VALOR DE LAS COTIZACIONES DEL MES EN CURSO. Definición
+  // fijada por el cliente (reunión 6-ago-2026 y nota del mismo día): ni
+  // últimos 30 días, ni negocios activos con cotización vieja retomada —
+  // lo COTIZADO en lo corrido del mes, contando una vez cada negociación.
   const totalForecast = useMemo(
-    () => currentMonthTasks.reduce((sum, task) => sum + task.numericValue, 0),
-    [currentMonthTasks]
+    () => currentMonthQuotes.reduce((sum, quote) => sum + (quote.numericTotal || 0), 0),
+    [currentMonthQuotes]
   );
 
   const approvedQuotes = currentMonthQuotes.filter((quote) => quote.status === "Approved").length;
@@ -534,7 +543,7 @@ export default function Home() {
     {
       label: "Proyección Comercial",
       value: formatCurrency(totalForecast),
-      note: `${currentMonthTasks.length} propuestas activas · ${currentMonthLabel}`,
+      note: `${currentMonthQuotes.length} ${currentMonthQuotes.length === 1 ? 'cotización' : 'cotizaciones'} · ${currentMonthLabel}`,
       icon: TrendingUp,
       tone: "bg-primary/14 text-primary border-primary/20",
     },
@@ -684,7 +693,7 @@ export default function Home() {
               )}>
                 {formatCurrency(totalForecast)}
               </p>
-              <p className="mt-2 text-xs text-white/50">{currentMonthTasks.length} propuestas activas · {currentMonthLabel}</p>
+              <p className="mt-2 text-xs text-white/50">{currentMonthQuotes.length} {currentMonthQuotes.length === 1 ? 'cotización' : 'cotizaciones'} · {currentMonthLabel}</p>
               <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-primary">
                 <Clock className="h-3.5 w-3.5" />
                 <span>
