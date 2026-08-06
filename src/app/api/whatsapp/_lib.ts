@@ -48,7 +48,11 @@ export async function graphRequest(path: string, init: RequestInit = {}, accessT
 
     if (!response.ok) {
         const message = payload?.error?.message || payload?.raw || 'Meta Graph devolvió un error.';
-        throw new Error(message);
+        const err = new Error(message) as Error & { metaCode?: number };
+        // Código de error de Meta (p.ej. 131047 = ventana de 24h cerrada) para
+        // que los callers puedan mapear mensajes claros sin parsear texto.
+        if (payload?.error?.code !== undefined) err.metaCode = Number(payload.error.code);
+        throw err;
     }
 
     return payload;

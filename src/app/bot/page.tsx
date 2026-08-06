@@ -395,29 +395,47 @@ export default function MiWiBotPage() {
         return () => clearInterval(interval);
     }, []);
 
+    // Respuesta del asesor. PESIMISTA a propósito (incidente 6-ago-2026): el
+    // flujo viejo pintaba el mensaje en el hilo y persistía la conversación,
+    // pero JAMÁS llamaba a la API de WhatsApp — el cliente nunca recibía nada
+    // y el asesor creía que sí. Ahora el server (/api/conversations/reply)
+    // envía por Meta PRIMERO y solo persiste si Meta aceptó; si algo falla
+    // (ventana de 24h, token, red) se ve un error claro y el texto escrito
+    // vuelve al input para no perderlo.
     const sendHumanReply = async () => {
         if (!replyText.trim() || !selectedConversation || isSendingReply) return;
         const text = replyText.trim();
         setReplyText('');
         setIsSendingReply(true);
-        const updatedConv: WidgetConversation = {
-            ...selectedConversation,
-            messages: [
-                ...selectedConversation.messages,
-                { role: 'assistant', content: text, timestamp: new Date().toISOString() },
-            ],
-            updatedAt: new Date().toISOString(),
-        };
-        setSelectedConversation(updatedConv);
-        setLiveConversations(prev => prev.map(c => c.id === updatedConv.id ? updatedConv : c));
         try {
-            await fetch('/api/conversations', {
+            const res = await fetch('/api/conversations/reply', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ conversation: updatedConv }),
+                body: JSON.stringify({ conversationId: selectedConversation.id, text }),
             });
-        } catch { /* silent */ }
-        setIsSendingReply(false);
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.ok) {
+                addNotification({
+                    title: 'No se envió la respuesta',
+                    description: data.error || `Error ${res.status} — intenta de nuevo.`,
+                    type: 'alert',
+                });
+                setReplyText(text); // restaurar lo escrito
+                return;
+            }
+            const updatedConv: WidgetConversation = data.conversation;
+            setSelectedConversation(updatedConv);
+            setLiveConversations(prev => prev.map(c => c.id === updatedConv.id ? updatedConv : c));
+        } catch {
+            addNotification({
+                title: 'Sin conexión',
+                description: 'No se pudo enviar la respuesta. Revisa la red e intenta de nuevo.',
+                type: 'alert',
+            });
+            setReplyText(text);
+        } finally {
+            setIsSendingReply(false);
+        }
     };
 
     // Alerts are triggered only by real WhatsApp/chat events, never simulated
