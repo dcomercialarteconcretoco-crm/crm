@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { sanitizeExtraEmails, isPlaceholderEmail } from '@/lib/client-emails';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || 'cotizaciones@arteconcreto.co';
@@ -35,11 +36,24 @@ export async function POST(request: NextRequest) {
     // caller — NO se infiere de tax==0, porque una AIU con utilidad 0% tiene
     // tax 0 legítimo sin ser exenta y el correo diría "por bloque" siendo falso.
     vatExempt,
+    // Correos adicionales del cliente → van en CC. Los manda el caller (que
+    // tiene el Client en memoria); acá se re-sanean por si llegan de un
+    // integrador externo.
+    extraEmails,
   } = payload;
 
   if (!clientEmail) {
     return NextResponse.json({ error: 'Email del cliente requerido.' }, { status: 400 });
   }
+  // Correo sintético de importación: enviarle "funcionaría" (Resend acepta el
+  // formato) pero nadie lo recibe y el asesor cree que cotizó. Mejor decirlo.
+  if (isPlaceholderEmail(clientEmail)) {
+    return NextResponse.json(
+      { error: 'El cliente solo tiene un correo sintético de importación. Edita el contacto y registra su correo real antes de enviar.' },
+      { status: 400 }
+    );
+  }
+  const ccEmails = sanitizeExtraEmails(extraEmails, clientEmail);
 
   const resendKey = RESEND_API_KEY;
   if (!resendKey) {
@@ -314,6 +328,8 @@ export async function POST(request: NextRequest) {
     body: JSON.stringify({
       from: FROM_EMAIL,
       to: [clientEmail],
+      // CC a los correos adicionales del cliente (comprador + asistente, etc).
+      ...(ccEmails.length > 0 ? { cc: ccEmails } : {}),
       subject: `Cotización ${quoteNumber} — ArteConcreto S.A.S`,
       html: htmlCliente,
     }),

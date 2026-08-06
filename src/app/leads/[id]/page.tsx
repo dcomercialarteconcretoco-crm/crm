@@ -34,6 +34,7 @@ import { ClientAttachments } from '@/components/leads/ClientAttachments';
 import { ClientBotChats } from '@/components/leads/ClientBotChats';
 import { HistoricalQuoteUploader } from '@/components/leads/HistoricalQuoteUploader';
 import CompanyCombobox from '@/components/CompanyCombobox';
+import ExtraEmailsEditor from '@/components/ExtraEmailsEditor';
 
 const STATUS_LABEL: Record<string, string> = {
     'Active': 'Activo',
@@ -63,7 +64,7 @@ export default function Lead360Page() {
     const [noteText, setNoteText] = useState('');
     const [isSendingCatalog, setIsSendingCatalog] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
-    const [editForm, setEditForm] = useState({ name: '', company: '', companyId: '', position: '', email: '', phone: '', whatsappUser: '', city: '', status: '' });
+    const [editForm, setEditForm] = useState({ name: '', company: '', companyId: '', position: '', email: '', extraEmails: [] as string[], phone: '', whatsappUser: '', city: '', status: '' });
     const isSuperAdmin = currentUser?.role?.toLowerCase().includes('superadmin') || currentUser?.role?.toLowerCase() === 'admin';
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [assignSellerId, setAssignSellerId] = useState('');
@@ -241,6 +242,7 @@ export default function Lead360Page() {
                     clientEmail: lead.email,
                     clientName: lead.name,
                     clientCompany: lead.company || '',
+                    extraEmails: lead.extraEmails || [],
                     sellerName: currentUser?.name || '',
                     sellerPhone: (currentUser as { phone?: string } | null)?.phone || '',
                 }),
@@ -323,7 +325,7 @@ export default function Lead360Page() {
                         <span>Exportar</span>
                     </button>
                     <button
-                        onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', companyId: lead.companyId || '', position: lead.position || '', email: lead.email, phone: lead.phone || '', whatsappUser: lead.whatsappUser || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
+                        onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', companyId: lead.companyId || '', position: lead.position || '', email: lead.email, extraEmails: lead.extraEmails || [], phone: lead.phone || '', whatsappUser: lead.whatsappUser || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
                         className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] transition-all flex items-center gap-2 text-sm"
                     >
                         <Edit2 className="w-4 h-4" />
@@ -372,7 +374,7 @@ export default function Lead360Page() {
                                             <span className="text-sm font-semibold text-foreground truncate ml-2 max-w-[55%] text-right">{empresa}</span>
                                         ) : (
                                             <button
-                                                onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', companyId: lead.companyId || '', position: lead.position || '', email: lead.email, phone: lead.phone || '', whatsappUser: lead.whatsappUser || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
+                                                onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', companyId: lead.companyId || '', position: lead.position || '', email: lead.email, extraEmails: lead.extraEmails || [], phone: lead.phone || '', whatsappUser: lead.whatsappUser || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
                                                 className="text-xs font-bold text-primary hover:underline"
                                             >
                                                 + Asignar empresa
@@ -385,6 +387,9 @@ export default function Lead360Page() {
                                 { icon: User, label: 'Contacto Principal', value: lead.name },
                                 { icon: Briefcase, label: 'Cargo', value: lead.position || 'Sin cargo registrado' },
                                 { icon: Mail, label: 'Correo', value: lead.email },
+                                ...(lead.extraEmails && lead.extraEmails.length > 0
+                                    ? [{ icon: Mail, label: `CC (${lead.extraEmails.length})`, value: lead.extraEmails.join(', ') }]
+                                    : []),
                                 { icon: Phone, label: 'Teléfono', value: lead.phone },
                                 { icon: MapPin, label: 'Ubicación', value: lead.city || 'No registrada' }
                             ].map((info) => (
@@ -419,7 +424,7 @@ export default function Lead360Page() {
                                     </a>
                                 ) : (
                                     <button
-                                        onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', companyId: lead.companyId || '', position: lead.position || '', email: lead.email, phone: lead.phone || '', whatsappUser: lead.whatsappUser || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
+                                        onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', companyId: lead.companyId || '', position: lead.position || '', email: lead.email, extraEmails: lead.extraEmails || [], phone: lead.phone || '', whatsappUser: lead.whatsappUser || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
                                         className="text-xs font-bold text-primary hover:underline"
                                     >
                                         + Registrar usuario
@@ -976,6 +981,14 @@ export default function Lead360Page() {
                                     onChange={({ companyId, companyName }) =>
                                         setEditForm(prev => ({ ...prev, companyId, company: companyName }))
                                     }
+                                />
+                            </div>
+                            {/* Correos adicionales — reciben CC de cotizaciones/catálogo. */}
+                            <div className="col-span-2">
+                                <ExtraEmailsEditor
+                                    value={editForm.extraEmails}
+                                    onChange={(emails) => setEditForm(prev => ({ ...prev, extraEmails: emails }))}
+                                    primaryEmail={editForm.email}
                                 />
                             </div>
                             {/* Usuario de WhatsApp: se normaliza al tipear (acepta que

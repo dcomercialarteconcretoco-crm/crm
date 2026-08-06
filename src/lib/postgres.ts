@@ -150,6 +150,13 @@ async function doEnsureCrmSchema() {
     ON crm_clients (company_id);
   `);
 
+  // NIT de la empresa (reunión 6-ago-2026). Columna APARTE de `name` a
+  // propósito: el INITCAP de más abajo normaliza el nombre en cada boot y
+  // destrozaría un NIT embebido ahí. Sin UNIQUE — los datos legados tienen
+  // cientos de empresas sin documento y no queremos que una colisión real
+  // (sedes, typos) bloquee el alta.
+  await pool.query(`ALTER TABLE crm_companies ADD COLUMN IF NOT EXISTS nit TEXT;`);
+
   // Backfill idempotente: por cada nombre de empresa distinto que aparezca en
   // crm_clients, crear la company (o usar la existente) y enlazar. Solo corre
   // sobre filas que aún no tienen company_id, así re-ejecutar es seguro.
@@ -242,6 +249,11 @@ async function doEnsureCrmSchema() {
   // { text, date, author }. Default '[]' para que los clientes existentes
   // queden con bitácora vacía en vez de NULL.
   await pool.query(`ALTER TABLE crm_clients ADD COLUMN IF NOT EXISTS notes JSONB NOT NULL DEFAULT '[]'::jsonb;`);
+
+  // Correos adicionales del contacto (reunión 6-ago-2026). El principal
+  // (columna email) sigue siendo la identidad para matching; estos solo
+  // participan como CC en los envíos de cotización/catálogo.
+  await pool.query(`ALTER TABLE crm_clients ADD COLUMN IF NOT EXISTS emails_extra JSONB NOT NULL DEFAULT '[]'::jsonb;`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_state (

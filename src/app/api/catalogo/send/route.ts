@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadFreshSession } from '@/lib/auth-session';
 import { generateCatalogPdfBuffer } from '@/lib/catalog/catalog-data';
+import { sanitizeExtraEmails, isPlaceholderEmail } from '@/lib/client-emails';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,6 +37,14 @@ export async function POST(request: NextRequest) {
     if (!/.+@.+\..+/.test(clientEmail)) {
         return NextResponse.json({ error: 'Email del cliente inválido.' }, { status: 400 });
     }
+    if (isPlaceholderEmail(clientEmail)) {
+        return NextResponse.json(
+            { error: 'El cliente solo tiene un correo sintético de importación. Edita el contacto y registra su correo real antes de enviar.' },
+            { status: 400 }
+        );
+    }
+    // Correos adicionales del cliente → CC del catálogo.
+    const ccEmails = sanitizeExtraEmails(body.extraEmails, clientEmail);
 
     let pdf: Uint8Array;
     try {
@@ -90,6 +99,7 @@ export async function POST(request: NextRequest) {
             body: JSON.stringify({
                 from: FROM_EMAIL,
                 to: [clientEmail],
+                ...(ccEmails.length > 0 ? { cc: ccEmails } : {}),
                 subject: 'Catálogo de productos — ArteConcreto',
                 html,
                 attachments: [{ filename: `Catalogo-ArteConcreto-${fecha}.pdf`, content: base64 }],

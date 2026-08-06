@@ -77,6 +77,12 @@ export interface ClientNote {
 export interface Company {
     id: string;
     name: string;
+    /**
+     * NIT (o documento fiscal) de la empresa. Opcional: los cientos de
+     * empresas legadas no lo tienen y el quick-create del combobox tampoco
+     * lo pide — se completa después desde /companies.
+     */
+    nit?: string;
     createdAt?: string;
     /** Solo lo carga el GET de /api/companies — útil para el listado. */
     clientCount?: number;
@@ -96,6 +102,12 @@ export interface Client {
      */
     position?: string;
     email: string;
+    /**
+     * Correos adicionales (CC automático en cotización/catálogo). El
+     * principal `email` sigue siendo la identidad para matching — bot,
+     * dedupe del pipeline, ficha. Saneados por `@/lib/client-emails`.
+     */
+    extraEmails?: string[];
     phone: string;
     /**
      * Usuario (handle) de WhatsApp, sin el `@` y en minúscula — ej: "juan.perez".
@@ -689,9 +701,9 @@ interface AppContextType {
 
     addClient: (client: Omit<Client, 'id'>) => string;
     /** Crea una empresa (o devuelve la existente si el nombre ya está registrado). */
-    addCompany: (name: string) => Promise<Company | null>;
+    addCompany: (name: string, nit?: string) => Promise<Company | null>;
     /** Renombra una empresa. Devuelve `{ ok: true }` o un mensaje de error legible (e.g. nombre duplicado). */
-    updateCompany: (id: string, name: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+    updateCompany: (id: string, name: string, nit?: string) => Promise<{ ok: true } | { ok: false; error: string }>;
     /** Borra la empresa. Los contactos asociados pierden el FK pero conservan el nombre como snapshot. */
     deleteCompany: (id: string) => Promise<{ ok: true } | { ok: false; error: string }>;
     addTask: (task: Omit<Task, 'id'>) => string;
@@ -2771,8 +2783,9 @@ REGLAS DE ORO:
      * creando. Optimista: actualiza el state local inmediatamente para que el
      * combobox muestre la nueva opción sin esperar al server.
      */
-    const addCompany = async (name: string): Promise<Company | null> => {
+    const addCompany = async (name: string, nit?: string): Promise<Company | null> => {
         const trimmed = name.trim();
+        const trimmedNit = (nit || '').trim();
         if (!trimmed) return null;
         // Si ya existe en memoria por nombre exacto (case-insensitive), úsala.
         const existing = companies.find(c => c.name.trim().toLowerCase() === trimmed.toLowerCase());
@@ -2782,13 +2795,13 @@ REGLAS DE ORO:
         // respuesta del server. Si el server devuelve un id distinto, lo
         // reemplazamos. (Casi nunca pasa porque el server hace get-or-create.)
         const tempId = `cmp-tmp-${Date.now().toString(36)}`;
-        setCompanies(prev => [...prev, { id: tempId, name: trimmed, clientCount: 0 }]);
+        setCompanies(prev => [...prev, { id: tempId, name: trimmed, nit: trimmedNit || undefined, clientCount: 0 }]);
 
         try {
             const res = await fetch('/api/companies', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: trimmed }),
+                body: JSON.stringify({ name: trimmed, ...(trimmedNit ? { nit: trimmedNit } : {}) }),
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
@@ -2814,14 +2827,16 @@ REGLAS DE ORO:
      * el nuevo nombre al campo denormalizado `company` de cada Client enlazado
      * para que listados/PDFs no tengan que esperar al próximo refresh.
      */
-    const updateCompany = async (id: string, name: string): Promise<{ ok: true } | { ok: false; error: string }> => {
+    const updateCompany = async (id: string, name: string, nit?: string): Promise<{ ok: true } | { ok: false; error: string }> => {
         const trimmed = name.trim();
         if (!trimmed) return { ok: false, error: 'El nombre no puede estar vacío.' };
         try {
             const res = await fetch(`/api/companies/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: trimmed }),
+                // nit solo viaja si el caller lo pasó (undefined = no tocar el
+                // que está en DB; string vacío = borrarlo a propósito).
+                body: JSON.stringify({ name: trimmed, ...(nit !== undefined ? { nit: nit.trim() } : {}) }),
             });
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
@@ -2830,7 +2845,7 @@ REGLAS DE ORO:
             const data = await res.json();
             const final: Company = data.company || { id, name: trimmed };
             setCompanies(prev => {
-                const next = prev.map(c => c.id === id ? { ...c, name: final.name } : c);
+                const next = prev.map(c => c.id === id ? { ...c, name: final.name, nit: final.nit || undefined } : c);
                 next.sort((a, b) => a.name.localeCompare(b.name));
                 try { localStorage.setItem('crm_companies_cache', JSON.stringify(next)); } catch {}
                 return next;

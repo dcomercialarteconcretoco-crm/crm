@@ -52,6 +52,7 @@ import { clsx } from 'clsx';
 import { useApp, Task, Activity, Seller, Client, PipelineStage, DEFAULT_PIPELINE_STAGES } from '@/context/AppContext';
 import { openMailto, openWhatsApp } from '@/lib/contact-links';
 import { logContactEvent } from '@/lib/contact-events';
+import { dedupPipelineTasks } from '@/lib/pipeline-dedup';
 import SearchableSelect from '@/components/SearchableSelect';
 import SectorSelect from '@/components/SectorSelect';
 import CompanyCombobox from '@/components/CompanyCombobox';
@@ -219,29 +220,8 @@ function parseCRMDate(value: any, fallbackYear = new Date().getFullYear()): Date
     return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function dedupPipelineTasks(colTasks: Task[]): Task[] {
-    const seen = new Map<string, Task>();
-    const sorted = [...colTasks].sort((a, b) => (b.numericValue || 0) - (a.numericValue || 0));
-    for (const t of sorted) {
-        const key = (t as any).email?.toLowerCase().trim() || (t as any).clientId || t.id;
-        if (!seen.has(key)) {
-            seen.set(key, { ...t });
-        } else {
-            const existing = seen.get(key)!;
-            const combined = (existing.numericValue || 0) + (t.numericValue || 0);
-            seen.set(key, {
-                ...existing,
-                numericValue: combined,
-                value: `$ ${combined.toLocaleString('es-CO')}`,
-                activities: [
-                    ...(existing.activities || []),
-                    ...(t.activities || []),
-                ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
-            });
-        }
-    }
-    return Array.from(seen.values());
-}
+// dedupPipelineTasks vive ahora en @/lib/pipeline-dedup — el dashboard usa la
+// misma regla para que "propuestas activas" cuadre con las tarjetas de acá.
 
 // ─── SortableTask (real tasks only — virtual tasks shown separately) ─────────
 
@@ -859,6 +839,7 @@ export default function PipelinePage() {
                     // Restrepo — Camilo Restrepo". Este slot es la EMPRESA: si no
                     // hay, va vacío y el template omite el guión solo.
                     clientCompany: linkedQuote.clientCompany || client?.company || '',
+                    extraEmails: client?.extraEmails || [],
                     sellerName: linkedQuote.sellerName || task.assignedTo || currentUser?.name || 'ArteConcreto',
                     sellerId: linkedQuote.sellerId || currentUser?.id || '',
                     sentAt,

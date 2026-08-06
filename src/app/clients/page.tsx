@@ -31,6 +31,7 @@ import { useApp, Client } from '@/context/AppContext';
 import { logContactEvent } from '@/lib/contact-events';
 import { openWhatsAppContact, formatWhatsAppUser, normalizeWhatsAppUser, whatsAppUserError } from '@/lib/contact-links';
 import SearchableSelect from '@/components/SearchableSelect';
+import ExtraEmailsEditor from '@/components/ExtraEmailsEditor';
 import CompanyCombobox from '@/components/CompanyCombobox';
 import SectorSelect from '@/components/SectorSelect';
 import { hasPermission } from '@/lib/permissions';
@@ -82,6 +83,7 @@ export default function ClientsPage() {
         companyId: '',
         position: '',
         email: '',
+        extraEmails: [] as string[],
         phone: '',
         whatsappUser: '',
         city: settings.cities[0]?.name || 'Bogotá',
@@ -165,6 +167,7 @@ export default function ClientsPage() {
             companyId: '',
             position: '',
             email: '',
+            extraEmails: [],
             phone: '',
             whatsappUser: '',
             city: settings.cities[0]?.name || 'Bogotá',
@@ -1005,6 +1008,14 @@ export default function ClientsPage() {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Correos adicionales — reciben CC de cotizaciones/catálogo.
+                                El principal de arriba sigue siendo la identidad. */}
+                            <ExtraEmailsEditor
+                                value={newClientForm.extraEmails}
+                                onChange={(emails) => setNewClientForm({ ...newClientForm, extraEmails: emails })}
+                                primaryEmail={newClientForm.email}
+                            />
 
                             {/* Usuario de WhatsApp — canal alterno al número. Se guarda
                                 canonizado (sin @, minúscula); el asesor puede pegar el

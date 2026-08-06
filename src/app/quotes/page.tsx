@@ -131,6 +131,7 @@ export default function QuotesPage() {
                     clientName: quote.client,
                     clientEmail: quote.clientEmail,
                     clientCompany: quote.clientCompany || '',
+                    extraEmails: clients.find(c => c.id === quote.clientId)?.extraEmails || [],
                     sellerName: currentUser?.name || 'ArteConcreto',
                     items: quote.items || [],
                     subtotal: quote.subtotal || 0,

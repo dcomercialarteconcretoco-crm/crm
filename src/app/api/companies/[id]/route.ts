@@ -27,6 +27,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
   const payload = await request.json().catch(() => ({}));
   const newName = String(payload?.name || "").trim();
+  // NIT: distinguir "no vino la llave" (undefined → conservar el actual) de
+  // "vino vacía" (→ NULL, el user lo borró a propósito). Mismo patrón que
+  // whatsapp_user en /api/clients/[id].
+  const nitProvided = payload?.nit !== undefined;
+  const nitValue = String(payload?.nit || "").trim() || null;
 
   if (!newName) {
     return NextResponse.json({ error: "El nombre de la empresa es obligatorio" }, { status: 400 });
@@ -51,8 +56,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const updated = await pool.query(
-    `UPDATE crm_companies SET name = $1, updated_at = NOW() WHERE id = $2 RETURNING id, name`,
-    [newName, id]
+    `UPDATE crm_companies
+     SET name = $1,
+         nit = CASE WHEN $3::boolean THEN $4 ELSE nit END,
+         updated_at = NOW()
+     WHERE id = $2
+     RETURNING id, name, nit`,
+    [newName, id, nitProvided, nitValue]
   );
   if (!updated.rows[0]) {
     return NextResponse.json({ error: "Empresa no encontrada" }, { status: 404 });

@@ -138,6 +138,7 @@ export default function AutorizacionesPage() {
                     clientName:    client?.name || q.client,
                     clientEmail,
                     clientCompany: q.clientCompany || client?.company || '',
+                    extraEmails:   client?.extraEmails || [],
                     sellerName:    q.sellerName || q.requestedByName || 'ArteConcreto',
                     sellerPhone:   q.sellerPhone || '',
                     sellerId:      q.sellerId || q.requestedBy || '',

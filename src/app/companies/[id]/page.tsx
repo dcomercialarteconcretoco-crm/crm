@@ -38,6 +38,7 @@ export default function CompanyDetailPage() {
     // UI state local para edición y borrado
     const [editing, setEditing] = useState(false);
     const [editName, setEditName] = useState('');
+    const [editNit, setEditNit] = useState('');
     const [editError, setEditError] = useState('');
     const [editing_, setEditing_] = useState(false); // submitting flag for edit
     const [confirmDelete, setConfirmDelete] = useState(false);
@@ -45,6 +46,7 @@ export default function CompanyDetailPage() {
 
     const openEdit = () => {
         setEditName(company?.name || '');
+        setEditNit(company?.nit || '');
         setEditError('');
         setEditing(true);
     };
@@ -53,7 +55,8 @@ export default function CompanyDetailPage() {
         if (!company || !editName.trim() || editing_) return;
         setEditing_(true);
         setEditError('');
-        const result = await updateCompany(company.id, editName);
+        // editNit siempre viaja desde este modal: vacío = borrar el NIT.
+        const result = await updateCompany(company.id, editName, editNit);
         setEditing_(false);
         if (result.ok) {
             addNotification({ title: 'Empresa actualizada', description: `Ahora se llama ${editName.trim()}.`, type: 'success' });
@@ -137,6 +140,9 @@ export default function CompanyDetailPage() {
                         <div className="flex-1 min-w-0">
                             <p className="text-[10px] uppercase tracking-widest text-primary font-black">Cliente corporativo</p>
                             <h1 className="text-2xl font-black text-foreground tracking-tight mt-1">{company.name}</h1>
+                            {company.nit && (
+                                <p className="text-xs text-muted-foreground font-semibold mt-0.5">NIT {company.nit}</p>
+                            )}
                             <div className="flex flex-wrap items-center gap-4 mt-3">
                                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                     <User className="w-3.5 h-3.5" />
@@ -341,6 +347,15 @@ export default function CompanyDetailPage() {
                                 {editError && (
                                     <p className="text-xs font-bold text-rose-600">{editError}</p>
                                 )}
+                                <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5 pt-1">NIT <span className="text-muted-foreground font-medium normal-case">(opcional)</span></label>
+                                <input
+                                    type="text"
+                                    placeholder="Ej: 900.123.456-7"
+                                    value={editNit}
+                                    onChange={e => setEditNit(e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter') submitEdit(); }}
+                                    className="w-full bg-muted border border-border rounded-xl py-2.5 px-3 text-sm outline-none focus:border-primary focus:bg-white transition-all"
+                                />
                                 <p className="text-[11px] text-muted-foreground">
                                     El nombre nuevo se propaga automáticamente a los {contacts.length} contacto(s) asociados.
                                 </p>

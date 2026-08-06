@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureCrmSchema, getPool, hasDatabase } from "@/lib/postgres";
 import { normalizeWhatsAppUser, isValidWhatsAppUser } from "@/lib/contact-links";
+import { sanitizeExtraEmails } from "@/lib/client-emails";
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!hasDatabase()) {
@@ -56,6 +57,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const rawWaUser = normalizeWhatsAppUser(payload.whatsappUser || '');
   const whatsappUserValue = isValidWhatsAppUser(rawWaUser) ? rawWaUser : null;
 
+  // Correos adicionales: mismo contrato que whatsapp_user — la llave ausente
+  // conserva lo que hay; presente (aunque venga vacía) reemplaza, para que el
+  // formulario pueda quitar correos.
+  const extraProvided = payload.extraEmails !== undefined;
+  const extraEmailsValue = JSON.stringify(sanitizeExtraEmails(payload.extraEmails, payload.email));
+
   try {
     await pool.query(
       `
@@ -80,6 +87,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           source = COALESCE($18, source),
           notes = COALESCE($19::jsonb, notes),
           whatsapp_user = CASE WHEN $20::boolean THEN $21 ELSE whatsapp_user END,
+          emails_extra = CASE WHEN $22::boolean THEN $23::jsonb ELSE emails_extra END,
           updated_at = NOW()
         WHERE id = $1
       `,
@@ -109,6 +117,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         payload.notes !== undefined ? JSON.stringify(payload.notes) : null,
         waUserProvided,
         whatsappUserValue,
+        extraProvided,
+        extraEmailsValue,
       ]
     );
   } catch (error: unknown) {

@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     if (!isAdmin(user.role)) params.push(user.id);
 
     const { rows: rawLeads } = await pool.query(
-        `SELECT id, name, email, phone, city, legal_id, reference,
+        `SELECT id, name, email, phone, city, legal_id, id_type, reference,
                 assigned_to, assigned_to_name
            FROM crm_raw_leads
           WHERE id = ANY($1::text[]) ${ownerGuard}
@@ -58,14 +58,25 @@ export async function POST(request: NextRequest) {
         const ownerId = lead.assigned_to || user.id;
         const ownerName = lead.assigned_to_name || user.name;
 
+        // El NIT/cédula capturado en la bandeja se perdía al promover
+        // (crm_clients no tiene columna de documento). Lo conservamos como
+        // primera nota de bitácora para que el dato sobreviva en la ficha.
+        const documentNote = lead.legal_id
+            ? JSON.stringify([{
+                text: `Documento (${lead.id_type || 'NIT/CC'}): ${lead.legal_id}`,
+                date: today,
+                author: 'Bandeja de Leads Crudos',
+            }])
+            : '[]';
+
         // "position" entre dobles comillas — palabra reservada SQL (mismo
         // patrón que /api/clients en 7b2654a).
         await pool.query(
             `INSERT INTO crm_clients (
                 id, name, company, "position", email, phone, status, value_text, ltv, last_contact,
                 city, score, category, registration_date,
-                assigned_to, assigned_to_name, source, updated_at
-            ) VALUES ($1,$2,$3,$4,$5,$6,'Lead','Por cotizar',0,$7,$8,70,'Bandeja Crudos',$9,$10,$11,$12,NOW())`,
+                assigned_to, assigned_to_name, source, notes, updated_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,'Lead','Por cotizar',0,$7,$8,70,'Bandeja Crudos',$9,$10,$11,$12,$13::jsonb,NOW())`,
             [
                 clientId,
                 lead.name,
@@ -82,6 +93,7 @@ export async function POST(request: NextRequest) {
                 ownerId,
                 ownerName,
                 lead.reference ? `Crudos: ${lead.reference}` : 'Bandeja de Leads Crudos',
+                documentNote,
             ]
         );
 

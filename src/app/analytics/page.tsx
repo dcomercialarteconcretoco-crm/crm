@@ -39,9 +39,11 @@ import {
     Pie
 } from 'recharts';
 
-import { useApp } from '@/context/AppContext';
+import { useApp, type Quote } from '@/context/AppContext';
 import { generatePDFReport } from '@/lib/pdf-generator';
 import { PermissionGate } from '@/components/PermissionGate';
+import { ownsRecord } from '@/lib/scope';
+import { quoteStatusLabel } from '@/lib/quote-status';
 
 // ── Tipos GA4 ─────────────────────────────────────────────────────────────────
 interface GA4Data {
@@ -121,9 +123,36 @@ function getPeriodRange(period: Period): { start: Date; end: Date } {
 }
 
 export default function AnalyticsPage() {
-    const { clients, tasks, quotes, auditLogs, addNotification, settings } = useApp();
+    const { clients, tasks, quotes, auditLogs, addNotification, settings, currentUser } = useApp();
 
     const [period, setPeriod] = React.useState<Period>('month');
+    // Filtro de estado de "Cotizaciones Recientes" — pedido de la reunión
+    // 6-ago-2026: poder ver "enviadas" sin que se cuelen borradores.
+    const [recentStatusFilter, setRecentStatusFilter] = React.useState<string>('all');
+
+    // Cotizaciones para la tabla de abajo: scopeadas (un vendedor no ve las
+    // ajenas), sin históricas, orden más reciente primero por fechas ISO o el
+    // epoch del id — NUNCA q.date, que viene en dos formatos incompatibles
+    // ("6/8/2026" y "06 ago") y new Date() lo lee como M/D/Y.
+    const recentQuotes = React.useMemo(() => {
+        const ts = (q: Quote) => {
+            const m = String(q.id || '').match(/(1[6-9]\d{11})/);
+            if (m) return Number(m[1]);
+            const d = new Date(q.sentAt || q.statusChangedAt || q.updatedAt || 0);
+            return isNaN(d.getTime()) ? 0 : d.getTime();
+        };
+        return quotes
+            .filter(q => !q.isHistorical && ownsRecord(currentUser, q))
+            .filter(q => recentStatusFilter === 'all'
+                ? true
+                // PENDING_APPROVAL es el gemelo legacy de PendingApproval —
+                // el filtro debe cubrir los dos (quote-status.ts los mantiene).
+                : recentStatusFilter === 'PendingApproval'
+                    ? (q.status === 'PendingApproval' || q.status === 'PENDING_APPROVAL')
+                    : q.status === recentStatusFilter)
+            .sort((a, b) => ts(b) - ts(a))
+            .slice(0, 10);
+    }, [quotes, currentUser, recentStatusFilter]);
 
     // ── Estado GA4 ────────────────────────────────────────────────────────────
     const [ga4, setGa4]           = React.useState<GA4Data | null>(null);
@@ -562,16 +591,32 @@ export default function AnalyticsPage() {
 
             {/* Cotizaciones Recientes */}
             <div className="surface-card p-8">
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
                     <h3 className="text-lg font-black uppercase tracking-tighter">Cotizaciones Recientes</h3>
-                    <Link href="/quotes" className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline flex items-center gap-1">
-                        Ver todas <ExternalLink className="w-3 h-3" />
-                    </Link>
+                    <div className="flex items-center gap-3">
+                        {/* Estado con labels canónicos de quote-status — "Enviada" acá
+                            es estricto: no incluye borradores. */}
+                        <select
+                            value={recentStatusFilter}
+                            onChange={e => setRecentStatusFilter(e.target.value)}
+                            className="bg-muted border border-border rounded-xl py-1.5 px-2.5 text-xs font-bold outline-none focus:border-primary transition-colors"
+                        >
+                            <option value="all">Todas</option>
+                            {['Sent', 'Draft', 'PendingApproval', 'ChangesRequested', 'ApprovedPendingSend', 'Approved', 'Rejected', 'Expired'].map(s => (
+                                <option key={s} value={s}>{quoteStatusLabel(s)}</option>
+                            ))}
+                        </select>
+                        <Link href="/quotes" className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline flex items-center gap-1">
+                            Ver todas <ExternalLink className="w-3 h-3" />
+                        </Link>
+                    </div>
                 </div>
-                {quotes.length === 0 ? (
+                {recentQuotes.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center gap-3 text-muted-foreground">
                         <BarChart3 className="w-10 h-10 opacity-20" />
-                        <p className="text-xs font-bold uppercase tracking-widest opacity-40">Sin cotizaciones aún</p>
+                        <p className="text-xs font-bold uppercase tracking-widest opacity-40">
+                            {recentStatusFilter === 'all' ? 'Sin cotizaciones aún' : `Sin cotizaciones en "${quoteStatusLabel(recentStatusFilter)}"`}
+                        </p>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
@@ -585,15 +630,22 @@ export default function AnalyticsPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {quotes.slice(0, 10).map(q => {
-                                    const statusMap: Record<string, { label: string; icon: React.ElementType; cls: string }> = {
-                                        'Sent':     { label: 'Enviada',   icon: Clock,         cls: 'text-sky-500 bg-sky-50 border-sky-200' },
-                                        'Approved': { label: 'Ganada',   icon: CheckCircle2,   cls: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
-                                        'ApprovedPendingSend': { label: 'Falta enviar', icon: AlertCircle, cls: 'text-amber-600 bg-amber-50 border-amber-200' },
-                                        'Draft':    { label: 'Borrador', icon: AlertCircle,    cls: 'text-amber-600 bg-amber-50 border-amber-200' },
-                                        'Rejected': { label: 'Rechazada',icon: AlertCircle,    cls: 'text-rose-600 bg-rose-50 border-rose-200' },
+                                {recentQuotes.map(q => {
+                                    // Iconos/colores por estado; el LABEL sale siempre de
+                                    // quoteStatusLabel — antes "Por aprobar" y "Vencida"
+                                    // se pintaban como "Borrador" por caer al fallback.
+                                    const statusStyle: Record<string, { icon: React.ElementType; cls: string }> = {
+                                        'Sent':     { icon: Clock,        cls: 'text-sky-500 bg-sky-50 border-sky-200' },
+                                        'Approved': { icon: CheckCircle2, cls: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+                                        'ApprovedPendingSend': { icon: AlertCircle, cls: 'text-amber-600 bg-amber-50 border-amber-200' },
+                                        'Draft':    { icon: AlertCircle,  cls: 'text-amber-600 bg-amber-50 border-amber-200' },
+                                        'PendingApproval':   { icon: Clock, cls: 'text-violet-600 bg-violet-50 border-violet-200' },
+                                        'PENDING_APPROVAL':  { icon: Clock, cls: 'text-violet-600 bg-violet-50 border-violet-200' },
+                                        'ChangesRequested':  { icon: AlertCircle, cls: 'text-orange-600 bg-orange-50 border-orange-200' },
+                                        'Expired':  { icon: AlertCircle,  cls: 'text-slate-500 bg-slate-50 border-slate-200' },
+                                        'Rejected': { icon: AlertCircle,  cls: 'text-rose-600 bg-rose-50 border-rose-200' },
                                     };
-                                    const st = statusMap[q.status] || statusMap['Draft'];
+                                    const st = { ...(statusStyle[q.status] || statusStyle['Draft']), label: quoteStatusLabel(q.status) };
                                     const StIcon = st.icon;
                                     return (
                                         <tr

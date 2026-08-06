@@ -877,6 +877,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 body: JSON.stringify({
                     quoteNumber: editQuote.quoteNumber || editQuote.number,
                     clientName: client.name, clientEmail: client.email, clientCompany: client.company || '',
+                    extraEmails: client.extraEmails || [],
                     sellerName: editQuote.sellerName || 'ArteConcreto', sellerId: editQuote.sellerId || '',
                     sentAt, sentByName: editQuote.approvedByName || currentUser?.name || '', sentById: editQuote.approvedBy || currentUser?.id || '',
                     items: items.map(i => ({ name: i.name, price: i.price, quantity: i.quantity, unit: i.unit })),
@@ -1026,7 +1027,8 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     quoteNumber, clientName: client.name, clientEmail: client.email,
-                    clientCompany: client.company || '', sellerName: currentUser?.name || 'ArteConcreto',
+                    clientCompany: client.company || '', extraEmails: client.extraEmails || [],
+                    sellerName: currentUser?.name || 'ArteConcreto',
                     sellerId: currentUser?.id || '', sentAt, sentByName: currentUser?.name || '', sentById: currentUser?.id || '',
                     items: items.map(i => ({ name: i.name, price: i.price, quantity: i.quantity, unit: i.unit })),
                     subtotal, tax, total, vatExempt,
@@ -1189,7 +1191,8 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     quoteNumber, clientName: client.name, clientEmail: client.email,
-                    clientCompany: client.company || '', sellerName: currentUser?.name || 'ArteConcreto',
+                    clientCompany: client.company || '', extraEmails: client.extraEmails || [],
+                    sellerName: currentUser?.name || 'ArteConcreto',
                     sellerId: currentUser?.id || '', sentAt, sentByName: currentUser?.name || '', sentById: currentUser?.id || '',
                     items: items.map(i => ({ name: i.name, price: i.price, quantity: i.quantity, unit: i.unit })),
                     subtotal, tax, total, vatExempt,

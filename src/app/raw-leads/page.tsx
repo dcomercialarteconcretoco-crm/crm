@@ -588,7 +588,10 @@ export default function RawLeadsPage() {
             body: JSON.stringify({ lead: manualForm }),
         });
         if (res.ok) {
-            addNotification({ title: 'Lead creado', description: `${manualForm.name} agregado a la bandeja.`, type: 'success' });
+            // La notificación es global (la ve la admin que aprueba): sin el nombre
+            // del asesor le tocaba preguntar quién lo creó para poder asignarlo.
+            // Caso reportado en reunión 6-ago-2026.
+            addNotification({ title: 'Lead creado', description: `${manualForm.name} agregado a la bandeja por ${currentUser?.name || 'un asesor'}.`, type: 'success' });
             setManualForm({ name: '', email: '', phone: '', city: '', country: 'Colombia', legalId: '', reference: '' });
             setShowManualForm(false);
             await refresh();
@@ -942,14 +945,18 @@ export default function RawLeadsPage() {
                             <th className="text-left px-3 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">NIT</th>
                             <th className="text-left px-3 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Estado</th>
                             <th className="text-left px-3 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Asignado</th>
+                            {/* Quién creó/subió el lead — el dato siempre se guardó
+                                (uploaded_by_name) pero nunca se pintaba, y la admin
+                                tenía que preguntar de quién era cada lead. */}
+                            <th className="text-left px-3 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Subido por</th>
                         </tr>
                     </thead>
                     <tbody>
                         {loading && (
-                            <tr><td colSpan={9} className="text-center py-12 text-muted-foreground text-sm">Cargando…</td></tr>
+                            <tr><td colSpan={10} className="text-center py-12 text-muted-foreground text-sm">Cargando…</td></tr>
                         )}
                         {!loading && leads.length === 0 && (
-                            <tr><td colSpan={9} className="text-center py-12 text-muted-foreground">
+                            <tr><td colSpan={10} className="text-center py-12 text-muted-foreground">
                                 <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
                                 {!isAdmin && statusFilter === 'assigned' && !hasAnyFilter ? (
                                     <p className="text-sm font-bold">No tenés leads por trabajar ahora mismo. 🎉</p>
@@ -1054,6 +1061,7 @@ export default function RawLeadsPage() {
                                     </span>
                                 </td>
                                 <td className="px-3 py-3 text-xs text-muted-foreground">{lead.assignedToName || '—'}</td>
+                                <td className="px-3 py-3 text-xs text-muted-foreground">{lead.uploadedByName || '—'}</td>
                             </tr>
                         ))}
                     </tbody>

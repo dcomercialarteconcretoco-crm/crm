@@ -20,6 +20,7 @@ import { clsx } from "clsx";
 import { useApp, type Quote, type Task } from "@/context/AppContext";
 import { generatePDFReport } from "@/lib/pdf-generator";
 import { canSeeAll, ownsRecord } from "@/lib/scope";
+import { dedupPipelineTasks } from "@/lib/pipeline-dedup";
 import { aggregateSellerActivity, getPresetRange, type PeriodPreset } from "@/lib/seller-activity";
 
 function formatCurrency(value: number) {
@@ -58,6 +59,12 @@ const SPANISH_MONTHS: Record<string, number> = {
 function monthKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
+
+// Negocios perdidos: fuera de la Proyección. El tablero los saca de las
+// columnas ('__lost__' + variantes legacy) pero este dashboard los seguía
+// sumando — una de las fugas que inflaban la cifra (reunión 6-ago-2026).
+// Los ganados SÍ quedan: la Proyección Comercial del mes incluye lo cerrado.
+const LOST_STAGE_IDS = new Set(['__lost__', 'lost', 'closed_lost']);
 
 function monthLabel(key: string): string {
   const [year, month] = key.split('-').map(Number);
@@ -225,22 +232,34 @@ export default function Home() {
     return monthKey(date);
   };
 
-  const taskMonthKey = (task: Task) => {
+  const taskMonthKey = (task: Task): string | null => {
     const quote = quoteById.get((task as any).quoteId)
       || quoteRefCandidates(task).map(ref => quoteByRef.get(ref)).find(Boolean);
     const fallbackYear = quoteYearHint(quote || task);
     const retakenDate = parseCRMDate((task as any).retakenAt, fallbackYear);
     if (retakenDate) return monthKey(retakenDate);
     if (fallbackYear < new Date().getFullYear()) return `${fallbackYear}-01`;
-    const activityDates = (task.activities || []).map(activity => parseCRMDate(activity.timestamp, fallbackYear));
+    const activityDates = (task.activities || [])
+      // La actividad autogenerada por la migración de huérfanos ('act-mig-…')
+      // se estampa con new Date() EN CADA BOOT — no es una fecha de negocio.
+      // Con ella, toda cotización sin task (incluidas las HISTÓRICAS, que la
+      // migración no filtra) caía al mes en curso a perpetuidad: la fuga más
+      // grande de la Proyección inflada (reunión 6-ago-2026). Para fechar, la
+      // ignoramos; si la task no tiene ninguna otra fecha, queda sin mes.
+      .filter(activity => !String(activity.id || '').startsWith('act-mig-'))
+      .map(activity => parseCRMDate(activity.timestamp, fallbackYear));
     const originalDate = earliestDate([
       parseCRMDate(quote?.date, fallbackYear),
       parseCRMDate((quote as any)?.sentAt, fallbackYear),
       dateFromEpochId((task as any).quoteId),
       dateFromEpochId(task.id),
       ...activityDates,
-    ]) || new Date();
-    return monthKey(originalDate);
+    ]);
+    // Sin fecha resoluble → sin mes. Antes caía a `new Date()` y cualquier
+    // task huérfana de fechas (p.ej. ligada a una cotización histórica que
+    // este dashboard excluye de sus mapas) se colaba al mes EN CURSO — una de
+    // las fugas que inflaban la Proyección (reunión 6-ago-2026).
+    return originalDate ? monthKey(originalDate) : null;
   };
 
   const currentMonthQuotes = useMemo(
@@ -248,7 +267,11 @@ export default function Home() {
     [scopedQuotes, currentMonthKey]
   );
   const currentMonthTasks = useMemo(
-    () => scopedTasks.filter(t => taskMonthKey(t) === currentMonthKey),
+    () => dedupPipelineTasks(
+      scopedTasks
+        .filter(t => !LOST_STAGE_IDS.has(t.stageId || ''))
+        .filter(t => taskMonthKey(t) === currentMonthKey)
+    ),
     [scopedTasks, currentMonthKey, scopedQuotes]
   );
 

@@ -31,12 +31,14 @@ export default function CompaniesPage() {
     }, []);
     const [isCreating, setIsCreating] = useState(false);
     const [newName, setNewName] = useState('');
+    const [newNit, setNewNit] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
     // Editar/eliminar empresa desde la lista — un solo modal centralizado
     // que recibe la empresa target en lugar de duplicar markup por fila.
     const [editingCompany, setEditingCompany] = useState<Company | null>(null);
     const [editName, setEditName] = useState('');
+    const [editNit, setEditNit] = useState('');
     const [editError, setEditError] = useState('');
     const [editSubmitting, setEditSubmitting] = useState(false);
     const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
@@ -45,13 +47,15 @@ export default function CompaniesPage() {
     const openEdit = (co: Company) => {
         setEditingCompany(co);
         setEditName(co.name);
+        setEditNit(co.nit || '');
         setEditError('');
     };
 
     const submitEdit = async () => {
         if (!editingCompany || !editName.trim() || editSubmitting) return;
         setEditSubmitting(true);
-        const result = await updateCompany(editingCompany.id, editName);
+        // editNit siempre viaja desde este modal: vacío = borrar el NIT.
+        const result = await updateCompany(editingCompany.id, editName, editNit);
         setEditSubmitting(false);
         if (result.ok) {
             addNotification({ title: 'Empresa actualizada', description: `Ahora se llama ${editName.trim()}.`, type: 'success' });
@@ -112,7 +116,7 @@ export default function CompaniesPage() {
         const q = search.trim().toLowerCase();
         const sorted = [...enriched].sort((a, b) => a.name.localeCompare(b.name, 'es'));
         if (!q) return sorted;
-        return sorted.filter(c => c.name.toLowerCase().includes(q));
+        return sorted.filter(c => c.name.toLowerCase().includes(q) || (c.nit || '').toLowerCase().includes(q));
     }, [enriched, search]);
 
     const formatCurrency = (val: number) =>
@@ -123,7 +127,7 @@ export default function CompaniesPage() {
         if (!name || submitting) return;
         setSubmitting(true);
         try {
-            const created = await addCompany(name);
+            const created = await addCompany(name, newNit);
             if (created) {
                 addNotification({
                     title: 'Empresa creada',
@@ -131,6 +135,7 @@ export default function CompaniesPage() {
                     type: 'success',
                 });
                 setNewName('');
+                setNewNit('');
                 setIsCreating(false);
             } else {
                 addNotification({
@@ -205,7 +210,9 @@ export default function CompaniesPage() {
                                     </div>
                                     <div className="min-w-0">
                                         <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors truncate">{co.name}</p>
-                                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mt-0.5">Cliente corporativo</p>
+                                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mt-0.5">
+                                            {co.nit ? <>NIT {co.nit}</> : 'Cliente corporativo'}
+                                        </p>
                                     </div>
                                 </Link>
                                 <div className="hidden md:flex items-center gap-2 min-w-0 w-[120px] shrink-0">
@@ -281,6 +288,15 @@ export default function CompaniesPage() {
                                     />
                                 </div>
                                 {editError && <p className="text-xs font-bold text-rose-600">{editError}</p>}
+                                <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5 pt-1">NIT <span className="text-muted-foreground font-medium normal-case">(opcional)</span></label>
+                                <input
+                                    type="text"
+                                    placeholder="Ej: 900.123.456-7"
+                                    value={editNit}
+                                    onChange={e => setEditNit(e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter') submitEdit(); }}
+                                    className="w-full bg-muted border border-border rounded-xl py-2.5 px-3 text-sm outline-none focus:border-primary focus:bg-white transition-all"
+                                />
                                 <p className="text-[11px] text-muted-foreground">
                                     El nombre se propaga automáticamente a los contactos asociados.
                                 </p>
@@ -370,6 +386,15 @@ export default function CompaniesPage() {
                                         className="w-full bg-muted border border-border rounded-xl py-2.5 pl-10 pr-3 text-sm outline-none focus:border-primary focus:bg-white transition-all"
                                     />
                                 </div>
+                                <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5 pt-1">NIT <span className="text-muted-foreground font-medium normal-case">(opcional)</span></label>
+                                <input
+                                    type="text"
+                                    placeholder="Ej: 900.123.456-7"
+                                    value={newNit}
+                                    onChange={e => setNewNit(e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter') handleCreate(); }}
+                                    className="w-full bg-muted border border-border rounded-xl py-2.5 px-3 text-sm outline-none focus:border-primary focus:bg-white transition-all"
+                                />
                                 <p className="text-[11px] text-muted-foreground">
                                     Si ya existe una empresa con ese nombre, te la asociamos en vez de crear duplicado.
                                 </p>
