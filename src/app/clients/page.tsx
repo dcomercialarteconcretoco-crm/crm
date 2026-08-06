@@ -29,6 +29,7 @@ import { clsx } from 'clsx';
 import Link from 'next/link';
 import { useApp, Client } from '@/context/AppContext';
 import { logContactEvent } from '@/lib/contact-events';
+import { openWhatsAppContact, formatWhatsAppUser, normalizeWhatsAppUser, whatsAppUserError } from '@/lib/contact-links';
 import SearchableSelect from '@/components/SearchableSelect';
 import CompanyCombobox from '@/components/CompanyCombobox';
 import SectorSelect from '@/components/SectorSelect';
@@ -82,6 +83,7 @@ export default function ClientsPage() {
         position: '',
         email: '',
         phone: '',
+        whatsappUser: '',
         city: settings.cities[0]?.name || 'Bogotá',
         category: settings.sectors[0] || 'Infraestructura',
         status: 'Active' as 'Active' | 'Lead' | 'Inactive'
@@ -127,6 +129,9 @@ export default function ClientsPage() {
         // Empresa es opcional — un lead puede llegar sin empresa declarada (web,
         // particulares) y luego asociarse a una desde el detalle del cliente.
         if (!newClientForm.name) return;
+        // Handle inválido: no dejamos crear el contacto con un link que WhatsApp
+        // no va a resolver. El mensaje ya está visible bajo el input.
+        if (whatsAppUserError(newClientForm.whatsappUser)) return;
 
         const isAdminUser = ctxUser?.role === 'SuperAdmin' || ctxUser?.role === 'Admin';
 
@@ -161,6 +166,7 @@ export default function ClientsPage() {
             position: '',
             email: '',
             phone: '',
+            whatsappUser: '',
             city: settings.cities[0]?.name || 'Bogotá',
             category: settings.sectors[0] || 'Infraestructura',
             status: 'Active'
@@ -717,13 +723,17 @@ export default function ClientsPage() {
                                 <div className="flex items-center justify-end gap-1.5 shrink-0 ml-auto">
                                     <button
                                         type="button"
-                                        title="WhatsApp"
-                                        disabled={!client.phone}
+                                        title={client.whatsappUser ? `WhatsApp — ${formatWhatsAppUser(client.whatsappUser)}` : 'WhatsApp'}
+                                        disabled={!client.phone && !client.whatsappUser}
                                         onClick={() => {
-                                            if (!client.phone) return;
+                                            // Prefiere el usuario sobre el número; devuelve el canal que
+                                            // realmente abrió para no registrar un contacto que no ocurrió.
+                                            const via = openWhatsAppContact(client);
+                                            if (!via) return;
                                             // El click cuenta como contacto aunque no dejen anotación.
-                                            logContactEvent(client.id, 'whatsapp', 'WhatsApp desde listado de clientes');
-                                            window.open(`https://wa.me/${client.phone.replace(/\D/g,'')}`, '_blank');
+                                            logContactEvent(client.id, 'whatsapp', via === 'username'
+                                                ? `WhatsApp por usuario ${formatWhatsAppUser(client.whatsappUser || '')} desde listado de clientes`
+                                                : 'WhatsApp desde listado de clientes');
                                         }}
                                         className="p-2 rounded-lg bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white transition-all border border-emerald-100 disabled:opacity-30 disabled:cursor-not-allowed"
                                     >
@@ -818,12 +828,17 @@ export default function ClientsPage() {
                             {/* Action Footer */}
                             <div className="grid grid-cols-2 gap-2 mt-4">
                                 <button
+                                    disabled={!client.phone && !client.whatsappUser}
+                                    title={client.whatsappUser ? `WhatsApp — ${formatWhatsAppUser(client.whatsappUser)}` : 'WhatsApp'}
                                     onClick={() => {
+                                        const via = openWhatsAppContact(client);
+                                        if (!via) return;
                                         // El click cuenta como contacto aunque no dejen anotación.
-                                        logContactEvent(client.id, 'whatsapp', 'WhatsApp desde tarjeta de clientes');
-                                        window.open(`https://wa.me/${client.phone.replace(/\D/g, '')}`, '_blank');
+                                        logContactEvent(client.id, 'whatsapp', via === 'username'
+                                            ? `WhatsApp por usuario ${formatWhatsAppUser(client.whatsappUser || '')} desde tarjeta de clientes`
+                                            : 'WhatsApp desde tarjeta de clientes');
                                     }}
-                                    className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white font-medium text-xs transition-all border border-emerald-100"
+                                    className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white font-medium text-xs transition-all border border-emerald-100 disabled:opacity-30 disabled:cursor-not-allowed"
                                 >
                                     <MessageSquare className="w-3.5 h-3.5" />
                                     WhatsApp
@@ -991,6 +1006,35 @@ export default function ClientsPage() {
                                 </div>
                             </div>
 
+                            {/* Usuario de WhatsApp — canal alterno al número. Se guarda
+                                canonizado (sin @, minúscula); el asesor puede pegar el
+                                link completo y se limpia solo. */}
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">
+                                    Usuario de WhatsApp <span className="text-muted-foreground font-medium normal-case">(opcional)</span>
+                                </label>
+                                <div className="relative">
+                                    <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                    <span className="absolute left-9 top-1/2 -translate-y-1/2 text-sm text-muted-foreground select-none">@</span>
+                                    <input
+                                        type="text"
+                                        placeholder="juan.perez"
+                                        value={newClientForm.whatsappUser}
+                                        onChange={(e) => setNewClientForm({ ...newClientForm, whatsappUser: normalizeWhatsAppUser(e.target.value) })}
+                                        className="w-full bg-muted border border-border rounded-xl py-2.5 pl-[3.4rem] pr-3 text-sm outline-none focus:border-primary focus:bg-white transition-all"
+                                    />
+                                </div>
+                                {whatsAppUserError(newClientForm.whatsappUser) ? (
+                                    <p className="text-[11px] text-rose-600 mt-1.5 font-medium">{whatsAppUserError(newClientForm.whatsappUser)}</p>
+                                ) : (
+                                    <p className="text-[11px] text-muted-foreground mt-1.5">
+                                        {newClientForm.whatsappUser
+                                            ? <>Se guardará como <span className="font-semibold text-foreground">wa.me/{newClientForm.whatsappUser}</span></>
+                                            : 'Si el cliente ya no comparte su número, acá va su usuario de WhatsApp.'}
+                                    </p>
+                                )}
+                            </div>
+
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                                 <div>
                                     <SearchableSelect
@@ -1031,7 +1075,7 @@ export default function ClientsPage() {
                             </button>
                             <button
                                 onClick={handleCreateClient}
-                                disabled={!newClientForm.name}
+                                disabled={!newClientForm.name || !!whatsAppUserError(newClientForm.whatsappUser)}
                                 className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 transition-all shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                                 <CheckCircle2 className="w-4 h-4" />

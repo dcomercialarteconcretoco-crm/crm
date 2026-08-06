@@ -46,3 +46,120 @@ export function openWhatsApp(phone: string, text?: string) {
     const qs = text ? `?text=${encodeURIComponent(text)}` : '';
     triggerAnchor(`https://wa.me/${cleaned}${qs}`, '_blank');
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Usuario de WhatsApp (handle), agosto 2026
+//
+// WhatsApp dejó de identificar a la gente solo por celular: ahora existe el
+// "nombre de usuario", un handle único que permite escribirle a alguien sin
+// conocer (ni ver) su número. El teléfono NO desaparece — sigue siendo válido
+// y es el que tenemos de casi todos los clientes viejos. Por eso acá conviven
+// los dos canales y el username es solo el preferido cuando existe.
+//
+// El link SÍ existe y es el mismo dominio de siempre: wa.me/<usuario>.
+// Verificado contra el router de Meta (ago-2026) — wa.me responde 302 a:
+//   wa.me/arteconcreto   → api.whatsapp.com/send/?username=arteconcreto&type=username
+//   wa.me/573001112233   → api.whatsapp.com/send/?phone=573001112233&type=phone_number
+// Es decir, wa.me desambigua solo: si el path trae al menos una letra lo trata
+// como usuario, si es puro dígito lo trata como teléfono. Por eso las reglas
+// de abajo no son un capricho nuestro: son las que el propio router aplica
+// antes de decidir si te manda al chat o a la pantalla de "no encontrado".
+//
+// `?text=` también funciona con usuario (verificado), así que los mensajes
+// pre-cargados que ya usa el CRM siguen sirviendo igual.
+
+/** TLDs que el router de wa.me rechaza al final del handle (verificado). `.co` sí pasa. */
+const BLOCKED_TLDS = ['com', 'net', 'org'];
+
+/**
+ * Deja el handle en su forma canónica para guardar en DB: sin `@`, sin URL
+ * alrededor, sin espacios y en minúscula.
+ *
+ * Acepta lo que realmente pega un asesor: "@juan.perez", "wa.me/juan.perez",
+ * "https://wa.me/juan.perez", o el link largo de api.whatsapp.com.
+ */
+export function normalizeWhatsAppUser(raw: string): string {
+    let v = (raw || '').trim();
+    if (!v) return '';
+
+    // Link largo: api.whatsapp.com/send/?username=xxx&type=username
+    const fromQuery = v.match(/[?&]username=([^&\s]+)/i);
+    if (fromQuery) {
+        v = decodeURIComponent(fromQuery[1]);
+    } else {
+        // Link corto en cualquiera de sus formas (con o sin protocolo/www).
+        v = v.replace(/^https?:\/\//i, '').replace(/^www\.wa\.me\//i, '').replace(/^wa\.me\//i, '');
+        // Si quedó una query pegada ("juan.perez?text=hola"), la soltamos.
+        v = v.split(/[?#]/)[0];
+    }
+
+    return v.replace(/^@+/, '').trim().toLowerCase();
+}
+
+/**
+ * Valida el handle ya normalizado. Devuelve el motivo del rechazo en español
+ * (para mostrarlo bajo el input) o `null` si está bien.
+ *
+ * Replica las reglas del router de wa.me para que el asesor se entere acá y no
+ * después, cuando el cliente reciba un link que cae en "no encontrado".
+ */
+export function whatsAppUserError(user: string): string | null {
+    if (!user) return null; // vacío = campo opcional sin llenar, no es un error
+    if (user.length < 3) return 'Debe tener al menos 3 caracteres.';
+    if (user.length > 35) return 'No puede pasar de 35 caracteres.';
+    if (!/^[a-z0-9._]+$/.test(user)) return 'Solo letras sin tilde, números, punto y guion bajo (sin espacios ni guion medio).';
+    if (!/[a-z]/.test(user)) return 'Debe llevar al menos una letra — si son puros números, va en el campo Teléfono.';
+    if (user.startsWith('.') || user.endsWith('.')) return 'No puede empezar ni terminar en punto.';
+    if (user.startsWith('www.')) return 'No puede empezar por "www.".';
+    const tld = user.split('.').pop() || '';
+    if (BLOCKED_TLDS.includes(tld)) return `No puede terminar en ".${tld}" (WhatsApp lo bloquea).`;
+    return null;
+}
+
+/** `true` si el handle sirve para armar un link que WhatsApp va a resolver. */
+export function isValidWhatsAppUser(user: string): boolean {
+    return !!user && whatsAppUserError(user) === null;
+}
+
+/** Link público al chat por usuario. `null` si el handle no es válido. */
+export function whatsAppUserUrl(user: string, text?: string): string | null {
+    const clean = normalizeWhatsAppUser(user);
+    if (!isValidWhatsAppUser(clean)) return null;
+    const qs = text ? `?text=${encodeURIComponent(text)}` : '';
+    return `https://wa.me/${clean}${qs}`;
+}
+
+/** Handle listo para mostrar en pantalla, con `@` adelante. */
+export function formatWhatsAppUser(user: string): string {
+    const clean = normalizeWhatsAppUser(user);
+    return clean ? `@${clean}` : '';
+}
+
+export type WhatsAppChannel = 'username' | 'phone';
+
+/**
+ * Abre el chat del contacto por el mejor canal disponible y devuelve cuál usó
+ * (o `null` si el contacto no tiene ni usuario ni teléfono utilizables).
+ *
+ * Prefiere el usuario sobre el teléfono: es el canal que sobrevive a un cambio
+ * de número y el único que funciona con clientes que ya ocultaron el suyo.
+ *
+ * El valor de retorno es lo que la UI usa para registrar el evento de contacto
+ * con el canal correcto — no adivinamos en el call site.
+ */
+export function openWhatsAppContact(
+    contact: { whatsappUser?: string; phone?: string },
+    text?: string
+): WhatsAppChannel | null {
+    const url = whatsAppUserUrl(contact.whatsappUser || '', text);
+    if (url) {
+        triggerAnchor(url, '_blank');
+        return 'username';
+    }
+    const cleaned = (contact.phone || '').replace(/\D/g, '');
+    if (cleaned) {
+        openWhatsApp(cleaned, text);
+        return 'phone';
+    }
+    return null;
+}

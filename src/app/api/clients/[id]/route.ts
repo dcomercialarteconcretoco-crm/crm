@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureCrmSchema, getPool, hasDatabase } from "@/lib/postgres";
+import { normalizeWhatsAppUser, isValidWhatsAppUser } from "@/lib/contact-links";
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!hasDatabase()) {
@@ -46,6 +47,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const emailValue = (payload.email || '').trim() || null;
   const positionValue = (payload.position || '').trim() || null;
 
+  // Usuario de WhatsApp. A diferencia del POST, acá sí se puede vaciar: este
+  // es el endpoint del formulario de edición, y si el asesor borra el handle
+  // (el cliente lo cambió, o lo había digitado mal) tiene que desaparecer.
+  // Por eso distinguimos "no vino la llave" (undefined → conservar lo que hay)
+  // de "vino vacía o inválida" (→ NULL), igual que se hace con `notes`.
+  const waUserProvided = payload.whatsappUser !== undefined;
+  const rawWaUser = normalizeWhatsAppUser(payload.whatsappUser || '');
+  const whatsappUserValue = isValidWhatsAppUser(rawWaUser) ? rawWaUser : null;
+
   try {
     await pool.query(
       `
@@ -69,6 +79,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           assigned_to_name = COALESCE($17, assigned_to_name),
           source = COALESCE($18, source),
           notes = COALESCE($19::jsonb, notes),
+          whatsapp_user = CASE WHEN $20::boolean THEN $21 ELSE whatsapp_user END,
           updated_at = NOW()
         WHERE id = $1
       `,
@@ -96,6 +107,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         // conserva las notas que ya están en DB. Así un PUT que solo edita el
         // teléfono no borra la bitácora, y "Guardar Nota" sí la actualiza.
         payload.notes !== undefined ? JSON.stringify(payload.notes) : null,
+        waUserProvided,
+        whatsappUserValue,
       ]
     );
   } catch (error: unknown) {

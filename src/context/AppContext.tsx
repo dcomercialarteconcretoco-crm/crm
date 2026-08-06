@@ -97,6 +97,14 @@ export interface Client {
     position?: string;
     email: string;
     phone: string;
+    /**
+     * Usuario (handle) de WhatsApp, sin el `@` y en minúscula — ej: "juan.perez".
+     * Convive con `phone`, no lo reemplaza: desde ago-2026 WhatsApp permite
+     * escribirle a alguien por usuario sin ver su número, pero el teléfono
+     * sigue siendo válido y es lo único que tenemos de la base histórica.
+     * El link se arma con los helpers de `@/lib/contact-links`.
+     */
+    whatsappUser?: string;
     status: 'Active' | 'Lead' | 'Inactive';
     value: string;
     ltv: number;

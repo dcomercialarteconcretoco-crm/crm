@@ -28,7 +28,7 @@ import { clsx } from 'clsx';
 import { useApp, Activity } from '@/context/AppContext';
 import { ownsRecord } from '@/lib/scope';
 import { quoteStatusLabel } from '@/lib/quote-status';
-import { openMailto, openTel, openWhatsApp } from '@/lib/contact-links';
+import { openMailto, openTel, openWhatsAppContact, whatsAppUserUrl, formatWhatsAppUser, normalizeWhatsAppUser, whatsAppUserError } from '@/lib/contact-links';
 import { logContactEvent } from '@/lib/contact-events';
 import { ClientAttachments } from '@/components/leads/ClientAttachments';
 import { ClientBotChats } from '@/components/leads/ClientBotChats';
@@ -63,7 +63,7 @@ export default function Lead360Page() {
     const [noteText, setNoteText] = useState('');
     const [isSendingCatalog, setIsSendingCatalog] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
-    const [editForm, setEditForm] = useState({ name: '', company: '', companyId: '', position: '', email: '', phone: '', city: '', status: '' });
+    const [editForm, setEditForm] = useState({ name: '', company: '', companyId: '', position: '', email: '', phone: '', whatsappUser: '', city: '', status: '' });
     const isSuperAdmin = currentUser?.role?.toLowerCase().includes('superadmin') || currentUser?.role?.toLowerCase() === 'admin';
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [assignSellerId, setAssignSellerId] = useState('');
@@ -323,7 +323,7 @@ export default function Lead360Page() {
                         <span>Exportar</span>
                     </button>
                     <button
-                        onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', companyId: lead.companyId || '', position: lead.position || '', email: lead.email, phone: lead.phone || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
+                        onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', companyId: lead.companyId || '', position: lead.position || '', email: lead.email, phone: lead.phone || '', whatsappUser: lead.whatsappUser || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
                         className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] transition-all flex items-center gap-2 text-sm"
                     >
                         <Edit2 className="w-4 h-4" />
@@ -372,7 +372,7 @@ export default function Lead360Page() {
                                             <span className="text-sm font-semibold text-foreground truncate ml-2 max-w-[55%] text-right">{empresa}</span>
                                         ) : (
                                             <button
-                                                onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', companyId: lead.companyId || '', position: lead.position || '', email: lead.email, phone: lead.phone || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
+                                                onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', companyId: lead.companyId || '', position: lead.position || '', email: lead.email, phone: lead.phone || '', whatsappUser: lead.whatsappUser || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
                                                 className="text-xs font-bold text-primary hover:underline"
                                             >
                                                 + Asignar empresa
@@ -396,6 +396,36 @@ export default function Lead360Page() {
                                     <span className="text-sm font-semibold text-foreground truncate ml-2 max-w-[55%] text-right">{info.value}</span>
                                 </div>
                             ))}
+
+                            {/* Usuario de WhatsApp — clickeable. Va aparte del map de
+                                arriba porque es lo único que abre el chat en vez de ser
+                                texto plano. Si el cliente no lo tiene, mostramos el CTA
+                                para registrarlo en vez de una fila vacía. */}
+                            <div className="flex items-center justify-between py-3 border-b border-border last:border-0">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <MessageSquare className="w-4 h-4 text-muted-foreground shrink-0" />
+                                    <span className="text-xs text-muted-foreground">Usuario WhatsApp</span>
+                                </div>
+                                {lead.whatsappUser ? (
+                                    <a
+                                        href={whatsAppUserUrl(lead.whatsappUser) || undefined}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={() => handleLogContact('WHATSAPP_SENT', `Contacto vía WhatsApp (usuario ${formatWhatsAppUser(lead.whatsappUser || '')})`)}
+                                        title={`Abrir chat con ${formatWhatsAppUser(lead.whatsappUser)}`}
+                                        className="text-sm font-semibold text-emerald-600 hover:text-emerald-700 hover:underline truncate ml-2 max-w-[55%] text-right"
+                                    >
+                                        {formatWhatsAppUser(lead.whatsappUser)}
+                                    </a>
+                                ) : (
+                                    <button
+                                        onClick={() => { setEditForm({ name: lead.name, company: lead.company || '', companyId: lead.companyId || '', position: lead.position || '', email: lead.email, phone: lead.phone || '', whatsappUser: lead.whatsappUser || '', city: lead.city || '', status: lead.status }); setIsEditOpen(true); }}
+                                        className="text-xs font-bold text-primary hover:underline"
+                                    >
+                                        + Registrar usuario
+                                    </button>
+                                )}
+                            </div>
 
                             {/* Assigned Seller — SuperAdmin only */}
                             {isSuperAdmin && (
@@ -448,10 +478,17 @@ export default function Lead360Page() {
                             </button>
                             <button
                                 onClick={() => {
-                                    handleLogContact('WHATSAPP_SENT', 'Contacto vía WhatsApp');
-                                    openWhatsApp(lead.phone);
+                                    // Prefiere el usuario sobre el número. Solo registramos
+                                    // el contacto si de verdad se abrió un chat.
+                                    const via = openWhatsAppContact(lead);
+                                    if (!via) return;
+                                    handleLogContact('WHATSAPP_SENT', via === 'username'
+                                        ? `Contacto vía WhatsApp (usuario ${formatWhatsAppUser(lead.whatsappUser || '')})`
+                                        : 'Contacto vía WhatsApp');
                                 }}
-                                className="flex flex-col items-center justify-center gap-2 bg-muted hover:bg-emerald-50 p-4 rounded-xl border border-border hover:border-emerald-300 transition-all group"
+                                disabled={!lead.phone && !lead.whatsappUser}
+                                title={lead.whatsappUser ? `Abrir chat con ${formatWhatsAppUser(lead.whatsappUser)}` : 'Abrir chat por número'}
+                                className="flex flex-col items-center justify-center gap-2 bg-muted hover:bg-emerald-50 p-4 rounded-xl border border-border hover:border-emerald-300 transition-all group disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                                 <MessageSquare className="w-4 h-4 text-emerald-500" />
                                 <span className="font-bold text-[10px] uppercase tracking-wide text-foreground">WhatsApp</span>
@@ -941,6 +978,31 @@ export default function Lead360Page() {
                                     }
                                 />
                             </div>
+                            {/* Usuario de WhatsApp: se normaliza al tipear (acepta que
+                                peguen "@juan" o el link entero de wa.me) y avisa en vivo
+                                si el handle no lo va a resolver WhatsApp. */}
+                            <div className="col-span-2">
+                                <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Usuario de WhatsApp</label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground select-none">@</span>
+                                    <input
+                                        type="text"
+                                        placeholder="juan.perez"
+                                        value={editForm.whatsappUser}
+                                        onChange={e => setEditForm(prev => ({ ...prev, whatsappUser: normalizeWhatsAppUser(e.target.value) }))}
+                                        className="bg-muted border border-border rounded-xl py-2.5 pl-7 pr-3 text-sm outline-none focus:border-primary focus:bg-white w-full transition-colors"
+                                    />
+                                </div>
+                                {whatsAppUserError(editForm.whatsappUser) ? (
+                                    <p className="text-[11px] text-rose-600 mt-1.5 font-medium">{whatsAppUserError(editForm.whatsappUser)}</p>
+                                ) : (
+                                    <p className="text-[11px] text-muted-foreground mt-1.5">
+                                        {editForm.whatsappUser
+                                            ? <>Link del chat: <span className="font-semibold text-foreground">wa.me/{editForm.whatsappUser}</span></>
+                                            : 'El teléfono se conserva aparte — este campo no lo reemplaza.'}
+                                    </p>
+                                )}
+                            </div>
                             <div>
                                 <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Estado</label>
                                 <select
@@ -958,8 +1020,9 @@ export default function Lead360Page() {
                     <div className="flex items-center justify-end gap-3 p-6 border-t border-border">
                         <button onClick={() => setIsEditOpen(false)} className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted transition-colors">Cancelar</button>
                         <button
+                            disabled={!!whatsAppUserError(editForm.whatsappUser)}
                             onClick={() => { updateClient(lead.id, { ...editForm, status: editForm.status as 'Active' | 'Lead' | 'Inactive' }); setIsEditOpen(false); }}
-                            className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] transition-all"
+                            className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             Guardar Cambios
                         </button>

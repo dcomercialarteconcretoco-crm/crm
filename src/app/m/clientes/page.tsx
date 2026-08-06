@@ -3,7 +3,8 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
 import { logContactEvent } from '@/lib/contact-events';
-import { Search, Phone, Mail, MapPin, X, Building2, TrendingUp } from 'lucide-react';
+import { whatsAppUserUrl, formatWhatsAppUser } from '@/lib/contact-links';
+import { Search, Phone, Mail, MapPin, X, Building2, TrendingUp, MessageSquare } from 'lucide-react';
 import { clsx } from 'clsx';
 
 const STATUS_STYLE: Record<string, { pill: string; label: string }> = {
@@ -138,6 +139,15 @@ export default function MobileClientes() {
                                     <span className="text-sm text-foreground">{selected.phone}</span>
                                 </a>
                             )}
+                            {selected.whatsappUser && (
+                                <a href={whatsAppUserUrl(selected.whatsappUser) || undefined}
+                                    target="_blank" rel="noopener noreferrer"
+                                    onClick={() => logContactEvent(selected.id, 'whatsapp', `WhatsApp por usuario ${formatWhatsAppUser(selected.whatsappUser || '')} desde app móvil`)}
+                                    className="flex items-center gap-3 p-3 bg-muted rounded-xl active:bg-muted/80">
+                                    <MessageSquare className="w-4 h-4 text-emerald-500 shrink-0" />
+                                    <span className="text-sm text-foreground truncate">{formatWhatsAppUser(selected.whatsappUser)}</span>
+                                </a>
+                            )}
                             <div className="flex items-center gap-3 p-3 bg-muted rounded-xl">
                                 <MapPin className="w-4 h-4 text-primary shrink-0" />
                                 <span className="text-sm text-foreground">{selected.city}</span>
@@ -150,10 +160,14 @@ export default function MobileClientes() {
 
                         {/* Actions */}
                         <div className="grid grid-cols-2 gap-3 pt-1">
-                            {selected.phone && (
-                                <a href={`https://wa.me/${selected.phone.replace(/\D/g,'')}`}
+                            {/* Prefiere el usuario sobre el número — es el canal que sigue
+                                funcionando si el cliente dejó de compartir su celular. */}
+                            {(selected.whatsappUser || selected.phone) && (
+                                <a href={whatsAppUserUrl(selected.whatsappUser || '') || `https://wa.me/${(selected.phone || '').replace(/\D/g,'')}`}
                                     target="_blank" rel="noopener noreferrer"
-                                    onClick={() => logContactEvent(selected.id, 'whatsapp', 'WhatsApp desde app móvil')}
+                                    onClick={() => logContactEvent(selected.id, 'whatsapp', selected.whatsappUser
+                                        ? `WhatsApp por usuario ${formatWhatsAppUser(selected.whatsappUser)} desde app móvil`
+                                        : 'WhatsApp desde app móvil')}
                                     className="flex items-center justify-center gap-2 py-3.5 bg-emerald-500 text-white font-bold rounded-xl text-sm active:scale-95 transition-transform">
                                     WhatsApp
                                 </a>

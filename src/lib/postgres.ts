@@ -118,6 +118,13 @@ async function doEnsureCrmSchema() {
   await pool.query(`ALTER TABLE crm_clients ADD COLUMN IF NOT EXISTS assigned_to_name TEXT;`);
   await pool.query(`ALTER TABLE crm_clients ADD COLUMN IF NOT EXISTS source TEXT;`);
 
+  // Usuario de WhatsApp (handle sin `@`). Columna aparte del teléfono a
+  // propósito: desde ago-2026 WhatsApp identifica también por nombre de
+  // usuario, pero el número sigue vigente y es el único dato de contacto de
+  // casi toda la base histórica. Nullable — la enorme mayoría de contactos
+  // nunca va a tener handle.
+  await pool.query(`ALTER TABLE crm_clients ADD COLUMN IF NOT EXISTS whatsapp_user TEXT;`);
+
   // ── Empresas (cliente corporativo) ────────────────────────────────────────
   // Una empresa agrupa varios contactos (Client). El nombre se mantiene en la
   // columna `company` de crm_clients como denormalización para no romper

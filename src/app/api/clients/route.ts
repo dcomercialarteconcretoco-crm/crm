@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureCrmSchema, getPool, hasDatabase } from "@/lib/postgres";
 import { loadFreshSession } from "@/lib/auth-session";
+import { normalizeWhatsAppUser, isValidWhatsAppUser } from "@/lib/contact-links";
 
 export async function GET(request: NextRequest) {
   if (!hasDatabase()) {
@@ -38,7 +39,9 @@ export async function GET(request: NextRequest) {
   // se traban. La solución portable y segura es quotearla siempre.
   const { rows } = await pool.query(
     `SELECT
-       id, name, company, company_id AS "companyId", "position", email, phone, status,
+       id, name, company, company_id AS "companyId", "position", email, phone,
+       whatsapp_user AS "whatsappUser",
+       status,
        value_text AS value,
        ltv, last_contact AS "lastContact",
        city, score, category, registration_date AS "registrationDate",
@@ -103,14 +106,20 @@ export async function POST(request: NextRequest) {
   // Cargo: trim + cadena vacía → NULL para que el front pueda preguntar
   // `if (client.position)` sin chequear espacios.
   const positionValue = (payload.position || '').trim() || null;
+  // Usuario de WhatsApp: se canoniza acá (sin `@`, sin URL, minúscula) para que
+  // la DB nunca guarde dos formas del mismo handle, venga de donde venga —
+  // formulario, import masivo o widget. Si llega basura que WhatsApp no
+  // resolvería, se guarda NULL en vez de un link roto.
+  const rawWaUser = normalizeWhatsAppUser(payload.whatsappUser || '');
+  const whatsappUserValue = isValidWhatsAppUser(rawWaUser) ? rawWaUser : null;
 
   try {
     await pool.query(
       `
         INSERT INTO crm_clients (
           id, name, company, company_id, "position", email, phone, status, value_text, ltv, last_contact, city, score, category, registration_date,
-          assigned_to, assigned_to_name, source, notes, updated_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,COALESCE($19::jsonb,'[]'::jsonb),NOW())
+          assigned_to, assigned_to_name, source, notes, whatsapp_user, updated_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,COALESCE($19::jsonb,'[]'::jsonb),$20,NOW())
         ON CONFLICT (id) DO UPDATE SET
           name = EXCLUDED.name,
           company = EXCLUDED.company,
@@ -130,6 +139,10 @@ export async function POST(request: NextRequest) {
           assigned_to_name = COALESCE(EXCLUDED.assigned_to_name, crm_clients.assigned_to_name),
           source = COALESCE(EXCLUDED.source, crm_clients.source),
           notes = COALESCE($19::jsonb, crm_clients.notes),
+          -- COALESCE igual que source: un re-upsert que no trae el handle
+          -- (import viejo, retry) no debe borrar el que ya está en DB. Para
+          -- vaciarlo a propósito se usa el PUT del detalle del cliente.
+          whatsapp_user = COALESCE(EXCLUDED.whatsapp_user, crm_clients.whatsapp_user),
           updated_at = NOW()
       `,
       [
@@ -157,6 +170,7 @@ export async function POST(request: NextRequest) {
         // conserva las notas que ya tiene la fila en DB en vez de pisarlas con
         // vacío. Así un re-upsert (import, retry) nunca borra la bitácora.
         payload.notes !== undefined ? JSON.stringify(payload.notes) : null,
+        whatsappUserValue,
       ]
     );
   } catch (error: unknown) {
