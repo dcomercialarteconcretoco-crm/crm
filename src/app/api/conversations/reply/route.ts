@@ -2,30 +2,35 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ensureCrmSchema, getPool, hasDatabase } from '@/lib/postgres';
 import { loadFreshSession } from '@/lib/auth-session';
 import { resolveWhatsAppConfig, assertWhatsAppConfig, graphRequest } from '../../whatsapp/_lib';
+import { toWhatsAppPhone } from '@/lib/contact-links';
 import type { WidgetConversation } from '../route';
 
 /**
  * POST /api/conversations/reply — respuesta de un asesor a una conversación
  * del Concrebot. Body: { conversationId, text }.
  *
- * Nace del incidente de la reunión 6-ago-2026: el asesor respondía desde el
- * CRM, el mensaje se pintaba en el hilo... y el cliente en WhatsApp nunca lo
- * recibía. `sendHumanReply` solo persistía la conversación en crm_state — en
- * ningún punto llamaba a la API de WhatsApp.
+ * INCIDENTE (auditado 6-ago-2026 sobre datos de producción): el asesor
+ * respondía desde el CRM y el cliente NUNCA recibía nada. Las 34
+ * conversaciones existentes son del WIDGET WEB, y el widget
+ * (src/app/widget/WidgetClient.tsx) sólo habla con /api/assistant: no
+ * consulta respuestas nuevas. Es decir, toda respuesta humana escrita en el
+ * CRM desde abr-2026 se guardó en crm_state y murió ahí. No había ningún
+ * canal de entrega.
  *
- * Diseño:
- *  - Server-side y atómico: si la conversación es de WhatsApp, PRIMERO se
- *    envía por Meta Cloud API y SOLO si Meta aceptó se persiste el mensaje.
- *    Un rechazo (ventana de 24h, token, etc.) vuelve como error legible y el
- *    hilo no se ensucia con mensajes que nunca salieron.
- *  - Append por conversación: se relee el estado y se agrega UN mensaje. El
- *    POST genérico de /api/conversations reemplaza la conversación entera
- *    (last-write-wins) y podía pisar mensajes entrantes llegados entre polls.
- *  - Las conversaciones del widget web (source 'widget') no tienen sesión de
- *    WhatsApp — se persisten sin envío, como siempre (el visitante las ve en
- *    el chat de la página).
- *  - Auth interna obligatoria: el middleware exime /api/conversations* para
- *    que el widget público funcione, así que acá se valida sesión a mano.
+ * Diseño (ArteConcreto NO usa la API de WhatsApp — ver memoria del proyecto):
+ *  - La entrega real es el TELÉFONO del lead: se devuelve `waWebUrl`
+ *    (wa.me con el texto pre-cargado) para que el asesor lo mande desde su
+ *    WhatsApp. Aplica a CUALQUIER conversación con teléfono utilizable, sin
+ *    importar el `source` — gatearlo por source==='whatsapp' no servía de
+ *    nada porque no existe ni una sola conversación de ese canal.
+ *  - Sin teléfono utilizable se responde `deliverable: false` para que la UI
+ *    lo diga de frente en vez de simular un envío.
+ *  - Si algún día se configura la Cloud API, el envío server-side se activa
+ *    solo y manda de verdad (esa rama queda intacta).
+ *  - Append por conversación releyendo el estado: el POST genérico de
+ *    /api/conversations reemplaza la conversación entera y puede pisar
+ *    mensajes entrantes.
+ *  - Auth interna obligatoria: el middleware exime /api/conversations*.
  */
 export async function POST(request: NextRequest) {
     const user = await loadFreshSession(request);
@@ -49,18 +54,18 @@ export async function POST(request: NextRequest) {
     let sentVia: 'whatsapp' | 'crm' | 'wa-web' = 'crm';
     let waWebUrl: string | undefined;
 
-    if (conv.source === 'whatsapp') {
-        // El webhook guarda el phone ya normalizado con prefijo país y usa
-        // id `wa-<phone>` — cualquiera de los dos sirve como destino.
-        const to = ((conv.lead?.phone || '') || conversationId.replace(/^wa-/, '')).replace(/\D/g, '');
-        if (!to) return NextResponse.json({ ok: false, error: 'La conversación no tiene teléfono de destino.' }, { status: 400 });
+    // Destino: el teléfono del lead (normalizado a formato wa.me). Para las
+    // conversaciones nacidas en WhatsApp el id es `wa-<phone>` y sirve de
+    // respaldo. Sin número no hay forma de entregar nada.
+    const to = toWhatsAppPhone(conv.lead?.phone || conversationId.replace(/^wa-/, ''));
 
+    if (to) {
         const config = resolveWhatsAppConfig();
         // SIN API de WhatsApp configurada (estado actual de ArteConcreto): no
         // se envía desde el servidor. Se registra la respuesta en el hilo y se
-        // devuelve el link wa.me para que el asesor la mande desde SU WhatsApp
-        // Web, con el texto ya escrito. Es el mismo mecanismo de los botones
-        // de WhatsApp del resto del CRM y no exige token de Meta.
+        // devuelve el link wa.me para que el asesor la mande desde SU WhatsApp,
+        // con el texto ya escrito. Mismo mecanismo que el resto de botones de
+        // WhatsApp del CRM; no exige token de Meta.
         if (!config.accessToken || !config.phoneNumberId) {
             waWebUrl = `https://wa.me/${to}?text=${encodeURIComponent(text)}`;
             sentVia = 'wa-web';
@@ -125,5 +130,8 @@ export async function POST(request: NextRequest) {
         [JSON.stringify(next)]
     );
 
-    return NextResponse.json({ ok: true, conversation: updated, sentVia, waWebUrl });
+    // `deliverable: false` = la respuesta quedó en el hilo pero NO hay canal
+    // para hacérsela llegar (conversación sin teléfono utilizable). La UI lo
+    // advierte en vez de dejar creer que se envió.
+    return NextResponse.json({ ok: true, conversation: updated, sentVia, waWebUrl, deliverable: !!to });
 }

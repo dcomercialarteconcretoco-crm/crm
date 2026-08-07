@@ -40,6 +40,25 @@ export function openTel(phone: string) {
     triggerAnchor(`tel:${phone}`);
 }
 
+/**
+ * Normaliza un teléfono colombiano al formato que exige wa.me (indicativo
+ * incluido, sin signos). Devuelve `null` si no se logra un número confiable —
+ * el caller debe avisar en vez de armar un link roto.
+ *
+ * Función PURA (sin `document`): la usan tanto la UI como los route handlers.
+ * Misma regla que el helper del listado de leads crudos.
+ */
+export function toWhatsAppPhone(phone?: string | null): string | null {
+    let d = (phone || '').replace(/\D/g, '').replace(/^0+/, '');
+    if (!d) return null;
+    if (d.length === 10) d = '57' + d;        // celular local: 3XX XXX XXXX
+    if (d.length === 12 && d.startsWith('57')) return d;
+    // Otros países / fijos con indicativo ya puesto: aceptamos longitudes
+    // plausibles en vez de descartarlas.
+    if (d.length >= 11 && d.length <= 15) return d;
+    return null;
+}
+
 export function openWhatsApp(phone: string, text?: string) {
     const cleaned = (phone || '').replace(/\D/g, '');
     if (!cleaned) return;

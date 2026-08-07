@@ -50,6 +50,7 @@ import {
 import { clsx } from 'clsx';
 import { useApp } from '@/context/AppContext';
 import { PermissionGate } from '@/components/PermissionGate';
+import { toWhatsAppPhone } from '@/lib/contact-links';
 
 interface Message {
     id: string;
@@ -430,14 +431,22 @@ export default function MiWiBotPage() {
             setLiveConversations(prev => prev.map(c => c.id === updatedConv.id ? updatedConv : c));
 
             if (data.waWebUrl) {
-                // Abrir WhatsApp Web con el texto listo. La pestaña se abre en
-                // el mismo gesto del click para que el navegador no la bloquee
-                // como popup.
+                // Abrir WhatsApp con el texto listo. La pestaña se abre dentro
+                // del mismo gesto del click para que no la bloqueen como popup.
                 window.open(data.waWebUrl, '_blank', 'noopener,noreferrer');
                 addNotification({
                     title: 'Respuesta lista en WhatsApp',
                     description: 'Se abrió WhatsApp con el mensaje escrito — dale enviar allí. Ya quedó registrado en el hilo del CRM.',
                     type: 'success',
+                });
+            } else if (data.deliverable === false) {
+                // Honestidad ante todo: sin teléfono no hay cómo entregarla.
+                // Antes esto se veía idéntico a un envío exitoso y por eso se
+                // perdieron clientes sin que nadie se enterara.
+                addNotification({
+                    title: 'Guardada, pero el cliente NO la recibe',
+                    description: 'Esta conversación no tiene un teléfono válido. Consíguele el número y escríbele por WhatsApp — la respuesta quedó sólo en el historial.',
+                    type: 'alert',
                 });
             }
         } catch {
@@ -910,6 +919,21 @@ export default function MiWiBotPage() {
                                                 <Send className="w-4 h-4" />
                                             </button>
                                         </div>
+                                        {/* Por dónde va a salir la respuesta. El asesor tiene que
+                                            saberlo ANTES de escribir: durante meses respondía aquí
+                                            creyendo que el cliente recibía, y no llegaba nada. */}
+                                        {(() => {
+                                            const destino = toWhatsAppPhone(selectedConversation.lead?.phone);
+                                            return destino ? (
+                                                <p className="text-[10px] text-muted-foreground mt-1.5 px-1">
+                                                    Al enviar se abre WhatsApp hacia <strong className="text-emerald-600">+{destino}</strong> con el mensaje listo.
+                                                </p>
+                                            ) : (
+                                                <p className="text-[10px] text-rose-600 font-semibold mt-1.5 px-1">
+                                                    Sin teléfono válido: lo que escribas queda sólo en el historial — el cliente NO lo recibe.
+                                                </p>
+                                            );
+                                        })()}
                                     </div>
                                 </React.Fragment>
                             )}
