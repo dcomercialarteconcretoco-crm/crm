@@ -74,22 +74,45 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         setLiveToasts(t => t.filter(x => x.id !== id));
     }, []);
 
+    // Un solo sonido por ráfaga: si entran varios avisos en el mismo ciclo del
+    // poller, antes sonaba uno por cada uno ("suena un montón de veces").
+    const lastSoundAt = useRef(0);
     const pushToast = useCallback((toast: LiveToast) => {
         setLiveToasts(t => [...t.slice(-3), toast]); // max 4 toasts stacked
-        playNotificationSound();
+        const now = Date.now();
+        if (now - lastSoundAt.current > 3000) {
+            lastSoundAt.current = now;
+            playNotificationSound();
+        }
         setTimeout(() => dismissToast(toast.id), 8000);
     }, [dismissToast]);
 
-    // Seed known IDs once data loads
+    // Un toast avisa que algo ACABA de pasar. Una notificación vieja sin leer
+    // (el array `notifications` es global y sólo se marca leída si alguien la
+    // abre) no debe reaparecer como si fuera nueva. El id trae el epoch
+    // (`n-<ms>`), única marca de tiempo real — `time` es el literal 'Ahora'.
+    // Sin epoch legible (formato viejo) no se tosta.
+    const isFreshNotification = useCallback((id: string) => {
+        const match = String(id || '').match(/(1[6-9]\d{11})/);
+        if (!match) return false;
+        return Date.now() - Number(match[1]) < 2 * 60 * 1000;
+    }, []);
+
+    // Sembrado del baseline "ya conocido". Gateado por `isHydrating`: hasta que
+    // /api/state no aterriza, `notifications` es apenas el snapshot de
+    // localStorage. Antes el sembrado se cerraba en cuanto llegaban
+    // clients/tasks (otro fetch, casi siempre más rápido), así que las
+    // notificaciones del server nunca entraban al baseline y el poller de 30s
+    // las veía TODAS como nuevas: la ráfaga de ~10 toasts con sonido que salía
+    // cada vez que se abría el CRM (reportado 6-ago-2026).
     useEffect(() => {
         if (!isFirstSync.current) return;
-        if (clients.length > 0 || tasks.length > 0) {
-            clients.forEach((c: any) => knownClientIds.current.add(c.id));
-            tasks.forEach((t: any) => knownTaskIds.current.add(t.id));
-            notifications.forEach((n: any) => knownNotificationIds.current.add(n.id));
-            isFirstSync.current = false;
-        }
-    }, [clients, tasks, notifications]);
+        if (isHydrating) return;
+        clients.forEach((c: any) => knownClientIds.current.add(c.id));
+        tasks.forEach((t: any) => knownTaskIds.current.add(t.id));
+        notifications.forEach((n: any) => knownNotificationIds.current.add(n.id));
+        isFirstSync.current = false;
+    }, [clients, tasks, notifications, isHydrating]);
 
     // Poll /api/state every 30s and detect new leads
     useEffect(() => {
@@ -123,7 +146,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                         state.notifications.forEach((n: any) => {
                             if (n?.id && !knownNotificationIds.current.has(n.id)) {
                                 knownNotificationIds.current.add(n.id);
-                                if (!n.read) {
+                                // No leída Y recién creada. El `!n.read` solo no
+                                // basta: las notificaciones globales viejas se
+                                // quedan sin leer para siempre.
+                                if (!n.read && isFreshNotification(n.id)) {
                                     pushToast({
                                         id: `notif-${n.id}`,
                                         icon: n.type === 'alert' ? '!' : n.type === 'task' ? 'C' : 'N',
@@ -134,7 +160,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                                 }
                             }
                         });
-                        setNotifications(state.notifications);
+                        // Conservar los "leída" locales: si el usuario acaba de
+                        // marcar y la persistencia todavía viaja, el snapshot
+                        // del server no debe devolverlas a no-leídas.
+                        setNotifications((prev: { id: string; read?: boolean }[]) => {
+                            const readLocally = new Set((prev || []).filter(p => p?.read).map(p => p.id));
+                            return state.notifications.map((n: { id: string; read?: boolean }) =>
+                                !n.read && readLocally.has(n.id) ? { ...n, read: true } : n
+                            );
+                        });
                     }
                     if (Array.isArray(state.tasks)) {
                         state.tasks.forEach((t: any) => {
@@ -149,7 +183,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
         const timer = setInterval(poll, 30_000);
         return () => clearInterval(timer);
-    }, [pushToast]);
+    }, [pushToast, isFreshNotification, setNotifications]);
 
     const searchResults = React.useMemo(() => {
         const q = searchQuery.toLowerCase().trim();
@@ -462,7 +496,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                                 isOpen={isNotificationsOpen}
                                 onClose={() => setIsNotificationsOpen(false)}
                                 notifications={notifications}
-                                setNotifications={setNotifications}
                                 onSelectNotification={(n) => setSelectedNotification(n)}
                             />
                         </div>

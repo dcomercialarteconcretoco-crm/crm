@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useRouter } from 'next/navigation';
+import { useApp } from '@/context/AppContext';
 
 interface Notification {
     id: string;
@@ -32,7 +33,6 @@ interface NotificationDropdownProps {
     isOpen: boolean;
     onClose: () => void;
     notifications: Notification[];
-    setNotifications: React.Dispatch<React.SetStateAction<Notification[]>>;
     onSelectNotification: (notification: Notification) => void;
 }
 
@@ -52,21 +52,33 @@ function notificationHref(n: Notification): string {
     }
 }
 
-export function NotificationDropdown({ isOpen, onClose, notifications, setNotifications, onSelectNotification }: NotificationDropdownProps) {
+// Las mutaciones ya no llegan por props: se toman del contexto para que
+// además de cambiar el estado local queden persistidas en crm_state.
+export function NotificationDropdown({ isOpen, onClose, notifications, onSelectNotification }: NotificationDropdownProps) {
     const router = useRouter();
+    const {
+        markNotificationAsRead,
+        markAllNotificationsRead,
+        removeNotification: removeNotificationPersisted,
+        clearNotifications,
+    } = useApp();
     if (!isOpen) return null;
 
+    // Todas las mutaciones van por el contexto, que ADEMÁS persiste en
+    // crm_state. Con el setter crudo el cambio moría en memoria y el poller
+    // de 30s lo revertía con la copia del server (notificaciones "varadas"
+    // que reaparecían para siempre — reportado 6-ago-2026).
     const markAllRead = () => {
-        setNotifications(notifications.map(n => ({ ...n, read: true })));
+        markAllNotificationsRead();
     };
 
     const removeNotification = (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        setNotifications(prev => prev.filter(n => n.id !== id));
+        removeNotificationPersisted(id);
     };
 
     const markAsRead = (id: string) => {
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+        markNotificationAsRead(id);
     };
 
     const handleNotificationClick = (n: Notification) => {
@@ -127,7 +139,7 @@ export function NotificationDropdown({ isOpen, onClose, notifications, setNotifi
                             Leer Todo
                         </button>
                         <button
-                            onClick={() => setNotifications([])}
+                            onClick={() => clearNotifications()}
                             className="text-[10px] font-black uppercase tracking-widest text-rose-500/60 hover:text-rose-500 transition-colors"
                         >
                             Borrar Todo

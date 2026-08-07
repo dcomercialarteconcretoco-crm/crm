@@ -46,15 +46,25 @@ export async function POST(request: NextRequest) {
     const conv = all.find(c => c.id === conversationId);
     if (!conv) return NextResponse.json({ ok: false, error: 'Conversación no encontrada.' }, { status: 404 });
 
-    let sentVia: 'whatsapp' | 'crm' = 'crm';
+    let sentVia: 'whatsapp' | 'crm' | 'wa-web' = 'crm';
+    let waWebUrl: string | undefined;
+
     if (conv.source === 'whatsapp') {
         // El webhook guarda el phone ya normalizado con prefijo país y usa
         // id `wa-<phone>` — cualquiera de los dos sirve como destino.
         const to = ((conv.lead?.phone || '') || conversationId.replace(/^wa-/, '')).replace(/\D/g, '');
         if (!to) return NextResponse.json({ ok: false, error: 'La conversación no tiene teléfono de destino.' }, { status: 400 });
 
-        try {
-            const config = resolveWhatsAppConfig();
+        const config = resolveWhatsAppConfig();
+        // SIN API de WhatsApp configurada (estado actual de ArteConcreto): no
+        // se envía desde el servidor. Se registra la respuesta en el hilo y se
+        // devuelve el link wa.me para que el asesor la mande desde SU WhatsApp
+        // Web, con el texto ya escrito. Es el mismo mecanismo de los botones
+        // de WhatsApp del resto del CRM y no exige token de Meta.
+        if (!config.accessToken || !config.phoneNumberId) {
+            waWebUrl = `https://wa.me/${to}?text=${encodeURIComponent(text)}`;
+            sentVia = 'wa-web';
+        } else try {
             assertWhatsAppConfig(config);
             await graphRequest(
                 `/${config.phoneNumberId}/messages`,
@@ -95,8 +105,9 @@ export async function POST(request: NextRequest) {
         }
     }
 
-    // Envío OK (o conversación de widget): append del mensaje releyendo el
-    // estado — nunca reemplazamos la conversación que mandó el cliente.
+    // Envío OK, wa-web (lo manda el asesor) o conversación de widget: append
+    // del mensaje releyendo el estado — nunca reemplazamos la conversación
+    // completa que mandó el cliente.
     const updated: WidgetConversation = {
         ...conv,
         messages: [
@@ -114,5 +125,5 @@ export async function POST(request: NextRequest) {
         [JSON.stringify(next)]
     );
 
-    return NextResponse.json({ ok: true, conversation: updated, sentVia });
+    return NextResponse.json({ ok: true, conversation: updated, sentVia, waWebUrl });
 }

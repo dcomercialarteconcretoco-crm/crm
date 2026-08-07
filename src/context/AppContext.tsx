@@ -754,6 +754,7 @@ interface AppContextType {
     deleteForm: (id: string) => void;
 
     markNotificationAsRead: (id: string) => void;
+    markAllNotificationsRead: () => void;
     clearNotifications: () => void;
     removeNotification: (id: string) => void;
     setNotifications: React.Dispatch<React.SetStateAction<Notification[]>>;
@@ -2789,6 +2790,22 @@ REGLAS DE ORO:
         });
     };
 
+    /**
+     * Marca TODAS como leídas y lo persiste. Antes el dropdown hacía
+     * `setNotifications(map(read:true))` con el setter crudo — el cambio vivía
+     * sólo en memoria y el poller de 30s lo pisaba con la copia del server
+     * (donde seguían sin leer). Resultado: el contador nunca bajaba y las
+     * mismas notificaciones volvían una y otra vez (reportado 6-ago-2026).
+     */
+    const markAllNotificationsRead = () => {
+        setNotifications(prev => {
+            if (prev.every(n => n.read)) return prev;
+            const next = prev.map(n => n.read ? n : { ...n, read: true });
+            persistSharedState({ notifications: next });
+            return next;
+        });
+    };
+
     const updateProduct = (id: string, updates: Partial<Product>) => {
         setProducts(prev => {
             const next = prev.map(p => p.id === id ? { ...p, ...updates } as Product : p);
@@ -2957,7 +2974,7 @@ REGLAS DE ORO:
             updateEvent, deleteEvent,
             updateSeller, deleteSeller, updateSettings,
             updateForm, deleteForm,
-            markNotificationAsRead, clearNotifications, removeNotification, setNotifications,
+            markNotificationAsRead, markAllNotificationsRead, clearNotifications, removeNotification, setNotifications,
             auditLogs, addAuditLog, purgeOldAuditLogs, anomalies, addAnomaly, updateAnomaly, deleteAnomaly,
             products, productSyncStatus, refreshProducts, refreshClients, refreshCompanies, updateProduct, deleteProduct,
             assignedLeadsCount, refreshAssignedLeadsCount,

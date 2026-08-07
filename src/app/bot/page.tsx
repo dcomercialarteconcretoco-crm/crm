@@ -396,12 +396,14 @@ export default function MiWiBotPage() {
     }, []);
 
     // Respuesta del asesor. PESIMISTA a propósito (incidente 6-ago-2026): el
-    // flujo viejo pintaba el mensaje en el hilo y persistía la conversación,
-    // pero JAMÁS llamaba a la API de WhatsApp — el cliente nunca recibía nada
-    // y el asesor creía que sí. Ahora el server (/api/conversations/reply)
-    // envía por Meta PRIMERO y solo persiste si Meta aceptó; si algo falla
-    // (ventana de 24h, token, red) se ve un error claro y el texto escrito
-    // vuelve al input para no perderlo.
+    // flujo viejo pintaba el mensaje en el hilo y lo daba por enviado, pero el
+    // cliente nunca recibía nada.
+    //
+    // Hoy ArteConcreto NO usa la API de WhatsApp (sin token de Meta): el
+    // server registra la respuesta en el hilo y devuelve `waWebUrl`, y acá se
+    // abre WhatsApp Web con el mensaje ya escrito para que el asesor lo envíe
+    // desde su propia sesión. Si algún día se configura el token, el mismo
+    // endpoint envía solo y esta rama deja de usarse sin tocar la UI.
     const sendHumanReply = async () => {
         if (!replyText.trim() || !selectedConversation || isSendingReply) return;
         const text = replyText.trim();
@@ -426,6 +428,18 @@ export default function MiWiBotPage() {
             const updatedConv: WidgetConversation = data.conversation;
             setSelectedConversation(updatedConv);
             setLiveConversations(prev => prev.map(c => c.id === updatedConv.id ? updatedConv : c));
+
+            if (data.waWebUrl) {
+                // Abrir WhatsApp Web con el texto listo. La pestaña se abre en
+                // el mismo gesto del click para que el navegador no la bloquee
+                // como popup.
+                window.open(data.waWebUrl, '_blank', 'noopener,noreferrer');
+                addNotification({
+                    title: 'Respuesta lista en WhatsApp',
+                    description: 'Se abrió WhatsApp con el mensaje escrito — dale enviar allí. Ya quedó registrado en el hilo del CRM.',
+                    type: 'success',
+                });
+            }
         } catch {
             addNotification({
                 title: 'Sin conexión',
