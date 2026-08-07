@@ -430,25 +430,11 @@ export default function MiWiBotPage() {
             setSelectedConversation(updatedConv);
             setLiveConversations(prev => prev.map(c => c.id === updatedConv.id ? updatedConv : c));
 
-            if (data.waWebUrl) {
-                // Abrir WhatsApp con el texto listo. La pestaña se abre dentro
-                // del mismo gesto del click para que no la bloqueen como popup.
-                window.open(data.waWebUrl, '_blank', 'noopener,noreferrer');
-                addNotification({
-                    title: 'Respuesta lista en WhatsApp',
-                    description: 'Se abrió WhatsApp con el mensaje escrito — dale enviar allí. Ya quedó registrado en el hilo del CRM.',
-                    type: 'success',
-                });
-            } else if (data.deliverable === false) {
-                // Honestidad ante todo: sin teléfono no hay cómo entregarla.
-                // Antes esto se veía idéntico a un envío exitoso y por eso se
-                // perdieron clientes sin que nadie se enterara.
-                addNotification({
-                    title: 'Guardada, pero el cliente NO la recibe',
-                    description: 'Esta conversación no tiene un teléfono válido. Consíguele el número y escríbele por WhatsApp — la respuesta quedó sólo en el historial.',
-                    type: 'alert',
-                });
-            }
+            // La entrega es el chat mismo: el widget del visitante consulta cada
+            // 4s y le aparece el mensaje. Ya NO se abre WhatsApp en cada
+            // respuesta (era el parche de cuando el chat no entregaba nada);
+            // para eso está el botón de WhatsApp de la cabecera, por si el
+            // cliente ya cerró la página.
         } catch {
             addNotification({
                 title: 'Sin conexión',
@@ -797,7 +783,8 @@ export default function MiWiBotPage() {
                                         </div>
                                         <div className="flex items-center gap-2">
                                             {selectedConversation.lead.phone && (
-                                                <a href={`https://wa.me/${selectedConversation.lead.phone.replace(/\D/g,'')}`} target="_blank" rel="noreferrer"
+                                                <a href={`https://wa.me/${toWhatsAppPhone(selectedConversation.lead.phone) || ''}`} target="_blank" rel="noreferrer"
+                                                    title="Escribirle por WhatsApp (por si ya cerró el chat de la web)"
                                                     className="p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 hover:bg-emerald-100 transition-all shrink-0">
                                                     <Phone className="w-4 h-4" />
                                                 </a>
@@ -924,13 +911,12 @@ export default function MiWiBotPage() {
                                             creyendo que el cliente recibía, y no llegaba nada. */}
                                         {(() => {
                                             const destino = toWhatsAppPhone(selectedConversation.lead?.phone);
-                                            return destino ? (
+                                            return (
                                                 <p className="text-[10px] text-muted-foreground mt-1.5 px-1">
-                                                    Al enviar se abre WhatsApp hacia <strong className="text-emerald-600">+{destino}</strong> con el mensaje listo.
-                                                </p>
-                                            ) : (
-                                                <p className="text-[10px] text-rose-600 font-semibold mt-1.5 px-1">
-                                                    Sin teléfono válido: lo que escribas queda sólo en el historial — el cliente NO lo recibe.
+                                                    Le aparece <strong className="text-emerald-600">al instante en su chat</strong> si sigue en la página.
+                                                    {destino
+                                                        ? <> Si ya la cerró, escríbele al <strong className="text-foreground">+{destino}</strong> con el botón de WhatsApp de arriba.</>
+                                                        : <span className="text-rose-600 font-semibold"> Ojo: no dejó teléfono, así que si cerró la página no hay cómo alcanzarlo.</span>}
                                                 </p>
                                             );
                                         })()}

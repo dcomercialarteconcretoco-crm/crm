@@ -117,7 +117,11 @@ export async function POST(request: NextRequest) {
         ...conv,
         messages: [
             ...(conv.messages || []),
-            { role: 'assistant', content: text, timestamp: new Date().toISOString() },
+            // `via: 'advisor'` distingue a una persona del bot. Con eso el
+            // widget silencia las respuestas automáticas mientras el asesor
+            // está atendiendo — antes el bot contestaba encima y el cliente
+            // recibía dos voces distintas en el mismo hilo.
+            { role: 'assistant', content: text, timestamp: new Date().toISOString(), via: 'advisor' },
         ],
         updatedAt: new Date().toISOString(),
     };

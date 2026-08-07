@@ -28,6 +28,9 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [draft, setDraft] = useState("");
+  // Un asesor humano tomó la conversación: el bot se calla para no contestar
+  // encima de él (el cliente veía dos voces distintas respondiéndole).
+  const [advisorActive, setAdvisorActive] = useState(false);
   const [lead, setLead] = useState({ name: "", email: "", phone: "", city: "", company: "" });
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -40,6 +43,41 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  // ── Recibir las respuestas del asesor ───────────────────────────────────
+  // El widget sólo hablaba con el bot: cuando un asesor contestaba desde el
+  // CRM, el visitante nunca se enteraba (auditoría 6-ago-2026 — meses de
+  // respuestas que no llegaron a nadie). Ahora consulta cada 4s y suma los
+  // mensajes que no tenga, sin tocar los propios: la unión es por
+  // (rol|timestamp|contenido), la misma llave que usa el merge del server.
+  useEffect(() => {
+    if (!started) return;
+    let cancelado = false;
+
+    const traerNuevos = async () => {
+      try {
+        const res = await fetch(`/api/conversations/${encodeURIComponent(sessionId)}`, { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelado) return;
+        setAdvisorActive(!!data.advisorActive);
+        if (!Array.isArray(data.messages) || data.messages.length === 0) return;
+        setMessages(prev => {
+          const key = (m: ChatMessage) => `${m.role}|${m.timestamp}|${m.content}`;
+          const vistos = new Set(prev.map(key));
+          const nuevos = (data.messages as ChatMessage[]).filter(m => m && m.content && !vistos.has(key(m)));
+          if (nuevos.length === 0) return prev;
+          return [...prev, ...nuevos].sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
+        });
+      } catch {
+        /* sin conexión: se reintenta en el próximo ciclo */
+      }
+    };
+
+    traerNuevos();
+    const timer = setInterval(traerNuevos, 4000);
+    return () => { cancelado = true; clearInterval(timer); };
+  }, [started, sessionId]);
 
   const captureFields = savedBotSettings?.captureFields || {
     name: true, email: true, phone: true, city: true, company: true,
@@ -119,6 +157,14 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
     const nextMessages = [...messages, userMsg];
     setMessages(nextMessages);
     setDraft("");
+
+    // Con un asesor atendiendo, el bot NO contesta: sólo se guarda lo que
+    // escribió el cliente y la persona responde desde el CRM.
+    if (advisorActive) {
+      await saveConversation(nextMessages);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -264,10 +310,16 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
               Iniciar conversación
             </button>
           ) : (
+            <div className="flex flex-col gap-2">
+              {advisorActive && (
+                <p className="px-1 text-[10px] font-bold uppercase tracking-widest text-emerald-600">
+                  ● Un asesor está en la conversación
+                </p>
+              )}
             <div className="flex items-center gap-3">
               <input
                 className={inputClassName}
-                placeholder="Escribe tu mensaje..."
+                placeholder={advisorActive ? "Escríbele al asesor..." : "Escribe tu mensaje..."}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
@@ -282,6 +334,7 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
               >
                 <Send className="h-4 w-4" />
               </button>
+            </div>
             </div>
           )}
         </div>

@@ -18,6 +18,8 @@ export interface WidgetConversation {
     role: 'user' | 'assistant';
     content: string;
     timestamp: string;
+    /** 'advisor' = lo escribió una persona desde el CRM (no el bot). */
+    via?: 'advisor';
   }[];
   createdAt: string;
   updatedAt: string;
@@ -183,7 +185,19 @@ export async function POST(req: NextRequest) {
     const conversationToSave = { ...conversation, clientId: clientId || conversation.clientId };
     const idx = existing.findIndex(c => c.id === conversation.id);
     if (idx >= 0) {
-      existing[idx] = { ...existing[idx], ...conversationToSave, updatedAt: new Date().toISOString() };
+      // MERGE append-only de mensajes. Antes el arreglo del caller REEMPLAZABA
+      // al guardado: el widget mandaba su copia local y borraba de un plumazo
+      // la respuesta que el asesor acababa de escribir en el CRM. Ahora se unen
+      // por (rol|timestamp|contenido) y se ordenan por fecha, así ningún lado
+      // pisa al otro (incidente 6-ago-2026).
+      const msgKey = (m: WidgetConversation['messages'][number]) => `${m.role}|${m.timestamp}|${m.content}`;
+      const merged = [...(existing[idx].messages || [])];
+      const seen = new Set(merged.map(msgKey));
+      for (const m of conversationToSave.messages || []) {
+        if (!seen.has(msgKey(m))) { seen.add(msgKey(m)); merged.push(m); }
+      }
+      merged.sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
+      existing[idx] = { ...existing[idx], ...conversationToSave, messages: merged, updatedAt: new Date().toISOString() };
     } else {
       existing.unshift({ ...conversationToSave, updatedAt: new Date().toISOString() });
     }
