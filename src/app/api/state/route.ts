@@ -137,8 +137,40 @@ export async function PUT(req: NextRequest) {
   }
 
   // Las demás claves (settings, notifications, events, …) conservan el
-  // reemplazo total de siempre.
+  // reemplazo total de siempre — con UNA excepción: quoteNextNumber dentro de
+  // settings jamás puede RETROCEDER. Settings viaja completo desde el cliente,
+  // y una pestaña vieja (contador stale en su React state) que guarde
+  // cualquier toggle re-escribía un contador ya avanzado por las reservas
+  // atómicas de /api/quotes/reserve-number: los consecutivos se repetían y el
+  // dedup de addQuote pisaba cotizaciones enviadas (incidentes ART-567/571,
+  // jul-2026 — "el error en el número cuando todos cotizan al tiempo").
+  // GREATEST conserva el mayor entre lo persistido y lo entrante; el resto
+  // del objeto settings sí se reemplaza completo como siempre.
   for (const [key, value] of plainEntries) {
+    if (key === "settings") {
+      await pool.query(
+        `
+          INSERT INTO crm_state (key, value, updated_at)
+          VALUES ($1, $2::jsonb, NOW())
+          ON CONFLICT (key) DO UPDATE
+          SET value = CASE
+                WHEN (crm_state.value ? 'quoteNextNumber') OR (EXCLUDED.value ? 'quoteNextNumber')
+                THEN jsonb_set(
+                  EXCLUDED.value,
+                  '{quoteNextNumber}',
+                  to_jsonb(GREATEST(
+                    COALESCE((crm_state.value->>'quoteNextNumber')::int, 0),
+                    COALESCE((EXCLUDED.value->>'quoteNextNumber')::int, 0)
+                  ))
+                )
+                ELSE EXCLUDED.value
+              END,
+              updated_at = NOW()
+        `,
+        [key, JSON.stringify(value)]
+      );
+      continue;
+    }
     await pool.query(
       `
         INSERT INTO crm_state (key, value, updated_at)

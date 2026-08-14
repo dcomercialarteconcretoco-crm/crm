@@ -42,9 +42,18 @@ import {
     ChevronRight,
     X,
     RotateCcw,
+    MessageSquare,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { clsx } from 'clsx';
+
+interface RawLeadNote {
+    id: string;
+    text: string;
+    byId: string;
+    byName: string;
+    at: string;
+}
 
 interface RawLead {
     id: string;
@@ -62,6 +71,8 @@ interface RawLead {
     companySize: string | null;
     registrationDate: string | null;
     reference: string | null;
+    // Comentarios del equipo — existen aunque el lead no esté asignado a nadie.
+    notes: RawLeadNote[] | null;
     status: 'new' | 'assigned' | 'contacted' | 'approved' | 'discarded';
     assignedTo: string | null;
     assignedToName: string | null;
@@ -435,6 +446,11 @@ export default function RawLeadsPage() {
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [assignSellerId, setAssignSellerId] = useState('');
 
+    // Modal de notas por lead — disponible aunque el lead no esté asignado.
+    const [notesLead, setNotesLead] = useState<RawLead | null>(null);
+    const [noteDraft, setNoteDraft] = useState('');
+    const [noteSaving, setNoteSaving] = useState(false);
+
     // Upload progress (cuando se sube CSV masivo)
     const [upload, setUpload] = useState<{ total: number; done: number; errors: number; running: boolean } | null>(null);
 
@@ -711,6 +727,34 @@ export default function RawLeadsPage() {
         }
     };
 
+    // Agrega una nota al lead abierto en el modal. Los comentarios funcionan
+    // aunque el lead no esté asignado a nadie (pedido 13-ago-2026).
+    const handleAddNote = async () => {
+        if (!notesLead || !noteDraft.trim() || noteSaving) return;
+        setNoteSaving(true);
+        try {
+            const res = await fetch('/api/raw-leads', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'add-note', ids: [notesLead.id], text: noteDraft.trim() }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+            const notes: RawLeadNote[] = Array.isArray(data.notes) ? data.notes : [];
+            setNotesLead(prev => (prev ? { ...prev, notes } : prev));
+            setLeads(prev => prev.map(l => (l.id === notesLead.id ? { ...l, notes } : l)));
+            setNoteDraft('');
+        } catch (e) {
+            addNotification({
+                title: 'No se pudo guardar la nota',
+                description: e instanceof Error ? e.message : 'Intentá de nuevo.',
+                type: 'alert',
+            });
+        } finally {
+            setNoteSaving(false);
+        }
+    };
+
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const hasAnyFilter = !!(department || city || size || activity || assignedFilter || search.trim());
     const clearFilters = () => {
@@ -949,14 +993,15 @@ export default function RawLeadsPage() {
                                 (uploaded_by_name) pero nunca se pintaba, y la admin
                                 tenía que preguntar de quién era cada lead. */}
                             <th className="text-left px-3 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Subido por</th>
+                            <th className="text-left px-3 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Notas</th>
                         </tr>
                     </thead>
                     <tbody>
                         {loading && (
-                            <tr><td colSpan={10} className="text-center py-12 text-muted-foreground text-sm">Cargando…</td></tr>
+                            <tr><td colSpan={11} className="text-center py-12 text-muted-foreground text-sm">Cargando…</td></tr>
                         )}
                         {!loading && leads.length === 0 && (
-                            <tr><td colSpan={10} className="text-center py-12 text-muted-foreground">
+                            <tr><td colSpan={11} className="text-center py-12 text-muted-foreground">
                                 <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
                                 {!isAdmin && statusFilter === 'assigned' && !hasAnyFilter ? (
                                     <p className="text-sm font-bold">No tenés leads por trabajar ahora mismo. 🎉</p>
@@ -1062,6 +1107,21 @@ export default function RawLeadsPage() {
                                 </td>
                                 <td className="px-3 py-3 text-xs text-muted-foreground">{lead.assignedToName || '—'}</td>
                                 <td className="px-3 py-3 text-xs text-muted-foreground">{lead.uploadedByName || '—'}</td>
+                                <td className="px-3 py-3">
+                                    <button
+                                        onClick={() => { setNotesLead(lead); setNoteDraft(''); }}
+                                        className={clsx(
+                                            'inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-bold transition-all',
+                                            (lead.notes?.length || 0) > 0
+                                                ? 'border-primary/40 bg-primary/5 text-primary hover:bg-primary/10'
+                                                : 'border-border text-muted-foreground hover:border-primary/40 hover:text-primary'
+                                        )}
+                                        title={(lead.notes?.length || 0) > 0 ? `${lead.notes!.length} nota(s) — clic para ver o agregar` : 'Agregar nota'}
+                                    >
+                                        <MessageSquare className="w-3.5 h-3.5" />
+                                        {(lead.notes?.length || 0) > 0 ? lead.notes!.length : '+'}
+                                    </button>
+                                </td>
                             </tr>
                         ))}
                     </tbody>
@@ -1137,6 +1197,72 @@ export default function RawLeadsPage() {
                         <div className="flex justify-end gap-2 pt-2">
                             <button onClick={() => setShowAssignModal(false)} className="bg-muted text-foreground font-bold rounded-xl px-4 py-2 text-sm border border-border hover:bg-rose-50 hover:border-rose-300 hover:text-rose-600 transition-all">Cancelar</button>
                             <button onClick={handleAssign} disabled={!assignSellerId} className="bg-primary text-black font-bold rounded-xl px-4 py-2 text-sm hover:brightness-105 disabled:opacity-50 transition-all">Asignar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: notas del lead — disponible aunque esté sin asignar */}
+            {notesLead && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setNotesLead(null)}>
+                    <div className="bg-white rounded-2xl p-6 max-w-lg w-full space-y-4 max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                <h3 className="text-lg font-black flex items-center gap-2">
+                                    <MessageSquare className="w-4 h-4 text-primary shrink-0" />
+                                    <span className="truncate">Notas — {notesLead.name}</span>
+                                </h3>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    {notesLead.assignedToName
+                                        ? `Asignado a ${notesLead.assignedToName}`
+                                        : 'Sin asignar — las notas quedan para quien lo tome'}
+                                </p>
+                            </div>
+                            <button onClick={() => setNotesLead(null)} className="p-1.5 rounded-lg hover:bg-muted transition-colors shrink-0">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto space-y-2 min-h-[80px]">
+                            {(notesLead.notes?.length || 0) === 0 && (
+                                <p className="text-sm text-muted-foreground text-center py-6">
+                                    Sin notas todavía. Escribí la primera abajo.
+                                </p>
+                            )}
+                            {(notesLead.notes || []).slice().reverse().map(note => (
+                                <div key={note.id} className="bg-muted/40 border border-border/60 rounded-xl px-3 py-2">
+                                    <div className="flex items-center justify-between gap-2 mb-1">
+                                        <span className="text-[11px] font-black text-foreground">{note.byName || '—'}</span>
+                                        <span className="text-[10px] text-muted-foreground shrink-0">
+                                            {new Date(note.at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                            {' · '}
+                                            {new Date(note.at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    </div>
+                                    <p className="text-sm text-foreground whitespace-pre-wrap break-words">{note.text}</p>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="space-y-2 pt-1 border-t border-border">
+                            <textarea
+                                value={noteDraft}
+                                onChange={e => setNoteDraft(e.target.value)}
+                                rows={2}
+                                maxLength={2000}
+                                placeholder="Escribí una nota para el equipo…"
+                                className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white resize-none"
+                            />
+                            <div className="flex justify-end gap-2">
+                                <button onClick={() => setNotesLead(null)} className="bg-muted text-foreground font-bold rounded-xl px-4 py-2 text-sm border border-border hover:bg-rose-50 hover:border-rose-300 hover:text-rose-600 transition-all">Cerrar</button>
+                                <button
+                                    onClick={handleAddNote}
+                                    disabled={!noteDraft.trim() || noteSaving}
+                                    className="bg-primary text-black font-bold rounded-xl px-4 py-2 text-sm hover:brightness-105 disabled:opacity-50 transition-all"
+                                >
+                                    {noteSaving ? 'Guardando…' : 'Agregar nota'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

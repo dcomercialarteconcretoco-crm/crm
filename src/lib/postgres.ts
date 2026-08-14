@@ -483,7 +483,8 @@ async function doEnsureCrmSchema() {
       ADD COLUMN IF NOT EXISTS company_size TEXT,
       ADD COLUMN IF NOT EXISTS id_type TEXT,
       ADD COLUMN IF NOT EXISTS legal_rep TEXT,
-      ADD COLUMN IF NOT EXISTS registration_date DATE
+      ADD COLUMN IF NOT EXISTS registration_date DATE,
+      ADD COLUMN IF NOT EXISTS notes JSONB NOT NULL DEFAULT '[]'::jsonb
   `);
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_crm_raw_leads_status

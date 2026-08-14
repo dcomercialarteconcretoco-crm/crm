@@ -17,7 +17,7 @@ import {
   Download,
 } from "lucide-react";
 import { clsx } from "clsx";
-import { useApp, type Quote, type Task } from "@/context/AppContext";
+import { useApp, DEFAULT_PIPELINE_STAGES, type Quote, type Task } from "@/context/AppContext";
 import { generatePDFReport } from "@/lib/pdf-generator";
 import { canSeeAll, ownsRecord } from "@/lib/scope";
 import { latestVersionOnly } from "@/lib/quote-versions";
@@ -289,9 +289,42 @@ export default function Home() {
     [currentMonthQuotes]
   );
 
-  const approvedQuotes = currentMonthQuotes.filter((quote) => quote.status === "Approved").length;
+  // Cierres del mes = lo que el equipo VE en la columna Facturado del
+  // pipeline (etapa isWinStage) para el mes en curso, más las cotizaciones
+  // aprobadas del mes cuya tarjeta ya no existe. Contar solo por status
+  // 'Approved' dejaba Cierres en 0 aunque hubiera negocios en Facturado:
+  // arrastrar la tarjeta nunca aprobaba la cotización (solo el botón de
+  // check, que únicamente ven quienes tienen quotes.approve) — reporte de
+  // Valentina 13-ago-2026.
+  const monthClosures = useMemo(() => {
+    const stages = settings.pipelineStages?.length ? settings.pipelineStages : DEFAULT_PIPELINE_STAGES;
+    const winIds = new Set(stages.filter(s => s.isWinStage).map(s => s.id));
+    winIds.add('won'); // stage legacy del CRM v1 equivalente a Facturado
+    const closedTasks = currentMonthTasks.filter(t => winIds.has((t as Task & { stageId?: string }).stageId || ''));
+    const taskQuoteIds = new Set(
+      currentMonthTasks.map(t => (t as Task & { quoteId?: string }).quoteId).filter(Boolean)
+    );
+    // Aprobadas sin tarjeta en el tablero (p.ej. la tarjeta se eliminó). Si la
+    // tarjeta existe pero está en otra columna, manda el tablero: no es cierre.
+    const approvedWithoutCard = currentMonthQuotes.filter(
+      q => q.status === 'Approved' && !taskQuoteIds.has(q.id)
+    ).length;
+    return closedTasks.length + approvedWithoutCard;
+  }, [currentMonthTasks, currentMonthQuotes, settings.pipelineStages]);
+
+  // Propuestas del mes que NO tienen cotización fechada este mes: negocios
+  // retomados desde meses anteriores (retakenAt) o tarjetas sin cotización.
+  // Es la razón por la que "Propuestas" puede superar a "Cotizaciones" —
+  // pregunta de Valentina 13-ago-2026.
+  const retakenDeals = useMemo(() => currentMonthTasks.filter(t => {
+    const quote = quoteById.get((t as Task & { quoteId?: string }).quoteId || '')
+      || quoteRefCandidates(t).map(ref => quoteByRef.get(ref)).find(Boolean);
+    return !quote || quoteMonthKey(quote) !== currentMonthKey;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }).length, [currentMonthTasks, quoteById, quoteByRef, currentMonthKey]);
+
   const conversionRate =
-    currentMonthQuotes.length > 0 ? ((approvedQuotes / currentMonthQuotes.length) * 100).toFixed(1) : "0.0";
+    currentMonthQuotes.length > 0 ? ((monthClosures / currentMonthQuotes.length) * 100).toFixed(1) : "0.0";
 
   // Top buyers: only clients with at least one Approved quote, sorted by their total approved revenue
   const topClients = useMemo(() => {
@@ -380,7 +413,7 @@ export default function Home() {
     });
 
     // Conversion alert
-    if (approvedQuotes === 0 && scopedQuotes.length > 0) {
+    if (monthClosures === 0 && scopedQuotes.length > 0) {
       cards.push({
         label: "Alerta de Conversión",
         title: `${scopedQuotes.length} cotizaciones emitidas, ninguna cerrada.`,
@@ -417,18 +450,18 @@ export default function Home() {
     }
 
     // Analytics nudge
-    if (approvedQuotes > 0 && cards.length < 5) {
+    if (monthClosures > 0 && cards.length < 5) {
       cards.push({
         label: "Lectura del Día",
-        title: `${approvedQuotes} cierre${approvedQuotes > 1 ? 's' : ''} aprobado${approvedQuotes > 1 ? 's' : ''}. Repite el patrón.`,
-        body: `Llevas ${approvedQuotes} de ${scopedQuotes.length} cotizaciones convertidas. Analiza qué tienen en común los cierres exitosos.`,
+        title: `${monthClosures} cierre${monthClosures > 1 ? 's' : ''} este mes. Repite el patrón.`,
+        body: `Llevas ${monthClosures} negocio${monthClosures > 1 ? 's' : ''} facturado${monthClosures > 1 ? 's' : ''} en ${currentMonthLabel}. Analiza qué tienen en común los cierres exitosos.`,
         href: "/analytics",
         cta: "Ver analíticas",
       });
     }
 
     return cards.slice(0, 5);
-  }, [approvedQuotes, scopedClients, liveTasks, scopedQuotes, recentQuotes, scopedTasks, topClients]);
+  }, [monthClosures, currentMonthLabel, scopedClients, liveTasks, scopedQuotes, recentQuotes, scopedTasks, topClients]);
 
   // Auto-rotate every 6s
   useEffect(() => {
@@ -552,7 +585,7 @@ export default function Home() {
     {
       label: "Conversión",
       value: `${conversionRate}%`,
-      note: `${approvedQuotes} cierres · ${currentMonthLabel}`,
+      note: `${monthClosures} cierre${monthClosures === 1 ? '' : 's'} · ${currentMonthLabel}`,
       icon: Target,
       tone: "bg-accent/42 text-primary border-primary/15",
     },
@@ -974,12 +1007,32 @@ export default function Home() {
             <h3 className="section-title mt-1 mb-5">Conversión por etapa</h3>
             <div className="space-y-5">
               {(() => {
-                const maxVal = Math.max(scopedClients.length, currentMonthQuotes.length, currentMonthTasks.length, approvedQuotes, 1);
+                const maxVal = Math.max(scopedClients.length, currentMonthQuotes.length, currentMonthTasks.length, monthClosures, 1);
+                // Orden de embudo: Propuestas (todo lo que se trabaja en el mes,
+                // incluye negocios retomados de meses anteriores) va ANTES de
+                // Cotizaciones (solo las nuevas del mes). Con el orden viejo la
+                // barra de abajo superaba a la de arriba y parecía un error
+                // (pregunta de Valentina 13-ago-2026).
+                const newDeals = Math.max(0, currentMonthTasks.length - retakenDeals);
                 return [
                   { label: "Leads totales", value: scopedClients.length || 0 },
-                  { label: `Cotizaciones ${currentMonthLabel}`, value: currentMonthQuotes.length || 0 },
-                  { label: `Propuestas ${currentMonthLabel}`, value: currentMonthTasks.length || 0 },
-                  { label: "Cierres", value: approvedQuotes || 0 },
+                  {
+                    label: `Propuestas ${currentMonthLabel}`,
+                    value: currentMonthTasks.length || 0,
+                    note: retakenDeals > 0
+                      ? `${newDeals} con cotización del mes · ${retakenDeals} retomada${retakenDeals === 1 ? '' : 's'} de meses anteriores`
+                      : 'negocios activos en el pipeline',
+                  },
+                  {
+                    label: `Cotizaciones ${currentMonthLabel}`,
+                    value: currentMonthQuotes.length || 0,
+                    note: 'nuevas del mes · una por negociación',
+                  },
+                  {
+                    label: `Cierres ${currentMonthLabel}`,
+                    value: monthClosures || 0,
+                    note: 'negocios en Facturado',
+                  },
                 ].map((item) => (
                   <div key={item.label} className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
@@ -989,6 +1042,9 @@ export default function Home() {
                     <div className="progress-track">
                       <div className="progress-fill" style={{ width: `${Math.max(4, Math.round((item.value / maxVal) * 100))}%` }} />
                     </div>
+                    {item.note && (
+                      <p className="text-[10px] text-muted-foreground leading-tight">{item.note}</p>
+                    )}
                   </div>
                 ));
               })()}
@@ -1124,11 +1180,11 @@ export default function Home() {
             <div className="space-y-4">
               {(() => {
                 const newLeads = scopedClients.filter(c => c.status === 'Lead').length;
-                const distMax = Math.max(newLeads, scopedTasks.length, approvedQuotes, 1);
+                const distMax = Math.max(newLeads, scopedTasks.length, monthClosures, 1);
                 return [
                   { label: "Nuevos leads", value: newLeads },
                   { label: "En seguimiento", value: scopedTasks.length },
-                  { label: "Ganado", value: approvedQuotes },
+                  { label: "Ganado", value: monthClosures },
                 ].map((item) => (
                   <div key={item.label} className="space-y-2">
                     <div className="flex items-center justify-between text-sm">

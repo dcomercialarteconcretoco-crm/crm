@@ -1206,6 +1206,24 @@ export default function PipelinePage() {
                 lossReason = motivo.trim() || 'Sin motivo especificado';
             }
 
+            const destStage = stages.find(s => s.id === destColId);
+            const sourceStage = stages.find(s => s.id === resolveStageId((movedTask as any).stageId));
+            const linkedQuote = quotes.find(q => q.id === (movedTask as any).quoteId);
+
+            // Sacar la tarjeta de la etapa ganadora deshace el cierre: la
+            // cotización vinculada vuelve a 'Enviada'. Este updateQuote va
+            // ANTES del updateTask de abajo: su sync interno mueve la task a
+            // 'proposal', y el updateTask posterior (último en la cola de
+            // React y de persistencia) la deja en la columna donde se soltó.
+            if (sourceStage?.isWinStage && destStage && !destStage.isWinStage && linkedQuote?.status === 'Approved') {
+                updateQuote(linkedQuote.id, { status: 'Sent' });
+                addNotification({
+                    title: 'Cierre revertido',
+                    description: `${movedTask.client} salió de ${sourceStage.label}. La cotización ${linkedQuote.quoteNumber || linkedQuote.number || ''} vuelve a "Enviada".`,
+                    type: 'alert',
+                });
+            }
+
             const stageActivity: Activity = {
                 id: `sys-${Date.now()}`,
                 type: 'system',
@@ -1236,8 +1254,20 @@ export default function PipelinePage() {
             });
             // Si la columna de destino está marcada como "ganadora" (isWinStage),
             // disparamos la orden de producción como antes.
-            const destStage = stages.find(s => s.id === destColId);
             if (destStage?.isWinStage) {
+                // El drag también cierra la cotización vinculada. Antes solo el
+                // botón ✓ (visible únicamente con quotes.approve) la marcaba
+                // 'Approved': los vendedores arrastraban a Facturado y el
+                // dashboard seguía contando 0 cierres (reporte 13-ago-2026).
+                // Las que están en flujo de aprobación interna no se tocan —
+                // ese cierre lo decide el SuperAdmin en /autorizaciones.
+                if (linkedQuote
+                    && linkedQuote.status !== 'Approved'
+                    && linkedQuote.status !== 'PendingApproval'
+                    && linkedQuote.status !== 'PENDING_APPROVAL'
+                    && linkedQuote.status !== 'ChangesRequested') {
+                    updateQuote(linkedQuote.id, { status: 'Approved' });
+                }
                 addNotification({ title: 'Venta Cerrada', description: `${movedTask.client} — $${movedTask.numericValue.toLocaleString()} COP. Enviando Orden de Producción...`, type: 'success' });
                 sendProductionOrder(movedTask, []);
             }

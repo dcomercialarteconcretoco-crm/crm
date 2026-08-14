@@ -51,7 +51,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     // guardado exitoso anclamos el id creado: cualquier submit posterior en
     // esta sesión ACTUALIZA ese registro (mismo id, mismo número) en vez de
     // crear otro. El guard isSaving solo cubría el request en vuelo, no esto.
-    const { products, clients, addClient, refreshProducts, addQuote, reserveQuoteNumber, createQuoteVersion, updateQuote, quotes, currentUser, isHydrating, settings, addNotification, addAuditLog } = useApp();
+    const { products, clients, addClient, refreshProducts, addQuote, reserveQuoteNumber, renameQuoteNumber, createQuoteVersion, updateQuote, quotes, currentUser, isHydrating, settings, addNotification, addAuditLog } = useApp();
     const [createdQuoteId, setCreatedQuoteId] = useState<string>('');
     const activeQuoteId = editQuoteId || createdQuoteId || '';
     const isEditMode = !!activeQuoteId;
@@ -161,6 +161,12 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     const [postGenReminder, setPostGenReminder] = useState<{ quoteNumber: string; quoteId: string } | null>(null);
     const [reminderBusy, setReminderBusy] = useState<'wa' | 'email' | 'download' | null>(null);
 
+    // Cambiar el número de una cotización YA generada (pedido de Valentina
+    // 13-ago-2026: los consecutivos chocan cuando todos cotizan al tiempo y
+    // el número que salió no siempre es el que debía ser). null = cerrado.
+    const [renameDraft, setRenameDraft] = useState<string | null>(null);
+    const [isRenaming, setIsRenaming] = useState(false);
+
     // Envío: modo 'auto' calcula desde peso/dims + ciudad. 'manual' usa shippingOverride.
     const [shippingMode, setShippingMode] = useState<'auto' | 'manual'>(editQuote?.shippingMode || 'auto');
     const [shippingOverride, setShippingOverride] = useState<number>(
@@ -221,6 +227,30 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         )
         : null;
     const isQuoteNumberConflict = !!conflictingQuote;
+    /** Renombra el número de la cotización en edición (raíz completa, todas
+     *  las versiones). La validación de unicidad vive en renameQuoteNumber. */
+    const handleRenameNumber = async () => {
+        if (!editQuote || renameDraft === null || isRenaming) return;
+        setIsRenaming(true);
+        try {
+            const res = await renameQuoteNumber(editQuote.id, renameDraft);
+            if (res.ok) {
+                addNotification({
+                    title: 'Número actualizado',
+                    description: `La cotización ahora es ${res.newNumber}. Los PDF y envíos nuevos salen con este número.`,
+                    type: 'success',
+                });
+                setRenameDraft(null);
+            } else {
+                addNotification({ title: 'No se pudo cambiar el número', description: res.error || 'Intentá de nuevo.', type: 'alert' });
+                // Caso "quedó encolado": el número local ya cambió y el retry lo persiste.
+                if (res.newNumber) setRenameDraft(null);
+            }
+        } finally {
+            setIsRenaming(false);
+        }
+    };
+
     /** Bloquea el submit si hay conflicto y avisa por toast. Retorna true si todo bien. */
     const assertNoQuoteNumberConflict = (): boolean => {
         if (!isQuoteNumberConflict) return true;
@@ -1312,13 +1342,64 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 <div className="mb-4 space-y-2">
                     <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-amber-500/10 border border-amber-400/30">
                         <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                        <p className="text-sm font-black text-amber-700">
+                        <p className="text-sm font-black text-amber-700 flex-1 min-w-0">
                             Editando <span className="text-amber-900">{previewNumber}</span>
                             {editingQuote.version && editingQuote.version > 1 && <span className="ml-2 text-[10px] font-black bg-amber-400/30 text-amber-800 px-2 py-0.5 rounded-full uppercase">V{editingQuote.version - 1}</span>}
                             {isAIU && <span className="ml-2 text-[10px] font-black bg-blue-400/20 text-blue-700 px-2 py-0.5 rounded-full uppercase">AIU</span>}
                             {editingQuote.client && <span className="font-medium text-amber-600"> — {editingQuote.client}</span>}
                         </p>
+                        {renameDraft === null && (
+                            <button
+                                type="button"
+                                onClick={() => setRenameDraft(
+                                    editingQuote.baseNumber
+                                    || (editingQuote.quoteNumber || editingQuote.number || '')
+                                        .replace(/-AIU$/i, '')
+                                        .replace(/-V\d+(?=-\d{4}$)/i, '')
+                                )}
+                                className="shrink-0 text-[10px] font-black text-amber-700 hover:text-amber-900 hover:underline uppercase tracking-widest flex items-center gap-1"
+                                title="Corregir el número de esta cotización (todas sus versiones)"
+                            >
+                                <Hash className="w-3 h-3" />
+                                Cambiar número
+                            </button>
+                        )}
                     </div>
+                    {renameDraft !== null && (
+                        <div className="px-5 py-3 rounded-2xl bg-white border border-amber-300 space-y-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <Hash className="w-4 h-4 text-amber-600 shrink-0" />
+                                <input
+                                    type="text"
+                                    value={renameDraft}
+                                    onChange={e => setRenameDraft(e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleRenameNumber(); } }}
+                                    autoFocus
+                                    className="flex-1 min-w-[160px] bg-amber-50/50 border border-amber-200 rounded-lg px-3 py-1.5 text-sm font-black text-foreground outline-none focus:bg-white focus:border-amber-400 transition-all"
+                                    placeholder="ART-000-2026"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleRenameNumber}
+                                    disabled={isRenaming || !renameDraft.trim()}
+                                    className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-lg px-4 py-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isRenaming ? 'Guardando…' : 'Guardar número'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setRenameDraft(null)}
+                                    disabled={isRenaming}
+                                    className="shrink-0 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground ml-6">
+                                Cambia el número de <strong>todas las versiones</strong> de esta negociación (V1, V2, AIU). Si el número ya existe en otra cotización, el sistema lo rechaza — nada se sobreescribe.
+                            </p>
+                        </div>
+                    )}
                     {/* Version action button */}
                     <div className="flex items-center gap-2 flex-wrap">
                         <button

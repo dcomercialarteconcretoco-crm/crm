@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
             id, name, email, phone, city, country, department, address,
             legal_id AS "legalId", id_type AS "idType", legal_rep AS "legalRep",
             activities, company_size AS "companySize", registration_date AS "registrationDate",
-            reference, status,
+            reference, status, notes,
             assigned_to AS "assignedTo", assigned_to_name AS "assignedToName",
             assigned_at AS "assignedAt", contacted_at AS "contactedAt",
             promoted_client_id AS "promotedClientId",
@@ -235,7 +235,7 @@ export async function PATCH(request: NextRequest) {
 
     const body = await request.json();
     const ids: string[] = Array.isArray(body.ids) ? body.ids : [];
-    const action: 'assign' | 'mark-contacted' | 'discard' | 'release-stale' = body.action;
+    const action: 'assign' | 'mark-contacted' | 'discard' | 'release-stale' | 'add-note' = body.action;
     if (!action) {
         return NextResponse.json({ error: 'action requerido' }, { status: 400 });
     }
@@ -286,6 +286,41 @@ export async function PATCH(request: NextRequest) {
             params
         );
         return NextResponse.json({ ok: true });
+    }
+
+    if (action === 'add-note') {
+        // Comentarios sobre el lead crudo — funcionan aunque el lead NO esté
+        // asignado a nadie (pedido 13-ago-2026: el equipo necesita dejar
+        // contexto sobre pre-leads antes de decidir a quién asignarlos).
+        // Admin comenta cualquiera; el vendedor los suyos o los que él mismo
+        // subió (sus leads manuales de licitaciones quedan sin asignar).
+        const id = ids[0];
+        const text = String(body.text || '').trim().slice(0, 2000);
+        if (!id || !text) {
+            return NextResponse.json({ error: 'ids[0] y text requeridos' }, { status: 400 });
+        }
+        const note = {
+            id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            text,
+            byId: user.id,
+            byName: user.name,
+            at: new Date().toISOString(),
+        };
+        const ownerGuard = isAdmin(user.role) ? '' : `AND (assigned_to = $3 OR uploaded_by = $3)`;
+        const params: any[] = [JSON.stringify([note]), id];
+        if (!isAdmin(user.role)) params.push(user.id);
+        const result = await pool.query(
+            `UPDATE crm_raw_leads
+                SET notes = COALESCE(notes, '[]'::jsonb) || $1::jsonb,
+                    updated_at = NOW()
+              WHERE id = $2 ${ownerGuard}
+              RETURNING notes`,
+            params
+        );
+        if (result.rowCount === 0) {
+            return NextResponse.json({ error: 'Lead no encontrado o sin permiso para comentarlo.' }, { status: 403 });
+        }
+        return NextResponse.json({ ok: true, notes: result.rows[0].notes });
     }
 
     if (action === 'discard') {

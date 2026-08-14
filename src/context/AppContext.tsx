@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import { QuoteStatus, normalizeQuoteStatus } from '@/lib/quote-status';
+import { quoteRootKey } from '@/lib/quote-versions';
 
 // Build the displayed quote number from base + version + AIU flag.
 // base: "ART-250-2026" (prefix-number-year).
@@ -392,7 +393,7 @@ export interface AuditLog {
     userId: string;
     userName: string;
     userRole: string;
-    action: 'QUOTE_CREATED' | 'QUOTE_SENT' | 'SALE_REGISTERED' | 'CLIENT_CONTACTED' | 'LEAD_CREATED' | 'SYSTEM_LOGIN' | 'SYSTEM_LOGOUT' | 'TASK_DELETED' | 'TASK_VALUE_EDITED' | 'SETTINGS_CHANGED' | 'WHATSAPP_SENT' | 'CALL_MADE' | 'LEAD_STATUS_CHANGE' | 'QUOTE_APPROVAL_REQUESTED' | 'QUOTE_APPROVED' | 'QUOTE_REJECTED' | 'QUOTE_CHANGES_REQUESTED';
+    action: 'QUOTE_CREATED' | 'QUOTE_SENT' | 'SALE_REGISTERED' | 'CLIENT_CONTACTED' | 'LEAD_CREATED' | 'SYSTEM_LOGIN' | 'SYSTEM_LOGOUT' | 'TASK_DELETED' | 'TASK_VALUE_EDITED' | 'SETTINGS_CHANGED' | 'WHATSAPP_SENT' | 'CALL_MADE' | 'LEAD_STATUS_CHANGE' | 'QUOTE_APPROVAL_REQUESTED' | 'QUOTE_APPROVED' | 'QUOTE_REJECTED' | 'QUOTE_CHANGES_REQUESTED' | 'QUOTE_RENUMBERED';
     targetId?: string;
     targetName?: string;
     timestamp: Date;
@@ -727,6 +728,13 @@ interface AppContextType {
      * llamar addQuote (ej: armar el mensaje de WhatsApp).
      */
     reserveQuoteNumber: () => Promise<string | null>;
+    /**
+     * Renombra el número de una cotización YA generada. Opera sobre la RAÍZ
+     * completa (todas las versiones V1/V2/AIU del grupo) para no romper el
+     * agrupado de latestVersionOnly. Valida unicidad contra todas las
+     * cotizaciones antes de tocar nada.
+     */
+    renameQuoteNumber: (quoteId: string, newBase: string) => Promise<{ ok: boolean; error?: string; newNumber?: string }>;
     createQuoteVersion: (quoteId: string) => Promise<string>;
     createAIUVersion: (quoteId: string) => Promise<string>;
     importClients: (rows: Omit<Client, 'id'>[]) => void;
@@ -2039,6 +2047,15 @@ REGLAS DE ORO:
                     return next;
                 });
             }
+        } else {
+            // Número explícito (override manual del vendedor o re-versión): si
+            // va POR DELANTE del consecutivo, reservar el hueco en el server
+            // para que el contador nunca vuelva a entregar ese número.
+            claimQuoteNumber(String(baseNumber || quoteNumber)
+                .toUpperCase()
+                .replace(/-AIU$/i, '')
+                .replace(/-V\d+(?=-\d{4}$)/i, '')
+                .replace(/-V\d+$/i, ''));
         }
 
         // Auto-create a pipeline task in "Propuesta Enviada" stage
@@ -2207,6 +2224,124 @@ REGLAS DE ORO:
         });
         transferPipelineTask(original.id);
         return created.id;
+    };
+
+    // Avisa al server que un número se usó por fuera del consecutivo (override
+    // manual al crear o renombrado posterior): sube quoteNextNumber a
+    // GREATEST(actual, n+1) si el número pertenece a la serie vigente. Sin
+    // esto, cuando el contador alcanzara ese número lo entregaría de nuevo y
+    // el dedup de addQuote pisaría la cotización existente (clase ART-571).
+    // Fire-and-forget: si falla, el clamp del server en PUT /api/state y la
+    // validación de duplicados del front siguen cubriendo.
+    const claimQuoteNumber = (base: string) => {
+        if (!base) return;
+        fetch('/api/quotes/claim-number', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ number: base }),
+        }).then(async res => {
+            if (!res.ok) return;
+            const data = await res.json().catch(() => null);
+            if (data && typeof data.nextNumber === 'number') {
+                // Espejo local SIN persistir — mismo criterio que reserveQuoteNumber.
+                setSettings(prev => ({ ...prev, quoteNextNumber: data.nextNumber }));
+            }
+        }).catch(() => {});
+    };
+
+    // Renombrar el número de una cotización YA generada (pedido de Valentina
+    // 13-ago-2026: cuando todos cotizan al tiempo, a veces el número que salió
+    // no es el que debía ser). Renombra la RAÍZ completa — todas las versiones
+    // del grupo (V1/V2/AIU) — para que latestVersionOnly siga agrupando la
+    // negociación como una sola y la Proyección no la cuente doble.
+    //
+    // NUNCA pisa registros: si el número nuevo ya existe (viva o histórica),
+    // se rechaza ANTES de tocar nada (lección ART-571).
+    const renameQuoteNumber = async (
+        quoteId: string,
+        newBaseInput: string
+    ): Promise<{ ok: boolean; error?: string; newNumber?: string }> => {
+        const target = quotes.find(q => q.id === quoteId);
+        if (!target) {
+            return { ok: false, error: 'La cotización no está en memoria. Recargá la página (F5) e intentá de nuevo.' };
+        }
+
+        // Normalizar a raíz: mayúsculas, sin espacios, sin sufijos -V{n}/-AIU
+        // (si el usuario pega el número completo de una versión, renombramos
+        // igual la raíz y cada versión conserva su sufijo).
+        const newBase = String(newBaseInput || '')
+            .trim().toUpperCase().replace(/\s+/g, '')
+            .replace(/-AIU$/i, '')
+            .replace(/-V\d+(?=-\d{4}$)/i, '')
+            .replace(/-V\d+$/i, '');
+        if (!newBase) return { ok: false, error: 'Escribí el número nuevo.' };
+
+        const oldRoot = quoteRootKey(target);
+        if (!oldRoot) return { ok: false, error: 'Esta cotización no tiene número base para renombrar.' };
+        if (newBase === oldRoot) return { ok: false, error: 'Ese ya es el número actual.' };
+
+        const group = quotes.filter(q => !q.isHistorical && quoteRootKey(q) === oldRoot);
+        const groupIds = new Set(group.map(q => q.id));
+        const conflict = quotes.find(q => !groupIds.has(q.id) && quoteRootKey(q) === newBase);
+        if (conflict) {
+            const conflictLabel = conflict.quoteNumber || conflict.number || newBase;
+            return {
+                ok: false,
+                error: `Ya existe ${conflictLabel}${conflict.client ? ` (${conflict.client})` : ''}${conflict.isHistorical ? ' en el archivo histórico' : ''}. Elegí otro número.`,
+            };
+        }
+
+        const renamed = group.map(q => {
+            const isAIUq = !!q.isAIU || /-AIU$/i.test(q.quoteNumber || q.number || '');
+            const nextNumber = formatQuoteNumber(newBase, q.version || 1, isAIUq);
+            return { ...q, baseNumber: newBase, quoteNumber: nextNumber, number: nextNumber };
+        });
+        const renamedById = new Map(renamed.map(q => [q.id, q]));
+        setQuotes(prev => prev.map(q => renamedById.get(q.id) || q));
+
+        // Tarjetas del pipeline: el cruce con la cotización va por quoteId (no
+        // se rompe), pero el número viejo puede estar escrito en el título
+        // visible de la tarjeta — lo reescribimos para que el tablero no siga
+        // mostrando el número anterior.
+        const escapedRoot = oldRoot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const renamedTasks = tasks
+            .filter(t => {
+                const tQuoteId = (t as Task & { quoteId?: string }).quoteId || '';
+                return groupIds.has(tQuoteId) && (t.title || '').toUpperCase().includes(oldRoot);
+            })
+            .map(t => ({ ...t, title: (t.title || '').replace(new RegExp(escapedRoot, 'gi'), newBase) }));
+        if (renamedTasks.length > 0) {
+            const taskById = new Map(renamedTasks.map(t => [t.id, t]));
+            setTasks(prev => prev.map(t => taskById.get(t.id) || t));
+        }
+
+        // Reservar el hueco si el número nuevo va por delante del consecutivo.
+        claimQuoteNumber(newBase);
+
+        const persisted = await persistSharedState({
+            quotes: renamed,
+            ...(renamedTasks.length > 0 ? { tasks: renamedTasks } : {}),
+        });
+
+        addAuditLog({
+            userId: currentUser?.id || '',
+            userName: currentUser?.name || 'Sistema',
+            userRole: currentUser?.role || 'Vendedor',
+            action: 'QUOTE_RENUMBERED',
+            targetId: quoteId,
+            targetName: target.client || newBase,
+            details: `Cotización renumerada: ${oldRoot} → ${newBase}${group.length > 1 ? ` (${group.length} versiones)` : ''}`,
+            verified: true,
+        });
+
+        const newNumber = renamedById.get(quoteId)?.quoteNumber || newBase;
+        return persisted
+            ? { ok: true, newNumber }
+            : {
+                ok: false,
+                newNumber,
+                error: 'El cambio quedó en este navegador y el sistema lo reintentará automáticamente — dejá la pestaña abierta hasta que desaparezca el aviso de cambios sin guardar.',
+            };
     };
 
     // Bulk import clients (retroactive)
@@ -2965,7 +3100,7 @@ REGLAS DE ORO:
     const contextValue = useMemo(() => ({
             clients, tasks, quotes, sellers, notifications, settings, events, forms,
             companies,
-            addClient, addTask, addQuote, reserveQuoteNumber, createQuoteVersion, createAIUVersion, importClients, importQuotes, addHistoricalQuote, clearTestData,
+            addClient, addTask, addQuote, reserveQuoteNumber, renameQuoteNumber, createQuoteVersion, createAIUVersion, importClients, importQuotes, addHistoricalQuote, clearTestData,
             addCompany, updateCompany, deleteCompany,
             addSeller, addNotification, addEvent, addForm,
             updateClient, deleteClient,
