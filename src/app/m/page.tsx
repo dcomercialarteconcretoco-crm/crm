@@ -2,7 +2,8 @@
 
 import React, { useMemo } from 'react';
 import Link from 'next/link';
-import { useApp } from '@/context/AppContext';
+import { useApp, DEFAULT_PIPELINE_STAGES } from '@/context/AppContext';
+import { resolveStageId } from '@/lib/pipeline-stages';
 import {
     TrendingUp, Users, FileText, Clock, ArrowRight,
     CheckCircle2, AlertCircle, Plus, Kanban,
@@ -33,13 +34,23 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function MobileDashboard() {
-    const { currentUser, tasks, quotes, clients, events } = useApp();
+    const { currentUser, tasks, quotes, clients, events, settings } = useApp();
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const stats = useMemo(() => {
-        const activeLeads  = tasks.filter(t => t.stageId !== 'closed_won' && t.stageId !== 'closed_lost').length;
+        // Mismo criterio de "activo" que /m/pipeline: etapa v4 visible en el
+        // tablero (settings.pipelineStages) y distinta de la ganadora. Los
+        // ids legacy (closed_won, negotiation, …) pasan por resolveStageId.
+        const stages = settings.pipelineStages && settings.pipelineStages.length > 0
+            ? settings.pipelineStages
+            : DEFAULT_PIPELINE_STAGES;
+        const winStageId = stages.find(s => s.isWinStage)?.id;
+        const activeLeads  = tasks.filter(t => {
+            const sid = resolveStageId(t.stageId);
+            return sid !== winStageId && stages.some(s => s.id === sid);
+        }).length;
         const pipelineVal  = tasks.reduce((s, t) => s + (t.numericValue || 0), 0);
         const pendingQ     = quotes.filter(q => q.status === 'PendingApproval' || q.status === 'PENDING_APPROVAL' || q.status === 'ChangesRequested').length;
         const todayEvents  = events.filter(ev => {
@@ -48,7 +59,7 @@ export default function MobileDashboard() {
             return d.getTime() === today.getTime();
         }).length;
         return { activeLeads, pipelineVal, pendingQ, todayEvents };
-    }, [tasks, quotes, events, today]);
+    }, [tasks, quotes, events, today, settings.pipelineStages]);
 
     const recentQuotes = useMemo(() =>
         // Sin históricas: su id `q-hist-` no ordena por fecha real y una

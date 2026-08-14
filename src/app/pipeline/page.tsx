@@ -53,6 +53,7 @@ import { useApp, Task, Activity, Seller, Client, PipelineStage, DEFAULT_PIPELINE
 import { openMailto, openWhatsApp } from '@/lib/contact-links';
 import { logContactEvent } from '@/lib/contact-events';
 import { dedupPipelineTasks } from '@/lib/pipeline-dedup';
+import { StageId, resolveStageId } from '@/lib/pipeline-stages';
 import SearchableSelect from '@/components/SearchableSelect';
 import SectorSelect from '@/components/SectorSelect';
 import CompanyCombobox from '@/components/CompanyCombobox';
@@ -78,32 +79,9 @@ import { PermissionGate } from '@/components/PermissionGate';
 //     tarjeta. La lógica de auto-move vive en /api/track-open; este archivo
 //     sólo respeta el `stageId` que le llega.
 
-type StageId = string;
-
-/**
- * Mapea stage IDs legacy del CRM v1 a los nuevos. Las legacy `lead` y `lost`
- * se convierten en cadena vacía: el código de filtro las descarta y la
- * tarjeta no aparece en el kanban (la cotización Rejected sigue existiendo
- * en la ficha del cliente, pero no como columna).
- */
-const LEGACY_STAGE_MAP: Record<string, StageId> = {
-    lead:       '',          // no aparece en pipeline
-    contacted:  'cotizado',
-    qualified:  'caliente',
-    proposal:   'cotizado',
-    sent:       'cotizado',
-    opened:     'caliente',
-    followup:   'caliente',
-    won:        'facturado',
-    lost:       '',          // no aparece en pipeline
-};
-
-/** Convierte un stageId persistido (legacy o nuevo) al equivalente actual. */
-function resolveStageId(raw: string | undefined): StageId {
-    if (!raw) return '';
-    if (LEGACY_STAGE_MAP[raw] !== undefined) return LEGACY_STAGE_MAP[raw];
-    return raw;
-}
+// El tipo StageId, el mapa de legacy y resolveStageId viven ahora en
+// src/lib/pipeline-stages.ts, compartidos con la vista móvil (/m/pipeline)
+// para que ambas superficies ubiquen cada tarjeta en la misma columna.
 
 /** Tabla de estilos por color (tailwind safe-listed). */
 const COLOR_TOKENS: Record<string, { color: string; bg: string; border: string }> = {
