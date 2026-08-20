@@ -934,6 +934,86 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const recordSeqRef = useRef(new Map<string, number>());
     const flushingRef = useRef(false);
 
+    // ── Cola durable (localStorage) ──────────────────────────────────────────
+    //
+    // La cola de no-confirmados vivía SOLO en memoria: cerrar la pestaña con un
+    // PUT fallido perdía la cotización para siempre aunque el PDF ya se hubiera
+    // descargado y enviado al cliente ("está generando y no está grabando",
+    // reporte 20-ago-2026). Ahora cada mutación de la cola se espeja en
+    // localStorage y el próximo boot ADOPTA lo que haya quedado de cualquier
+    // pestaña anterior y lo re-emite. Re-enviar algo que otra sesión ya superó
+    // es inocuo: el server ignora upserts con updatedAt más viejo (state-merge).
+    //
+    // Multi-tab: cada pestaña escribe sus entradas bajo su propio tabId y al
+    // guardar preserva las ajenas; el boot adopta TODO lo presente (si la otra
+    // pestaña sigue viva y también lo envía, el upsert es idempotente).
+    const PENDING_LS_KEY = 'crm_pending_writes_v1';
+    const pendingTabIdRef = useRef('');
+    const restoredPendingRef = useRef(0);
+
+    type StoredPending = {
+        entries?: { k: 'quotes' | 'tasks'; id: string; rec: unknown; tab: string }[];
+        deletes?: { k: 'quotes' | 'tasks'; id: string; tab: string }[];
+    };
+
+    const savePendingWrites = () => {
+        if (typeof window === 'undefined' || !pendingTabIdRef.current) return;
+        try {
+            const mine = pendingTabIdRef.current;
+            let foreign: Required<StoredPending> = { entries: [], deletes: [] };
+            try {
+                const prev = JSON.parse(localStorage.getItem(PENDING_LS_KEY) || 'null') as StoredPending | null;
+                foreign = {
+                    entries: (prev?.entries || []).filter(e => e.tab !== mine),
+                    deletes: (prev?.deletes || []).filter(e => e.tab !== mine),
+                };
+            } catch { /* snapshot previo corrupto — se descarta */ }
+            const p = pendingWritesRef.current;
+            const entries = [...foreign.entries];
+            const deletes = [...foreign.deletes];
+            for (const k of ['quotes', 'tasks'] as const) {
+                for (const [id, e] of p[k]) entries.push({ k, id, rec: e.rec, tab: mine });
+                for (const id of p.deletes[k].keys()) deletes.push({ k, id, tab: mine });
+            }
+            if (entries.length === 0 && deletes.length === 0) localStorage.removeItem(PENDING_LS_KEY);
+            else localStorage.setItem(PENDING_LS_KEY, JSON.stringify({ entries, deletes }));
+        } catch { /* localStorage lleno o bloqueado — la cola sigue viva en memoria */ }
+    };
+
+    // Adopción one-shot al primer render de cliente: lo que otra sesión dejó
+    // sin confirmar entra a la cola de ESTA pestaña y se re-emite tras el boot.
+    if (typeof window !== 'undefined' && !pendingTabIdRef.current) {
+        pendingTabIdRef.current = `tab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        try {
+            const prev = JSON.parse(localStorage.getItem(PENDING_LS_KEY) || 'null') as StoredPending | null;
+            const p = pendingWritesRef.current;
+            for (const e of prev?.entries || []) {
+                if ((e.k === 'quotes' || e.k === 'tasks') && e.id && e.rec) {
+                    const seq = ++pendingSeqRef.current;
+                    p[e.k].set(e.id, { rec: e.rec, seq });
+                    recordSeqRef.current.set(`${e.k}:${e.id}`, seq);
+                    restoredPendingRef.current++;
+                }
+            }
+            for (const d of prev?.deletes || []) {
+                if ((d.k === 'quotes' || d.k === 'tasks') && d.id) {
+                    const seq = ++pendingSeqRef.current;
+                    p.deletes[d.k].set(d.id, seq);
+                    recordSeqRef.current.set(`del:${d.k}:${d.id}`, seq);
+                    recordSeqRef.current.set(`${d.k}:${d.id}`, seq);
+                    p[d.k].delete(d.id);
+                    restoredPendingRef.current++;
+                }
+            }
+            if (restoredPendingRef.current > 0) {
+                // Tomar posesión: reescritura completa bajo este tabId para no
+                // dejar duplicados huérfanos con el tabId de la sesión muerta.
+                localStorage.removeItem(PENDING_LS_KEY);
+                savePendingWrites();
+            }
+        } catch { /* nada que restaurar */ }
+    }
+
     // Estampa cada registro del patch con una seq nueva y lo mete a la cola de
     // no-confirmados. Devuelve el mapa de seqs de ESTA emisión.
     //
@@ -982,6 +1062,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 pending[key].delete(id);
             }
         }
+        savePendingWrites();
         return stamped;
     };
 
@@ -1038,6 +1119,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 if (entry && entry.seq <= seq) pending[key].delete(id);
             }
         }
+        savePendingWrites();
     };
 
     const hasPendingWrites = () => {
@@ -1155,7 +1237,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 addNotification({
                     title: '⚠️ Cambios sin guardar en el servidor',
                     description: retryable
-                        ? `No se pudo guardar (${lastError}). El sistema lo reintentará automáticamente cada pocos segundos — deja esta pestaña abierta hasta que se confirme.`
+                        ? `No se pudo guardar (${lastError}). El sistema lo reintentará automáticamente cada pocos segundos — y si cierras el CRM, lo retomará al volver a abrirlo.`
                         : `El servidor rechazó el guardado (${lastError}) y no sirve reintentarlo automáticamente. Revisa la cotización (¿imágenes muy pesadas?) y guarda de nuevo.`,
                     type: 'alert',
                 });
@@ -1578,7 +1660,10 @@ REGLAS DE ORO:
 
                 if (stateRes.ok) {
                     const stateData = await stateRes.json();
-                    if (Array.isArray(stateData.tasks)) setTasks(stateData.tasks);
+                    // overlayPending: los registros adoptados de una sesión
+                    // anterior (cola durable) se ven desde el primer pintado,
+                    // aunque el server todavía no los tenga.
+                    if (Array.isArray(stateData.tasks)) setTasks(overlayPending('tasks', stateData.tasks));
                     if (Array.isArray(stateData.quotes)) {
                         // Dedup por quoteNumber: si dos sesiones generaron el
                         // mismo número por race condition del contador, elegimos
@@ -1593,7 +1678,7 @@ REGLAS DE ORO:
                         // arreglamos la vista. Mantener los duplicados en
                         // crm_state nos da chance de recuperar data si el
                         // score-pick fue incorrecto.
-                        setQuotes(hydrateQuotes(stateData.quotes as Quote[]));
+                        setQuotes(overlayPending('quotes', hydrateQuotes(stateData.quotes as Quote[])));
                     }
                     if (Array.isArray(stateData.notifications)) setNotifications(stateData.notifications);
                     if (Array.isArray(stateData.auditLogs)) setAuditLogs(stateData.auditLogs);
@@ -1612,6 +1697,21 @@ REGLAS DE ORO:
                 // Badge de leads por trabajar (fire-and-forget; la cookie ya se
                 // validó en el /api/auth/me de arriba).
                 refreshAssignedLeadsCount();
+                // Re-emitir lo adoptado de la cola durable: cotizaciones/tareas
+                // que una sesión anterior no logró confirmar contra el server.
+                if (restoredPendingRef.current > 0) {
+                    const restored = restoredPendingRef.current;
+                    restoredPendingRef.current = 0;
+                    flushPendingWrites().then(ok => {
+                        addNotification({
+                            title: ok ? '♻️ Cambios recuperados y guardados' : '♻️ Cambios recuperados — reenviando',
+                            description: ok
+                                ? `${restored} registro(s) que quedaron sin guardar en una sesión anterior ya están en el servidor.`
+                                : `${restored} registro(s) de una sesión anterior siguen sin llegar al servidor; el sistema lo reintenta automáticamente.`,
+                            type: ok ? 'success' : 'alert',
+                        });
+                    });
+                }
             }
         };
 
@@ -1636,8 +1736,9 @@ REGLAS DE ORO:
         };
         const onOnline = () => { flushPendingWrites(); };
         const onBeforeUnload = (e: BeforeUnloadEvent) => {
-            // Con escrituras sin confirmar, cerrar la pestaña = perder los
-            // cambios para siempre (en producción no hay copia en localStorage).
+            // Con escrituras sin confirmar avisamos igual: la cola durable las
+            // recupera al reabrir el CRM, pero confirmarlas AHORA siempre es
+            // mejor que depender de que el vendedor vuelva a entrar.
             if (hasPendingWrites()) {
                 e.preventDefault();
                 e.returnValue = '';

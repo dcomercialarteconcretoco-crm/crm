@@ -883,7 +883,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 // re-envío chocaría además con el chequeo de número duplicado).
                 addNotification({
                     title: '⚠️ La solicitud aún NO llega al servidor',
-                    description: `${quoteNumber} quedó guardada en este navegador y el sistema la seguirá reintentando automáticamente. Deja la pestaña abierta hasta que desaparezca el aviso de cambios sin guardar; no necesitas volver a enviarla.`,
+                    description: `${quoteNumber} quedó guardada en este navegador y el sistema la seguirá reintentando automáticamente — incluso si cierras el CRM y vuelves a entrar. No necesitas volver a enviarla.`,
                     type: 'alert',
                 });
                 return;
@@ -986,8 +986,19 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 const existing = quotes.find(q => q.id === activeQuoteId);
                 // Recompute number so AIU toggle is reflected on the stored quote
                 quoteNumber = genQuoteNumber();
-                updateQuote(activeQuoteId, { ...getCommonQuoteFields(client, quoteNumber, items), status: existing?.status || 'Draft' as const });
+                const persistedUpd = await updateQuote(activeQuoteId, { ...getCommonQuoteFields(client, quoteNumber, items), status: existing?.status || 'Draft' as const });
                 quoteId = activeQuoteId;
+                // Mismo candado que la creación: sin confirmación del server no
+                // hay PDF (acá entran también los REINTENTOS tras un guardado
+                // fallido — la sesión queda anclada en activeQuoteId).
+                if (!persistedUpd) {
+                    addNotification({
+                        title: '⚠️ Aún NO está guardada en el servidor',
+                        description: `${quoteNumber} quedó en cola en este navegador y se reenviará automáticamente (incluso si cierras el CRM). El PDF se genera cuando el guardado se confirme: vuelve a pulsar "Guardar y Generar PDF" en unos segundos.`,
+                        type: 'alert',
+                    });
+                    return;
+                }
             } else {
                 // Consecutivo automático → addQuote lo reserva atómico en el
                 // server. El PDF se genera con el número REAL devuelto.
@@ -999,6 +1010,21 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 quoteId = created.id;
                 // Anclar: el próximo submit de esta pantalla actualiza este registro.
                 setCreatedQuoteId(created.id);
+
+                // Caso "está generando y no está grabando" (20-ago-2026): si el
+                // guardado NO llegó al server, acá se generaba el PDF igual y se
+                // celebraba éxito — el vendedor lo enviaba al cliente y la
+                // cotización no existía para nadie más (y si el número era el
+                // fallback local, otro vendedor podía recibir el mismo → clase
+                // ART-571). Sin confirmación de guardado NO hay PDF.
+                if (!created.persisted) {
+                    addNotification({
+                        title: '⚠️ Aún NO está guardada en el servidor',
+                        description: `${quoteNumber} quedó en cola en este navegador y se reenviará automáticamente (incluso si cierras el CRM). El PDF se genera cuando el guardado se confirme: vuelve a pulsar "Guardar y Generar PDF" en unos segundos.`,
+                        type: 'alert',
+                    });
+                    return;
+                }
             }
             await generateProposalPDF(buildPdfData(client, quoteNumber));
             addAuditLog({ userId: currentUser?.id || '', userName: currentUser?.name || 'Sistema', userRole: currentUser?.role || 'Vendedor', action: 'QUOTE_SENT', targetId: client.id, targetName: client.company || client.name, details: `Cotización ${quoteNumber} ${isEditMode ? 'editada' : 'generada'} · Total: ${formatCurrency(total)}`, verified: true });
