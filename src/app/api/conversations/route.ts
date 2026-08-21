@@ -4,6 +4,8 @@ import { mergeStateRecords } from '@/lib/state-merge';
 import { pickNextSeller } from '@/lib/round-robin';
 import { appendNotification } from '@/lib/server-notifications';
 import { sendAdvisorNeededEmail } from '@/lib/advisor-alert-email';
+import { ExtraContact, contactIsNovel, extractEmailsFromText, mergeExtraContacts } from '@/lib/extra-contacts';
+import { applyExtraContactsToClient } from '@/lib/extra-contacts-apply';
 
 export interface WidgetConversation {
   id: string;
@@ -26,7 +28,19 @@ export interface WidgetConversation {
   status: 'active' | 'closed';
   clientId?: string;
   source: 'widget' | 'whatsapp';
+  /**
+   * Contactos ADICIONALES capturados en pleno chat — nombre/correo/teléfono
+   * de otra persona, dictados p. ej. cuando el bot pide datos para escalar a
+   * un asesor (caso PRANA, 12-ago-2026). Los llena de forma estructurada
+   * /api/assistant → widget, y el POST los complementa con un barrido de
+   * correos sobre los mensajes nuevos. Se aplican a la ficha del cliente
+   * vinculado (emails_extra + nota); JAMÁS tocan su identidad principal.
+   */
+  extraContacts?: ExtraContact[];
 }
+
+/** Llave de identidad de un mensaje — la misma del merge append-only y la del widget. */
+const msgKey = (m: WidgetConversation['messages'][number]) => `${m.role}|${m.timestamp}|${m.content}`;
 
 async function readConversations(): Promise<WidgetConversation[]> {
   if (!hasDatabase()) return [];
@@ -85,6 +99,7 @@ export async function POST(req: NextRequest) {
 
     const existing = await readConversations();
     const previous = existing.find(c => c.id === conversation.id);
+    const previousMsgKeys = new Set((previous?.messages || []).map(msgKey));
     const previousUserMessages = (previous?.messages || []).filter(m => m.role === 'user').length;
     const incomingUserMessages = (conversation.messages || []).filter(m => m.role === 'user').length;
     const shouldNotifyInbound = incomingUserMessages > previousUserMessages;
@@ -181,8 +196,33 @@ export async function POST(req: NextRequest) {
       ownerId = rows[0]?.assigned_to || null;
     }
 
+    // ── Contactos adicionales dictados en pleno chat ──────────────────────
+    // Une (a) los estructurados que trae el widget (extractor de
+    // /api/assistant), (b) los que la conversación guardada ya tenía y (c) un
+    // barrido determinístico de CORREOS sobre los mensajes nuevos del
+    // cliente. El barrido es la red de seguridad para cuando el bot está
+    // callado (asesor activo) o el extractor falló: un correo en texto libre
+    // es inconfundible. Los teléfonos NO se barren por regex — cantidades y
+    // medidas parecen teléfonos — así que solo llegan por la vía
+    // estructurada. Lo que repita el correo/teléfono del propio lead se
+    // descarta: no es un contacto nuevo.
+    const newUserMessages = (conversation.messages || []).filter(
+      m => m?.role === 'user' && m.content && !previousMsgKeys.has(msgKey(m))
+    );
+    const sweptEmails: ExtraContact[] = [];
+    for (const m of newUserMessages) {
+      for (const email of extractEmailsFromText(m.content)) {
+        sweptEmails.push({ email, capturedAt: m.timestamp });
+      }
+    }
+    const extraContacts = mergeExtraContacts(
+      previous?.extraContacts,
+      conversation.extraContacts,
+      sweptEmails
+    ).filter(c => contactIsNovel(c, lead));
+
     // Now upsert the conversation with the resolved clientId
-    const conversationToSave = { ...conversation, clientId: clientId || conversation.clientId };
+    const conversationToSave = { ...conversation, clientId: clientId || conversation.clientId, extraContacts };
     const idx = existing.findIndex(c => c.id === conversation.id);
     if (idx >= 0) {
       // MERGE append-only de mensajes. Antes el arreglo del caller REEMPLAZABA
@@ -190,7 +230,6 @@ export async function POST(req: NextRequest) {
       // la respuesta que el asesor acababa de escribir en el CRM. Ahora se unen
       // por (rol|timestamp|contenido) y se ordenan por fecha, así ningún lado
       // pisa al otro (incidente 6-ago-2026).
-      const msgKey = (m: WidgetConversation['messages'][number]) => `${m.role}|${m.timestamp}|${m.content}`;
       const merged = [...(existing[idx].messages || [])];
       const seen = new Set(merged.map(msgKey));
       for (const m of conversationToSave.messages || []) {
@@ -203,6 +242,19 @@ export async function POST(req: NextRequest) {
     }
 
     await writeConversations(existing);
+
+    // Lleva los contactos adicionales a la ficha vinculada (emails_extra +
+    // nota). Después de guardar la conversación a propósito: si esto falla,
+    // el chat ya quedó persistido y los contactos siguen en la conversación
+    // para reintentarse en el próximo guardado. Es idempotente: lo ya
+    // aplicado se salta.
+    if (clientId && extraContacts.length) {
+      try {
+        await applyExtraContactsToClient(pool, clientId, extraContacts);
+      } catch (error) {
+        console.error('[conversations] no se pudieron aplicar los contactos adicionales:', error);
+      }
+    }
 
     if (shouldNotifyInbound) {
       const lastUserMessage = [...(conversation.messages || [])].reverse().find(m => m.role === 'user');

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
+import { ExtraContact, coerceExtraContact, looksLikeContactData } from "@/lib/extra-contacts";
 
 const INTERNAL_SYSTEM_INSTRUCTION =
   "Eres MiWi, el cerebro comercial de ArteConcreto S.A.S. Actuas como un Director Comercial senior con acceso en tiempo real al CRM. Cada mensaje que recibes puede incluir un SNAPSHOT con datos reales de clientes, leads, cotizaciones y alertas — SIEMPRE analiza esos datos y usa nombres y cifras concretas en tus respuestas, nunca datos genericos. Tu funcion principal es: (1) detectar oportunidades de cierre inmediato, (2) alertar sobre leads frios o cotizaciones abandonadas, (3) sugerir la proxima accion especifica con nombre del cliente, (4) redactar mensajes de seguimiento persuasivos, (5) dar un diagnostico ejecutivo claro y accionable. ArteConcreto vende: mobiliario de concreto premium, cubiertas de cocina en concreto y terrazo, pisos de microcemento, soluciones para espacios publicos y comerciales. Tu tono es directo, seguro, profesional y motivador. Usa emojis estrategicos para destacar puntos clave. Formatea con saltos de linea claros. Maximo 250 palabras por respuesta salvo que pidan algo extenso. Si no hay datos en el snapshot, di honestamente que el CRM esta vacio y sugiere como empezar a llenarlo.";
@@ -38,6 +39,79 @@ const CUSTOMER_SYSTEM_INSTRUCTION =
 
   "=== TONO Y FORMATO === " +
   "Calido, profesional, conciso. Siempre en espanol. Emojis estrategicos. Maximo 100 palabras por respuesta. Nunca te hagas pasar por humano — si preguntan si eres una persona, di que eres el asistente virtual ConcreBOT y que un asesor humano tomara el caso.";
+
+// ── Captura estructurada de contactos adicionales (caso PRANA, 12-ago-2026) ──
+// Cuando el bot pide datos para escalar a un asesor, el cliente a veces dicta
+// el contacto de OTRA persona ("LUIS GUILLERMO CARDENAS",
+// "pranaconstruccionessas@yahoo.com"). Eso quedaba enterrado en el texto de
+// los mensajes y la ficha del cliente nunca se enteraba. El flujo del bot es
+// un prompt sin herramientas ni estado — no existe un punto donde "sepa" que
+// pidió datos — así que la detección es una segunda llamada barata a Gemini
+// en modo JSON, disparada SOLO cuando el mensaje trae algo con pinta de
+// correo o teléfono. El resultado viaja estructurado al widget
+// (`capturedContacts`), que lo acumula en `conversation.extraContacts`, y
+// POST /api/conversations lo aplica a la ficha (emails_extra + nota).
+async function extractCapturedContacts(
+  apiKey: string,
+  history: { role: string; content: string }[],
+  input: string
+): Promise<ExtraContact[]> {
+  // Últimos mensajes como contexto: el nombre puede haberse dicho un mensaje
+  // antes que el correo y el extractor debe poder unirlos.
+  const transcript = [...history.slice(-8), { role: "user", content: input }]
+    .map(m => `${m.role === "user" ? "CLIENTE" : "BOT"}: ${(m.content || "").slice(0, 400)}`)
+    .join("\n");
+
+  const prompt =
+    "Analiza este fragmento de chat entre el asistente virtual de una empresa (BOT) y un CLIENTE. " +
+    "Extrae SOLO los datos de contacto que el CLIENTE haya escrito en sus mensajes: nombre, correo y/o telefono de una persona de contacto (puede ser el mismo u otra persona, p. ej. cuando el BOT pidio datos para que un asesor lo llame). " +
+    "Reglas estrictas: " +
+    "(1) Solo datos escritos textualmente por el CLIENTE — no inventes ni completes nada. " +
+    "(2) Ignora correos o telefonos mencionados por el BOT o que sean de la empresa (p. ej. @arteconcreto.co). " +
+    "(3) Une nombre y correo/telefono en un mismo contacto solo si el chat indica que son de la misma persona. " +
+    "(4) Incluye un contacto unicamente si tiene correo o telefono. " +
+    'Responde unicamente el JSON {"contacts":[{"name":"","email":"","phone":""}]} — con contacts vacio si no hay datos de contacto.\n\n' +
+    "--- CHAT ---\n" +
+    transcript;
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0,
+          maxOutputTokens: 1024,
+          responseMimeType: "application/json",
+        },
+      }),
+      // La respuesta al cliente no puede quedarse colgada por esta llamada
+      // auxiliar: si tarda, se pierde la captura pero el chat sigue.
+      signal: AbortSignal.timeout(10_000),
+    }
+  );
+  if (!res.ok) return [];
+
+  const data = await res.json();
+  const raw: string = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  const clean = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(clean);
+  } catch {
+    return [];
+  }
+  const list = Array.isArray((parsed as { contacts?: unknown[] })?.contacts)
+    ? (parsed as { contacts: unknown[] }).contacts
+    : [];
+  const capturedAt = new Date().toISOString();
+  return list
+    .slice(0, 3)
+    .map(c => coerceExtraContact({ ...(typeof c === "object" && c ? c : {}), capturedAt }))
+    .filter((c): c is ExtraContact => c !== null);
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -116,7 +190,20 @@ export async function POST(req: NextRequest) {
     }
 
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Sin respuesta.';
-    return NextResponse.json({ text });
+
+    // Solo para clientes finales y solo si el mensaje trae algo con pinta de
+    // correo/teléfono — el filtro barato evita gastar cuota en cada mensaje.
+    // Nunca es fatal: sin captura, el chat sigue igual que siempre.
+    let capturedContacts: ExtraContact[] = [];
+    if (mode === 'customer' && looksLikeContactData(input)) {
+      try {
+        capturedContacts = await extractCapturedContacts(apiKey, messages, input);
+      } catch (error) {
+        console.error('[assistant] captura de contactos falló:', error instanceof Error ? error.message : error);
+      }
+    }
+
+    return NextResponse.json(capturedContacts.length ? { text, capturedContacts } : { text });
 
   } catch (error: any) {
     console.error("Assistant route error:", error?.message || error);

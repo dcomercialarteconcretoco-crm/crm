@@ -3,6 +3,7 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { Bot, Send, User, X, Loader2 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
+import { ExtraContact, contactIsNovel, mergeExtraContacts } from "@/lib/extra-contacts";
 
 interface WidgetClientProps {
   initialBotName?: string;
@@ -32,6 +33,13 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
   // encima de él (el cliente veía dos voces distintas respondiéndole).
   const [advisorActive, setAdvisorActive] = useState(false);
   const [lead, setLead] = useState({ name: "", email: "", phone: "", city: "", company: "" });
+  // Contactos ADICIONALES que el bot capturó en pleno chat (caso PRANA
+  // 12-ago-2026: la titular dictó nombre y correo de una segunda persona al
+  // escalar a asesor y quedaron sepultados en el texto). /api/assistant los
+  // devuelve estructurados en `capturedContacts`; acá se acumulan y viajan en
+  // cada guardado para que /api/conversations los aplique a la ficha. Es un
+  // ref y no un state: el guardado ocurre en el mismo tick de la captura.
+  const extraContactsRef = useRef<ExtraContact[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
@@ -106,6 +114,7 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
             id: sessionId,
             lead,
             messages: msgs,
+            extraContacts: extraContactsRef.current,
             createdAt: msgs[0]?.timestamp || new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             status: "active",
@@ -179,6 +188,15 @@ export function WidgetClient({ initialBotName, initialPrimaryColor }: WidgetClie
       });
 
       const data = await response.json();
+
+      // El bot detectó datos de contacto en el mensaje: se guardan solo los
+      // que aporten algo distinto a los del propio lead (si repite su correo
+      // o teléfono no hay nada nuevo que registrar).
+      if (Array.isArray(data?.capturedContacts)) {
+        const novel = (data.capturedContacts as ExtraContact[]).filter(c => contactIsNovel(c, lead));
+        extraContactsRef.current = mergeExtraContacts(extraContactsRef.current, novel);
+      }
+
       const botMsg: ChatMessage = {
         role: "assistant",
         content: data?.text || data?.error || "No pude responder en este momento.",
