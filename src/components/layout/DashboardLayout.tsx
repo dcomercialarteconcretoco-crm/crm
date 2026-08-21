@@ -246,13 +246,34 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         if (!currentUser) return;
         if (isPublicPage) return;
         if (isHydrating) return;
-        const count = typeof currentUser.onboardingCount === 'number' ? currentUser.onboardingCount : 0;
-        if (count < 2) {
+        // "Desconocido" NO es cero. El login viejo (y /api/auth/me cuando la DB
+        // parpadea) entregaba el usuario SIN onboardingCount; tratarlo como 0
+        // re-mostraba el tour en cada inicio de sesión a usuarios que ya lo
+        // habían visto sus 2 veces (reclamo 20-ago-2026: "solo se muestra 2
+        // veces en la vida y ya"). Sin dato positivo, no se abre — si el
+        // usuario de verdad es nuevo, el próximo load con dato real lo abre.
+        const count = typeof currentUser.onboardingCount === 'number' ? currentUser.onboardingCount : null;
+        // Cinturón por dispositivo: si acá ya vimos que este usuario llegó a 2,
+        // no se auto-abre más aunque algún endpoint venga sin el contador.
+        const doneKey = `crm_onb_done:${currentUser.id}`;
+        let deviceDone = false;
+        try { deviceDone = localStorage.getItem(doneKey) === '1'; } catch { /* storage bloqueado */ }
+        // Sin dato y sin cinturón: no decidir todavía — el refresh de
+        // /api/auth/me trae el contador real en un momento y este efecto
+        // vuelve a correr (no marcamos wizardAutoTriggered para no quemar
+        // la única auto-apertura de la sesión con un dato ausente).
+        if (count === null && !deviceDone) return;
+        if (count !== null && count >= 2) {
+            try { localStorage.setItem(doneKey, '1'); } catch { /* ignore */ }
+        }
+        if (count !== null && count < 2 && !deviceDone) {
             setWizardOpen(true);
             // Fire-and-forget: advance the persisted counter so future logins
             // don't re-show the same phase. The wizard itself intentionally
             // does NOT increment, so this is the single source of truth.
-            incrementOnboardingCount?.().catch(() => {});
+            incrementOnboardingCount?.().then((n: number) => {
+                if (n >= 2) { try { localStorage.setItem(doneKey, '1'); } catch { /* ignore */ } }
+            }).catch(() => {});
         }
         setWizardAutoTriggered(true);
     }, [currentUser, isPublicPage, isHydrating, wizardAutoTriggered, incrementOnboardingCount]);

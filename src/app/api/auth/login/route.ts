@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
       const pool = getPool();
       const { rows } = await pool.query(
         `
-          SELECT id, name, avatar, role, email, phone, username, status, sales, commission, password, permissions
+          SELECT id, name, avatar, role, email, phone, username, status, sales, commission, password, permissions, onboarding_count
           FROM crm_users
           WHERE lower(email) = $1 OR lower(username) = $1
           LIMIT 1
@@ -100,7 +100,16 @@ export async function POST(req: NextRequest) {
           permissions: user.permissions ?? undefined,
         };
 
-        const response = NextResponse.json({ user: sessionUser });
+        // onboardingCount va en la RESPUESTA pero no en la cookie (mismo patrón
+        // que /api/auth/me): sin él, el cliente no sabe que el usuario ya
+        // "se graduó" del tour y se lo volvía a mostrar en CADA login — el
+        // reclamo "el wizard sigues mostrándolo" del 20-ago-2026.
+        const response = NextResponse.json({
+          user: {
+            ...sessionUser,
+            onboardingCount: typeof user.onboarding_count === "number" ? user.onboarding_count : 0,
+          },
+        });
         response.cookies.set(SESSION_COOKIE_NAME, await createSessionToken(sessionUser), {
           httpOnly: true,
           sameSite: "lax",
