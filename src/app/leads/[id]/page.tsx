@@ -48,7 +48,7 @@ export default function Lead360Page() {
     const params = useParams();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { clients, companies, addAuditLog, sellers, tasks, quotes, auditLogs, currentUser, updateClient, refreshClients, addNotification } = useApp();
+    const { clients, companies, addAuditLog, sellers, tasks, quotes, auditLogs, currentUser, updateClient, addClientNote, refreshClients, addNotification } = useApp();
 
     // Refresh el snapshot de clients al entrar al detalle. Si el lead vivía
     // en otra sesión (recién creado por compañero), evita la "página en blanco
@@ -202,15 +202,25 @@ export default function Lead360Page() {
         });
     };
 
-    const handleSaveNote = () => {
+    const handleSaveNote = async () => {
         if (!lead || !currentUser || !noteText.trim()) return;
         const newNote = {
             text: noteText.trim(),
             date: new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }),
             author: currentUser.name
         };
-        const existingNotes = lead.notes || [];
-        updateClient(lead.id, { notes: [newNote, ...existingNotes] });
+        // Append atómico en el server (incidente 20-ago-2026: mandar el arreglo
+        // completo dejaba que otra pestaña con estado viejo pisara la nota).
+        // El cajón de texto solo se limpia cuando el server CONFIRMÓ.
+        const ok = await addClientNote(lead.id, newNote);
+        if (!ok) {
+            addNotification({
+                title: '⚠️ La nota NO se guardó',
+                description: 'El servidor no confirmó el guardado. El texto sigue en el cajón — intenta de nuevo en unos segundos.',
+                type: 'alert',
+            });
+            return;
+        }
         // Una anotación cuenta como contacto (regla de la gerencia, jul-2026).
         logContactEvent(lead.id, 'note', newNote.text.slice(0, 200));
         setNoteText('');

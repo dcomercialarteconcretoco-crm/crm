@@ -748,6 +748,8 @@ interface AppContextType {
     addForm: (form: Omit<FormDefinition, 'id' | 'submissions' | 'createdAt'>) => string;
 
     updateClient: (clientId: string, updates: Partial<Client>) => void;
+    /** Append atómico de una nota en el server — nunca pisa notas de otros. true = confirmada. */
+    addClientNote: (clientId: string, note: ClientNote) => Promise<boolean>;
     deleteClient: (clientId: string) => void;
     updateTask: (taskId: string, updates: Partial<Task>) => void;
     deleteTask: (taskId: string) => void;
@@ -2648,10 +2650,15 @@ REGLAS DE ORO:
         }));
         if (mergedClient) {
             const merged = mergedClient as Client;
+            // `notes` NO viaja en el PUT general (incidente 20-ago-2026: cada
+            // pestaña mandaba SU copia del arreglo — casi siempre vieja — y
+            // pisaba las notas recién escritas por otros). El server además lo
+            // ignora; agregar notas es addClientNote (append atómico).
+            const { notes: _skipNotes, ...body } = merged as Client & { notes?: unknown };
             fetch(`/api/clients/${clientId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(merged),
+                body: JSON.stringify(body),
             }).catch((error) => console.warn('Failed to update client:', error));
 
             // Auto-add new city / sector to the shared catalog (see addClient comment)
@@ -2668,6 +2675,35 @@ REGLAS DE ORO:
                     return next;
                 });
             }
+        }
+    };
+
+    /**
+     * Agrega UNA nota a la bitácora del cliente con append ATÓMICO en el
+     * server (jsonb || jsonb) — inmune a pestañas con estado viejo y a dos
+     * asesores anotando al tiempo (incidente 20-ago-2026). Devuelve true solo
+     * cuando el server confirmó; el caller decide qué hacer si falla (no
+     * limpiar el cajón de texto, avisar, etc.).
+     */
+    const addClientNote = async (clientId: string, note: ClientNote): Promise<boolean> => {
+        try {
+            const res = await fetch(`/api/clients/${clientId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ addNote: note }),
+            });
+            if (!res.ok) return false;
+            const data = await res.json().catch(() => null);
+            const serverNotes: ClientNote[] | null = Array.isArray(data?.notes) ? data.notes : null;
+            // Adoptar el arreglo del server (trae también notas de otros) o,
+            // sin respuesta parseable, prepender localmente.
+            setClients(prev => prev.map(c => c.id === clientId
+                ? { ...c, notes: serverNotes ?? [note, ...(c.notes || [])] }
+                : c));
+            return true;
+        } catch (error) {
+            console.warn('Failed to add client note:', error);
+            return false;
         }
     };
 
@@ -3204,7 +3240,7 @@ REGLAS DE ORO:
             addClient, addTask, addQuote, reserveQuoteNumber, renameQuoteNumber, createQuoteVersion, createAIUVersion, importClients, importQuotes, addHistoricalQuote, clearTestData,
             addCompany, updateCompany, deleteCompany,
             addSeller, addNotification, addEvent, addForm,
-            updateClient, deleteClient,
+            updateClient, addClientNote, deleteClient,
             updateTask, deleteTask,
             updateQuote, deleteQuote,
             updateEvent, deleteEvent,

@@ -13,6 +13,42 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   await ensureCrmSchema();
   const pool = getPool();
 
+  // ── Agregar UNA nota: append atómico en el server ────────────────────────
+  //
+  // Incidente 20-ago-2026: las notas se "guardaban" y luego desaparecían.
+  // Causa: el front mandaba el ARREGLO COMPLETO de notas dentro del PUT
+  // general, y cualquier otra pestaña con estado viejo (un clic de WhatsApp
+  // que actualiza last_contact, una reasignación) re-enviaba su copia vieja
+  // del arreglo y pisaba la nota recién escrita. La bitácora inmutable
+  // (crm_contact_events) sí conservó los textos — de ahí se recuperaron.
+  //
+  // Contrato nuevo: agregar nota = { addNote: { text, date, author } }.
+  // El server la PREPENDE con `||` de jsonb en una sola sentencia — dos
+  // asesores anotando al tiempo no se pisan jamás. Este branch NO toca
+  // ningún otro campo del cliente.
+  if (payload.addNote) {
+    const n = payload.addNote;
+    if (!n.text || typeof n.text !== 'string') {
+      return NextResponse.json({ error: 'addNote.text requerido' }, { status: 400 });
+    }
+    const note = {
+      text: String(n.text).slice(0, 4000),
+      date: typeof n.date === 'string' ? n.date : new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }),
+      author: typeof n.author === 'string' ? n.author : '',
+    };
+    const { rows } = await pool.query(
+      `UPDATE crm_clients
+       SET notes = $2::jsonb || COALESCE(notes, '[]'::jsonb), updated_at = NOW()
+       WHERE id = $1
+       RETURNING notes`,
+      [id, JSON.stringify([note])]
+    );
+    if (rows.length === 0) {
+      return NextResponse.json({ error: 'Cliente no existe' }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true, notes: rows[0].notes });
+  }
+
   // Misma lógica que /api/clients POST: si vino companyId valida; si vino un
   // nombre libre busca/crea. Permite que la pantalla de detalle del lead
   // asigne empresa a un cliente que no la tenía sin endpoint extra.
@@ -110,11 +146,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         payload.assignedTo || null,
         payload.assignedToName || null,
         payload.source || null,
-        // Notas: si el caller mandó el array (aunque sea vacío tras borrar una
-        // nota) lo persistimos; si vino undefined pasamos null y el COALESCE
-        // conserva las notas que ya están en DB. Así un PUT que solo edita el
-        // teléfono no borra la bitácora, y "Guardar Nota" sí la actualiza.
-        payload.notes !== undefined ? JSON.stringify(payload.notes) : null,
+        // Notas: el PUT general IGNORA `payload.notes` a propósito (incidente
+        // 20-ago-2026: updateClient siempre mandaba el cliente completo, con
+        // el arreglo de notas VIEJO de esa pestaña, y pisaba las notas nuevas
+        // de otros — el COALESCE de acá abajo las conserva al recibir null).
+        // Agregar nota = { addNote } (branch atómico de arriba). Reemplazo
+        // completo deliberado (editar/borrar) = { replaceNotes: [...] }.
+        Array.isArray(payload.replaceNotes) ? JSON.stringify(payload.replaceNotes) : null,
         waUserProvided,
         whatsappUserValue,
         extraProvided,
