@@ -93,11 +93,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const rawWaUser = normalizeWhatsAppUser(payload.whatsappUser || '');
   const whatsappUserValue = isValidWhatsAppUser(rawWaUser) ? rawWaUser : null;
 
-  // Correos adicionales: mismo contrato que whatsapp_user — la llave ausente
-  // conserva lo que hay; presente (aunque venga vacía) reemplaza, para que el
-  // formulario pueda quitar correos.
-  const extraProvided = payload.extraEmails !== undefined;
-  const extraEmailsValue = JSON.stringify(sanitizeExtraEmails(payload.extraEmails, payload.email));
+  // Correos adicionales: el PUT general IGNORA `payload.extraEmails` a
+  // propósito — misma clase del incidente de notas del 20-ago-2026:
+  // updateClient mandaba el cliente COMPLETO (con la copia de correos VIEJA
+  // de esa pestaña) en cada edición trivial, y pisaba los correos que el
+  // ConcreBOT (extra-contacts-apply) u otro asesor acababan de agregar.
+  // Reemplazo deliberado (el editor de la ficha) = { replaceExtraEmails:
+  // [...] } — un arreglo presente (aunque vacío, para poder quitar correos)
+  // reemplaza; ausente conserva lo que hay.
+  const extraProvided = Array.isArray(payload.replaceExtraEmails);
+  const extraEmailsValue = JSON.stringify(sanitizeExtraEmails(payload.replaceExtraEmails, payload.email));
 
   try {
     await pool.query(

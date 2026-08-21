@@ -2650,11 +2650,19 @@ REGLAS DE ORO:
         }));
         if (mergedClient) {
             const merged = mergedClient as Client;
-            // `notes` NO viaja en el PUT general (incidente 20-ago-2026: cada
-            // pestaña mandaba SU copia del arreglo — casi siempre vieja — y
-            // pisaba las notas recién escritas por otros). El server además lo
-            // ignora; agregar notas es addClientNote (append atómico).
-            const { notes: _skipNotes, ...body } = merged as Client & { notes?: unknown };
+            // `notes` y `extraEmails` NO viajan en el PUT general (incidente
+            // 20-ago-2026: cada pestaña mandaba SU copia del arreglo — casi
+            // siempre vieja — y pisaba lo recién escrito por otros; a los
+            // correos adicionales también los agrega el ConcreBOT en el
+            // server). El server además los ignora; agregar notas es
+            // addClientNote (append atómico), y los correos adicionales solo
+            // se reemplazan cuando el caller los editó EXPLÍCITAMENTE en
+            // `updates` → viajan como { replaceExtraEmails } y el server los
+            // sanea.
+            const body: Record<string, unknown> = { ...merged };
+            delete body.notes;
+            delete body.extraEmails;
+            if ('extraEmails' in updates) body.replaceExtraEmails = updates.extraEmails || [];
             fetch(`/api/clients/${clientId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
