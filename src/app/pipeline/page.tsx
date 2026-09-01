@@ -448,9 +448,21 @@ export default function PipelinePage() {
 
     const taskMonthKey = (task: Task) => monthKey(taskEffectiveDate(task));
 
+    // Un negocio entra al tablero por su ETAPA, no por tener cotización.
+    //
+    // Antes se exigía `quoteId`, y eso borraba del kanban justo a los leads que
+    // más urgía atender: los que entran por el chat de la web no tienen
+    // cotización por definición — es lo primero que el asesor debería hacerles.
+    // El resultado medido el 1-sep-2026: 36 de 36 leads del ConcreBOT
+    // invisibles, cero cierres desde que el widget existe, y la conclusión
+    // equivocada de que la pauta no traía clientes. Sí los traía; el tablero
+    // los escondía. El móvil (src/app/m/pipeline/page.tsx) nunca tuvo este
+    // filtro, así que además los dos tableros mostraban cosas distintas.
+    //
+    // Lo que NO cambia: las etapas siguen mandando. Un negocio perdido
+    // ('__lost__') o con una etapa que ya no existe sigue fuera.
     const boardSourceTasks = useMemo(() => (
         tasks
-            .filter((t: any) => !!(t as any).quoteId)
             .filter((t: any) => stageIds.includes(resolveStageId(t.stageId)))
             .filter((t: any) => ownsRecord(loggedInUser, t))
     ), [tasks, stageIdsKey, loggedInUser]);

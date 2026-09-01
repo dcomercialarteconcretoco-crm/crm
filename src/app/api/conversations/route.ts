@@ -163,7 +163,18 @@ export async function POST(req: NextRequest) {
           ]
         );
 
-        // Also drop a pipeline task so the seller sees it in their board
+        // Also drop a pipeline task so the seller sees it in their board.
+        //
+        // La etapa se lee de la configuración vigente en vez de hardcodearse.
+        // Antes nacía en 'stage-1', un id que no existe en ninguna columna:
+        // el negocio se creaba, se asignaba por round-robin y el asesor jamás
+        // lo veía. Si el equipo renombra o reordena sus etapas desde /settings,
+        // esto sigue funcionando; el fallback sólo aplica si nunca se guardaron.
+        const { rows: stageRows } = await pool.query(
+          `SELECT value->'pipelineStages'->0->>'id' AS first_stage FROM crm_state WHERE key = 'settings'`
+        );
+        const firstStageId = stageRows[0]?.first_stage || 'cotizado';
+
         const newTask = {
           id: `t-bot-${Date.now()}`,
           title: `ConcreBOT: ${lead.name || 'Lead'}`,
@@ -186,7 +197,7 @@ export async function POST(req: NextRequest) {
             content: `Lead capturado por ConcreBOT. Revisa el chat completo en la ficha del cliente → pestaña ConcreBOT.`,
             timestamp: new Date().toISOString(),
           }],
-          stageId: 'stage-1',
+          stageId: firstStageId,
         };
         // Merge-por-id: agrega SOLO esta task sin reescribir el arreglo entero.
         await mergeStateRecords(pool, { tasks: [newTask] });

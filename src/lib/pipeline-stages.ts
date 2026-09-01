@@ -23,6 +23,13 @@ export type StageId = string;
  */
 export const LEGACY_STAGE_MAP: Record<string, StageId> = {
     lead:        '',          // no aparece en pipeline
+    // `stage-1` lo escribía SOLO /api/conversations al capturar un lead del
+    // widget ConcreBOT. Nunca existió como columna en ninguna configuración,
+    // así que esos negocios nacían fuera del tablero: 36 leads del bot entre
+    // abr y ago-2026, cero visibles, y el cliente concluyendo que la pauta no
+    // servía. La ruta ya no lo escribe (usa la primera etapa configurada);
+    // esta entrada rescata los que quedaron guardados.
+    'stage-1':   'cotizado',
     contacted:   'cotizado',
     qualified:   'caliente',
     proposal:    'cotizado',
