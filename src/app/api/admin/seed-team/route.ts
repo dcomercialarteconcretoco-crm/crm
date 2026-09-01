@@ -133,8 +133,23 @@ export async function POST(req: NextRequest) {
     // 2. Create sellers
     const hashedPassword = await hashPassword(SEED_PASSWORD);
     const createdSellers: { id: string; name: string; email: string; role: string }[] = [];
+    const skippedArchived: string[] = [];
     for (const s of SELLERS) {
         const id = `s-${s.cedula}`;
+
+        // Nunca revivir a alguien que salió por un relevo o una baja. El seed
+        // corre sobre una lista fija de cédulas: sin este corte le devolvería
+        // el acceso (con la contraseña compartida del seed) y reactivaría la
+        // tarjeta pública de un ex-empleado. Ver src/lib/handover.ts.
+        const { rows: existing } = await pool.query(
+            `SELECT archived_at FROM crm_users WHERE id = $1 LIMIT 1`,
+            [id]
+        );
+        if (existing[0]?.archived_at) {
+            skippedArchived.push(s.name);
+            continue;
+        }
+
         await pool.query(
             `INSERT INTO crm_users (
                 id, name, avatar, role, email, phone, username, status, sales, commission, password, permissions, updated_at
@@ -147,7 +162,12 @@ export async function POST(req: NextRequest) {
                 username = EXCLUDED.username,
                 status = 'Activo',
                 password = EXCLUDED.password,
-                updated_at = NOW()`,
+                updated_at = NOW()
+            -- Nunca revivir a alguien que salió por un relevo o una baja: el
+            -- seed re-corre con una lista fija de cédulas y sin este WHERE le
+            -- devolvería el acceso (y la contraseña compartida del seed) a un
+            -- ex-empleado. Ver src/lib/handover.ts.
+            WHERE crm_users.archived_at IS NULL`,
             [
                 id,
                 s.name,
@@ -186,17 +206,23 @@ export async function POST(req: NextRequest) {
         );
     }
     report.created = createdSellers;
+    if (skippedArchived.length > 0) {
+        report.skippedArchived = skippedArchived;
+    }
 
     // 4. Email credentials via Resend
+    // Sólo a los que el seed efectivamente creó/actualizó: mandarle la clave
+    // compartida a alguien archivado sería devolverle el acceso por correo.
+    const seeded = SELLERS.filter(s => createdSellers.some(c => c.id === `s-${s.cedula}`));
     if (sendEmails) {
         const apiKey = process.env.RESEND_API_KEY;
         const from = process.env.FROM_EMAIL || 'cotizaciones@arteconcreto.co';
         if (!apiKey) {
-            report.emailsFailed = SELLERS.map(s => ({ email: s.email, error: 'RESEND_API_KEY no configurada' }));
+            report.emailsFailed = seeded.map(s => ({ email: s.email, error: 'RESEND_API_KEY no configurada' }));
         } else {
             const sent: string[] = [];
             const failed: { email: string; error: string }[] = [];
-            for (const s of SELLERS) {
+            for (const s of seeded) {
                 try {
                     const res = await fetch('https://api.resend.com/emails', {
                         method: 'POST',

@@ -72,7 +72,7 @@ const categories = [
 ];
 
 export default function SettingsPage() {
-    const { settings, updateSettings: rawUpdateSettings, currentUser, clearTestData, addNotification, sellers } = useApp();
+    const { settings, updateSettings: rawUpdateSettings, currentUser, clearTestData, addNotification, sellers, activeSellers } = useApp();
     const [dailyReportTesting, setDailyReportTesting] = useState(false);
     // Estado del último envío para mostrar feedback inline. addNotification se
     // ve sólo en el dropdown de la campana, lejos del botón que el user acaba
@@ -934,11 +934,11 @@ export default function SettingsPage() {
                                         <p className="text-xs text-muted-foreground">
                                             Marca a quién del equipo le debe llegar el correo cada día.
                                         </p>
-                                        {sellers.length === 0 ? (
+                                        {activeSellers.length === 0 ? (
                                             <p className="text-xs text-muted-foreground italic text-center py-4">No hay vendedores registrados todavía.</p>
                                         ) : (
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                                {sellers.map((s) => {
+                                                {activeSellers.map((s) => {
                                                     const checked = (dr.recipients || []).includes(s.id);
                                                     return (
                                                         <label

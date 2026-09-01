@@ -76,6 +76,20 @@ export async function POST(req: NextRequest) {
 
       const user = rows[0];
 
+      // Cuenta archivada (relevo o baja): no entra, aunque acierte la clave.
+      // El archivado le anula la contraseña, así que en la práctica ya no
+      // podría — pero el chequeo explícito cubre las cuentas puestas en
+      // 'Inactivo' a mano desde /team, que ANTES de esto seguían logueando
+      // (recibían cookie válida y sólo rebotaban ruta por ruta en
+      // loadFreshSession). Alguien que ya no trabaja acá no debe llegar ni a
+      // la pantalla del CRM.
+      if (user && user.status && user.status !== "Activo") {
+        return NextResponse.json(
+          { error: "Esta cuenta ya no está activa. Contacta al administrador." },
+          { status: 403 }
+        );
+      }
+
       if (user && (await verifyPassword(password, user.password))) {
         // Migration: if the stored password is still plain text, upgrade to bcrypt
         if (user.password && !isBcryptHash(user.password)) {

@@ -76,7 +76,7 @@ function getGoogleAuthStorageKey(userId?: string) {
 const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 export default function SchedulerPage() {
-    const { clients, sellers, events, addEvent, addNotification, currentUser, updateEvent, deleteEvent, settings } = useApp();
+    const { clients, sellers, activeSellers, events, addEvent, addNotification, currentUser, updateEvent, deleteEvent, settings } = useApp();
     const canManageEvents = hasPermission(currentUser, 'scheduler.manage');
     const GOOGLE_CLIENT_ID = settings.googleClientId?.trim() || GOOGLE_CLIENT_ID_ENV || '';
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1048,7 +1048,7 @@ export default function SchedulerPage() {
                                 <div className="space-y-2">
                                     <h4 className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Equipo Comercial</h4>
                                     <div className="space-y-1">
-                                        {sellers.filter(s => [s.name, s.email || ''].some(v => v.toLowerCase().includes(searchQuery.toLowerCase()))).map(seller => (
+                                        {activeSellers.filter(s => [s.name, s.email || ''].some(v => v.toLowerCase().includes(searchQuery.toLowerCase()))).map(seller => (
                                             <button key={seller.id} onClick={() => toggleInvitee(seller, 'vendedor')}
                                                 className={clsx("w-full flex items-center justify-between p-2.5 rounded-xl border transition-all text-left",
                                                     form.invitees.find(i => i.id === seller.id) ? "bg-primary/10 border-primary/30" : "bg-white border-border hover:border-primary/30"

@@ -48,13 +48,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   `);
 
   const { rows } = await pool.query(
-    `SELECT id, name, email, role FROM crm_users WHERE id = $1 LIMIT 1`,
+    `SELECT id, name, email, role, archived_at FROM crm_users WHERE id = $1 LIMIT 1`,
     [id]
   );
-  const user = rows[0] as { id: string; name: string; email: string | null; role: string } | undefined;
+  const user = rows[0] as
+    | { id: string; name: string; email: string | null; role: string; archived_at: Date | null }
+    | undefined;
 
   if (!user) {
     return NextResponse.json({ error: "Usuario no encontrado." }, { status: 404 });
+  }
+  // Mandarle un link de activación a alguien que ya salió de la empresa sería
+  // devolverle el acceso por la puerta de atrás.
+  if (user.archived_at) {
+    return NextResponse.json(
+      { error: `${user.name} fue dado de baja. Reactivá la cuenta antes de reenviar la invitación.` },
+      { status: 409 }
+    );
   }
   if (!user.email) {
     return NextResponse.json({ error: "Este usuario no tiene email registrado. Editalo primero y agregale uno." }, { status: 400 });

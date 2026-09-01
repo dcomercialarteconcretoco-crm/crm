@@ -373,6 +373,29 @@ export interface Seller {
     //   1 → ran once (next login triggers OPTIONAL run — skip allowed)
     //   2+ → done forever, never shown again
     onboardingCount?: number;
+    // ── Relevo de personal (ver src/lib/handover.ts) ──────────────────────────
+    // Cuando alguien sale, su fila NO se borra ni se renombra: se archiva. Sigue
+    // existiendo para que las cotizaciones, la bitácora de contacto y los
+    // negocios cerrados a su nombre resuelvan a una persona real en una
+    // auditoría, pero desaparece de los desplegables, del round-robin y del
+    // login. `archivedAt` es la marca: si viene, esta persona ya no trabaja acá.
+    archivedAt?: string | null;
+    archivedByName?: string | null;
+    archivedReason?: string | null;
+    /** (en el que salió) quién lo relevó. */
+    replacedById?: string | null;
+    /** (en el que entró) a quién relevó — su historial arranca en cero igual. */
+    replacesId?: string | null;
+    /** Correo corporativo que tenía al salir, liberado para su reemplazo. */
+    originalEmail?: string | null;
+    /** Desde cuándo cuenta su historial (no se mide a un asesor de 3 días contra uno de 6 meses). */
+    hiredAt?: string | null;
+}
+
+/** True si la persona ya no trabaja en la empresa (relevada o dada de baja). */
+export function isArchivedSeller(s: { archivedAt?: string | null; status?: string } | null | undefined): boolean {
+    if (!s) return false;
+    return Boolean(s.archivedAt);
 }
 
 export interface Notification {
@@ -680,6 +703,17 @@ interface AppContextType {
     tasks: Task[];
     quotes: Quote[];
     sellers: Seller[];
+    /**
+     * El equipo VIGENTE: sin las personas archivadas por un relevo o una baja.
+     * Es lo que va en cualquier desplegable donde se ASIGNA trabajo (reasignar
+     * un negocio, dueño de un evento, destinatarios del informe). `sellers`
+     * sigue trayendo a todos porque los filtros sobre datos históricos —
+     * archivo de cotizaciones, auditoría — necesitan poder nombrar a quien ya
+     * no está.
+     */
+    activeSellers: Seller[];
+    /** Vuelve a leer el equipo del server (tras un relevo o una baja). */
+    refreshTeam: () => Promise<void>;
     notifications: Notification[];
     auditLogs: AuditLog[];
     anomalies: Anomaly[];
@@ -758,7 +792,7 @@ interface AppContextType {
     updateEvent: (eventId: string, updates: Partial<CalendarEvent>) => void;
     deleteEvent: (eventId: string) => void;
     updateSeller: (sellerId: string, updates: Partial<Seller>) => void;
-    deleteSeller: (sellerId: string) => void;
+    deleteSeller: (sellerId: string) => Promise<{ ok: boolean; error?: string }>;
     updateSettings: (updates: Partial<AppSettings>) => Promise<void>;
     updateForm: (id: string, form: Partial<FormDefinition>) => void;
     deleteForm: (id: string) => void;
@@ -1451,6 +1485,17 @@ REGLAS DE ORO:
         const timeoutId = window.setTimeout(persist, 120);
         return () => window.clearTimeout(timeoutId);
     }, [clients, tasks, quotes, sellers, notifications, auditLogs, anomalies, settings, events, products, forms, currentUser, productSyncStatus, isInitialLoad]);
+
+    const refreshTeam = async () => {
+        try {
+            const res = await fetch('/api/team', { cache: 'no-store' });
+            if (!res.ok) return;
+            const data = await res.json();
+            if (Array.isArray(data.users)) setSellers(data.users);
+        } catch (error) {
+            console.warn('refreshTeam failed:', error);
+        }
+    };
 
     const refreshClients = async () => {
         try {
@@ -3000,16 +3045,38 @@ REGLAS DE ORO:
         }
     };
 
-    const deleteSeller = (sellerId: string) => {
+    /**
+     * Borrado DURO de una cuenta. Desde el relevo (ago-2026) el server sólo lo
+     * acepta para cuentas sin ningún rastro — un alta con el correo mal
+     * escrito, una prueba. Si la persona ya trabajó, responde 409 y hay que
+     * pasar por "Dar de baja / Relevar", que archiva en vez de borrar y le
+     * pasa la cartera a quien la reemplace.
+     *
+     * Antes esto quitaba al vendedor de la lista local y mandaba el DELETE
+     * fire-and-forget: si el server lo rechazaba, la persona "desaparecía" de
+     * la pantalla y reaparecía en el siguiente refresh. Ahora se espera la
+     * respuesta y sólo se saca de la lista si el server lo confirmó.
+     */
+    const deleteSeller = async (sellerId: string): Promise<{ ok: boolean; error?: string }> => {
         const sellerToDelete = sellers.find(s => s.id === sellerId);
         if (sellerToDelete?.role === 'SuperAdmin' || sellerToDelete?.role === 'Admin') {
-            alert('REGLA DE SEGURIDAD: Las cuentas de Super Administrador son críticas y no pueden ser eliminadas.');
-            return;
+            return {
+                ok: false,
+                error: 'REGLA DE SEGURIDAD: las cuentas de administrador no se borran. Usá "Dar de baja / Relevar".',
+            };
         }
-        setSellers(prev => prev.filter(s => s.id !== sellerId));
-        fetch(`/api/team/${sellerId}`, {
-            method: 'DELETE',
-        }).catch((error) => console.warn('Failed to delete seller:', error));
+        try {
+            const res = await fetch(`/api/team/${sellerId}`, { method: 'DELETE' });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.error) {
+                return { ok: false, error: data.error || `HTTP ${res.status}` };
+            }
+            setSellers(prev => prev.filter(s => s.id !== sellerId));
+            return { ok: true };
+        } catch (error) {
+            console.warn('Failed to delete seller:', error);
+            return { ok: false, error: error instanceof Error ? error.message : 'Error de red' };
+        }
     };
 
     const updateForm = (id: string, form: Partial<FormDefinition>) => {
@@ -3242,8 +3309,13 @@ REGLAS DE ORO:
         }
     };
 
+    const activeSellers = useMemo(
+        () => sellers.filter(s => !isArchivedSeller(s)),
+        [sellers]
+    );
+
     const contextValue = useMemo(() => ({
-            clients, tasks, quotes, sellers, notifications, settings, events, forms,
+            clients, tasks, quotes, sellers, activeSellers, refreshTeam, notifications, settings, events, forms,
             companies,
             addClient, addTask, addQuote, reserveQuoteNumber, renameQuoteNumber, createQuoteVersion, createAIUVersion, importClients, importQuotes, addHistoricalQuote, clearTestData,
             addCompany, updateCompany, deleteCompany,
@@ -3261,7 +3333,7 @@ REGLAS DE ORO:
             currentUser, isHydrating, login, logout,
             incrementOnboardingCount,
         }), [
-            clients, tasks, quotes, sellers, notifications, settings, events, forms,
+            clients, tasks, quotes, sellers, activeSellers, notifications, settings, events, forms,
             companies,
             auditLogs, anomalies, products, productSyncStatus, currentUser, isHydrating,
             assignedLeadsCount

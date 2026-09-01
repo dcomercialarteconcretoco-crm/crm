@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     Plus,
     Search,
@@ -19,9 +19,13 @@ import {
     ChevronUp,
     RefreshCw,
     KeyRound,
+    UserMinus,
+    Archive,
+    RotateCcw,
+    ArrowRight,
 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { useApp, Seller } from '@/context/AppContext';
+import { useApp, Seller, isArchivedSeller } from '@/context/AppContext';
 import AvatarUpload from '@/components/ui/AvatarUpload';
 import {
     PERMISSION_GROUPS,
@@ -32,6 +36,9 @@ import {
 } from '@/lib/permissions';
 import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
 import { isGodUser, isCurrentUserGod } from '@/lib/god-user';
+import { RelevoFields, BLANK_RELEVO, type RelevoState } from '@/components/team/RelevoFields';
+import { OffboardModal } from '@/components/team/OffboardModal';
+import type { Footprint } from '@/components/team/handover-shared';
 
 type FormSeller = Omit<Seller, 'id'> & { permissions: Record<string, boolean> };
 
@@ -68,7 +75,7 @@ function makeBlankForm(): FormSeller {
 }
 
 export default function TeamPage() {
-    const { sellers, addSeller, deleteSeller, updateSeller, currentUser, quotes } = useApp();
+    const { sellers, activeSellers, refreshTeam, addSeller, deleteSeller, updateSeller, currentUser, quotes } = useApp();
     const [searchTerm, setSearchTerm] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingSeller, setEditingSeller] = useState<Seller | null>(null);
@@ -78,6 +85,51 @@ export default function TeamPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [showPermissions, setShowPermissions] = useState(false);
     const [form, setForm] = useState<FormSeller>(makeBlankForm());
+
+    // ── Relevo de personal ───────────────────────────────────────────────────
+    // Alta con reemplazo: el alta normal más "a quién releva" y qué se le pasa.
+    // La huella (`footprint`) se pide al server apenas se elige a la persona
+    // que sale, para mostrar los números REALES antes de confirmar: mover una
+    // cartera de 344 clientes no puede ser un botón a ciegas.
+    const [relevo, setRelevo] = useState<RelevoState>({ ...BLANK_RELEVO });
+    const [footprint, setFootprint] = useState<Footprint | null>(null);
+    const [footprintLoading, setFootprintLoading] = useState(false);
+    const [offboardSeller, setOffboardSeller] = useState<Seller | null>(null);
+    /** "Entrego mi puesto": el que sale soy yo y no se puede cambiar. */
+    const [selfHandover, setSelfHandover] = useState(false);
+    const [showArchived, setShowArchived] = useState(false);
+    const [flash, setFlash] = useState<string | null>(null);
+    const [saving, setSaving] = useState(false);
+    /**
+     * Candado sincrónico contra el doble disparo. `setSaving(true)` no surte
+     * efecto hasta el próximo render, así que dos clics seguidos (o un clic que
+     * el navegador entrega dos veces) mandaban DOS relevos: el primero pasaba,
+     * el segundo rebotaba con 409 «ya está archivado» y el error del segundo
+     * pisaba el éxito del primero. El admin veía un error rojo sobre un relevo
+     * que en realidad sí se ejecutó — el peor mensaje posible cuando se acaban
+     * de mover 344 clientes.
+     */
+    const savingRef = React.useRef(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (relevo.entryMode !== 'replace' || !relevo.outgoingId) {
+            setFootprint(null);
+            return;
+        }
+        let alive = true;
+        setFootprintLoading(true);
+        fetch(`/api/team/${relevo.outgoingId}/footprint`, { cache: 'no-store' })
+            .then(r => r.json())
+            .then(data => {
+                if (!alive) return;
+                if (data.movable && data.kept) setFootprint({ movable: data.movable, kept: data.kept });
+                else setFootprint(null);
+            })
+            .catch(() => alive && setFootprint(null))
+            .finally(() => alive && setFootprintLoading(false));
+        return () => { alive = false; };
+    }, [relevo.entryMode, relevo.outgoingId]);
 
     const isCurrentUserAdmin =
         currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
@@ -108,13 +160,58 @@ export default function TeamPage() {
         return [canonicalCurrentUser, ...withoutCurrent];
     }, [currentUser, sellers]);
 
-    const filteredSellers = teamSellers.filter(s =>
+    const matchesSearch = (s: Seller) =>
         s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.role.toLowerCase().includes(searchTerm.toLowerCase())
+        (s.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.role.toLowerCase().includes(searchTerm.toLowerCase());
+
+    // El equipo vigente y el histórico se muestran por separado: mezclarlos es
+    // lo que hacía que nadie supiera si "Brayan" sigue trabajando acá.
+    const filteredSellers = teamSellers.filter(s => !isArchivedSeller(s)).filter(matchesSearch);
+    const archivedSellers = useMemo(
+        () => sellers.filter(isArchivedSeller).sort((a, b) =>
+            String(b.archivedAt ?? '').localeCompare(String(a.archivedAt ?? ''))
+        ),
+        [sellers]
+    );
+    /** Candidatos a ser relevados: activos, sin la cuenta protegida ni uno mismo
+     *  (para entregar el puesto propio está el botón "Entregar mi puesto"). */
+    const relevoCandidates = useMemo(
+        () => activeSellers.filter(s => !isGodUser(s) && s.id !== currentUser?.id),
+        [activeSellers, currentUser?.id]
+    );
+    /** Para el modal de baja: sí incluye a todos los activos menos el protegido. */
+    const carteraReceivers = useMemo(
+        () => activeSellers.filter(s => !isGodUser(s)),
+        [activeSellers]
     );
 
+    /**
+     * "Entregar mi puesto" — la salida que uno mismo tramita con su propia
+     * clave. Es lo que el cliente pidió para mercadeo: el buzón del cargo lo
+     * administra quien lo ocupa, así que al irse tiene que poder dejarle el
+     * puesto al siguiente sin depender de que un admin esté disponible. El
+     * server clava rol y permisos a los del que sale, así nadie usa su propia
+     * salida para fabricarse un sucesor con más poder.
+     */
+    const handleOpenSelfHandover = () => {
+        if (!currentUser) return;
+        setEditingSeller(null);
+        setForm(makeBlankForm());
+        setRelevo({ ...BLANK_RELEVO, entryMode: 'replace', outgoingId: currentUser.id });
+        setFootprint(null);
+        setSaveError(null);
+        setSelfHandover(true);
+        setShowPermissions(false);
+        setShowPassword(false);
+        setIsModalOpen(true);
+    };
+
     const handleOpenModal = (seller?: Seller) => {
+        setRelevo({ ...BLANK_RELEVO });
+        setFootprint(null);
+        setSaveError(null);
+        setSelfHandover(false);
         if (seller) {
             setEditingSeller(seller);
             setForm({
@@ -148,27 +245,159 @@ export default function TeamPage() {
         setForm(f => ({ ...f, permissions: { ...getDefaultPermissions(f.role) } }));
     };
 
-    const handleSave = () => {
-        if (!form.name || !form.email) return;
+    const isReplacement = !editingSeller && relevo.entryMode === 'replace';
+    const outgoingSeller = selfHandover
+        ? (currentUser as Seller | null)
+        : relevoCandidates.find(s => s.id === relevo.outgoingId) || null;
+    // Heredando el correo del cargo, el del formulario sobra: lo pone el server
+    // desde la ficha del que sale.
+    const emailRequired = !(isReplacement && relevo.inheritIdentity && outgoingSeller?.email);
+
+    const handleSave = async () => {
+        if (savingRef.current) return;
+        setSaveError(null);
+        if (!form.name) {
+            setSaveError('Falta el nombre.');
+            return;
+        }
+        if (emailRequired && !form.email) {
+            setSaveError('Falta el correo.');
+            return;
+        }
         // Email doubles as login username — if admin left username blank, reuse the email.
         const finalForm = {
             ...form,
             username: (form.username && form.username.trim()) || form.email.trim().toLowerCase(),
             avatar: form.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(form.name)}&background=f5f0e8&color=1a1a1a`,
         };
+
         if (editingSeller) {
             updateSeller(editingSeller.id, finalForm);
-        } else {
-            addSeller(finalForm);
+            setIsModalOpen(false);
+            setShowPassword(false);
+            return;
         }
-        setIsModalOpen(false);
-        setShowPassword(false);
+
+        // ── Alta normal ──────────────────────────────────────────────────────
+        if (!isReplacement) {
+            addSeller(finalForm);
+            setIsModalOpen(false);
+            setShowPassword(false);
+            return;
+        }
+
+        // ── Alta que releva a alguien ────────────────────────────────────────
+        // Todo en una sola llamada transaccional: o entra el reemplazo Y sale el
+        // anterior Y se mueve la cartera, o no pasa nada. Partirlo en dos
+        // (crear usuario + reasignar) es lo que dejaría media empresa a medias
+        // si falla la segunda mitad.
+        if (!relevo.outgoingId) {
+            setSaveError('Elegí a quién reemplaza.');
+            return;
+        }
+        savingRef.current = true;
+        setSaving(true);
+        try {
+            const res = await fetch('/api/team/handover', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    mode: 'replace',
+                    outgoingId: relevo.outgoingId,
+                    inheritIdentity: relevo.inheritIdentity,
+                    clonePermissions: relevo.clonePermissions,
+                    transfer: relevo.transfer,
+                    reason: relevo.reason,
+                    incoming: {
+                        name: finalForm.name,
+                        email: finalForm.email,
+                        username: finalForm.username,
+                        phone: finalForm.phone,
+                        avatar: finalForm.avatar,
+                        // Entregando el puesto propio el rol lo clava el server con
+                        // el del que sale; mandar el del formulario (Vendedor por
+                        // defecto) hacía que un SuperAdmin se auto-bloqueara.
+                        role: selfHandover ? currentUser?.role : finalForm.role,
+                        permissions: relevo.clonePermissions || selfHandover ? undefined : finalForm.permissions,
+                        receivesLeads: finalForm.receivesLeads,
+                        commission: finalForm.commission,
+                        password: finalForm.password || undefined,
+                    },
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok || data.error) {
+                setSaveError(data.error || `HTTP ${res.status}`);
+                return;
+            }
+            const m = data.moved || {};
+            const k = data.kept || {};
+            const movedParts = [
+                m.clients ? `${m.clients} clientes` : null,
+                m.rawLeads ? `${m.rawLeads} leads` : null,
+                m.openDeals ? `${m.openDeals} negocios abiertos` : null,
+                m.futureEvents ? `${m.futureEvents} eventos de agenda` : null,
+            ].filter(Boolean).join(', ');
+            const activationNote = data.activation?.sent
+                ? ` Le llegó la invitación a ${data.incoming?.email}.`
+                : data.activation?.error
+                  ? ` OJO: no salió el correo de invitación (${data.activation.error}). Usá "Reenviar invitación".`
+                  : '';
+            setFlash(
+                `${data.incoming?.name} entró en el puesto de ${data.outgoing?.name}. ` +
+                (movedParts ? `Recibió ${movedParts}. ` : '') +
+                `Quedaron a nombre de ${data.outgoing?.name}: ${k.quotes || 0} cotizaciones y ${k.contactEvents || 0} registros de contacto.` +
+                activationNote
+            );
+            if (selfHandover) {
+                // La sesión propia queda revocada en el server (el usuario pasó
+                // a Inactivo). Quedarse en la pantalla sólo produce 401 en cada
+                // request, así que se avisa y se sale.
+                alert(
+                    `Listo. ${data.incoming?.name} queda en tu puesto con tus mismos permisos.\n\n` +
+                    `Tu acceso se cerró en este momento. Tu ficha y tu historial quedan archivados en el equipo.`
+                );
+                window.location.href = '/login';
+                return;
+            }
+            await refreshTeam();
+            setIsModalOpen(false);
+            setShowPassword(false);
+            setRelevo({ ...BLANK_RELEVO });
+        } catch (err) {
+            setSaveError(err instanceof Error ? err.message : 'Error de red');
+        } finally {
+            savingRef.current = false;
+            setSaving(false);
+        }
     };
 
-    const handleDelete = (id: string) => {
-        if (confirm('¿Estás seguro de eliminar a este miembro del equipo?')) {
-            deleteSeller(id);
+    const handleDelete = async (id: string) => {
+        const target = sellers.find(s => s.id === id);
+        if (!confirm(`¿Eliminar definitivamente la cuenta de ${target?.name || 'este miembro'}?\n\nSolo procede si nunca registró nada. Si ya trabajó, usá "Dar de baja / Relevar".`)) return;
+        const result = await deleteSeller(id);
+        if (!result.ok) {
+            alert(`No se pudo eliminar.\n\n${result.error}`);
+            return;
         }
+        setFlash(`${target?.name || 'La cuenta'} se eliminó (no tenía historial).`);
+    };
+
+    /** Deshace una baja hecha por error. La contraseña quedó anulada al archivar. */
+    const handleReinstate = async (seller: Seller) => {
+        if (!confirm(`¿Reactivar a ${seller.name}?\n\nVuelve a tener acceso al CRM. Su contraseña quedó anulada al darlo de baja, así que hay que reenviarle la invitación.`)) return;
+        const res = await fetch(`/api/team/${seller.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ unarchive: true }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+            alert(`No se pudo reactivar.\n\n${data.error || `HTTP ${res.status}`}`);
+            return;
+        }
+        await refreshTeam();
+        setFlash(data.note || `${seller.name} volvió al equipo.`);
     };
 
     // Track de cuál seller está reenviando activación para mostrar spinner sólo
@@ -297,6 +526,23 @@ export default function TeamPage() {
                 )}
             </div>
 
+            {/* Resultado del último relevo / baja — se queda hasta que lo cierren:
+                mueve cientos de registros y el admin tiene que poder leer con
+                calma qué pasó (y qué NO se movió). */}
+            {flash && (
+                <div className="flex items-start gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <p className="text-xs text-emerald-900 leading-relaxed flex-1">{flash}</p>
+                    <button
+                        onClick={() => setFlash(null)}
+                        className="text-emerald-700 hover:text-emerald-900 shrink-0"
+                        aria-label="Cerrar aviso"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
+
             {/* Filter Bar */}
             <div className="surface-card rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="relative flex-1 max-w-md">
@@ -422,6 +668,32 @@ export default function TeamPage() {
                                             {resendingId === seller.id ? 'Enviando...' : 'Reenviar invitación'}
                                         </button>
                                     )}
+                                    {/* La salida que uno mismo tramita. Sin esto, el jefe de área que
+                                        se va depende de que un admin esté disponible el último día —
+                                        y en la práctica termina pasando la contraseña por WhatsApp. */}
+                                    {isSelf && !sellerIsGod && (
+                                        <button
+                                            onClick={handleOpenSelfHandover}
+                                            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-700 text-slate-700 hover:text-white font-bold text-xs transition-all border border-slate-200"
+                                            title="Me voy de la empresa: registro a quien queda en mi puesto, le paso mi cartera y mi acceso se cierra."
+                                        >
+                                            <UserMinus className="w-3.5 h-3.5" />
+                                            Entregar mi puesto
+                                        </button>
+                                    )}
+                                    {/* Salida del equipo. Es el camino correcto cuando alguien se va:
+                                        archiva la cuenta y traspasa la cartera. "Eliminar" (arriba) sólo
+                                        sirve para cuentas sin historial y el server rechaza el resto. */}
+                                    {canManageTeam && !sellerIsGod && seller.id !== currentUser?.id && (
+                                        <button
+                                            onClick={() => setOffboardSeller(seller)}
+                                            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-700 text-slate-700 hover:text-white font-bold text-xs transition-all border border-slate-200"
+                                            title="La persona sale de la empresa: pierde el acceso, sale de la rotación de leads y su cartera pasa a quien vos elijas. Su historial queda intacto."
+                                        >
+                                            <UserMinus className="w-3.5 h-3.5" />
+                                            Dar de baja / Relevar
+                                        </button>
+                                    )}
                                     {canManageTeam && seller.id !== currentUser?.id && canEditSeller && (
                                         <button
                                             onClick={() => openForceReset(seller)}
@@ -437,6 +709,103 @@ export default function TeamPage() {
                         );
                     })}
             </div>
+
+            {/* ── Historial del equipo ────────────────────────────────────────────
+                Las personas que ya salieron. NO están acá por nostalgia: sus
+                cotizaciones, su bitácora de contacto y sus negocios cerrados
+                siguen apuntando a estas fichas, y sin ellas una auditoría lee
+                ids sueltos sin nombre. También es donde se deshace una baja
+                hecha por error. */}
+            {archivedSellers.length > 0 && (
+                <div className="surface-card rounded-2xl overflow-hidden">
+                    <button
+                        onClick={() => setShowArchived(v => !v)}
+                        className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/50 transition-colors"
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <Archive className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-xs font-bold uppercase tracking-widest text-foreground">
+                                Ya no están en la empresa
+                            </span>
+                            <span className="text-[10px] font-bold text-muted-foreground bg-muted border border-border px-2 py-0.5 rounded-full">
+                                {archivedSellers.length}
+                            </span>
+                        </div>
+                        {showArchived ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                    </button>
+
+                    {showArchived && (
+                        <div className="border-t border-border divide-y divide-border">
+                            <p className="px-5 py-3 text-[11px] text-muted-foreground leading-relaxed bg-muted/30">
+                                Estas fichas no se borran a propósito: son las que le ponen nombre a las
+                                cotizaciones enviadas y a la bitácora de contacto cuando alguien audita el
+                                período en que estas personas trabajaron acá. No tienen acceso al CRM ni
+                                reciben leads.
+                            </p>
+                            {archivedSellers.map(seller => {
+                                const successor = seller.replacedById
+                                    ? sellers.find(s => s.id === seller.replacedById)
+                                    : null;
+                                return (
+                                    <div key={seller.id} className="px-5 py-4 flex items-start gap-4">
+                                        <div className="w-9 h-9 rounded-xl bg-muted border border-border flex items-center justify-center overflow-hidden shrink-0 grayscale opacity-70">
+                                            {seller.avatar
+                                                ? <img src={seller.avatar} alt={seller.name} className="w-full h-full object-cover" />
+                                                : <User className="w-4 h-4 text-muted-foreground" />}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="text-sm font-bold text-foreground">{seller.name}</span>
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-muted text-muted-foreground border-border">
+                                                    {seller.role}
+                                                </span>
+                                                {successor && (
+                                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                                        <ArrowRight className="w-3 h-3" />
+                                                        {successor.name}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-[11px] text-muted-foreground mt-1 break-all">
+                                                {seller.originalEmail || seller.email}
+                                            </p>
+                                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                                                Baja el {seller.archivedAt ? new Date(seller.archivedAt).toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'}
+                                                {seller.archivedByName ? ` · por ${seller.archivedByName}` : ''}
+                                                {seller.archivedReason ? ` · ${seller.archivedReason}` : ''}
+                                            </p>
+                                        </div>
+                                        {canManageTeam && (
+                                            <button
+                                                onClick={() => handleReinstate(seller)}
+                                                className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-border text-xs font-bold text-foreground hover:bg-muted transition-colors"
+                                                title="Deshacer la baja y devolverle el acceso"
+                                            >
+                                                <RotateCcw className="w-3.5 h-3.5" />
+                                                Reactivar
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Baja / relevo de un integrante */}
+            {offboardSeller && (
+                <OffboardModal
+                    seller={offboardSeller}
+                    activeSellers={carteraReceivers}
+                    onClose={() => setOffboardSeller(null)}
+                    onDone={async (message) => {
+                        setOffboardSeller(null);
+                        setFlash(message);
+                        await refreshTeam();
+                    }}
+                />
+            )}
 
             {/* Force Reset Password Modal — fix de emergencia para cuando Resend no entrega correos.
                 El admin escribe la nueva contraseña y queda guardada bcrypteada en crm_users. */}
@@ -544,7 +913,7 @@ export default function TeamPage() {
                         {/* Modal Header */}
                         <div className="flex items-center justify-between p-6 border-b border-border shrink-0">
                             <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                                {editingSeller ? 'Editar Perfil' : 'Nuevo Miembro'}
+                                {editingSeller ? 'Editar Perfil' : selfHandover ? 'Entregar mi puesto' : 'Nuevo Miembro'}
                                 {editingSeller && (
                                     <span className={clsx(
                                         'text-[10px] font-bold px-2 py-0.5 rounded-full border',
@@ -564,6 +933,20 @@ export default function TeamPage() {
 
                         {/* Modal Body */}
                         <div className="p-6 space-y-4 overflow-y-auto flex-1">
+
+                            {/* ¿Alguien nuevo o un reemplazo? Sólo al dar de alta:
+                                editar a alguien que ya está no releva a nadie. */}
+                            {!editingSeller && (canManageTeam || selfHandover) && (
+                                <RelevoFields
+                                    candidates={relevoCandidates}
+                                    value={relevo}
+                                    onChange={(patch) => setRelevo(r => ({ ...r, ...patch }))}
+                                    footprint={footprint}
+                                    footprintLoading={footprintLoading}
+                                    incomingName={form.name}
+                                    lockedOutgoing={selfHandover ? (currentUser as Seller) : null}
+                                />
+                            )}
 
                             {/* Avatar Section */}
                             <div className="flex flex-col items-center gap-3 pb-2">
@@ -631,9 +1014,16 @@ export default function TeamPage() {
                                         className="w-full bg-muted border border-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:bg-white transition-all placeholder:text-muted-foreground/60"
                                     />
                                 </div>
-                                <p className="text-[11px] text-muted-foreground mt-1.5">
-                                    Este correo será el usuario de ingreso al CRM. Puedes opcionalmente asignar un username corto arriba.
-                                </p>
+                                {isReplacement && relevo.inheritIdentity && outgoingSeller?.email ? (
+                                    <p className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-2 mt-1.5 leading-relaxed">
+                                        Va a entrar con <strong className="break-all">{outgoingSeller.email}</strong>, el correo del cargo.
+                                        Lo que escribas acá se ignora.
+                                    </p>
+                                ) : (
+                                    <p className="text-[11px] text-muted-foreground mt-1.5">
+                                        Este correo será el usuario de ingreso al CRM. Puedes opcionalmente asignar un username corto arriba.
+                                    </p>
+                                )}
                             </div>
 
                             <div>
@@ -657,11 +1047,15 @@ export default function TeamPage() {
                                     <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">
                                         Rol de Acceso
                                     </label>
+                                    {/* Entregando el puesto propio el rol no se elige: lo hereda
+                                        del que sale (lo clava el server). Dejar el desplegable
+                                        activo sólo servía para elegir un rol que iba a ser
+                                        ignorado. */}
                                     <select
-                                        value={form.role}
+                                        value={selfHandover ? (currentUser?.role || form.role) : form.role}
                                         onChange={(e) => handleRoleChange(e.target.value)}
                                         className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:bg-white appearance-none transition-all"
-                                        disabled={!canManageTeam || !canEditThisMember}
+                                        disabled={selfHandover || !canManageTeam || !canEditThisMember}
                                     >
                                         <option value="SuperAdmin">Administrador Principal</option>
                                         <option value="Admin">Administrador</option>
@@ -726,8 +1120,10 @@ export default function TeamPage() {
                                 </div>
                             )}
 
-                            {/* Permissions Panel — only for users with team.manage */}
-                            {canManageTeam && (
+                            {/* Permissions Panel — only for users with team.manage.
+                                Se oculta al entregar el puesto propio: los permisos son
+                                los del que sale, no se editan acá. */}
+                            {canManageTeam && !selfHandover && (
                                 <div className="border border-border rounded-2xl overflow-hidden">
                                     {/* Permissions Header Toggle */}
                                     <button
@@ -820,20 +1216,36 @@ export default function TeamPage() {
                         </div>
 
                         {/* Modal Footer */}
-                        <div className="flex items-center justify-end gap-3 p-6 border-t border-border shrink-0">
+                        <div className="flex flex-col gap-3 p-6 border-t border-border shrink-0">
+                            {saveError && (
+                                <p className="text-xs font-medium text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
+                                    {saveError}
+                                </p>
+                            )}
+                            <div className="flex items-center justify-end gap-3">
                             <button
                                 onClick={() => setIsModalOpen(false)}
-                                className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted transition-colors text-sm"
+                                disabled={saving}
+                                className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted transition-colors text-sm disabled:opacity-50"
                             >
                                 Cancelar
                             </button>
-                            {canManageTeam && canEditThisMember && (
+                            {((canManageTeam && canEditThisMember) || selfHandover) && (
                                 <button
                                     onClick={handleSave}
-                                    className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 transition-all shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2 text-sm"
+                                    disabled={saving || (isReplacement && !relevo.outgoingId)}
+                                    className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 transition-all shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
                                     <CheckCircle2 className="w-4 h-4" />
-                                    {editingSeller ? 'Actualizar Miembro' : 'Crear Usuario'}
+                                    {saving
+                                        ? 'Procesando relevo…'
+                                        : editingSeller
+                                          ? 'Actualizar Miembro'
+                                          : selfHandover
+                                          ? 'Entregar mi puesto y salir'
+                                          : isReplacement
+                                            ? `Crear y relevar a ${outgoingSeller?.name?.split(' ')[0] || '…'}`
+                                            : 'Crear Usuario'}
                                 </button>
                             )}
                             {editingGod && !iAmGod && (
@@ -841,6 +1253,7 @@ export default function TeamPage() {
                                     Cuenta protegida
                                 </span>
                             )}
+                            </div>
                         </div>
                     </div>
                 </div>

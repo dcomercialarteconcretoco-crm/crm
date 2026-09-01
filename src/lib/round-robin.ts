@@ -25,6 +25,7 @@ async function loadRotation(pool: Pool): Promise<RRSeller[]> {
         SELECT id, name
         FROM crm_users
         WHERE status = 'Activo'
+          AND archived_at IS NULL
           AND role IN ('Vendedor', 'Manager')
           AND COALESCE(receives_leads, TRUE) = TRUE
         ORDER BY created_at ASC

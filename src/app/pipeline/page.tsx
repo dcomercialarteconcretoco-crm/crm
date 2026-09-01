@@ -383,7 +383,7 @@ interface Column {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function PipelinePage() {
-    const { tasks, clients, sellers, quotes, addTask, addQuote, addNotification, addAuditLog, updateTask, updateQuote, deleteTask, deleteQuote, addClient, settings, products, currentUser: loggedInUser } = useApp();
+    const { tasks, clients, sellers, activeSellers, quotes, addTask, addQuote, addNotification, addAuditLog, updateTask, updateQuote, deleteTask, deleteQuote, addClient, settings, products, currentUser: loggedInUser } = useApp();
 
     // Stages dinámicas — leídas de settings.pipelineStages, con fallback al
     // default de Arte Concreto (Cotizado → En caliente → Facturado). El editor
@@ -1767,7 +1767,7 @@ export default function PipelinePage() {
                                             </div>
                                             <select value={canReassign ? newDeal.assignedTo : currentUser.id} disabled={!canReassign} onChange={e => setNewDeal({ ...newDeal, assignedTo: e.target.value })} className={clsx("w-full bg-white border border-border rounded-xl pl-16 pr-4 py-4 text-sm font-black text-foreground outline-none transition-all appearance-none focus:border-primary", !canReassign && "opacity-60 cursor-not-allowed")}>
                                                 <option value="">Asignar responsable...</option>
-                                                {sellers.map(s => <option key={s.id} value={s.id}>{s.name} ({s.role})</option>)}
+                                                {activeSellers.map(s => <option key={s.id} value={s.id}>{s.name} ({s.role})</option>)}
                                             </select>
                                         </div>
                                     </div>
@@ -1982,7 +1982,7 @@ export default function PipelinePage() {
                                         <div className="flex-1 min-w-0">
                                             <p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Vendedor Cargo</p>
                                             <select disabled={!canReassign} className={clsx("bg-transparent text-xs font-black text-foreground outline-none w-full", !canReassign && "cursor-not-allowed")} value={sellers.find(s => s.name === selectedTask.assignedTo)?.id || ''} onChange={e => { const s = sellers.find(sel => sel.id === e.target.value); if (s) updateTask(selectedTask.id, { assignedTo: s.name }); }}>
-                                                {sellers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                {activeSellers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                             </select>
                                         </div>
                                         {!canReassign && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}

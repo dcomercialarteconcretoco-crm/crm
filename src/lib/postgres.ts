@@ -90,6 +90,94 @@ async function doEnsureCrmSchema() {
     ALTER TABLE crm_users ADD COLUMN IF NOT EXISTS receives_leads BOOLEAN NOT NULL DEFAULT TRUE;
   `);
 
+  // Token de recuperación / activación de cuenta. Hasta ago-2026 estas dos
+  // columnas se creaban con un ALTER suelto dentro de los flujos que las usan
+  // (forgot-password, invitación) en vez de acá, así que cualquier código que
+  // las tocara ANTES de que alguno de esos flujos hubiera corrido reventaba con
+  // «column reset_token does not exist». Lo descubrió el relevo, que anula el
+  // token al archivar a alguien. Declararlas en el esquema es lo correcto: son
+  // parte de la tabla, no de un endpoint.
+  await pool.query(`
+    ALTER TABLE crm_users
+      ADD COLUMN IF NOT EXISTS reset_token TEXT,
+      ADD COLUMN IF NOT EXISTS reset_token_expires TIMESTAMPTZ;
+  `);
+
+  // ── Relevo de personal (rotación de vendedores / jefes de área) ──────────
+  //
+  // La rotación en ArteConcreto es alta y hasta ago-2026 la salida de alguien
+  // se resolvía RENOMBRANDO su fila: el asesor nuevo heredaba el id, y con él
+  // los errores, los tiempos de respuesta y las cotizaciones del anterior. En
+  // producción quedaron dos casos así (s-1142714434 y s-1098774743: usuario,
+  // cartera y tarjeta digital con TRES nombres distintos), justo lo que una
+  // auditoría no puede desenredar.
+  //
+  // El modelo correcto: el que se va NO se borra ni se renombra, se ARCHIVA.
+  // Su fila queda intacta para que todo registro histórico (cotizaciones,
+  // crm_contact_events, adjuntos) siga resolviendo a un nombre real, pero sale
+  // de rotación, de los desplegables y del login. El que entra es una fila
+  // nueva, con id nuevo e historial en cero, que recibe la CARTERA (clientes,
+  // leads, negocios abiertos) — nunca el historial.
+  //
+  //   archived_at / by / reason  → cuándo, quién y por qué salió
+  //   replaced_by_id             → (en el que sale) quién lo relevó
+  //   replaces_id                → (en el que entra) a quién relevó
+  //   original_email/username    → el correo corporativo que tenía al salir.
+  //       Se guarda acá porque email y username son UNIQUE: para que el
+  //       reemplazo pueda quedarse con `asesor2@arteconcreto.co` hay que
+  //       liberárselo al que sale (pasa a `asesor2+ex-AAAAMMDD@…`).
+  //   hired_at                   → desde cuándo cuenta su historial. Sin esto
+  //       los informes de gestión miden a un asesor de 3 días contra uno de
+  //       6 meses.
+  await pool.query(`
+    ALTER TABLE crm_users
+      ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS archived_by TEXT,
+      ADD COLUMN IF NOT EXISTS archived_by_name TEXT,
+      ADD COLUMN IF NOT EXISTS archived_reason TEXT,
+      ADD COLUMN IF NOT EXISTS replaced_by_id TEXT,
+      ADD COLUMN IF NOT EXISTS replaces_id TEXT,
+      ADD COLUMN IF NOT EXISTS original_email TEXT,
+      ADD COLUMN IF NOT EXISTS original_username TEXT,
+      ADD COLUMN IF NOT EXISTS hired_at TIMESTAMPTZ;
+  `);
+  // Los usuarios que ya existían entraron cuando se creó su fila.
+  await pool.query(`UPDATE crm_users SET hired_at = created_at WHERE hired_at IS NULL;`);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_crm_users_activos
+    ON crm_users (status) WHERE archived_at IS NULL;
+  `);
+
+  // Acta de relevo: registro INMUTABLE de cada entrega de puesto. Es la única
+  // fuente que le permite a un auditor responder "¿por qué los 344 clientes de
+  // Lisseth aparecen hoy a nombre de otra persona?" — con fecha, autor, motivo,
+  // qué se movió y qué se dejó quieto a propósito. Append-only: nada en el
+  // sistema la edita ni la borra (a diferencia de crm_state.auditLogs, que el
+  // front sobreescribe completo en cada PUT).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crm_handovers (
+      id TEXT PRIMARY KEY,
+      outgoing_id TEXT NOT NULL,
+      outgoing_name TEXT NOT NULL,
+      outgoing_email TEXT,
+      outgoing_role TEXT,
+      incoming_id TEXT,
+      incoming_name TEXT,
+      incoming_email TEXT,
+      performed_by TEXT,
+      performed_by_name TEXT,
+      reason TEXT,
+      options JSONB NOT NULL DEFAULT '{}'::jsonb,
+      moved JSONB NOT NULL DEFAULT '{}'::jsonb,
+      kept JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_crm_handovers_outgoing
+    ON crm_handovers (outgoing_id, created_at DESC);
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS crm_clients (
       id TEXT PRIMARY KEY,
