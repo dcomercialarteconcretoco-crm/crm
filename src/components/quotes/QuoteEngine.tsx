@@ -10,6 +10,7 @@ import { clsx } from 'clsx';
 import { generateProposalPDF } from '@/lib/pdf-generator';
 import { useApp, Product, formatQuoteNumber } from '@/context/AppContext';
 import { whatsAppContactUrl, whatsAppContactLabel, canWhatsApp } from '@/lib/contact-links';
+import { emailFormatError, isValidEmailFormat } from '@/lib/client-emails';
 import CompanyCombobox from '@/components/CompanyCombobox';
 import {
     calculateQuoteTotals,
@@ -617,9 +618,80 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     };
 
     const getQuoteOwner = (client: typeof clients[0]) => {
+        // Una cotización que YA existe conserva su vendedor. Antes el dueño
+        // salía siempre de la sesión abierta: si un admin guardaba o enviaba
+        // la cotización de un vendedor, la venta pasaba a nombre del admin
+        // (4 cotizaciones por COP 70,9 M medidas el 30-sep-2026, entre ellas
+        // la ART-807 de Lisseth, que quedó como "DIRECCION COMERCIAL").
+        // Ranking, comisión y auditoría leen `sellerId`.
+        if (editQuote?.sellerId) {
+            return { sellerId: editQuote.sellerId, sellerName: editQuote.sellerName || '', sellerPhone: editQuote.sellerPhone };
+        }
         const sellerId = currentUser?.id || client.assignedTo || '';
         const sellerName = currentUser?.name || client.assignedToName || '';
-        return { sellerId, sellerName };
+        return { sellerId, sellerName, sellerPhone: currentUser?.phone || '' };
+    };
+
+    /** La cotización ya pasó por aprobación (o ya salió al cliente). */
+    const isAlreadyApproved = (q?: { status?: string } | null): boolean =>
+        !!q && (q.status === 'Approved' || q.status === 'Sent' || q.status === 'ApprovedPendingSend');
+
+    /**
+     * ¿Lo que está en pantalla es EXACTAMENTE lo que se aprobó? Compara lo que
+     * mueve plata: productos (cantidad y precio) y condiciones que cambian el
+     * total (modo, IVA, transporte, AIU). Los productos se hidratan con el
+     * precio GUARDADO (no se recalculan del catálogo), así que una cotización
+     * sin tocar siempre coincide.
+     */
+    const matchesApprovedVersion = (): boolean => {
+        if (!editQuote) return false;
+        const sig = (arr: Array<{ productId?: string | number; name?: string; quantity?: number; price?: number }> = []) =>
+            arr.map(i => `${i.productId ?? i.name ?? ''}|${Number(i.quantity) || 0}|${Math.round(Number(i.price) || 0)}`).sort().join(';');
+        if (sig(editQuote.items) !== sig(items)) return false;
+        const storedMode = editQuote.quoteMode ?? (editQuote.isAIU ? 'aiu' : 'simple');
+        if (storedMode !== quoteMode) return false;
+        if ((editQuote.vatExempt ?? false) !== vatExempt) return false;
+        if ((editQuote.includesTransport ?? (storedMode === 'aiu')) !== includesTransport) return false;
+        if (Math.round(editQuote.transportAmount ?? 0) !== Math.round(transportAmount || 0)) return false;
+        if (quoteMode === 'aiu') {
+            if ((editQuote.adminPercent ?? 10) !== adminPercent) return false;
+            if ((editQuote.utilityPercent ?? 5) !== utilityPercent) return false;
+        }
+        return true;
+    };
+
+    /**
+     * ¿Puede el VENDEDOR enviar esta cotización directo al cliente?
+     *
+     * Solo si ya está aprobada y no la cambió. Antes, todo envío de un
+     * vendedor (WhatsApp o correo) llamaba a requestApproval(), que devuelve
+     * la cotización a "Pendiente" y BORRA la aprobación — incluso cuando ya
+     * estaba aprobada y sin un solo cambio. Resultado: el admin aprobaba, el
+     * vendedor intentaba enviar, volvía a la cola, y otra vez. Al 30-sep-2026:
+     * 67 cotizaciones aprobadas 2+ veces, ART-698 y ART-703 cinco veces
+     * (el "bug de aprobación" que reportó Lisseth).
+     *
+     * Devuelve true si puede seguir con el envío. Si no, hace lo que toca
+     * (pedir aprobación, o preguntar si la cambió) y devuelve false.
+     */
+    const vendorMaySendDirectly = (): boolean => {
+        if (!isAlreadyApproved(editQuote)) {
+            requestApproval();   // borrador o cambios pedidos → flujo normal de aprobación
+            return false;
+        }
+        if (matchesApprovedVersion()) return true;
+        // La cambió después de aprobada: con precios nuevos NO puede salir sin
+        // que el admin la vea. Se pregunta en vez de borrar la aprobación en
+        // silencio, y si no quiere, la versión aprobada queda intacta.
+        if (confirm(
+            'Cambiaste esta cotización después de que la aprobaron (productos, precios o condiciones).\n\n' +
+            'Para enviarla con esos cambios tiene que aprobarse otra vez.\n\n' +
+            'ACEPTAR: mandarla a aprobación ahora.\n' +
+            'CANCELAR: no hacer nada — puedes deshacer los cambios y enviar la versión aprobada.'
+        )) {
+            requestApproval();
+        }
+        return false;
     };
 
     const ensureQuoteOwnerReady = () => {
@@ -665,7 +737,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             deliveryTime, paymentTerms,
             observations: observations.trim() || undefined,
             hideContactName,
-            sellerPhone: currentUser?.phone || '',
+            sellerPhone: owner.sellerPhone || currentUser?.phone || '',
             // Envío legacy (snapshot histórico — se queda por compatibilidad pero NO entra al total).
             shipping: shipping > 0 ? shipping : undefined,
             shippingCity: client.city || undefined,
@@ -925,7 +997,19 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     // El vendedor lo dispara sin pasar de nuevo por aprobación.
     const retryDelivery = async () => {
         const client = clients.find(c => c.id === selectedClientId);
-        if (!editQuote || !client?.email) return;
+        if (!editQuote || !client) return;
+        // Reintentar con el mismo correo mal escrito falla igual cada vez:
+        // se dice qué está mal en vez de reintentar a ciegas.
+        if (!client.email || !isValidEmailFormat(client.email)) {
+            addNotification({
+                title: client.email ? 'Correo mal escrito' : 'Sin correo',
+                description: client.email
+                    ? `${emailFormatError(client.email)} (${client.email}). Corrígelo en la ficha del cliente, o envía la cotización por WhatsApp con el botón verde.`
+                    : 'El cliente no tiene correo. Envía la cotización por WhatsApp con el botón verde.',
+                type: 'alert',
+            });
+            return;
+        }
         setIsSendingEmail(true);
         try {
             const sentAt = new Date().toISOString();
@@ -1145,12 +1229,15 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
 
     const executeWhatsApp = async () => {
         const client = clients.find(c => c.id === selectedClientId);
-        if (!client?.phone) return;
-        const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
-        if (!isAdmin) {
-            requestApproval();
+        // Antes: `if (!client?.phone) return;` — un cliente con solo usuario de
+        // WhatsApp pasaba el botón (que ya aceptaba usuario), abría la vista
+        // previa, y al confirmar esto cortaba EN SILENCIO. Nada pasaba.
+        if (!client || !canWhatsApp({ whatsappUser: client.whatsappUser, phone: client.phone })) {
+            addNotification({ title: 'Sin WhatsApp', description: 'El cliente no tiene teléfono ni usuario de WhatsApp registrado.', type: 'alert' });
             return;
         }
+        const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
+        if (!isAdmin && !vendorMaySendDirectly()) return;
         if (!assertNoQuoteNumberConflict()) return;
         if (isSaving) return;
         // window.open debe correr DENTRO del gesto del click: después de un
@@ -1209,6 +1296,9 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                     ...getCommonQuoteFields(client, quoteNumber, items),
                     status: 'Sent' as const, sentAt: new Date().toISOString(),
                     sentByName: currentUser?.name || '', sentById: currentUser?.id || '',
+                    // Si el correo había rebotado tras la aprobación, la
+                    // cotización ya llegó por WhatsApp: el fallo deja de aplicar.
+                    deliveryFailed: false, deliveryError: undefined,
                 });
             } else {
                 const created = await addQuote({
@@ -1240,14 +1330,17 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
 
     const executeEmail = async () => {
         const client = clients.find(c => c.id === selectedClientId);
-        if (!client?.email) return;
-        if (!ensureQuoteOwnerReady()) return;
-        const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
-
-        if (!isAdmin) {
-            requestApproval();
+        if (!client?.email) {
+            addNotification({ title: 'Sin correo', description: 'El cliente no tiene correo registrado. Agrégalo en su ficha o envía por WhatsApp.', type: 'alert' });
             return;
         }
+        if (!isValidEmailFormat(client.email)) {
+            addNotification({ title: 'Correo mal escrito', description: `${emailFormatError(client.email)} (${client.email}). Corrígelo en la ficha del cliente o envía por WhatsApp.`, type: 'alert' });
+            return;
+        }
+        if (!ensureQuoteOwnerReady()) return;
+        const isAdmin = currentUser?.role === 'SuperAdmin' || currentUser?.role === 'Admin';
+        if (!isAdmin && !vendorMaySendDirectly()) return;
         if (!assertNoQuoteNumberConflict()) return;
 
         setIsSendingEmail(true);
@@ -1319,6 +1412,13 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
 
 
     const handleCreateClient = (e: React.FormEvent) => {
+        // El <input type="email"> ya lo frena en el navegador, pero se valida
+        // igual acá: misma regla en toda la app, y no depende del submit nativo.
+        if (emailFormatError(newClient.email)) {
+            e.preventDefault();
+            addNotification({ title: 'Correo mal escrito', description: emailFormatError(newClient.email) || '', type: 'alert' });
+            return;
+        }
         e.preventDefault();
         const id = addClient({ ...newClient, status: 'Active', value: '$0', ltv: 0, lastContact: 'Ahora', city: newClient.city || '', score: 10, category: 'Construcción', registrationDate: new Date().toISOString() });
         setSelectedClientId(id);
@@ -2428,6 +2528,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                     <div className="rounded-2xl border-2 border-rose-300 bg-rose-50 p-4 space-y-2">
                                         <p className="text-xs font-black uppercase tracking-widest text-rose-900">⚠️ El envío falló</p>
                                         <p className="text-sm text-rose-900">La cotización ya está aprobada pero el correo no se entregó. {editQuote?.deliveryError && (<span className="opacity-75">({editQuote.deliveryError})</span>)}</p>
+                                        <p className="text-xs text-rose-800">Puedes corregir el correo en la ficha del cliente y reintentar, o enviarla ya por <strong>WhatsApp</strong> con el botón verde de abajo.</p>
                                         <button onClick={retryDelivery} disabled={isSendingEmail}
                                             className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest disabled:opacity-50">
                                             {isSendingEmail ? 'Reintentando...' : '🔄 Reintentar envío al cliente'}

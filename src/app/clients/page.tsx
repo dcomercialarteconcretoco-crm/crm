@@ -30,6 +30,7 @@ import Link from 'next/link';
 import { useApp, Client } from '@/context/AppContext';
 import { logContactEvent } from '@/lib/contact-events';
 import { openWhatsAppContact, formatWhatsAppUser, normalizeWhatsAppUser, whatsAppUserError } from '@/lib/contact-links';
+import { emailFormatError } from '@/lib/client-emails';
 import SearchableSelect from '@/components/SearchableSelect';
 import ExtraEmailsEditor from '@/components/ExtraEmailsEditor';
 import CompanyCombobox from '@/components/CompanyCombobox';
@@ -134,6 +135,7 @@ export default function ClientsPage() {
         // Handle inválido: no dejamos crear el contacto con un link que WhatsApp
         // no va a resolver. El mensaje ya está visible bajo el input.
         if (whatsAppUserError(newClientForm.whatsappUser)) return;
+        if (emailFormatError(newClientForm.email)) return;
 
         const isAdminUser = ctxUser?.role === 'SuperAdmin' || ctxUser?.role === 'Admin';
 
@@ -990,9 +992,12 @@ export default function ClientsPage() {
                                             placeholder="c.mendoza@empresa.com"
                                             value={newClientForm.email}
                                             onChange={(e) => setNewClientForm({ ...newClientForm, email: e.target.value })}
-                                            className="w-full bg-muted border border-border rounded-xl py-2.5 pl-10 pr-3 text-sm outline-none focus:border-primary focus:bg-white transition-all"
+                                            className={`w-full bg-muted border rounded-xl py-2.5 pl-10 pr-3 text-sm outline-none focus:bg-white transition-all ${emailFormatError(newClientForm.email) ? 'border-rose-400 focus:border-rose-500' : 'border-border focus:border-primary'}`}
                                         />
                                     </div>
+                                    {emailFormatError(newClientForm.email) && (
+                                        <p className="text-[11px] text-rose-600 mt-1.5 font-medium">{emailFormatError(newClientForm.email)}</p>
+                                    )}
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">Teléfono / WhatsApp</label>
@@ -1086,7 +1091,7 @@ export default function ClientsPage() {
                             </button>
                             <button
                                 onClick={handleCreateClient}
-                                disabled={!newClientForm.name || !!whatsAppUserError(newClientForm.whatsappUser)}
+                                disabled={!newClientForm.name || !!whatsAppUserError(newClientForm.whatsappUser) || !!emailFormatError(newClientForm.email)}
                                 className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 transition-all shadow-[0_2px_8px_rgba(250,181,16,0.3)] flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                                 <CheckCircle2 className="w-4 h-4" />

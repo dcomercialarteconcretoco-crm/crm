@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sanitizeExtraEmails, isPlaceholderEmail } from '@/lib/client-emails';
+import { sanitizeExtraEmails, isPlaceholderEmail, emailFormatError } from '@/lib/client-emails';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || 'cotizaciones@arteconcreto.co';
@@ -50,6 +50,18 @@ export async function POST(request: NextRequest) {
   if (isPlaceholderEmail(clientEmail)) {
     return NextResponse.json(
       { error: 'El cliente solo tiene un correo sintético de importación. Edita el contacto y registra su correo real antes de enviar.' },
+      { status: 400 }
+    );
+  }
+  // Formato inválido: se corta ACÁ, en español, en vez de dejar que Resend
+  // responda en inglés ("Invalid `to` field...") y ese texto termine en la
+  // pantalla del asesor. Caso ART-807 (30-sep-2026): el cliente tenía
+  // `asesor1@arteconcreto.co@gmail.com` y la cotización quedó atascada en
+  // "Aprobada · falta enviar" sin que nadie entendiera por qué.
+  const formatError = emailFormatError(clientEmail);
+  if (formatError) {
+    return NextResponse.json(
+      { error: `El correo del cliente está mal escrito (${String(clientEmail).trim()}). ${formatError} Corrígelo en la ficha del cliente, o envía la cotización por WhatsApp.` },
       { status: 400 }
     );
   }

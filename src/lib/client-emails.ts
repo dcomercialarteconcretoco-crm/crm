@@ -17,10 +17,44 @@ export function isPlaceholderEmail(email?: string | null): boolean {
     return /@placeholder\.local$/i.test((email || '').trim());
 }
 
-/** Correo con pinta de real: pasa el regex mínimo y no es placeholder. */
+/**
+ * Formato de correo aceptable para ENVIAR: una sola arroba, sin espacios, y un
+ * dominio con punto y terminación de al menos 2 letras.
+ *
+ * Antes el único chequeo era `/.+@.+\..+/`, que deja pasar
+ * `asesor1@arteconcreto.co@gmail.com` (tiene arroba y tiene punto). Ese correo
+ * se guardó en un cliente real el 30-sep-2026: Resend lo rechazó al aprobar la
+ * cotización ART-807 ("Invalid `to` field") y la cotización quedó atascada en
+ * "Aprobada · falta enviar".
+ */
+const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
+
+/**
+ * Motivo en español por el que un correo no sirve para enviar, o `null` si
+ * está bien (o si está vacío: el correo es opcional, eso lo decide el caller).
+ * Pensado para mostrarse tal cual debajo del campo.
+ */
+export function emailFormatError(email?: string | null): string | null {
+    const e = (email || '').trim();
+    if (!e) return null;
+    if (/\s/.test(e)) return 'El correo no puede tener espacios.';
+    const arrobas = (e.match(/@/g) || []).length;
+    if (arrobas === 0) return 'Al correo le falta la arroba (@).';
+    if (arrobas > 1) return 'El correo tiene más de una arroba (@). Debe quedar solo una, como nombre@empresa.com.';
+    if (!EMAIL_FORMAT.test(e)) return 'Revisa el correo: debe verse como nombre@empresa.com.';
+    return null;
+}
+
+/** `true` si el correo tiene un formato al que sí se le puede enviar. */
+export function isValidEmailFormat(email?: string | null): boolean {
+    const e = (email || '').trim();
+    return !!e && emailFormatError(e) === null;
+}
+
+/** Correo con pinta de real: formato válido y no es placeholder. */
 export function isRealEmail(email?: string | null): boolean {
     const e = (email || '').trim();
-    return /.+@.+\..+/.test(e) && !isPlaceholderEmail(e);
+    return isValidEmailFormat(e) && !isPlaceholderEmail(e);
 }
 
 /** Tope de correos adicionales por cliente — suficiente para comprador +

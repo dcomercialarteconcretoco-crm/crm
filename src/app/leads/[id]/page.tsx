@@ -29,6 +29,7 @@ import { useApp, Activity } from '@/context/AppContext';
 import { ownsRecord } from '@/lib/scope';
 import { quoteStatusLabel } from '@/lib/quote-status';
 import { openMailto, openTel, openWhatsAppContact, whatsAppUserUrl, formatWhatsAppUser, normalizeWhatsAppUser, whatsAppUserError } from '@/lib/contact-links';
+import { emailFormatError } from '@/lib/client-emails';
 import { logContactEvent } from '@/lib/contact-events';
 import { ClientAttachments } from '@/components/leads/ClientAttachments';
 import { ClientBotChats } from '@/components/leads/ClientBotChats';
@@ -976,8 +977,13 @@ export default function Lead360Page() {
                                         type={f.type}
                                         value={editForm[f.key]}
                                         onChange={e => setEditForm(prev => ({ ...prev, [f.key]: e.target.value }))}
-                                        className="bg-muted border border-border rounded-xl py-2.5 px-3 text-sm outline-none focus:border-primary focus:bg-white w-full transition-colors"
+                                        className={`bg-muted border rounded-xl py-2.5 px-3 text-sm outline-none focus:bg-white w-full transition-colors ${f.key === 'email' && emailFormatError(editForm.email) ? 'border-rose-400 focus:border-rose-500' : 'border-border focus:border-primary'}`}
                                     />
+                                    {/* Sin esto se guardó "asesor1@arteconcreto.co@gmail.com"
+                                        (30-sep-2026) y la cotización aprobada nunca salió. */}
+                                    {f.key === 'email' && emailFormatError(editForm.email) && (
+                                        <p className="text-[11px] text-rose-600 mt-1.5 font-medium">{emailFormatError(editForm.email)}</p>
+                                    )}
                                 </div>
                             ))}
                             {/* Empresa: combobox para asignar (o cambiar) la empresa
@@ -1043,8 +1049,8 @@ export default function Lead360Page() {
                     <div className="flex items-center justify-end gap-3 p-6 border-t border-border">
                         <button onClick={() => setIsEditOpen(false)} className="bg-white border border-border text-foreground font-medium rounded-xl px-4 py-2 hover:bg-muted transition-colors">Cancelar</button>
                         <button
-                            disabled={!!whatsAppUserError(editForm.whatsappUser)}
-                            onClick={() => { updateClient(lead.id, { ...editForm, status: editForm.status as 'Active' | 'Lead' | 'Inactive' }); setIsEditOpen(false); }}
+                            disabled={!!whatsAppUserError(editForm.whatsappUser) || !!emailFormatError(editForm.email)}
+                            onClick={() => { updateClient(lead.id, { ...editForm, email: editForm.email.trim(), status: editForm.status as 'Active' | 'Lead' | 'Inactive' }); setIsEditOpen(false); }}
                             className="bg-primary text-black font-bold rounded-xl px-4 py-2 hover:brightness-105 shadow-[0_2px_8px_rgba(250,181,16,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             Guardar Cambios
