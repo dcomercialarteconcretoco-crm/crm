@@ -167,18 +167,54 @@ export type WhatsAppChannel = 'username' | 'phone';
  * con el canal correcto — no adivinamos en el call site.
  */
 export function openWhatsAppContact(
-    contact: { whatsappUser?: string; phone?: string },
+    contact: { whatsappUser?: string | null; phone?: string | null },
     text?: string
 ): WhatsAppChannel | null {
-    const url = whatsAppUserUrl(contact.whatsappUser || '', text);
-    if (url) {
-        triggerAnchor(url, '_blank');
-        return 'username';
-    }
-    const cleaned = (contact.phone || '').replace(/\D/g, '');
-    if (cleaned) {
-        openWhatsApp(cleaned, text);
-        return 'phone';
+    const best = whatsAppContactUrl(contact, text);
+    if (!best) return null;
+    triggerAnchor(best.url, '_blank');
+    return best.channel;
+}
+
+/**
+ * Igual que `openWhatsAppContact` pero DEVUELVE la URL en vez de abrirla.
+ *
+ * Existe para los flujos que no pueden abrir la ventana en el momento: el
+ * envío de cotización del QuoteEngine abre `window.open` dentro del gesto del
+ * click y sólo después —tras generar el PDF, que tarda segundos— le asigna el
+ * destino. Si esperara al `await`, el navegador ya habría caducado la
+ * activación de usuario y bloquearía el popup.
+ *
+ * Devuelve también el canal para que el call site audite con la verdad
+ * ("por usuario @x" vs "al 300…") en vez de suponerlo.
+ */
+export function whatsAppContactUrl(
+    contact: { whatsappUser?: string | null; phone?: string | null },
+    text?: string
+): { url: string; channel: WhatsAppChannel } | null {
+    const byUser = whatsAppUserUrl(contact.whatsappUser || '', text);
+    if (byUser) return { url: byUser, channel: 'username' };
+
+    // toWhatsAppPhone en vez de pegar '57' a ciegas: un número guardado ya con
+    // indicativo terminaba como wa.me/57573001112233 y caía en "no encontrado".
+    const phone = toWhatsAppPhone(contact.phone);
+    if (phone) {
+        const qs = text ? `?text=${encodeURIComponent(text)}` : '';
+        return { url: `https://wa.me/${phone}${qs}`, channel: 'phone' };
     }
     return null;
+}
+
+/** `true` si al contacto se le puede escribir por WhatsApp, por el canal que sea. */
+export function canWhatsApp(contact: { whatsappUser?: string | null; phone?: string | null }): boolean {
+    return whatsAppContactUrl(contact) !== null;
+}
+
+/** Etiqueta del canal para auditoría y tooltips: "@juan.perez" o "3001112233". */
+export function whatsAppContactLabel(contact: { whatsappUser?: string | null; phone?: string | null }): string {
+    const best = whatsAppContactUrl(contact);
+    if (!best) return '';
+    return best.channel === 'username'
+        ? formatWhatsAppUser(contact.whatsappUser || '')
+        : (contact.phone || '');
 }

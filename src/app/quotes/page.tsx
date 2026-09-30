@@ -11,6 +11,7 @@ import { clsx } from 'clsx';
 import { useApp, Quote } from '@/context/AppContext';
 import { PermissionGate, PermissionHide } from '@/components/PermissionGate';
 import { ownsRecord } from '@/lib/scope';
+import { openWhatsAppContact } from '@/lib/contact-links';
 import { downloadQuotePdf, quoteDisplayNumber } from '@/lib/quote-pdf';
 import { quoteStatusLabel, isWonQuote } from '@/lib/quote-status';
 import { quoteRootKey, groupQuoteVersions, latestVersionOnly } from '@/lib/quote-versions';
@@ -144,12 +145,17 @@ export default function QuotesPage() {
 
     const handleSendWhatsApp = (quote: Quote) => {
         const client = clients.find(c => c.id === quote.clientId);
-        const phone = client?.phone?.replace(/\D/g, '') || '';
-        const msg = encodeURIComponent(`Hola ${quote.client}, te enviamos la cotización ${quoteDisplayNumber(quote)} por valor de ${quote.total}. Quedamos atentos. ArteConcreto.`);
-        if (phone) {
-            window.open(`https://wa.me/57${phone}?text=${msg}`, '_blank');
-        } else {
-            addNotification({ title: 'Sin WhatsApp', description: 'El cliente no tiene teléfono registrado.', type: 'alert' });
+        const msg = `Hola ${quote.client}, te enviamos la cotización ${quoteDisplayNumber(quote)} por valor de ${quote.total}. Quedamos atentos. ArteConcreto.`;
+        // Prefiere el USUARIO de WhatsApp sobre el teléfono. Desde que Meta
+        // dejó escribir por nombre de usuario, hay clientes que ocultan su
+        // número: para ellos el CRM no tenía por dónde mandar la cotización.
+        const channel = openWhatsAppContact({ whatsappUser: client?.whatsappUser, phone: client?.phone }, msg);
+        if (!channel) {
+            addNotification({
+                title: 'Sin WhatsApp',
+                description: 'Este cliente no tiene teléfono ni usuario de WhatsApp. Agregá uno en su ficha.',
+                type: 'alert',
+            });
         }
     };
 

@@ -4,11 +4,12 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
     Plus, Minus, Trash2, Search,
     CheckCircle, UserPlus, Box, RefreshCw, ShoppingCart,
-    Building2, Package, Eye, X, FileText, Send, GitBranch, Hash, ImagePlus
+    Building2, Package, Eye, X, FileText, Send, GitBranch, Hash, ImagePlus, Pencil
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { generateProposalPDF } from '@/lib/pdf-generator';
 import { useApp, Product, formatQuoteNumber } from '@/context/AppContext';
+import { whatsAppContactUrl, whatsAppContactLabel, canWhatsApp } from '@/lib/contact-links';
 import CompanyCombobox from '@/components/CompanyCombobox';
 import {
     calculateQuoteTotals,
@@ -1061,12 +1062,14 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
     const reminderSendWhatsApp = () => {
         const client = clients.find(c => c.id === selectedClientId);
         if (!client || !postGenReminder) return;
-        if (!client.phone) { addNotification({ title: 'Teléfono requerido', description: 'El cliente no tiene número registrado.', type: 'alert' }); return; }
+        // Usuario de WhatsApp O teléfono: desde que Meta permite ocultar el
+        // número, exigir teléfono dejaba sin canal a clientes que sí se pueden
+        // contactar. whatsAppContactUrl prefiere el usuario y cae al número.
+        const waTarget = whatsAppContactUrl({ whatsappUser: client.whatsappUser, phone: client.phone });
+        if (!waTarget) { addNotification({ title: 'Sin WhatsApp', description: 'El cliente no tiene teléfono ni usuario de WhatsApp registrado.', type: 'alert' }); return; }
         setReminderBusy('wa');
         try {
             const quoteNumber = postGenReminder.quoteNumber;
-            const phone = client.phone.replace(/\D/g, '');
-            const intlPhone = phone.startsWith('57') ? phone : `57${phone}`;
             // El detalle de IVA/admin/utilidad va en el PDF; en WhatsApp el cliente
             // sólo necesita ver los productos y el TOTAL (igual que en el PDF que llega adjunto).
             const itemsList = items.map(i => `  • ${i.name} x${i.quantity}`).join('\n');
@@ -1086,10 +1089,13 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 `📍 Km 1+800, Anillo Vial, Floridablanca, Santander`,
                 currentUser?.phone ? `📞 ${currentUser.phone}` : '',
             ].filter(l => l !== '').join('\n');
-            window.open(`https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+            window.open(
+                whatsAppContactUrl({ whatsappUser: client.whatsappUser, phone: client.phone }, msg)!.url,
+                '_blank'
+            );
             // Marcar la cotización como enviada (actualizamos en lugar de crear duplicado)
             updateQuote(postGenReminder.quoteId, { status: 'Sent', sentAt: new Date().toISOString(), sentByName: currentUser?.name || '', sentById: currentUser?.id || '' });
-            addAuditLog({ userId: currentUser?.id || '', userName: currentUser?.name || 'Sistema', userRole: currentUser?.role || 'Vendedor', action: 'WHATSAPP_SENT', targetId: client.id, targetName: client.company || client.name, details: `WhatsApp enviado con cotización ${quoteNumber} · Total: ${formatCurrency(total)} → ${client.phone}`, verified: true });
+            addAuditLog({ userId: currentUser?.id || '', userName: currentUser?.name || 'Sistema', userRole: currentUser?.role || 'Vendedor', action: 'WHATSAPP_SENT', targetId: client.id, targetName: client.company || client.name, details: `WhatsApp enviado con cotización ${quoteNumber} · Total: ${formatCurrency(total)} → ${whatsAppContactLabel({ whatsappUser: client.whatsappUser, phone: client.phone })}`, verified: true });
             addNotification({ title: 'WhatsApp abierto', description: 'Revisa el mensaje y envíalo desde WhatsApp.', type: 'success' });
             setPostGenReminder(null);
         } finally {
@@ -1147,8 +1153,6 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         }
         if (!assertNoQuoteNumberConflict()) return;
         if (isSaving) return;
-        const phone = client.phone.replace(/\D/g, '');
-        const intlPhone = phone.startsWith('57') ? phone : `57${phone}`;
         // window.open debe correr DENTRO del gesto del click: después de un
         // await con reintentos (hasta ~7s) la activación de usuario expira y el
         // navegador bloquea el popup en silencio. Como el mensaje necesita el
@@ -1188,8 +1192,11 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 `📍 Km 1+800, Anillo Vial, Floridablanca, Santander`,
                 currentUser?.phone ? `📞 ${currentUser.phone}` : '',
             ].filter(l => l !== '').join('\n');
-            if (waWindow) {
-                waWindow.location.href = `https://wa.me/${intlPhone}?text=${encodeURIComponent(msg)}`;
+            // El destino se resuelve acá (ya con el mensaje armado) y se le
+            // asigna a la ventana que se abrió en el gesto del click.
+            const waTarget = whatsAppContactUrl({ whatsappUser: client.whatsappUser, phone: client.phone }, msg);
+            if (waWindow && waTarget) {
+                waWindow.location.href = waTarget.url;
             }
             // El número va explícito (ya reservado) para que coincida con el
             // mensaje que acaba de salir; baseNumber lleva la base sin sufijos
@@ -1215,7 +1222,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             // Sin confirmación del server no se registra auditoría de envío —
             // sería el mismo rastro fantasma del caso ART-567.
             if (persisted) {
-                addAuditLog({ userId: currentUser?.id || '', userName: currentUser?.name || 'Sistema', userRole: currentUser?.role || 'Vendedor', action: 'WHATSAPP_SENT', targetId: client.id, targetName: client.company || client.name, details: `WhatsApp enviado con cotización ${quoteNumber} · Total: ${formatCurrency(total)} → ${client.phone}`, verified: true });
+                addAuditLog({ userId: currentUser?.id || '', userName: currentUser?.name || 'Sistema', userRole: currentUser?.role || 'Vendedor', action: 'WHATSAPP_SENT', targetId: client.id, targetName: client.company || client.name, details: `WhatsApp enviado con cotización ${quoteNumber} · Total: ${formatCurrency(total)} → ${whatsAppContactLabel({ whatsappUser: client.whatsappUser, phone: client.phone })}`, verified: true });
             }
         } finally {
             setIsSaving(false);
@@ -1225,7 +1232,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
 
     const handleSendWhatsApp = () => {
         const client = clients.find(c => c.id === selectedClientId);
-        if (!client?.phone) { addNotification({ title: 'Teléfono requerido', description: 'El cliente no tiene número registrado.', type: 'alert' }); return; }
+        if (!canWhatsApp({ whatsappUser: client?.whatsappUser, phone: client?.phone })) { addNotification({ title: 'Sin WhatsApp', description: 'El cliente no tiene teléfono ni usuario de WhatsApp registrado.', type: 'alert' }); return; }
         if (items.length === 0) { addNotification({ title: 'Sin productos', description: 'Agrega al menos un producto.', type: 'alert' }); return; }
         setPendingAction('whatsapp');
         setShowPreview(true);
@@ -1331,15 +1338,26 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
             <div className="mb-4 px-5 py-3 rounded-2xl bg-primary/10 border border-primary/30">
                 <div className="flex items-center gap-3">
                     <Hash className="w-4 h-4 text-primary shrink-0" />
-                    <label className="text-sm font-black text-foreground">Nueva cotización:</label>
-                    <input
-                        type="text"
-                        value={customQuoteNumber}
-                        onChange={(e) => setCustomQuoteNumber(e.target.value)}
-                        placeholder={autoPreviewNumber}
-                        className="flex-1 min-w-[180px] bg-white/70 border border-primary/30 rounded-lg px-3 py-1.5 text-sm font-black text-primary outline-none focus:bg-white focus:border-primary transition-all placeholder:text-primary/60 placeholder:font-black"
-                        title="Dejá vacío para usar el consecutivo automático, o escribí un número distinto"
-                    />
+                    <label htmlFor="quote-number-input" className="text-sm font-black text-foreground">Nueva cotización:</label>
+                    {/* El número automático se mostraba como placeholder en negrita
+                        del color de marca: se leía como una etiqueta fija, no como
+                        un campo. Resultado (medido 30-sep-2026): 3 asesores lo
+                        usaban a diario y otros 3 nunca supieron que se podía
+                        escribir, y el cliente pidió "poder llenar el número a
+                        mano" cuando esa función ya existía. Ahora el campo tiene
+                        borde, lápiz y un placeholder que dice qué es. */}
+                    <div className="relative flex-1 min-w-[180px]">
+                        <input
+                            id="quote-number-input"
+                            type="text"
+                            value={customQuoteNumber}
+                            onChange={(e) => setCustomQuoteNumber(e.target.value)}
+                            placeholder={`${autoPreviewNumber} (automático)`}
+                            className="w-full bg-white border-2 border-dashed border-primary/50 rounded-lg pl-3 pr-9 py-1.5 text-sm font-black text-primary outline-none focus:border-solid focus:border-primary transition-all placeholder:text-primary/50 placeholder:font-bold"
+                            title="Dejá vacío para usar el consecutivo automático, o escribí el número de un pedido anterior"
+                        />
+                        <Pencil className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-primary/60 pointer-events-none" />
+                    </div>
                     {customQuoteNumber.trim() && (
                         <button
                             type="button"
@@ -1351,10 +1369,33 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                         </button>
                     )}
                 </div>
-                {customQuoteNumber.trim() && isQuoteNumberConflict && (
-                    <p className="text-[10px] text-rose-600 font-bold mt-2 ml-7">
-                        ⚠ Ya existe una cotización con este número. Cambialo o dejá el campo vacío para usar el consecutivo.
+                {!customQuoteNumber.trim() && (
+                    <p className="text-[11px] text-muted-foreground mt-2 ml-7 leading-relaxed">
+                        El número sale solo. <strong className="text-foreground">¿Es la actualización de un pedido anterior?</strong> Escribí su número en el campo.
                     </p>
+                )}
+                {customQuoteNumber.trim() && isQuoteNumberConflict && conflictingQuote && (
+                    <div className="text-[11px] text-rose-700 mt-2 ml-7 leading-relaxed space-y-1">
+                        <p className="font-bold">
+                            ⚠ {conflictingQuote.quoteNumber || conflictingQuote.number} ya existe
+                            {conflictingQuote.client ? ` (${conflictingQuote.client})` : ''}. No se puede repetir: reutilizar
+                            un número borraba la cotización que ya se había enviado.
+                        </p>
+                        {conflictingQuote.isHistorical ? (
+                            <p>
+                                Es una cotización histórica (PDF subido). Para actualizarla, agregale una versión al
+                                número — por ejemplo <strong>{(conflictingQuote.quoteNumber || conflictingQuote.number || '').replace(/-AIU$/i, '')}-V2</strong>.
+                            </p>
+                        ) : (
+                            <p>
+                                Si es una actualización de ese pedido,{' '}
+                                <a href={`/quotes/${conflictingQuote.id}/edit`} className="font-bold underline hover:text-rose-900">
+                                    abrila y creá una nueva versión
+                                </a>{' '}
+                                — conserva el número y deja el historial completo.
+                            </p>
+                        )}
+                    </div>
                 )}
                 {customQuoteNumber.trim() && !isQuoteNumberConflict && (
                     <p className="text-[10px] text-muted-foreground mt-2 ml-7">
@@ -2670,7 +2711,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         {postGenReminder && (() => {
             const client = clients.find(c => c.id === selectedClientId);
             const hasEmail = !!client?.email;
-            const hasPhone = !!client?.phone;
+            const hasPhone = canWhatsApp({ whatsappUser: client?.whatsappUser, phone: client?.phone });
             return (
                 <div className="fixed inset-0 z-[600] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
                     <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
@@ -2718,10 +2759,10 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                                             : "bg-muted text-muted-foreground cursor-not-allowed",
                                         reminderBusy === 'wa' && "opacity-60"
                                     )}
-                                    title={!hasPhone ? 'El cliente no tiene teléfono registrado' : 'Enviar por WhatsApp'}
+                                    title={!hasPhone ? 'El cliente no tiene teléfono ni usuario de WhatsApp' : 'Enviar por WhatsApp'}
                                 >
                                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                                    {reminderBusy === 'wa' ? 'Abriendo...' : (hasPhone ? `Enviar por WhatsApp${client?.phone ? ` · ${client.phone}` : ''}` : 'Sin teléfono')}
+                                    {reminderBusy === 'wa' ? 'Abriendo...' : (hasPhone ? `Enviar por WhatsApp · ${whatsAppContactLabel({ whatsappUser: client?.whatsappUser, phone: client?.phone })}` : 'Sin WhatsApp')}
                                 </button>
 
                                 {/* Email */}

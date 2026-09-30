@@ -50,7 +50,7 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useApp, Task, Activity, Seller, Client, PipelineStage, DEFAULT_PIPELINE_STAGES } from '@/context/AppContext';
-import { openMailto, openWhatsApp } from '@/lib/contact-links';
+import { openMailto, openWhatsApp, openWhatsAppContact } from '@/lib/contact-links';
 import { logContactEvent } from '@/lib/contact-events';
 import { dedupPipelineTasks } from '@/lib/pipeline-dedup';
 import { StageId, resolveStageId } from '@/lib/pipeline-stages';
@@ -204,7 +204,7 @@ function parseCRMDate(value: any, fallbackYear = new Date().getFullYear()): Date
 // ─── SortableTask (real tasks only — virtual tasks shown separately) ─────────
 
 function SortableTask({ task, onClick, onNote, stages }: { task: Task; onClick: (task: Task) => void; onNote: (task: Task) => void; stages: PipelineStage[] }) {
-    const { sellers, quotes, updateTask, updateQuote, addNotification, currentUser } = useApp();
+    const { sellers, clients, quotes, updateTask, updateQuote, addNotification, currentUser } = useApp();
     const canApprove = hasPermission(currentUser, 'quotes.approve');
     const showOwnerBadge = canSeeAll(currentUser); // only Admin/Manager/SuperAdmin see "de quién es"
     const ownerSeller = sellers.find(s => s.id === task.assignedTo || s.name === task.assignedTo);
@@ -230,9 +230,22 @@ function SortableTask({ task, onClick, onNote, stages }: { task: Task; onClick: 
     const stop = (fn: () => void) => (e: React.MouseEvent) => { e.stopPropagation(); fn(); };
 
     const handleWA = stop(() => {
-        const phone = (task as any).phone?.replace(/\D/g, '') || '';
-        if (phone) window.open(`https://wa.me/57${phone}`, '_blank');
-        else if (task.email) window.open(`https://wa.me/?text=Hola ${task.contactName}`, '_blank');
+        // El usuario de WhatsApp vive en la ficha del cliente, no en la tarjeta
+        // del negocio: se busca ahí para no obligar a duplicar el dato. Prefiere
+        // usuario sobre teléfono — hay clientes que ya ocultaron su número.
+        const taskClient = clients.find(c => c.id === task.clientId);
+        const opened = openWhatsAppContact(
+            { whatsappUser: taskClient?.whatsappUser, phone: taskClient?.phone || (task as any).phone },
+            `Hola ${task.contactName || ''}`.trim()
+        );
+        if (!opened) {
+            addNotification({
+                title: 'Sin WhatsApp',
+                description: 'Este contacto no tiene teléfono ni usuario de WhatsApp. Agregá uno en su ficha.',
+                type: 'alert',
+            });
+            return;
+        }
         updateTask(task.id, { aiScore: Math.min(100, (task.aiScore || 50) + 5) } as any);
     });
 
