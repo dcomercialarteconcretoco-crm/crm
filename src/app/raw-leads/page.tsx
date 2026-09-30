@@ -595,7 +595,7 @@ export default function RawLeadsPage() {
 
     const handleManualCreate = async () => {
         if (!manualForm.name.trim()) {
-            addNotification({ title: 'Nombre requerido', description: 'Escribí al menos el nombre.', type: 'alert' });
+            addNotification({ title: 'Nombre requerido', description: 'Escribe al menos el nombre.', type: 'alert' });
             return;
         }
         const res = await fetch('/api/raw-leads', {
@@ -747,7 +747,7 @@ export default function RawLeadsPage() {
         } catch (e) {
             addNotification({
                 title: 'No se pudo guardar la nota',
-                description: e instanceof Error ? e.message : 'Intentá de nuevo.',
+                description: e instanceof Error ? e.message : 'Intenta de nuevo.',
                 type: 'alert',
             });
         } finally {
@@ -775,8 +775,8 @@ export default function RawLeadsPage() {
                     </h1>
                     <p className="text-sm text-muted-foreground mt-1">
                         {isAdmin
-                            ? 'Pre-directorio. Sube datos masivos, asigná a vendedor, y al aprobar pasan al directorio principal.'
-                            : 'Estos son los leads que te asignaron para trabajar. Contactá cada uno y marcá Aprobado (al directorio) o Descartado.'}
+                            ? 'Pre-directorio. Sube datos masivos, asigna a vendedor, y al aprobar pasan al directorio principal.'
+                            : 'Estos son los leads que te asignaron para trabajar. Contacta cada uno y marca Aprobado (al directorio) o Descartado.'}
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -1004,12 +1004,12 @@ export default function RawLeadsPage() {
                             <tr><td colSpan={11} className="text-center py-12 text-muted-foreground">
                                 <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
                                 {!isAdmin && statusFilter === 'assigned' && !hasAnyFilter ? (
-                                    <p className="text-sm font-bold">No tenés leads por trabajar ahora mismo. 🎉</p>
+                                    <p className="text-sm font-bold">No tienes leads por trabajar ahora mismo. 🎉</p>
                                 ) : (
                                     <p className="text-sm">No hay leads en este filtro.</p>
                                 )}
                                 {isAdmin && statusFilter === 'all' && !hasAnyFilter && (
-                                    <p className="text-xs mt-1">Subí un CSV o creá uno manual para empezar.</p>
+                                    <p className="text-xs mt-1">Sube un CSV o crea uno manual para empezar.</p>
                                 )}
                             </td></tr>
                         )}
@@ -1226,7 +1226,7 @@ export default function RawLeadsPage() {
                         <div className="flex-1 overflow-y-auto space-y-2 min-h-[80px]">
                             {(notesLead.notes?.length || 0) === 0 && (
                                 <p className="text-sm text-muted-foreground text-center py-6">
-                                    Sin notas todavía. Escribí la primera abajo.
+                                    Sin notas todavía. Escribe la primera abajo.
                                 </p>
                             )}
                             {(notesLead.notes || []).slice().reverse().map(note => (
@@ -1250,7 +1250,7 @@ export default function RawLeadsPage() {
                                 onChange={e => setNoteDraft(e.target.value)}
                                 rows={2}
                                 maxLength={2000}
-                                placeholder="Escribí una nota para el equipo…"
+                                placeholder="Escribe una nota para el equipo…"
                                 className="w-full bg-muted border border-border rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary focus:bg-white resize-none"
                             />
                             <div className="flex justify-end gap-2">

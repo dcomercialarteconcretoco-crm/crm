@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!forceParam && !cfg.enabled) {
-        return NextResponse.json({ releasedLeads, skipped: true, reason: 'Daily report disabled (toggle apagado en Configuración → Informe Diario, o el toggle nunca se persistió a la DB — verificá con ?debug=1)' });
+        return NextResponse.json({ releasedLeads, skipped: true, reason: 'Daily report disabled (toggle apagado en Configuración → Informe Diario, o el toggle nunca se persistió a la DB — verifica con ?debug=1)' });
     }
 
     const recipientIds: string[] = Array.isArray(cfg.recipients) ? cfg.recipients : [];
@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
             releasedLeads,
             skipped: true,
-            reason: 'No recipients configured. Pasá ?emails=foo@bar.com o configurá SUPERADMIN_EMAIL en env, o reparalo en Configuración → Informe Diario.',
+            reason: 'No recipients configured. Pasa ?emails=foo@bar.com o configura SUPERADMIN_EMAIL en env, o repáralo en Configuración → Informe Diario.',
         });
     }
 

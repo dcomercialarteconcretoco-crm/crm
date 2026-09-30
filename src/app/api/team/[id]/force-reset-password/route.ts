@@ -15,7 +15,7 @@ import { isGodUser } from "@/lib/god-user";
  *
  * Reglas:
  *   - Requiere sesión activa con team.manage.
- *   - Bloquea cambiar la contraseña del god user a menos que seas vos mismo.
+ *   - Bloquea cambiar la contraseña del god user a menos que seas tú mismo.
  *   - Limpia reset_token/reset_token_expires para invalidar links viejos
  *     que pudieran seguir vivos en algún correo.
  *
@@ -35,7 +35,7 @@ export async function POST(
     return NextResponse.json({ error: "Sesión requerida." }, { status: 401 });
   }
   if (!hasPermission({ role: session.role, permissions: session.permissions }, "team.manage")) {
-    return NextResponse.json({ error: "No tenés permiso para cambiar contraseñas." }, { status: 403 });
+    return NextResponse.json({ error: "No tienes permiso para cambiar contraseñas." }, { status: 403 });
   }
 
   const { id } = await params;

@@ -138,7 +138,7 @@ export function RelevoFields({
                                     Estás entregando TU puesto ({lockedOutgoing.name})
                                 </p>
                                 <p className="text-[11px] text-amber-800 mt-1 leading-relaxed">
-                                    Al guardar perdés el acceso al CRM en el acto y la sesión se cierra. La
+                                    Al guardar pierdes el acceso al CRM en el acto y la sesión se cierra. La
                                     persona que registres abajo entra con tu mismo rol y tus mismos permisos,
                                     pero con el historial en cero. Tu ficha queda archivada, no se borra.
                                 </p>
@@ -157,7 +157,7 @@ export function RelevoFields({
                                     onChange={(e) => onChange({ outgoingId: e.target.value })}
                                     className="w-full bg-muted border border-border rounded-xl px-3 pr-10 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:bg-white appearance-none transition-all cursor-pointer"
                                 >
-                                    <option value="">Seleccioná a la persona que sale…</option>
+                                    <option value="">Selecciona a la persona que sale…</option>
                                     {candidates.map((s) => (
                                         <option key={s.id} value={s.id}>
                                             {s.name} — {s.role} ({s.email})
@@ -243,8 +243,8 @@ export function RelevoFields({
                                                 Entra con tu mismo rol y tus mismos permisos
                                             </p>
                                             <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
-                                                No es opcional: entregando tu propio puesto no podés fabricarle al
-                                                sucesor más poder del que vos tenés.
+                                                No es opcional: entregando tu propio puesto no puedes fabricarle al
+                                                sucesor más poder del que tú tienes.
                                             </p>
                                         </div>
                                     ) : (

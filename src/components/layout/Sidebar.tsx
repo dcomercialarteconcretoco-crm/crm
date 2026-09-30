@@ -46,13 +46,13 @@ const navGroups = [
       { name: 'Autorizaciones', href: '/autorizaciones',icon: ShieldCheck,     permission: null,             superAdminOnly: true },
       { name: 'Pipeline',       href: '/pipeline',      icon: Workflow,        permission: 'pipeline.view'   },
       // Bandeja de Leads Crudos: pre-directorio. Universo de leads que aún no
-      // están calificados. Reusa clients.view por ahora (si podés ver clientes
+      // están calificados. Reusa clients.view por ahora (si puedes ver clientes
       // ves la bandeja); las acciones internas (asignar, eliminar, subir CSV)
       // chequean Admin/SuperAdmin server-side.
       { name: 'Leads Crudos',   href: '/raw-leads',     icon: Inbox,           permission: 'clients.view'    },
       { name: 'Clientes',       href: '/clients',       icon: Users,           permission: 'clients.view'    },
-      // Empresas reusa el permiso de clients.view: si podés ver clientes,
-      // podés ver las empresas que los agrupan. Nada nuevo en RBAC todavía.
+      // Empresas reusa el permiso de clients.view: si puedes ver clientes,
+      // puedes ver las empresas que los agrupan. Nada nuevo en RBAC todavía.
       { name: 'Empresas',       href: '/companies',     icon: Building2,       permission: 'clients.view'    },
     ],
   },

@@ -128,8 +128,8 @@ export function PipelineStagesEditor() {
                         Etapas del Pipeline
                     </h2>
                     <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
-                        Configurá cómo avanzan las cotizaciones por el kanban. El orden de la lista es el orden de
-                        izquierda a derecha. Marcá <strong>una etapa como "caliente"</strong> (mueve la tarjeta
+                        Configura cómo avanzan las cotizaciones por el kanban. El orden de la lista es el orden de
+                        izquierda a derecha. Marca <strong>una etapa como "caliente"</strong> (mueve la tarjeta
                         automáticamente cuando el cliente abre el correo) y <strong>una como "ganada"</strong> (al
                         soltar la tarjeta acá la cotización pasa a Aprobada y se dispara la Orden de Producción).
                     </p>

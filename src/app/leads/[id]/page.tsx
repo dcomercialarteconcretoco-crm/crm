@@ -262,7 +262,7 @@ export default function Lead360Page() {
             handleLogContact('QUOTE_SENT', `Catálogo PDF enviado a ${lead.email}`);
             addNotification({ title: 'Catálogo enviado', description: `Se envió el catálogo a ${lead.email}.`, type: 'success' });
         } catch (e) {
-            addNotification({ title: 'No se pudo enviar el catálogo', description: e instanceof Error ? e.message : 'Intentá de nuevo.', type: 'alert' });
+            addNotification({ title: 'No se pudo enviar el catálogo', description: e instanceof Error ? e.message : 'Intenta de nuevo.', type: 'alert' });
         } finally {
             setIsSendingCatalog(false);
         }

@@ -10,7 +10,7 @@ function ResetPasswordForm() {
   const params = useSearchParams();
   const token = params.get('token') || '';
   // welcome=1 viene del correo de activación inicial (cuando un admin invita
-  // a un nuevo miembro). Cambia el copy para que sea "elegí tu contraseña"
+  // a un nuevo miembro). Cambia el copy para que sea "elige tu contraseña"
   // en vez de "restablecer", que confundía a usuarios que nunca tuvieron una.
   const isWelcome = params.get('welcome') === '1';
 
@@ -107,7 +107,7 @@ function ResetPasswordForm() {
                   <p className="text-xs font-bold text-primary">{isWelcome ? `Hola ${userName} 👋` : `Hola, ${userName}`}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {isWelcome
-                      ? 'Definí la contraseña que vas a usar para entrar al CRM.'
+                      ? 'Define la contraseña que vas a usar para entrar al CRM.'
                       : 'Ingresa tu nueva contraseña a continuación.'}
                   </p>
                 </div>

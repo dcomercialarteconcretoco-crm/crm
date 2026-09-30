@@ -732,7 +732,7 @@ interface AppContextType {
     /** Re-fetch /api/companies idem. */
     refreshCompanies: () => Promise<void>;
     /** Cuántos leads crudos tiene asignados el usuario logueado y todavía no
-     *  trabajó (status='assigned'). Alimenta el badge "tenés N por trabajar"
+     *  trabajó (status='assigned'). Alimenta el badge "tienes N por trabajar"
      *  en el sidebar y el mobile nav para que sea EVIDENTE qué le asignaron. */
     assignedLeadsCount: number;
     /** Re-fetch del conteo de leads asignados (badge). Se llama al boot, al
@@ -1265,7 +1265,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 // que está activo cuando en realidad la DB tiene el valor viejo.
                 addNotification({
                     title: 'No se pudo guardar la configuración',
-                    description: `Error (${lastError}) al persistir cambios. Recargá y volvé a tocar el toggle.`,
+                    description: `Error (${lastError}) al persistir cambios. Recarga y vuelve a tocar el toggle.`,
                     type: 'alert',
                 });
             }
@@ -2062,7 +2062,7 @@ REGLAS DE ORO:
             setClients(prev => prev.filter(c => c.id !== id));
             addNotification({
                 title: 'Error de red al guardar contacto',
-                description: `No se pudo guardar ${newClient.name}. Revisá la conexión e intentalo otra vez.`,
+                description: `No se pudo guardar ${newClient.name}. Revisa la conexión e inténtalo otra vez.`,
                 type: 'alert',
             });
         });
@@ -2411,7 +2411,7 @@ REGLAS DE ORO:
     ): Promise<{ ok: boolean; error?: string; newNumber?: string }> => {
         const target = quotes.find(q => q.id === quoteId);
         if (!target) {
-            return { ok: false, error: 'La cotización no está en memoria. Recargá la página (F5) e intentá de nuevo.' };
+            return { ok: false, error: 'La cotización no está en memoria. Recarga la página (F5) e intenta de nuevo.' };
         }
 
         // Normalizar a raíz: mayúsculas, sin espacios, sin sufijos -V{n}/-AIU
@@ -2422,7 +2422,7 @@ REGLAS DE ORO:
             .replace(/-AIU$/i, '')
             .replace(/-V\d+(?=-\d{4}$)/i, '')
             .replace(/-V\d+$/i, '');
-        if (!newBase) return { ok: false, error: 'Escribí el número nuevo.' };
+        if (!newBase) return { ok: false, error: 'Escribe el número nuevo.' };
 
         const oldRoot = quoteRootKey(target);
         if (!oldRoot) return { ok: false, error: 'Esta cotización no tiene número base para renombrar.' };
@@ -2435,7 +2435,7 @@ REGLAS DE ORO:
             const conflictLabel = conflict.quoteNumber || conflict.number || newBase;
             return {
                 ok: false,
-                error: `Ya existe ${conflictLabel}${conflict.client ? ` (${conflict.client})` : ''}${conflict.isHistorical ? ' en el archivo histórico' : ''}. Elegí otro número.`,
+                error: `Ya existe ${conflictLabel}${conflict.client ? ` (${conflict.client})` : ''}${conflict.isHistorical ? ' en el archivo histórico' : ''}. Elige otro número.`,
             };
         }
 
@@ -2488,7 +2488,7 @@ REGLAS DE ORO:
             : {
                 ok: false,
                 newNumber,
-                error: 'El cambio quedó en este navegador y el sistema lo reintentará automáticamente — dejá la pestaña abierta hasta que desaparezca el aviso de cambios sin guardar.',
+                error: 'El cambio quedó en este navegador y el sistema lo reintentará automáticamente — deja la pestaña abierta hasta que desaparezca el aviso de cambios sin guardar.',
             };
     };
 
@@ -3062,7 +3062,7 @@ REGLAS DE ORO:
         if (sellerToDelete?.role === 'SuperAdmin' || sellerToDelete?.role === 'Admin') {
             return {
                 ok: false,
-                error: 'REGLA DE SEGURIDAD: las cuentas de administrador no se borran. Usá "Dar de baja / Relevar".',
+                error: 'REGLA DE SEGURIDAD: las cuentas de administrador no se borran. Usa "Dar de baja / Relevar".',
             };
         }
         try {
@@ -3123,7 +3123,7 @@ REGLAS DE ORO:
             console.error('[updateSettings] persist failed, reverting:', error);
             addNotification({
                 title: 'No se pudieron guardar los ajustes',
-                description: 'Hubo un problema con la red. El cambio fue revertido — volvé a intentarlo.',
+                description: 'Hubo un problema con la red. El cambio fue revertido — vuelve a intentarlo.',
                 type: 'alert',
             });
         }

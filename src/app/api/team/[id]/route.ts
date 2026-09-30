@@ -66,7 +66,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json(
         {
           error:
-            'Esta persona fue dada de baja. Su ficha queda congelada para la auditoría: si necesitas a alguien en ese puesto, registra un reemplazo; si la baja fue un error, reactivá la cuenta.',
+            'Esta persona fue dada de baja. Su ficha queda congelada para la auditoría: si necesitas a alguien en ese puesto, registra un reemplazo; si la baja fue un error, reactiva la cuenta.',
         },
         { status: 409 }
       );
@@ -108,8 +108,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       reinstated: true,
       identityRestored: Boolean(canRestoreIdentity),
       note: canRestoreIdentity
-        ? 'Cuenta reactivada con su correo original. Reenviale la invitación para que defina contraseña.'
-        : 'Cuenta reactivada, pero su correo original ya lo tiene otra persona. Editá el correo y reenviale la invitación.',
+        ? 'Cuenta reactivada con su correo original. Reenvíale la invitación para que defina contraseña.'
+        : 'Cuenta reactivada, pero su correo original ya lo tiene otra persona. Edita el correo y reenvíale la invitación.',
     });
   }
 
@@ -214,7 +214,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
           `${target.name} tiene historial en el sistema (${footprint.kept.quotes} cotizaciones, ` +
           `${footprint.movable.clients} clientes, ${footprint.kept.contactEvents} registros de contacto). ` +
           'Borrarlo dejaría esos registros sin dueño y sin nombre en una auditoría. ' +
-          'Usá "Dar de baja / Relevar": la persona sale del sistema y su cartera pasa a quien la reemplace.',
+          'Usa "Dar de baja / Relevar": la persona sale del sistema y su cartera pasa a quien la reemplace.',
         requiresHandover: true,
         footprint,
       },

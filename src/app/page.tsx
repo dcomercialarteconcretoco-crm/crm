@@ -164,7 +164,7 @@ export default function Home() {
       setTimeout(() => URL.revokeObjectURL(url), 4000);
       addNotification({ title: 'Catálogo descargado', description: 'PDF generado con la fecha y hora actual.', type: 'success' });
     } catch (e) {
-      addNotification({ title: 'No se pudo generar el catálogo', description: e instanceof Error ? e.message : 'Intentá de nuevo.', type: 'alert' });
+      addNotification({ title: 'No se pudo generar el catálogo', description: e instanceof Error ? e.message : 'Intenta de nuevo.', type: 'alert' });
     } finally {
       setIsCatalogLoading(false);
     }

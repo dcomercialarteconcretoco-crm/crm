@@ -33,7 +33,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Sesión requerida." }, { status: 401 });
   }
   if (!hasPermission({ role: session.role, permissions: session.permissions }, "team.manage")) {
-    return NextResponse.json({ error: "No tenés permiso para reenviar invitaciones." }, { status: 403 });
+    return NextResponse.json({ error: "No tienes permiso para reenviar invitaciones." }, { status: 403 });
   }
 
   const { id } = await params;
@@ -62,12 +62,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // devolverle el acceso por la puerta de atrás.
   if (user.archived_at) {
     return NextResponse.json(
-      { error: `${user.name} fue dado de baja. Reactivá la cuenta antes de reenviar la invitación.` },
+      { error: `${user.name} fue dado de baja. Reactiva la cuenta antes de reenviar la invitación.` },
       { status: 409 }
     );
   }
   if (!user.email) {
-    return NextResponse.json({ error: "Este usuario no tiene email registrado. Editalo primero y agregale uno." }, { status: 400 });
+    return NextResponse.json({ error: "Este usuario no tiene email registrado. Edítalo primero y agrégale uno." }, { status: 400 });
   }
 
   const token = crypto.randomBytes(32).toString("hex");
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!resendKey) {
     return NextResponse.json({
       ok: false,
-      error: "RESEND_API_KEY no configurada en el server. Pasale el link manualmente.",
+      error: "RESEND_API_KEY no configurada en el server. Pásale el link manualmente.",
       activationUrl,
     }, { status: 500 });
   }
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             <strong>${inviterName}</strong> te dio acceso al CRM Intelligence de ArteConcreto con el rol de <strong style="color:#fab510;">${user.role}</strong>.
           </p>
           <p style="margin:0 0 32px;font-size:14px;color:#555;line-height:1.6;">
-            Para empezar a usarlo, definí tu contraseña haciendo clic en el botón. El enlace es válido durante <strong>24 horas</strong>.
+            Para empezar a usarlo, define tu contraseña haciendo clic en el botón. El enlace es válido durante <strong>24 horas</strong>.
           </p>
           <div style="text-align:center;margin-bottom:32px;">
             <a href="${activationUrl}" style="display:inline-block;background:#fab510;color:#111;text-decoration:none;font-weight:900;font-size:13px;letter-spacing:0.1em;text-transform:uppercase;padding:16px 40px;border-radius:12px;">
@@ -115,10 +115,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             </a>
           </div>
           <p style="margin:0 0 8px;font-size:12px;color:#999;line-height:1.6;">
-            Si el enlace expira, pedile al administrador que te reenvíe la invitación.
+            Si el enlace expira, pídele al administrador que te reenvíe la invitación.
           </p>
           <p style="margin:0;font-size:11px;color:#bbb;">
-            O copiá y pegá este enlace en tu navegador:<br/>
+            O copia y pega este enlace en tu navegador:<br/>
             <span style="color:#fab510;word-break:break-all;">${activationUrl}</span>
           </p>
         </td></tr>
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       body: JSON.stringify({
         from: getFromEmail(),
         to: [user.email],
-        subject: "Bienvenido al CRM ArteConcreto — Activá tu cuenta",
+        subject: "Bienvenido al CRM ArteConcreto — Activa tu cuenta",
         html,
       }),
     });

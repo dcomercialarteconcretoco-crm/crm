@@ -243,7 +243,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 });
                 setRenameDraft(null);
             } else {
-                addNotification({ title: 'No se pudo cambiar el número', description: res.error || 'Intentá de nuevo.', type: 'alert' });
+                addNotification({ title: 'No se pudo cambiar el número', description: res.error || 'Intenta de nuevo.', type: 'alert' });
                 // Caso "quedó encolado": el número local ya cambió y el retry lo persiste.
                 if (res.newNumber) setRenameDraft(null);
             }
@@ -257,7 +257,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
         if (!isQuoteNumberConflict) return true;
         addNotification({
             title: 'Número de cotización duplicado',
-            description: `Ya existe ${conflictingQuote?.quoteNumber || conflictingQuote?.number}. Cambialo o dejá el campo vacío para usar el consecutivo automático.`,
+            description: `Ya existe ${conflictingQuote?.quoteNumber || conflictingQuote?.number}. Cámbialo o deja el campo vacío para usar el consecutivo automático.`,
             type: 'alert',
         });
         return false;
@@ -1354,7 +1354,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                             onChange={(e) => setCustomQuoteNumber(e.target.value)}
                             placeholder={`${autoPreviewNumber} (automático)`}
                             className="w-full bg-white border-2 border-dashed border-primary/50 rounded-lg pl-3 pr-9 py-1.5 text-sm font-black text-primary outline-none focus:border-solid focus:border-primary transition-all placeholder:text-primary/50 placeholder:font-bold"
-                            title="Dejá vacío para usar el consecutivo automático, o escribí el número de un pedido anterior"
+                            title="Deja vacío para usar el consecutivo automático, o escribe el número de un pedido anterior"
                         />
                         <Pencil className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-primary/60 pointer-events-none" />
                     </div>
@@ -1371,7 +1371,7 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                 </div>
                 {!customQuoteNumber.trim() && (
                     <p className="text-[11px] text-muted-foreground mt-2 ml-7 leading-relaxed">
-                        El número sale solo. <strong className="text-foreground">¿Es la actualización de un pedido anterior?</strong> Escribí su número en el campo.
+                        El número sale solo. <strong className="text-foreground">¿Es la actualización de un pedido anterior?</strong> Escribe su número en el campo.
                     </p>
                 )}
                 {customQuoteNumber.trim() && isQuoteNumberConflict && conflictingQuote && (
@@ -1383,14 +1383,14 @@ export default function QuoteEngine({ defaultClientId = '', editQuoteId }: Quote
                         </p>
                         {conflictingQuote.isHistorical ? (
                             <p>
-                                Es una cotización histórica (PDF subido). Para actualizarla, agregale una versión al
+                                Es una cotización histórica (PDF subido). Para actualizarla, agrégale una versión al
                                 número — por ejemplo <strong>{(conflictingQuote.quoteNumber || conflictingQuote.number || '').replace(/-AIU$/i, '')}-V2</strong>.
                             </p>
                         ) : (
                             <p>
                                 Si es una actualización de ese pedido,{' '}
                                 <a href={`/quotes/${conflictingQuote.id}/edit`} className="font-bold underline hover:text-rose-900">
-                                    abrila y creá una nueva versión
+                                    ábrela y crea una nueva versión
                                 </a>{' '}
                                 — conserva el número y deja el historial completo.
                             </p>

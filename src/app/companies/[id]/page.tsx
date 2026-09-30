@@ -199,7 +199,7 @@ export default function CompanyDetailPage() {
                             <User className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
                             <p className="text-xs font-bold text-muted-foreground">Esta empresa todavía no tiene contactos asignados</p>
                             <p className="text-[11px] text-muted-foreground/70 mt-1">
-                                Andá a un lead existente y editalo para asociarlo a {company.name}, o creá uno nuevo.
+                                Ve a un lead existente y edítalo para asociarlo a {company.name}, o crea uno nuevo.
                             </p>
                         </div>
                     ) : (

@@ -241,7 +241,7 @@ function SortableTask({ task, onClick, onNote, stages }: { task: Task; onClick: 
         if (!opened) {
             addNotification({
                 title: 'Sin WhatsApp',
-                description: 'Este contacto no tiene teléfono ni usuario de WhatsApp. Agregá uno en su ficha.',
+                description: 'Este contacto no tiene teléfono ni usuario de WhatsApp. Agrega uno en su ficha.',
                 type: 'alert',
             });
             return;
@@ -916,7 +916,7 @@ export default function PipelinePage() {
         if (manualQuoteNumberConflict) {
             addNotification({
                 title: 'Número de cotización duplicado',
-                description: `Ya existe ${manualQuoteNumberConflict.quoteNumber || manualQuoteNumberConflict.number}. Cambialo o deja el campo vacío.`,
+                description: `Ya existe ${manualQuoteNumberConflict.quoteNumber || manualQuoteNumberConflict.number}. Cámbialo o deja el campo vacío.`,
                 type: 'alert',
             });
             return;
@@ -1950,7 +1950,7 @@ export default function PipelinePage() {
                                                 );
                                             })()
                                         ) : (
-                                            <p className="text-[10px] text-muted-foreground mt-2 uppercase tracking-widest">Tipeá el valor manual del negocio</p>
+                                            <p className="text-[10px] text-muted-foreground mt-2 uppercase tracking-widest">Digita el valor manual del negocio</p>
                                         )}
                                     </div>
                                 </div>

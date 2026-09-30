@@ -82,6 +82,6 @@ export async function POST(request: NextRequest) {
         });
     } catch (error) {
         console.error('[public/catalogo] error generando PDF:', error);
-        return NextResponse.json({ error: 'No se pudo generar el catálogo. Intentá de nuevo.' }, { status: 500, headers: CORS });
+        return NextResponse.json({ error: 'No se pudo generar el catálogo. Intenta de nuevo.' }, { status: 500, headers: CORS });
     }
 }

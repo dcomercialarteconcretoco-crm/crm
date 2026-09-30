@@ -50,7 +50,7 @@ export default function SectorSelect({ value, onChange, selectClassName }: Secto
     const handleCreate = async () => {
         const normalized = normalizeSector(draft);
         if (!normalized) {
-            addNotification({ title: 'Sector inválido', description: 'Escribí un nombre.', type: 'alert' });
+            addNotification({ title: 'Sector inválido', description: 'Escribe un nombre.', type: 'alert' });
             return;
         }
         const exists = sectors.some(s => s.trim().toLowerCase() === normalized.toLowerCase());

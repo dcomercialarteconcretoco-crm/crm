@@ -8,7 +8,7 @@
  * crear empresa nueva. El click en una fila lleva a /companies/[id] donde se
  * ven los contactos asociados.
  *
- * Permisos: reusa `clients.view` (si podés ver clientes, podés ver empresas
+ * Permisos: reusa `clients.view` (si puedes ver clientes, puedes ver empresas
  * que los agrupan). No hay un permiso companies.* nuevo todavía.
  */
 
@@ -140,7 +140,7 @@ export default function CompaniesPage() {
             } else {
                 addNotification({
                     title: 'No se pudo crear',
-                    description: 'Verificá la conexión y volvé a intentar.',
+                    description: 'Verifica la conexión y vuelve a intentar.',
                     type: 'alert',
                 });
             }
@@ -190,7 +190,7 @@ export default function CompaniesPage() {
                         </p>
                         {!search.trim() && (
                             <p className="text-xs text-muted-foreground/70 mt-1">
-                                Las empresas aparecen automáticamente cuando creás un lead con empresa, o las podés crear acá.
+                                Las empresas aparecen automáticamente cuando creas un lead con empresa, o las puedes crear acá.
                             </p>
                         )}
                     </div>

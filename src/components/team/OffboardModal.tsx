@@ -120,7 +120,7 @@ export function OffboardModal({
                     ? `${seller.name} quedó archivado. ${parts.join(', ')} pasaron a ${receiver.name}.${correo}`
                     : receiver
                       ? `${seller.name} quedó archivado.${correo}`
-                      : `${seller.name} quedó archivado. Su cartera sigue a su nombre — reasignala cuando definas quién la toma.`
+                      : `${seller.name} quedó archivado. Su cartera sigue a su nombre — reasígnala cuando definas quién la toma.`
             );
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Error de red');

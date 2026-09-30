@@ -769,7 +769,7 @@ export default function SettingsPage() {
                                     const recipientIds = dr.recipients || [];
                                     const extraEmails = dr.extraEmails || [];
                                     if (recipientIds.length === 0 && extraEmails.length === 0) {
-                                        setStatus('error', 'Agregá destinatarios', 'Marcá al menos un vendedor o agregá un correo externo arriba.');
+                                        setStatus('error', 'Agrega destinatarios', 'Marca al menos un vendedor o agrega un correo externo arriba.');
                                         return;
                                     }
                                     const res = await fetch('/api/daily-report/send', {
@@ -781,7 +781,7 @@ export default function SettingsPage() {
                                     if (res.ok) {
                                         setStatus('success', '✅ Informe DEMO enviado', `Destinatarios: ${(data.sentTo || []).join(', ')}`);
                                     } else {
-                                        setStatus('error', 'Error enviando DEMO', data.error || `HTTP ${res.status} — revisá RESEND_API_KEY`);
+                                        setStatus('error', 'Error enviando DEMO', data.error || `HTTP ${res.status} — revisa RESEND_API_KEY`);
                                     }
                                 } catch (err) {
                                     setStatus('error', 'Error de red', String(err));
@@ -802,7 +802,7 @@ export default function SettingsPage() {
                                     const recipientIds = dr.recipients || [];
                                     const extraEmails = dr.extraEmails || [];
                                     if (recipientIds.length === 0 && extraEmails.length === 0) {
-                                        setStatus('error', 'Agregá destinatarios', 'Marcá al menos un vendedor o agregá un correo externo arriba.');
+                                        setStatus('error', 'Agrega destinatarios', 'Marca al menos un vendedor o agrega un correo externo arriba.');
                                         return;
                                     }
                                     const res = await fetch('/api/daily-report/send', {
@@ -814,7 +814,7 @@ export default function SettingsPage() {
                                     if (res.ok) {
                                         setStatus('success', `✅ ${labels[reportType]} enviado`, `Destinatarios: ${(data.sentTo || []).join(', ')}`);
                                     } else {
-                                        setStatus('error', `Error enviando ${labels[reportType]}`, data.error || `HTTP ${res.status} — revisá los logs del servidor`);
+                                        setStatus('error', `Error enviando ${labels[reportType]}`, data.error || `HTTP ${res.status} — revisa los logs del servidor`);
                                     }
                                 } catch (err) {
                                     setStatus('error', 'Error de red', String(err));
@@ -1020,7 +1020,7 @@ export default function SettingsPage() {
                                             <div>
                                                 <h4 className="text-sm font-black text-foreground">Disparar cierre ahora</h4>
                                                 <p className="text-xs text-muted-foreground mt-0.5">
-                                                    Manda el correo con datos REALES a los destinatarios configurados. Útil si el cron no llegó o querés probar el cierre semanal/mensual sin esperar.
+                                                    Manda el correo con datos REALES a los destinatarios configurados. Útil si el cron no llegó o quieres probar el cierre semanal/mensual sin esperar.
                                                 </p>
                                             </div>
                                         </div>

@@ -292,7 +292,7 @@ export default function TeamPage() {
         // (crear usuario + reasignar) es lo que dejaría media empresa a medias
         // si falla la segunda mitad.
         if (!relevo.outgoingId) {
-            setSaveError('Elegí a quién reemplaza.');
+            setSaveError('Elige a quién reemplaza.');
             return;
         }
         savingRef.current = true;
@@ -341,7 +341,7 @@ export default function TeamPage() {
             const activationNote = data.activation?.sent
                 ? ` Le llegó la invitación a ${data.incoming?.email}.`
                 : data.activation?.error
-                  ? ` OJO: no salió el correo de invitación (${data.activation.error}). Usá "Reenviar invitación".`
+                  ? ` OJO: no salió el correo de invitación (${data.activation.error}). Usa "Reenviar invitación".`
                   : '';
             setFlash(
                 `${data.incoming?.name} entró en el puesto de ${data.outgoing?.name}. ` +
@@ -374,7 +374,7 @@ export default function TeamPage() {
 
     const handleDelete = async (id: string) => {
         const target = sellers.find(s => s.id === id);
-        if (!confirm(`¿Eliminar definitivamente la cuenta de ${target?.name || 'este miembro'}?\n\nSolo procede si nunca registró nada. Si ya trabajó, usá "Dar de baja / Relevar".`)) return;
+        if (!confirm(`¿Eliminar definitivamente la cuenta de ${target?.name || 'este miembro'}?\n\nSolo procede si nunca registró nada. Si ya trabajó, usa "Dar de baja / Relevar".`)) return;
         const result = await deleteSeller(id);
         if (!result.ok) {
             alert(`No se pudo eliminar.\n\n${result.error}`);
@@ -451,7 +451,7 @@ export default function TeamPage() {
             });
             const data = await res.json();
             if (res.ok && data.ok) {
-                alert(`✅ Contraseña actualizada para ${forceResetSeller.name}.\n\nDecile que entre con su email/usuario y la nueva clave.`);
+                alert(`✅ Contraseña actualizada para ${forceResetSeller.name}.\n\nDile que entre con su email/usuario y la nueva clave.`);
                 setForceResetSeller(null);
                 setForceResetPwd('');
                 setForceResetPwd2('');
@@ -467,7 +467,7 @@ export default function TeamPage() {
 
     const handleResendActivation = async (seller: Seller) => {
         if (!seller.email) {
-            alert('Este usuario no tiene email registrado. Editalo y agregale uno antes de reenviar.');
+            alert('Este usuario no tiene email registrado. Edítalo y agrégale uno antes de reenviar.');
             return;
         }
         if (!confirm(`¿Reenviar correo de activación a ${seller.name} (${seller.email})?\n\nEl link será válido por 24 horas y reemplaza cualquier link anterior.`)) {
@@ -478,10 +478,10 @@ export default function TeamPage() {
             const res = await fetch(`/api/team/${seller.id}/resend-activation`, { method: 'POST' });
             const data = await res.json();
             if (res.ok && data.ok) {
-                alert(`✅ Correo de activación enviado a ${data.sentTo}.\n\nDecile al usuario que revise inbox y carpeta de Spam.`);
+                alert(`✅ Correo de activación enviado a ${data.sentTo}.\n\nDile al usuario que revise la bandeja de entrada y la carpeta de spam.`);
             } else {
                 const fallback = data.activationUrl
-                    ? `\n\nPodés pasarle el link manualmente:\n${data.activationUrl}`
+                    ? `\n\nPuedes pasarle el link manualmente:\n${data.activationUrl}`
                     : '';
                 alert(`❌ No se pudo enviar el correo.\n\n${data.error || `HTTP ${res.status}`}${fallback}`);
             }
@@ -688,7 +688,7 @@ export default function TeamPage() {
                                         <button
                                             onClick={() => setOffboardSeller(seller)}
                                             className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-700 text-slate-700 hover:text-white font-bold text-xs transition-all border border-slate-200"
-                                            title="La persona sale de la empresa: pierde el acceso, sale de la rotación de leads y su cartera pasa a quien vos elijas. Su historial queda intacto."
+                                            title="La persona sale de la empresa: pierde el acceso, sale de la rotación de leads y su cartera pasa a quien elijas. Su historial queda intacto."
                                         >
                                             <UserMinus className="w-3.5 h-3.5" />
                                             Dar de baja / Relevar
@@ -835,7 +835,7 @@ export default function TeamPage() {
                             </div>
                             <p className="text-[11px] text-muted-foreground leading-relaxed">
                                 Vas a definir una contraseña nueva directamente. Útil cuando el correo de recuperación no llega.
-                                Decile al usuario la clave por un canal seguro y que la cambie cuando entre.
+                                Dile al usuario la clave por un canal seguro y que la cambie cuando entre.
                             </p>
                             <div>
                                 <label className="block text-xs font-bold uppercase tracking-wide text-foreground mb-1.5">
@@ -870,7 +870,7 @@ export default function TeamPage() {
                                         type={forceResetShow ? 'text' : 'password'}
                                         value={forceResetPwd2}
                                         onChange={(e) => setForceResetPwd2(e.target.value)}
-                                        placeholder="Repetí la contraseña"
+                                        placeholder="Repite la contraseña"
                                         className="w-full bg-muted border border-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:bg-white transition-all placeholder:text-muted-foreground/60"
                                     />
                                 </div>

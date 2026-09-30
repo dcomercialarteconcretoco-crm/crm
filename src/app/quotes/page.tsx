@@ -153,7 +153,7 @@ export default function QuotesPage() {
         if (!channel) {
             addNotification({
                 title: 'Sin WhatsApp',
-                description: 'Este cliente no tiene teléfono ni usuario de WhatsApp. Agregá uno en su ficha.',
+                description: 'Este cliente no tiene teléfono ni usuario de WhatsApp. Agrega uno en su ficha.',
                 type: 'alert',
             });
         }

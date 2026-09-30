@@ -50,7 +50,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   );
   if (conflict.rows[0]) {
     return NextResponse.json(
-      { error: "Ya existe otra empresa con ese nombre. Probá con uno distinto." },
+      { error: "Ya existe otra empresa con ese nombre. Prueba con uno distinto." },
       { status: 409 }
     );
   }

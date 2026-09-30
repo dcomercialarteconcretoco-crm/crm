@@ -88,7 +88,7 @@ export default function InventoryPage() {
         } catch (e) {
             addNotification({
                 title: 'No se pudo generar el catálogo',
-                description: e instanceof Error ? e.message : 'Intentá de nuevo.',
+                description: e instanceof Error ? e.message : 'Intenta de nuevo.',
                 type: 'alert',
             });
         } finally {

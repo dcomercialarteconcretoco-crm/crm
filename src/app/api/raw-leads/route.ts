@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'lead o leads[] requerido' }, { status: 400 });
     }
     if (incoming.length > MAX_BULK_ROWS) {
-        return NextResponse.json({ error: `Máximo ${MAX_BULK_ROWS} filas por POST. Partí el CSV en chunks.` }, { status: 413 });
+        return NextResponse.json({ error: `Máximo ${MAX_BULK_ROWS} filas por POST. Divide el CSV en partes más pequeñas.` }, { status: 413 });
     }
 
     // Bulk (CSV) requiere admin — toca la cola compartida del equipo.
