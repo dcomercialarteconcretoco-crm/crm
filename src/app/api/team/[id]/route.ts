@@ -86,9 +86,29 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     );
     const canRestoreIdentity = original && taken.length === 0;
 
+    // Lo que la baja apagó y hay que devolver. Antes la reactivación solo
+    // cambiaba el estado: la persona volvía SIN leads automáticos (la baja
+    // pone receives_leads = false) y con su tarjeta digital apagada, en
+    // silencio. Pasó con Brayan el 30-sep-2026 y hubo que arreglarlo a mano.
+    // El acta de la baja guarda el valor previo y las tarjetas exactas que
+    // apagó; las actas viejas no lo traen y ahí no se adivina.
+    const { rows: actaRows } = await pool.query(
+      `SELECT options FROM crm_handovers WHERE outgoing_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [id]
+    );
+    const actaOptions = (actaRows[0]?.options || {}) as {
+      previousReceivesLeads?: boolean;
+      deactivatedBiolinkIds?: string[];
+    };
+    const restoreLeads = typeof actaOptions.previousReceivesLeads === 'boolean'
+      ? actaOptions.previousReceivesLeads
+      : true; // valor por defecto de la columna: así estaba antes de la baja
+    const cardIds = Array.isArray(actaOptions.deactivatedBiolinkIds) ? actaOptions.deactivatedBiolinkIds : null;
+
     await pool.query(
       `UPDATE crm_users SET
          status = 'Activo',
+         receives_leads = $5,
          archived_at = NULL,
          archived_by = NULL,
          archived_by_name = NULL,
@@ -100,16 +120,39 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
          original_username = NULL,
          updated_at = NOW()
        WHERE id = $1`,
-      [id, Boolean(canRestoreIdentity), original, originalUser]
+      [id, Boolean(canRestoreIdentity), original, originalUser, restoreLeads]
     );
+
+    let cardsReactivated = 0;
+    if (cardIds && cardIds.length > 0) {
+      const r = await pool.query(
+        `UPDATE crm_biolinks SET active = TRUE, updated_at = NOW()
+         WHERE id = ANY($1) AND seller_id = $2 AND NOT active`,
+        [cardIds, id]
+      );
+      cardsReactivated = r.rowCount ?? 0;
+    }
+
+    const notes = [
+      canRestoreIdentity
+        ? 'Cuenta reactivada con su correo original.'
+        : 'Cuenta reactivada, pero su correo original ya lo tiene otra persona: edita el correo.',
+      restoreLeads ? 'Vuelve a recibir leads automáticos.' : 'Sigue sin recibir leads automáticos (así estaba antes de la baja).',
+      cardsReactivated > 0
+        ? `Su tarjeta digital volvió a quedar publicada.`
+        : cardIds === null
+          ? 'Si usaba tarjeta digital, actívala desde Tarjetas Digitales.'
+          : '',
+      'Reenvíale la invitación (o cámbiale la contraseña) para que pueda entrar.',
+    ].filter(Boolean);
 
     return NextResponse.json({
       ok: true,
       reinstated: true,
       identityRestored: Boolean(canRestoreIdentity),
-      note: canRestoreIdentity
-        ? 'Cuenta reactivada con su correo original. Reenvíale la invitación para que defina contraseña.'
-        : 'Cuenta reactivada, pero su correo original ya lo tiene otra persona. Edita el correo y reenvíale la invitación.',
+      receivesLeads: restoreLeads,
+      cardsReactivated,
+      note: notes.join(' '),
     });
   }
 

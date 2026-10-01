@@ -112,8 +112,16 @@ export function OffboardModal({
                 moved.rawLeads ? `${moved.rawLeads} leads` : null,
                 moved.openDeals ? `${moved.openDeals} negocios abiertos` : null,
             ].filter(Boolean);
-            const correo = data.identityHandedTo?.email
-                ? ` ${receiver?.name} quedó con el correo ${data.identityHandedTo.email}.`
+            // El aviso más importante va primero: a quien recibe el correo del
+            // cargo le cambia el usuario con el que entra al CRM. Sin esto
+            // (30-sep-2026), Jefferson quedó entrando con gestor3@ en vez de
+            // asesor4@ y nadie se lo dijo.
+            const handed = data.identityHandedTo;
+            const correo = handed?.email
+                ? ` ${receiver?.name} ahora entra al CRM con ${handed.email}` +
+                  (handed.previousEmail && handed.previousEmail !== handed.email
+                      ? `; ${handed.previousEmail} ya no le sirve para iniciar sesión. Avísale.`
+                      : '.')
                 : '';
             onDone(
                 receiver && parts.length
@@ -234,7 +242,7 @@ export function OffboardModal({
                                         </p>
                                         <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
                                             {inheritIdentity
-                                                ? `El correo es del puesto: ${receiver?.name} entra con él y ${seller.name} queda archivado con una copia sellada. Su correo actual queda libre.`
+                                                ? `${receiver?.name} va a entrar al CRM con ${seller.email} y deja de usar ${receiver?.email || 'su correo actual'}. Avísale antes de confirmar: le cambia el usuario de ingreso.`
                                                 : `${receiver?.name} conserva su propio correo. El del cargo queda congelado con ${seller.name} y nadie lo puede usar.`}
                                         </p>
                                     </div>

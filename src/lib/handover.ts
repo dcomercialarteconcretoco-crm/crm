@@ -330,6 +330,13 @@ export type HandoverInput = {
     performedBy: { id: string; name: string };
 };
 
+export type IdentityHandedTo = {
+    id: string;
+    email: string | null;
+    previousEmail: string | null;
+    previousUsername: string | null;
+};
+
 export type HandoverResult = {
     handoverId: string;
     incomingId: string | null;
@@ -337,8 +344,12 @@ export type HandoverResult = {
     kept: KeptCounts;
     /** Correo/usuario con el que quedó archivado el que sale. */
     archivedIdentity: { email: string | null; username: string | null };
-    /** Cuando el correo del cargo pasó a un compañero que ya estaba. */
-    identityHandedTo: { id: string; email: string | null } | null;
+    /**
+     * Cuando el correo del cargo pasó a un compañero que ya estaba. Incluye el
+     * correo con el que ese compañero entraba ANTES: desde ese momento ya no le
+     * sirve para iniciar sesión, y hay que avisarle.
+     */
+    identityHandedTo: IdentityHandedTo | null;
 };
 
 export async function performHandover(
@@ -378,7 +389,8 @@ export async function performHandover(
         email: outgoing.email,
         username: outgoing.username,
     };
-    let identityHandedTo: { id: string; email: string | null } | null = null;
+    let identityHandedTo: IdentityHandedTo | null = null;
+    let deactivatedBiolinkIds: string[] = [];
     const handoverId = `ho-${Date.now()}`;
 
     try {
@@ -453,6 +465,15 @@ export async function performHandover(
         // ocupe ESE puesto después; nada histórico lo referencia, porque todo
         // en el sistema apunta a su id, no a su correo.
         if (identityGoesToExistingMember && receiver) {
+            // Antes se pisaba el correo del compañero sin dejar rastro: el
+            // 30-sep-2026 Jefferson pasó de asesor4@ a gestor3@ al recibir la
+            // cartera de Eliecer, y nadie supo con qué correo entraba ahora.
+            // Se guarda en el acta y vuelve en la respuesta para avisarle.
+            const { rows: prevRows } = await client.query(
+                `SELECT email, username FROM crm_users WHERE id = $1 FOR UPDATE`,
+                [receiver.id]
+            );
+            const previous = prevRows[0] || {};
             await client.query(
                 `UPDATE crm_users
                  SET email = COALESCE($2, email),
@@ -469,7 +490,12 @@ export async function performHandover(
                  WHERE seller_id = $1 AND COALESCE(email, '') <> ''`,
                 [receiver.id, outgoing.email]
             );
-            identityHandedTo = { id: receiver.id, email: outgoing.email };
+            identityHandedTo = {
+                id: receiver.id,
+                email: outgoing.email,
+                previousEmail: previous.email ?? null,
+                previousUsername: previous.username ?? null,
+            };
         }
 
         if (incoming) {
@@ -506,6 +532,10 @@ export async function performHandover(
             [outgoing.id]
         );
         moved.biolinksDeactivated = bio.rowCount ?? 0;
+        // Se anotan CUÁLES se apagaron: si la baja fue un error y se reactiva a
+        // la persona, se prenden exactamente esas — no otras que ya estuvieran
+        // apagadas a propósito.
+        deactivatedBiolinkIds = bio.rows.map((r: { id: string }) => r.id);
 
         if (incoming) {
             const bioId = `bl-${incoming.id}`;
@@ -675,6 +705,9 @@ export async function performHandover(
                     fallbackOwnerId: fallbackOwner?.id ?? null,
                     archivedIdentity,
                     identityHandedTo,
+                    // Para reactivar sin adivinar (ver PUT /api/team/[id] unarchive):
+                    previousReceivesLeads: outgoing.receives_leads,
+                    deactivatedBiolinkIds,
                 }),
                 JSON.stringify(moved),
                 JSON.stringify(kept),
